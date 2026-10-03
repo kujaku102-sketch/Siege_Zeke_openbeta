@@ -1,0 +1,75 @@
+body:not(.boot-done) #app { visibility: hidden; }
+
+#boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #fff;
+  color: #231815;
+}
+
+#boot-splash[hidden], #boot-splash [hidden] { display: none !important; }
+
+.boot-splash-scene {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  box-sizing: border-box;
+}
+
+.boot-splash-scene img {
+  display: block;
+  width: min(86vw, 840px);
+  height: min(60vh, 420px);
+  object-fit: contain;
+}
+
+.boot-splash-scene[data-boot-scene="haven"] img { transform: scale(1.55); }
+
+.boot-splash-blackout {
+  position: absolute;
+  inset: 0;
+  background: #050506;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 400ms ease-in-out;
+}
+
+.boot-splash-blackout.is-dark { opacity: 1; }
+
+.boot-splash-skip {
+  position: absolute;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  color: #5d5a59;
+  font: 600 13px/1.4 system-ui, sans-serif;
+  letter-spacing: .12em;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.boot-splash-skip:hover, .boot-splash-skip:focus-visible { color: #111; text-decoration: underline; }
+
+.boot-splash-error {
+  position: absolute;
+  z-index: 2;
+  bottom: 10vh;
+  padding: 16px;
+  background: #fff;
+  color: #231815;
+  font: 14px/1.5 system-ui, sans-serif;
+}
+
+.boot-splash-error button { margin-left: 12px; padding: 6px 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-splash-blackout { transition: none; }
+}

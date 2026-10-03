@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "release": {
+    "environment": "staging",
+    "product": "simple-zeke",
+    "deploymentTarget": "cloudflare-pages-static",
+    "productionApproved": false
+  },
+  "publicCardPool": {
+    "poolId": "std-1.1.1-staging",
+    "cardCount": 214,
+    "canonicalIds": [
+      "STD-001", "STD-002", "STD-003", "STD-004", "STD-005", "STD-006", "STD-007", "STD-008", "STD-009", "STD-010",
+      "STD-011", "STD-012", "STD-013", "STD-014", "STD-015", "STD-016", "STD-017", "STD-018", "STD-019", "STD-020",
+      "STD-021", "STD-022", "STD-023", "STD-024", "STD-025", "STD-026", "STD-027", "STD-028", "STD-029", "STD-030",
+      "STD-031", "STD-032", "STD-033", "STD-034", "STD-035", "STD-036", "STD-037", "STD-038", "STD-039", "STD-040",
+      "STD-041", "STD-042", "STD-043", "STD-044", "STD-045", "STD-046", "STD-047", "STD-048", "STD-049", "STD-050",
+      "STD-075", "STD-076", "STD-077", "STD-078", "STD-079", "STD-080", "STD-081", "STD-082", "STD-083", "STD-084",
+      "STD-085", "STD-086", "STD-087", "STD-088", "STD-089", "STD-090", "STD-091", "STD-092", "STD-093", "STD-094",
+      "STD-095", "STD-096", "STD-097", "STD-098", "STD-099", "STD-100", "STD-101", "STD-102", "STD-103", "STD-104",
+      "STD-105", "STD-106", "STD-107", "STD-108", "STD-109", "STD-110", "STD-111", "STD-112", "STD-113", "STD-114",
+      "STD-115", "STD-116", "STD-117", "STD-118", "STD-119", "STD-120", "STD-121", "STD-122", "STD-123", "STD-124",
+      "STD-125", "STD-126", "STD-127", "STD-128", "STD-129", "STD-130", "STD-131", "STD-132", "STD-133", "STD-134",
+      "STD-135", "STD-136", "STD-137", "STD-138", "STD-139", "STD-140", "STD-141", "STD-142", "STD-143", "STD-144",
+      "STD-145", "STD-146", "STD-147", "STD-148", "STD-149", "STD-150", "STD-151", "STD-152", "STD-153", "STD-154",
+      "STD-155", "STD-156", "STD-157", "STD-158", "STD-159", "STD-160", "STD-161", "STD-162", "STD-163", "STD-164",
+      "STD-165", "STD-166", "STD-167", "STD-168", "STD-169", "STD-170", "STD-171", "STD-172", "STD-173", "STD-174",
+      "STD-175", "STD-176", "STD-177", "STD-178", "STD-179", "STD-180", "STD-181", "STD-182", "STD-183", "STD-184",
+      "STD-185", "STD-186", "STD-187", "STD-188", "STD-189", "STD-190", "STD-191", "STD-192", "STD-193", "STD-194",
+      "STD-195", "STD-196", "STD-197", "STD-198", "STD-199", "STD-200", "STD-201", "STD-202", "STD-203", "STD-204",
+      "STD-205", "STD-206", "STD-207", "STD-208", "STD-209", "STD-210", "STD-211", "STD-212", "STD-213", "STD-214",
+      "STD-215", "STD-216", "STD-217", "STD-218", "STD-219", "STD-220", "STD-221", "STD-222", "STD-223", "STD-224",
+      "STD-225", "STD-226", "STD-227", "STD-228", "STD-229", "STD-230", "STD-231", "STD-232", "STD-233", "STD-234",
+      "STD-235", "STD-236", "STD-237", "STD-238"
+    ]
+  },
+  "publicFilePolicy": {
+    "rootFiles": ["index.html", "boot-splash.css", "boot-splash.js", "manifest.webmanifest", "release-manifest.json", "sw.js", "_headers", "_redirects", "THIRD_PARTY_NOTICES.txt"],
+    "entryFiles": ["pc/index.html", "mobile/index.html"],
+    "assetDirectory": "assets",
+    "allowedExtensions": [".avif", ".css", ".html", ".jpeg", ".jpg", ".js", ".json", ".png", ".svg", ".txt", ".webmanifest", ".webp", ".woff2", ".otf"],
+    "forbiddenPathSegments": ["artifacts", "config", "docs", "inputs", "node_modules", "outputs", "scripts", "src", "tests"]
+  }
+}

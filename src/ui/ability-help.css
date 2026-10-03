@@ -1,0 +1,35 @@
+/* Inline control must not inherit the large deck/board action button skin. */
+body #app button.ability-help-trigger {
+ display:inline; position:static; min-width:0; min-height:0; width:auto; height:auto;
+ padding:0; margin:0; border:0; border-radius:0; background:none; box-shadow:none;
+ font:inherit; line-height:inherit; color:#83e3ef; text-shadow:none; -webkit-text-stroke:0;
+ text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:3px;
+ white-space:normal; cursor:pointer; vertical-align:baseline; transform:none;
+}
+body #app button.ability-help-trigger::before,body #app button.ability-help-trigger::after { display:none; }
+body #app button.ability-help-trigger:focus-visible { outline:1px solid #b8fff2; outline-offset:2px; }
+body #app .card-effect-copy button.effect-ability-icon {
+ display:inline-flex; align-items:center; justify-content:center; vertical-align:-.27em;
+ max-width:7em; margin:0 .2em 0 0; text-decoration:none; white-space:nowrap;
+}
+.card-effect-copy .effect-ability-icon img { display:block; width:auto; height:1.9em; max-width:7em; object-fit:contain; }
+.card-effect-copy .effect-ability-value { color:#d4e7ef; font-size:.86em; }
+body #app .card-effect-copy button[data-ability-tone="access"] { color:#62c8f7; text-decoration-color:#62c8f7; }
+body #app .card-effect-copy button[data-ability-tone="layer"] { color:#ff6c8b; text-decoration-color:#ff6c8b; }
+body #app .card-effect-copy button[data-ability-tone="component"] { color:#ffa360; text-decoration-color:#ffa360; }
+.card-effect-copy .effect-term { text-decoration:underline; text-underline-offset:3px; }
+.card-effect-copy .effect-term-component { color:#ffa360; }
+.card-effect-copy .effect-card-reference { color:#74dca7; text-decoration:underline; text-underline-offset:2px; }
+.ability-help-popup {
+ position:fixed; inset:auto; margin:0; width:min(320px,calc(100vw - 16px)); max-height:calc(100dvh - 16px);
+ box-sizing:border-box; overflow:auto; padding:12px; z-index:2000;
+ background:#101c29; color:#edf6fc; border:1px solid #54b7c6; border-radius:7px; box-shadow:0 8px 32px #0009;
+ font:14px/1.65 "Yu Gothic UI",sans-serif;
+}
+.ability-help-popup header { display:flex; gap:12px; align-items:center; justify-content:space-between; }
+.ability-help-popup h3 { margin:0; font-size:16px; color:#9cf3ed; }
+.ability-help-popup p { margin:8px 0; white-space:pre-wrap; overflow-wrap:anywhere; }
+.ability-help-popup small { color:#91a4b5; font-size:10px; }
+.ability-help-popup header button { min-width:32px; min-height:32px; border:1px solid #53747f; background:#183744; color:white; font-size:19px; }
+.deck-detail-overlay > section > div { grid-column:2; }
+.deck-detail-overlay > section:not(:has(> img)) > div { grid-column:1/-1; }

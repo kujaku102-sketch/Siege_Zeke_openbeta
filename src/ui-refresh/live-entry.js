@@ -1,0 +1,9 @@
+import "../styles.css";
+import "./preview.css";
+import "./live.css";
+import "./entry-design.css";
+import "./detail.css";
+import "./result.css";
+import "./status-effects.css";
+import "../ui/deck-design.css";
+import "../main.js";

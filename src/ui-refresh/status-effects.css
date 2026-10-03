@@ -1,0 +1,26 @@
+/* Persistent state cues remain legible when effects are OFF. */
+.r2-board .board-slot>.card.attack-ready { border-color:#82ffc0; box-shadow:0 0 0 2px #54ed99,0 0 15px 3px #22e897b8,inset 0 0 9px #22e89766; }
+.r2-board .board-slot>.card.attack-ready-contact { border-color:#ffe27a; box-shadow:0 0 0 2px #eec348,0 0 15px 3px #f2c127ad,inset 0 0 9px #f2c12766; }
+.r2-board .board-slot>.card.attack-ready:is(.selected,.targetable),.r2-board .board-slot>.card.attack-ready-contact:is(.selected,.targetable) { outline-offset:3px; }
+.r2-board .board-slot>.card .ability-badges { max-width:calc(100% - 23px); gap:1px; overflow:visible; flex-wrap:wrap; height:auto; max-height:40px; }
+.r2-board .board-slot>.card .ability-badge { flex:0 0 auto; height:11px; filter:drop-shadow(0 1px 2px #000a); }
+.r2-board .board-slot>.card .ability-badge-image { height:10px; }
+.r2-content .card .stat-up b { color:#b6ffc1; -webkit-text-stroke:.35px #12331f; text-shadow:0 0 5px #24e371,0 1px 2px #000; }
+.r2-content .card .stat-down b { color:#ff9d9d; -webkit-text-stroke:.35px #47171c; text-shadow:0 0 5px #ff3856,0 1px 2px #000; }
+.r2-board .board-slot>.card .stat-up,.r2-board .board-slot>.card .stat-down { position:relative; }
+.r2-board .board-slot>.card .card-security-shield { position:absolute; z-index:7; inset:15% 9% 19%; display:grid; place-items:center; pointer-events:none; transform:perspective(180px) rotateY(-17deg) rotateX(9deg) translateZ(6px); filter:drop-shadow(0 0 7px #63eaff) drop-shadow(0 0 2px #fff); }
+.r2-board .board-slot>.card .card-security-shield svg { width:100%; height:100%; overflow:visible; fill:#4bdcf420; stroke:#b8f7ff; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+.r2-board .board-slot>.card .card-security-shield svg path:nth-child(2) { fill:#5df0fb16; stroke:#4bdcf4; stroke-width:1.1; }
+.r2-board .board-slot>.card .card-security-shield svg path:nth-child(3) { fill:none; stroke:#ffffffad; stroke-width:1; }
+/* The quoted appearance/exit and stat particles run only under effects ON. */
+.r2-content[data-effects="on"] .card-security-shield.vfx-shield-enter { animation:sz-shield-enter .52s cubic-bezier(.16,1,.3,1) both; }
+.vfx-shield-exit { position:fixed; z-index:141; display:grid; place-items:center; pointer-events:none; transform:perspective(180px) rotateY(-17deg) rotateX(9deg); filter:drop-shadow(0 0 7px #63eaff); animation:sz-shield-exit .4s ease-in forwards; }
+.vfx-shield-exit svg { width:100%; height:100%; fill:#4bdcf420; stroke:#b8f7ff; stroke-width:2; }
+@keyframes sz-shield-enter { from { opacity:0; scale:.55; rotate:-12deg; filter:brightness(3) blur(3px); } 65% { opacity:1; scale:1.13; } to { opacity:1; scale:1; rotate:0; filter:none; } }
+@keyframes sz-shield-exit { from { opacity:1; scale:1; } to { opacity:0; scale:1.28; filter:blur(9px); } }
+.r2-content[data-effects="on"] .r2-board .board-slot>.card .stat-up::after,.r2-content[data-effects="on"] .r2-board .board-slot>.card .stat-down::after { content:""; position:absolute; inset:-8px; pointer-events:none; }
+.r2-content[data-effects="on"] .r2-board .board-slot>.card .stat-up::after { background:radial-gradient(circle at 24% 25%,#e9fff8 0 1px,transparent 2px),radial-gradient(circle at 78% 16%,#89ffae 0 1px,transparent 2px),radial-gradient(circle at 70% 80%,#46eb88 0 1px,transparent 2px); animation:sz-stat-sparks 1.3s ease-in-out infinite alternate; }
+.r2-content[data-effects="on"] .r2-board .board-slot>.card .stat-down::after { background:radial-gradient(ellipse at 25% 70%,#5b546aaa,transparent 45%),radial-gradient(ellipse at 75% 28%,#7c4a68aa,transparent 42%); filter:blur(3px); animation:sz-stat-haze 1.8s ease-in-out infinite alternate; }
+@keyframes sz-stat-sparks { from { opacity:.3; transform:translateY(3px) scale(.8); } to { opacity:1; transform:translateY(-5px) scale(1.2); } }
+@keyframes sz-stat-haze { from { opacity:.45; transform:translateY(2px) scale(.9); } to { opacity:.85; transform:translateY(-3px) scale(1.15); } }
+@media (prefers-reduced-motion:reduce) { .r2-content[data-effects="on"] .card-security-shield.vfx-shield-enter,.vfx-shield-exit,.r2-content[data-effects="on"] .r2-board .board-slot>.card .stat-up::after,.r2-content[data-effects="on"] .r2-board .board-slot>.card .stat-down::after { animation:none; } }

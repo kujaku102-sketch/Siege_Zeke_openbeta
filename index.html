@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja" data-ui="r2">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#10141c" />
+    <meta name="description" content="Siege÷Zeke ブラウザ版カードゲーム" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Siege÷Zeke" />
+    <meta property="og:description" content="Siege÷Zeke ブラウザ版カードゲーム" />
+    <meta property="og:url" content="https://siegezeke.online/" />
+    <meta property="og:image" content="https://siegezeke.online/assets/site-share-1200x630.png?v=1" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://siegezeke.online/assets/site-share-1200x630.png?v=1" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/boot-splash.css" />
+    <link rel="preload" as="image" href="/assets/tusk-architecture-logo.svg" />
+    <link rel="preload" as="image" href="/assets/haven-logo.svg" />
+    <link rel="apple-touch-icon" href="/assets/app-icon-192.png?v=1" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/site-icon-32.png?v=1" />
+    <title>簡易版ジーグ</title>
+  </head>
+  <body>
+    <div id="boot-splash" role="status" aria-live="polite" aria-label="起動ロゴ">
+      <div class="boot-splash-scene" data-boot-scene="architecture"><img src="/assets/tusk-architecture-logo.svg" alt="Tusk-Architecture" /></div>
+      <div class="boot-splash-scene" data-boot-scene="haven" hidden><img src="/assets/haven-logo.svg" alt="haveN" /></div>
+      <div class="boot-splash-blackout" aria-hidden="true"></div>
+      <button class="boot-splash-skip" type="button" data-boot-skip>スキップ</button>
+      <div class="boot-splash-error" data-boot-error hidden>起動できませんでした。<button type="button" data-boot-retry>再読み込み</button></div>
+    </div>
+    <div id="app" inert></div>
+    <script src="/boot-splash.js"></script>
+    <script type="module" src="/src/ui-refresh/live-entry.js"></script>
+  </body>
+</html>
