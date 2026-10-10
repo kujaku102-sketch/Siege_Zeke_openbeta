@@ -1,4 +1,6 @@
-import { CARD_LIBRARY, LAB_CARD_IDS, NEUTRON_DECK, RED_DECK, USER_CARDS, USERS, VENGEANCE_DECK, YELLOW_DECK, createCardInstance, createToken, expandDeck } from "../data/cards.js";
+import { CARD_LIBRARY, LAB_CARD_IDS, NEUTRON_DECK, RED_DECK, USER_CARDS, USERS, VENGEANCE_DECK, YELLOW_DECK } from "../data/cards.js";
+import { createRuntimeCard, createRuntimeToken, expandRuntimeDeck, RuntimeError } from "./runtime/factory.js";
+import { nextRng } from "./runtime/rng.js";
 import { compileEffectText, hasKeyword, keywordValue } from "./effect-compiler.js";
 import { describeOperation, resultCountGate } from "./effect-operation-library.js";
 import { createAllocationSpec, createChoiceSpec, createSelectionRequest, createSelectionSpec, isSelectionRequestFeasible, selectionRequestFromSpec } from "./selection-model.js";
@@ -10,7 +12,7 @@ import { boardSlotOf, cardAtBoardSlot, inheritBoardSlot, normalizeBoardSlots, no
 import { flattenMaterialStack, flattenedLayerCount, flattenedLayers, layeredCandidates, layeredSpecFor, normalizeMountedStack, validatesLayeredSelection } from "./layered-specs.js";
 import { battleStatModifierSpecsFor, cardPlacementCostSpec, cardRuntimeRoute, cardRuntimeSpec } from "./card-runtime-specs.js";
 import { damageModifierSpecsFor } from "./damage-modifier-specs.js";
-import { isLydCard, isObCard, matchesCardCategory } from "./card-types.js";
+import { isLydCard, isObCard, isObCategory, matchesCardCategory } from "./card-types.js";
 import {
   conditionalKeywordSpecsFor,
   continuousStatModifierSpecsFor,
@@ -43,6 +45,49 @@ const isCounter = (value) => Number.isSafeInteger(value) && value >= 0;
 const IDENTITY_KEYS = ["channel", "projectionId", "runtime", "scope", "producerId", "ownerKind", "ownerId", "ownerRevision", "actorId"];
 const META_KEYS = ["version", "runtime", "channel", "scope", "producerId", "owner", "actorId", "ticket"];
 const TICKET_KEYS = ["frameId", "waitId", "effectId", "choiceId", "revision", "actorId"];
+
+export function supportsNormalScriptActivation(card) {
+  if (card?.category !== "Script" || EVENT_CONTEXT_REQUIRED_IF_IDS.has(card.id)) return false;
+  const condition = keywordValue(card, "IF");
+  if (condition) return NORMAL_IF_SCRIPT_IDS.has(card.id);
+  return !hasOptionalActivationSpec(card.id);
+}
+
+function overclockChoice(card) {
+  return String(card?.text ?? "").match(/\[OC\+(\d+)\]/i);
+}
+
+// Direct hand execution can prepare only entries whose extra input does not
+// precede placement. Login choices happen after placement and remain a later
+// continuation; OC, Layered material and placement-cost input do not.
+export function supportsDirectHandObExecution(card) {
+  return Boolean(card && isObCategory(card.category) && !overclockChoice(card)
+    && !Number.isFinite(card.setupCost) && !layeredSpecFor(card) && !cardPlacementCostSpec(card.id));
+}
+
+function relogPreparationKind(card, layerCount = flattenedLayerCount(card)) {
+  const compiled = compileEffectText(card?.text ?? "", { category: card?.category, id: card?.id });
+  const operationTypes = new Set((compiled.operations ?? []).map((operation) => operation.type));
+  if (operationTypes.has("registry_executable_and_logout_install_self")
+    || operationTypes.has("logout_registry_replacement_and_registry_execute")) return "registry";
+  if (layerCount > 0 && operationTypes.has("replace_move_cost")) return "payment-choice";
+  return "normal";
+}
+
+export function canDirectRelogAtSlot(state, playerId, card, { sourceZone, zone, requestedSlot, layerCount = null } = {}) {
+  const player = state?.players?.[playerId];
+  if (!player || state.active !== playerId || !isObCard(card)) return { ok: false };
+  const effectiveLayerCount = layerCount === null ? flattenedLayerCount(card) : layerCount;
+  if (!Number.isSafeInteger(effectiveLayerCount) || effectiveLayerCount < 0 || Object.is(effectiveLayerCount, -0)) return { ok: false };
+  if (!["front", "back"].includes(sourceZone) || !["front", "back"].includes(zone)
+    || sourceZone === zone || sourceZone !== (zone === "front" ? "back" : "front")) return { ok: false };
+  if (relogPreparationKind(card, effectiveLayerCount) !== "normal") return { ok: false };
+  const slot = requestedExecutionSlot(state, playerId, card, { zone, requestedSlot });
+  if (!slot.ok) return slot;
+  if (!placementResult(player, zone).ok) return { ok: false };
+  if (player.memory < Number(card.cost ?? 0)) return { ok: false };
+  return { ok: true };
+}
 
 // JSON.stringify is deliberately not used here: it silently drops values and
 // structuredClone accepts several values that cannot be persisted as JSON.
@@ -301,6 +346,15 @@ function shuffle(items, rng = Math.random) {
   return copy;
 }
 
+function runtimeRng(context) {
+  return () => {
+    const result = nextRng(context.rngState);
+    if (!result.ok) throw new RuntimeError(result.error.code);
+    context.rngState = result.value.state;
+    return result.value.value;
+  };
+}
+
 function normalizeClasses(instance) {
   const values = instance.classes ?? instance.cardClass ?? instance.className ?? instance.class
     ?? instance.affiliation ?? instance.tribe ?? instance.species ?? instance["所属"] ?? instance["種族"] ?? [];
@@ -369,17 +423,17 @@ function arrangeTutorial(players) {
   players.ai.deck.push(george, bash);
 }
 
-function arrangeVengeanceTutorial(players) {
+function arrangeVengeanceTutorial(players, runtimeContext = null) {
   players.player.hand = [
-    hydrateCard(createCardInstance("STD-191", "player", 301)),
-    hydrateCard(createCardInstance("STD-195", "player", 302)),
-    hydrateCard(createCardInstance("STD-194", "player", 303)),
-    hydrateCard(createCardInstance("STD-192", "player", 304)),
-    hydrateCard(createCardInstance("STD-202", "player", 307))
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-191", "player", 301)),
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-195", "player", 302)),
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-194", "player", 303)),
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-192", "player", 304)),
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-202", "player", 307))
   ];
   players.player.front = [
-    hydrateCard(createCardInstance("STD-189", "player", 305)),
-    hydrateCard(createCardInstance("STD-189", "player", 306))
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-189", "player", 305)),
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-189", "player", 306))
   ];
   for (const card of players.player.front) card.summoningSick = false;
   players.player.baseMemory = 15;
@@ -389,7 +443,7 @@ function arrangeVengeanceTutorial(players) {
   players.ai.hand = ["STD-125", "STD-131", "STD-149"].map((id) => pullCard(players.ai.deck, id));
 }
 
-function arrangeSandbox(players, { useConfiguredDecks = false } = {}) {
+function arrangeSandbox(players, { useConfiguredDecks = false } = {}, runtimeContext = null) {
   if (useConfiguredDecks) {
     for (const player of Object.values(players)) {
       player.hand = [];
@@ -403,59 +457,59 @@ function arrangeSandbox(players, { useConfiguredDecks = false } = {}) {
     return;
   }
   const dummyIds = ["STD-022", "STD-023", "STD-024", "STD-025", "STD-031"];
-  players.player.deck = Array.from({ length: 10 }, (_, index) => hydrateCard(createCardInstance(dummyIds[index % dummyIds.length], "player", 7000 + index)));
+  players.player.deck = Array.from({ length: 10 }, (_, index) => hydrateCard(createRuntimeCard(runtimeContext, dummyIds[index % dummyIds.length], "player", 7000 + index)));
   players.player.hand = [];
-  players.player.front = [hydrateCard(createCardInstance("STD-020", "player", 101))];
+  players.player.front = [hydrateCard(createRuntimeCard(runtimeContext, "STD-020", "player", 101))];
   players.player.back = [];
   players.player.baseMemory = 99;
   players.player.memory = 99;
   players.player.user.memory = 99;
 
-  const mountedHost = hydrateCard(createCardInstance("STD-131", "ai", 201));
-  const mountedCode = hydrateCard(createCardInstance("STD-078", "ai", 202));
+  const mountedHost = hydrateCard(createRuntimeCard(runtimeContext, "STD-131", "ai", 201));
+  const mountedCode = hydrateCard(createRuntimeCard(runtimeContext, "STD-078", "ai", 202));
   mountedCode.layerRole = "mount";
   mountedHost.mounted.push(mountedCode);
-  const hiddenScript = hydrateCard(createCardInstance("STD-036", "ai", 203));
+  const hiddenScript = hydrateCard(createRuntimeCard(runtimeContext, "STD-036", "ai", 203));
   hiddenScript.faceDown = true;
-  players.ai.deck = Array.from({ length: 10 }, (_, index) => hydrateCard(createCardInstance(dummyIds[index % dummyIds.length], "ai", 8000 + index)));
+  players.ai.deck = Array.from({ length: 10 }, (_, index) => hydrateCard(createRuntimeCard(runtimeContext, dummyIds[index % dummyIds.length], "ai", 8000 + index)));
   players.ai.hand = [];
   players.ai.front = [
-    hydrateCard(createCardInstance("STD-127", "ai", 204)),
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-127", "ai", 204)),
     mountedHost,
-    hydrateCard(createCardInstance("STD-020", "ai", 205))
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-020", "ai", 205))
   ];
   players.ai.back = [
     hiddenScript,
-    hydrateCard(createCardInstance("STD-078", "ai", 206))
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-078", "ai", 206))
   ];
   players.ai.baseMemory = 99;
   players.ai.memory = 99;
   players.ai.user.memory = 99;
 }
 
-function arrangeLab(players) {
+function arrangeLab(players, runtimeContext = null) {
   players.player.deck = [];
-  players.player.hand = LAB_CARD_IDS.map((id, index) => hydrateCard(createCardInstance(id, "player", index + 1)));
-  players.player.front = [hydrateCard(createCardInstance("STD-020", "player", 101))];
+  players.player.hand = LAB_CARD_IDS.map((id, index) => hydrateCard(createRuntimeCard(runtimeContext, id, "player", index + 1)));
+  players.player.front = [hydrateCard(createRuntimeCard(runtimeContext, "STD-020", "player", 101))];
   players.player.back = [];
   players.player.baseMemory = 99;
   players.player.memory = 99;
   players.player.user.memory = 99;
 
-  const mountedHost = hydrateCard(createCardInstance("STD-131", "ai", 201));
-  const mountedCode = hydrateCard(createCardInstance("STD-078", "ai", 202));
+  const mountedHost = hydrateCard(createRuntimeCard(runtimeContext, "STD-131", "ai", 201));
+  const mountedCode = hydrateCard(createRuntimeCard(runtimeContext, "STD-078", "ai", 202));
   mountedCode.layerRole = "mount";
   mountedHost.mounted.push(mountedCode);
-  const hiddenScript = hydrateCard(createCardInstance("STD-036", "ai", 203));
+  const hiddenScript = hydrateCard(createRuntimeCard(runtimeContext, "STD-036", "ai", 203));
   hiddenScript.faceDown = true;
   players.ai.deck = [];
   players.ai.hand = [];
   players.ai.front = [
-    hydrateCard(createCardInstance("STD-127", "ai", 204)),
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-127", "ai", 204)),
     mountedHost,
-    hydrateCard(createCardInstance("STD-020", "ai", 205))
+    hydrateCard(createRuntimeCard(runtimeContext, "STD-020", "ai", 205))
   ];
-  players.ai.back = [hiddenScript, hydrateCard(createCardInstance("STD-078", "ai", 206))];
+  players.ai.back = [hiddenScript, hydrateCard(createRuntimeCard(runtimeContext, "STD-078", "ai", 206))];
   players.ai.baseMemory = 99;
   players.ai.memory = 99;
   players.ai.user.memory = 99;
@@ -463,7 +517,7 @@ function arrangeLab(players) {
 
 export function addSandboxCardToHand(state, playerId, cardId) {
   if (!["lab", "sandbox"].includes(state.mode) || !CARD_LIBRARY[cardId] || !state.players[playerId]) return false;
-  const card = hydrateCard(createCardInstance(cardId, playerId, ++state.tokenSerial + 9000));
+  const card = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, cardId, playerId, ++state.tokenSerial + 9000));
   state.players[playerId].hand.push(card);
   addLog(state, `ALL CARD LISTから${state.players[playerId].user.name}の手札へ「${card.name}」を追加。`, "system");
   return true;
@@ -504,27 +558,30 @@ export const DECK_OPTIONS = Object.freeze({
 
 export const USER_OPTIONS = USER_CARDS;
 
-export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = "red", aiDeckId = "yellow", playerDeckRecipe = null, aiDeckRecipe = null, playerUserId = "doors_zx", aiUserId = "doors_zx", sandboxDeckSetup = false, rng = Math.random } = {}) {
+export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = "red", aiDeckId = "yellow", playerDeckRecipe = null, aiDeckRecipe = null, playerUserId = "doors_zx", aiUserId = "doors_zx", sandboxDeckSetup = false, rng = Math.random, runtimeContext = null } = {}) {
+  if (runtimeContext !== null) rng = runtimeRng(runtimeContext);
   const isVengeanceTutorial = mode === "tutorial" && tutorialId === "vengeance";
   const selectedPlayerDeck = isVengeanceTutorial ? DECK_OPTIONS.vengeance : (DECK_OPTIONS[playerDeckId] ?? DECK_OPTIONS.red);
   const selectedAiDeck = DECK_OPTIONS[aiDeckId] ?? DECK_OPTIONS.yellow;
-  const red = expandDeck(playerDeckRecipe ?? selectedPlayerDeck.recipe, "player");
-  const yellow = expandDeck(aiDeckRecipe ?? selectedAiDeck.recipe, "ai");
+  const skipInitialDecks = runtimeContext !== null && (mode === "lab" || (mode === "sandbox" && !sandboxDeckSetup));
+  const red = skipInitialDecks ? [] : expandRuntimeDeck(runtimeContext, playerDeckRecipe ?? selectedPlayerDeck.recipe, "player");
+  const yellow = skipInitialDecks ? [] : expandRuntimeDeck(runtimeContext, aiDeckRecipe ?? selectedAiDeck.recipe, "ai");
   const playerUser = USER_CARDS[playerUserId] ?? USERS.player;
   const aiUser = USER_CARDS[aiUserId] ?? USERS.ai;
   const players = {
     player: buildPlayer("player", { ...playerUser, color: selectedPlayerDeck.color }, mode === "tutorial" ? red : shuffle(red, rng)),
     ai: buildPlayer("ai", { ...aiUser, color: selectedAiDeck.color }, mode === "tutorial" ? yellow : shuffle(yellow, rng))
   };
-  if (mode === "tutorial") isVengeanceTutorial ? arrangeVengeanceTutorial(players) : arrangeTutorial(players);
-  else if (mode === "lab") arrangeLab(players);
-  else if (mode === "sandbox") arrangeSandbox(players, { useConfiguredDecks: sandboxDeckSetup });
+  if (mode === "tutorial") isVengeanceTutorial ? arrangeVengeanceTutorial(players, runtimeContext) : arrangeTutorial(players);
+  else if (mode === "lab") arrangeLab(players, runtimeContext);
+  else if (mode === "sandbox") arrangeSandbox(players, { useConfiguredDecks: sandboxDeckSetup }, runtimeContext);
   else {
     for (let i = 0; i < Number(players.player.user.initialHand ?? 4); i += 1) drawCardRaw(players.player);
     for (let i = 0; i < Number(players.ai.user.initialHand ?? 4); i += 1) drawCardRaw(players.ai);
   }
 
   const state = {
+    ...(runtimeContext === null ? {} : { runtimeContext }),
     mode,
     tutorialId,
     playerDeckId: isVengeanceTutorial ? "vengeance" : playerDeckId,
@@ -585,6 +642,7 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
   if (["lab", "sandbox"].includes(mode)) {
     state.sandboxUi = { query: "", expansion: "all", catalogOwner: "player", opponentControl: "manual", actor: "player" };
   }
+  if (runtimeContext !== null) normalizeBoardSlots(state);
   startTurn(state, state.active);
   return state;
 }
@@ -592,7 +650,7 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
 export function cloneForHistory(state) {
   const rng = state.rng;
   const copy = structuredClone({ ...state, rng: null, history: [] });
-  copy.rng = rng;
+  copy.rng = copy.runtimeContext ? runtimeRng(copy.runtimeContext) : rng;
   copy.history = [];
   return copy;
 }
@@ -603,6 +661,7 @@ export function remember(state) {
 }
 
 export function undo(state) {
+  if (state.runtimeContext) throw new RuntimeError("RUNTIME_UNDO_UNSUPPORTED");
   const previous = state.history.pop();
   if (!previous) return state;
   previous.history = state.history;
@@ -1197,14 +1256,21 @@ function runtimeReferenceCandidates(player, source, action) {
   return zone.filter((card) => card.uid !== source.uid && runtimeAccessCandidates(player, action, card).length >= runtimeAccessBounds(action, runtimeAccessCandidates(player, action, card).length).minimum);
 }
 
-function runtimeSourceFromContinuation(continuation) {
-  return {
+function runtimeSourceFromContinuation(state, continuation) {
+  const source = {
     ...(CARD_LIBRARY[continuation.sourceId] ?? {}),
     id: continuation.sourceId,
     uid: continuation.sourceUid,
     name: continuation.sourceName,
     ...(continuation.sourceRuntime ?? {})
   };
+  if (state.runtimeContext) {
+    const alias = state.runtimeContext.uidAliases.find((entry) => entry.uid === continuation.sourceUid);
+    if (!alias) throw new RuntimeError("RUNTIME_UNKNOWN_SOURCE_ALIAS");
+    source.identity = { ...alias.identity };
+    source.ownerSeat = alias.ownerSeat;
+  }
+  return source;
 }
 
 function openRuntimeAccessSelection(state, playerId, source, action, referenceCard = null, revealedUid = null, continuationMeta = {}) {
@@ -1433,7 +1499,7 @@ function settleRuntimeDestructionContinuation(state, targetUid, destroyed) {
   return executeRuntimeActions(
     state,
     continuation.playerId,
-    runtimeSourceFromContinuation(continuation),
+    runtimeSourceFromContinuation(state, continuation),
     continuation.remainingActions,
     { runtime: continuation.runtime }
   );
@@ -1865,7 +1931,7 @@ function executeRuntimeActions(state, playerId, source, actions, { targetUid = n
       const destination = runtimeSpecValue(state, playerId, source, action.destination, runtime);
       for (let index = 0; index < cardIds.length; index += 1) {
         const card = action.factory === "punks_token"
-          ? hydrateCard(createToken(generatedPlayerId, ++state.tokenSerial))
+          ? hydrateCard(createRuntimeToken(state.runtimeContext ?? null, generatedPlayerId, ++state.tokenSerial))
           : createVengeanceCard(state, cardIds[index], generatedPlayerId);
         generated.push(card);
         if (destination === "hand") {
@@ -3386,7 +3452,7 @@ function playCardCore(state, playerId, uid, { targetUid = null, targetUids = [],
     state.pending = { type: "selection", validTargets: [], request };
     return true;
   }
-  const ocMatch = String(card.text ?? "").match(/\[OC\+(\d+)\]/i);
+  const ocMatch = overclockChoice(card);
   if (!free && !force && ocMatch && ocDecision === null) {
     const amount = Number(ocMatch[1]);
     const canPay = player.memory >= executionCost(card, state, playerId) + amount;
@@ -3758,7 +3824,7 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
   const requiresWindow = Boolean(condition) || hasOptionalActivationSpec(script.id);
   const prompted = state.prompt?.type === "script-activation" && state.prompt.scriptUid === uid;
   const activationWindow = prompted ? state.activationWindows.find((window) => window.id === state.prompt.activationWindowId) : null;
-  const normalIfActivation = Boolean(condition) && !prompted && NORMAL_IF_SCRIPT_IDS.has(script.id);
+  const normalIfActivation = Boolean(condition) && !prompted && supportsNormalScriptActivation(script);
   if (requiresWindow && prompted && (!activationWindow || activationWindow.status !== "pending")) return fail(state, "この誘発窓は既に処理済み。", false);
   if (EVENT_CONTEXT_REQUIRED_IF_IDS.has(script.id) && !prompted) return fail(state, "このScriptは参照するイベントがないため通常起動できない。", false);
   if (requiresWindow && !prompted && !normalIfActivation) return fail(state, condition ? `[if:${condition}]が成立していない。` : "発動条件が成立していない。", false);
@@ -3807,6 +3873,7 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
     }
     const sourceSnapshot = Object.freeze({
       ...script,
+      ...(state.runtimeContext ? { identity: Object.freeze({ ...script.identity }) } : {}),
       classes: Object.freeze([...(script.classes ?? [])]),
       traits: Object.freeze([...(script.traits ?? [])]),
       mounted: Object.freeze([...(script.mounted ?? [])])
@@ -4537,7 +4604,7 @@ function resolveCardSelectionCore(state, continuation, result) {
     return continuePlacementCostBatch(state);
   }
   if (continuation.type === "runtime-repeat-select-move") {
-    const source = runtimeSourceFromContinuation(continuation);
+    const source = runtimeSourceFromContinuation(state, continuation);
     const runtime = continuation.runtime ?? { records: Object.create(null) };
     const candidates = runtimeSelectionCandidates(state, playerId, source, { selector: continuation.selector }, runtime);
     const selected = candidates.find((card) => card.uid === result.selected?.[0]);
@@ -4558,13 +4625,13 @@ function resolveCardSelectionCore(state, continuation, result) {
     if (continuation.sourceZoneRecord) runtime.records[continuation.sourceZoneRecord] = continuation.sourceZone;
     if (continuation.destinationRecord) runtime.records[continuation.destinationRecord] = result.scope;
     state.pending = null;
-    return executeRuntimeActions(state, playerId, runtimeSourceFromContinuation(continuation), continuation.afterActions, { runtime });
+    return executeRuntimeActions(state, playerId, runtimeSourceFromContinuation(state, continuation), continuation.afterActions, { runtime });
   }
   if (continuation.type === "runtime-effect-choice") {
     const choice = continuation.choices.find((item) => item.label === result.choice);
     if (!choice) return false;
     state.pending = null;
-    return executeRuntimeActions(state, playerId, runtimeSourceFromContinuation(continuation), choice.actions, { runtime: continuation.runtime });
+    return executeRuntimeActions(state, playerId, runtimeSourceFromContinuation(state, continuation), choice.actions, { runtime: continuation.runtime });
   }
   if (continuation.type === "runtime-decode") {
     const decoded = [];
@@ -4680,7 +4747,7 @@ function resolveCardSelectionCore(state, continuation, result) {
   }
   if (continuation.type === "sztb-jacket-place") {
     const zone = result.scope === "バック" ? "back" : "front";
-    const jacket = hydrateCard(createCardInstance("SZTB-091", playerId, ++state.tokenSerial + 900));
+    const jacket = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, "SZTB-091", playerId, ++state.tokenSerial + 900));
     emitCardsGenerated(state, playerId, [jacket], continuation.sourceName);
     placeByMode(state, playerId, jacket, { zone, mode: "forced-effect", from: "generated", source: continuation.sourceName });
     state.pending = null;
@@ -5294,7 +5361,7 @@ function resolveCardSelectionCore(state, continuation, result) {
     return true;
   }
   if (continuation.type === "runtime-action-selection") {
-    const source = runtimeSourceFromContinuation(continuation);
+    const source = runtimeSourceFromContinuation(state, continuation);
     const runtime = continuation.runtime ?? { records: Object.create(null) };
     const validTargets = new Set(runtimeSelectionCandidates(state, playerId, source, { selector: continuation.selector ?? {} }, runtime).map((card) => card.uid));
     const selected = [...new Set(result.selected ?? [])];
@@ -5338,10 +5405,10 @@ function resolveCardSelectionCore(state, continuation, result) {
     const runtime = continuation.runtime ?? { records: Object.create(null) };
     if (continuation.recordAs) runtime.records[continuation.recordAs] = selected;
     state.pending = null;
-    return executeRuntimeActions(state, playerId, runtimeSourceFromContinuation(continuation), continuation.afterActions, { runtime });
+    return executeRuntimeActions(state, playerId, runtimeSourceFromContinuation(state, continuation), continuation.afterActions, { runtime });
   }
   if (continuation.type === "runtime-access-reference") {
-    const source = runtimeSourceFromContinuation(continuation);
+    const source = runtimeSourceFromContinuation(state, continuation);
     const reference = player.hand.find((card) => card.uid === result.selected[0]);
     if (!reference) return false;
     if (continuation.action.referenceSelection?.reveal) reference.revealed = true;
@@ -5379,7 +5446,7 @@ function resolveCardSelectionCore(state, continuation, result) {
       if (revealed) revealed.revealed = false;
     }
     if (!state.pending && continuation.afterActions?.length) {
-      executeRuntimeActions(state, playerId, runtimeSourceFromContinuation(continuation), continuation.afterActions, {
+      executeRuntimeActions(state, playerId, runtimeSourceFromContinuation(state, continuation), continuation.afterActions, {
         targetUids: accessed.map((card) => card.uid),
         continuationMeta: continuation.triggerItemId ? { triggerItemId: continuation.triggerItemId } : {}
       });
@@ -5598,7 +5665,7 @@ function resolveCardSelectionCore(state, continuation, result) {
     const x = names.reduce((sum, name) => sum + player.trash.filter((card) => card.name === name).length * 2, 0);
     for (let index = 0; index < 2; index += 1) {
       const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-      const ghost = hydrateCard(createCardInstance("STD-123", playerId, ++state.tokenSerial + 1200));
+      const ghost = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, "STD-123", playerId, ++state.tokenSerial + 1200));
       ghost.permanentAtk = x;
       ghost.permanentStr = x;
       ghost.summoningSick = cardAtk(state, playerId, ghost) < 5;
@@ -5861,7 +5928,7 @@ function activateCardEffectCore(state, playerId, cardUid, effectId, { targetUid 
     const ids = Object.values(CARD_LIBRARY).filter((item) => isObCard(item) && !item.token && item.id !== "STD-237").map((item) => item.id);
     if (!ids.length) return fail(state, "生成候補のObがない。", false);
     player.memory -= effect.cost;
-    const generated = hydrateCard(createCardInstance(ids[Math.floor(state.rng() * ids.length)], playerId, ++state.tokenSerial + 23700));
+    const generated = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, ids[Math.floor(state.rng() * ids.length)], playerId, ++state.tokenSerial + 23700));
     emitCardsGenerated(state, playerId, [generated], card.name);
     generated.summoningSick = !hasKeyword(generated, "QA");
     if (placeByMode(state, playerId, generated, { zone, from: "generated", source: card.name }) === "placed") {
@@ -5901,7 +5968,7 @@ function activateCardEffectCore(state, playerId, cardUid, effectId, { targetUid 
       card.std049ProxyArmed = true;
       moveCardToTrash(state, playerId, card, card.name);
     }
-    const calamity = hydrateCard(createCardInstance("STD-050", playerId, ++state.tokenSerial + 5000));
+    const calamity = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, "STD-050", playerId, ++state.tokenSerial + 5000));
     calamity.summoningSick = false;
     if (placeByMode(state, playerId, calamity, { zone: zoneName, from: "generated", source: card.name }) !== "placed") {
       if (card.id === "STD-049") delete card.std049ProxyArmed;
@@ -5918,7 +5985,7 @@ function activateCardEffectCore(state, playerId, cardUid, effectId, { targetUid 
     const [source] = player.hand.splice(sourceIndex, 1);
     moveCardToTrash(state, playerId, source, source.name);
     const generatedCards = [];
-    for (let index = 0; index < 2; index += 1) generatedCards.push(hydrateCard(createCardInstance("STD-124", playerId, ++state.tokenSerial + 1400)));
+    for (let index = 0; index < 2; index += 1) generatedCards.push(hydrateCard(createRuntimeCard(state.runtimeContext ?? null, "STD-124", playerId, ++state.tokenSerial + 1400)));
     player.hand.push(...generatedCards);
     emitCardsGenerated(state, playerId, generatedCards, card.name);
     addLog(state, `${card.name}: 手札からSp扱いで[プロキシ]を起動し、同名カード2枚を生成。元カードはゴミ箱へ。`, "effect");
@@ -5930,7 +5997,7 @@ function activateCardEffectCore(state, playerId, cardUid, effectId, { targetUid 
     player.memory -= effect.cost;
     const sourceIndex = player.hand.findIndex((item) => item.uid === card.uid);
     moveCardToTrash(state, playerId, player.hand.splice(sourceIndex, 1)[0], card.name);
-    const junk = hydrateCard(createCardInstance("STD-078", playerId, ++state.tokenSerial + 1600));
+    const junk = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, "STD-078", playerId, ++state.tokenSerial + 1600));
     if (placeByMode(state, playerId, junk, { zone: zoneName, from: "generated", source: card.name }) === "placed") emitEffectPlacement(state, playerId, junk, zoneName, card.name);
     return true;
   }
@@ -6196,7 +6263,7 @@ function distributeLayeredFollowers(state, topCard, destination, source) {
 }
 
 function createVengeanceCard(state, cardId, ownerId) {
-  return hydrateCard(createCardInstance(cardId, ownerId, ++state.tokenSerial + 800));
+  return hydrateCard(createRuntimeCard(state.runtimeContext ?? null, cardId, ownerId, ++state.tokenSerial + 800));
 }
 
 function triggerMoved(state, playerId, card, sourceZone, targetZone) {
@@ -6246,8 +6313,9 @@ export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount =
   const index = player[sourceZone].findIndex((card) => card.uid === uid);
   if (index < 0) return fail(state, "反対側エリアのカードを選んで。", false);
   const card = player[sourceZone][index];
+  const preparationKind = relogPreparationKind(card);
   if (requestedSlot !== null && !requestedExecutionSlot(state, playerId, card, { zone: targetZone, requestedSlot }).ok) return false;
-  if (["STD-215", "STD-220"].includes(card.id)) {
+  if (preparationKind === "registry") {
     const moveCost = Number(card.cost ?? 0);
     if (player.memory < moveCost) return fail(state, "再実行するメモリが足りない。", false);
     player.memory -= moveCost;
@@ -6263,7 +6331,7 @@ export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount =
     return true;
   }
   if (player[targetZone].length >= player.user[`${targetZone}Limit`]) return fail(state, `${targetZone === "front" ? "フロント" : "バック"}上限。`, false);
-  if (card.id === "STD-195" && flattenedLayerCount(card) && useLayerDiscount === null) {
+  if (preparationKind === "payment-choice" && useLayerDiscount === null) {
     const regularCost = Number(card.cost ?? 0);
     const options = player.memory >= regularCost
       ? ["通常コストを払う", "レイヤー1枚を破棄して1メモリ"]
@@ -6278,7 +6346,7 @@ export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount =
   }
   let moveCost = Number(card.cost ?? 0);
   let discountedLayer = null;
-  if (card.id === "STD-195" && flattenedLayerCount(card) && useLayerDiscount === true) {
+  if (preparationKind === "payment-choice" && useLayerDiscount === true) {
     normalizeMountedStack(card);
     moveCost = 1;
     discountedLayer = card.mounted.find((layer) => layer.uid === layerUid) ?? null;
@@ -6413,7 +6481,7 @@ function attackCore(state, playerId, attackerUid, targetUid) {
     attacker.resolvingStd106Attack = true;
     for (let index = 0; index < 2; index += 1) {
       const zoneName = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-      const junk = hydrateCard(createCardInstance("STD-078", playerId, ++state.tokenSerial + 1600));
+      const junk = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, "STD-078", playerId, ++state.tokenSerial + 1600));
       if (placeByMode(state, playerId, junk, { zone: zoneName, from: "generated", source: attacker.name }) === "placed") emitEffectPlacement(state, playerId, junk, zoneName, attacker.name);
     }
   }
@@ -7123,9 +7191,14 @@ export function restSecurity(state, playerId, uid) {
   return true;
 }
 
+export function canActivateTurbo(state, playerId = "player") {
+  const player = state.players[playerId];
+  return Boolean(player && player.user?.abilityKey === "turbo" && state.active === playerId && !player.turboUsed);
+}
+
 export function activateTurbo(state, playerId = "player") {
   const player = state.players[playerId];
-  if (player.user.abilityKey !== "turbo" || state.active !== playerId || player.turboUsed) return fail(state, "ターボ・ブーストは今は使えない。", false);
+  if (!canActivateTurbo(state, playerId)) return fail(state, "ターボ・ブーストは今は使えない。", false);
   const beforeMaxMemory = getMaxMemory(player);
   player.turboUsed = true;
   player.turboActive = true;

@@ -13,6 +13,7 @@ import {
   activateCardEffect,
   activateResponse,
   activateTurbo,
+  canActivateTurbo,
   addSandboxCardToHand,
   attack,
   canAttack,
@@ -64,7 +65,8 @@ import {
   restoreProjection,
   enqueueLegacyProjection,
   promoteLegacyQueueHead,
-  startTurn
+  startTurn,
+  supportsDirectHandObExecution
 } from "../src/game/engine.js";
 import { canConfirmSelection, collectDeckScopeOptions, confirmSelection, createAllocationSpec, createChoiceSpec, createGroupedSelectionSpec, createRandomSelectionSpec, createSelectionRequest, createSelectionSpec, hasExactAggregateCombination, isSelectionRequestFeasible, selectionRequestFromSpec, setAllocation, setSelectionScope, toggleSelection } from "../src/game/selection-model.js";
 import { resolveAutomatedAiChoices, runSimpleAiTurn, runSimpleAiTurnSteps } from "../src/game/ai.js";
@@ -81,6 +83,17 @@ test("effect compiler extracts keyword and numeric operation", () => {
   assert.equal(parsed.keywords[0].name, "LOGIN");
   assert.deepEqual(parsed.operations.map((item) => item.type), ["deal_damage", "draw"]);
   assert.equal(parsed.operations[0].value, 3);
+});
+
+test("direct hand Ob execution capability excludes pre-placement input routes", () => {
+  assert.equal(supportsDirectHandObExecution(CARD_LIBRARY["STD-027"]), true);
+  assert.equal(supportsDirectHandObExecution(CARD_LIBRARY["STD-030"]), true);
+  assert.equal(supportsDirectHandObExecution(CARD_LIBRARY["STD-085"]), false);
+  assert.equal(supportsDirectHandObExecution(CARD_LIBRARY["STD-125"]), false);
+  assert.equal(supportsDirectHandObExecution(CARD_LIBRARY["STD-121"]), false);
+  assert.equal(supportsDirectHandObExecution({ ...CARD_LIBRARY["STD-027"], text: "[OC+0]" }), false);
+  assert.equal(supportsDirectHandObExecution(CARD_LIBRARY["STD-184"]), false);
+  assert.equal(supportsDirectHandObExecution(CARD_LIBRARY["STD-001"]), false);
 });
 
 test("effect compiler recognizes Magazine as a numeric execution keyword", () => {
@@ -6383,10 +6396,13 @@ test("Turbo feedback requires a confirmed activation", () => {
   const feedback = userAbilityFeedback;
   const turbo = createGame({ mode: "sandbox", playerUserId: "doors_zx" });
   const originalMax = getMaxMemory(turbo.players.player);
+  assert.equal(canActivateTurbo(turbo, "player"), true);
   assert.equal(activateTurbo(turbo, "player"), true);
+  assert.equal(canActivateTurbo(turbo, "player"), false);
   assert.deepEqual(feedback(turbo, "turbo").map((event) => [event.branch, event.before, event.after]), [["activated", originalMax, originalMax + 2]]);
   const turboFailure = createGame({ mode: "sandbox", playerUserId: "doors_zx" });
   turboFailure.active = "ai";
+  assert.equal(canActivateTurbo(turboFailure, "player"), false);
   assert.equal(activateTurbo(turboFailure, "player"), false);
   assert.equal(feedback(turboFailure, "turbo").length, 0);
 });

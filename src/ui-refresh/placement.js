@@ -1,8 +1,5 @@
 import { canPlayCard, playCard } from "../game/engine.js";
-
-// Deliberate first-stage allowlist, not a claim that other Ob cannot be played.
-// These sample cards require no login targets, OC or material selection.
-const trialCards = new Set(["STD-020", "STD-021", "STD-022", "STD-023", "STD-024"]);
+import { supportsTrialSlotExecution } from "../game/placement-policy.js";
 
 export function operationLocked(state) {
   return Boolean(state.winner || state.victory?.lockedOutcome || state.pending || state.prompt || state.effectResolution);
@@ -11,7 +8,7 @@ export function operationLocked(state) {
 export function placementOptions(state, uid) {
   if (operationLocked(state)) return { slots: [], reason: "効果処理中または対戦終了のため実行できません。" };
   const card = state.players.player.hand.find(item => item.uid === uid);
-  if (!card || card.category !== "Ob" || !trialCards.has(card.id)) return { slots: [], reason: "この段階ではサンプル手札の通常Obだけ接続しています。" };
+  if (!supportsTrialSlotExecution(card)) return { slots: [], reason: "この段階ではサンプル手札の通常Obだけ接続しています。" };
   const slots = [];
   const reasons = [];
   for (const zone of ["front", "back"]) {
