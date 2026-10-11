@@ -199,6 +199,17 @@ test('S02-SESSION-06: factory registration and legacy constructor delegates', ()
   assert.throws(() => createRuntimeCard(new Proxy(context, { ownKeys() { throw reflection; } }), 'STD-020', 'player', 1), error => error === reflection);
 });
 
+test('S02-SESSION-06A: configured deck instances expose explicit face state to runtime references', () => {
+  const state = game({
+    mode: 'ai', playerDeckRecipe: [['STD-143', 1]], aiDeckRecipe: [['STD-020', 1]]
+  });
+  const cards = Object.values(state.players).flatMap(player => [
+    ...player.deck, ...player.hand, ...player.front, ...player.back, ...player.registry, ...player.trash, ...player.ban
+  ]);
+  assert.equal(cards.length, 2);
+  assert.equal(cards.every(card => typeof card.faceDown === 'boolean'), true);
+});
+
 test('S02-SESSION-07: both-seat sandbox addition and Punks generation', () => {
   for (const owner of ['player', 'ai']) {
     const state = fresh();

@@ -7,10 +7,6 @@ const ENTRY_KEYS = ['commandId', 'actorSeat', 'canonicalPayload', 'receipt'];
 const RECEIPT_KEYS = ['matchId', 'commandId', 'status', 'revision', 'reasonCode'];
 const TERMINAL_KEYS = ['status', 'revision', 'reasonCode'];
 const REJECTION_REASONS = ['UNSUPPORTED_ACTION', 'STALE_REVISION', 'ACTION_NOT_ALLOWED', 'REVISION_EXHAUSTED'];
-const UNAVAILABLE_ACTIONS = new Set([
-  'executeLayered',
-  'attack', 'answerChoice', 'declineChoice', 'sandboxAddCard'
-]);
 const REFERENCE_ACTIONS = new Set(['restSecurity', 'install', 'recoverRegistry', 'activateScript']);
 const REFERENCE_TOKEN = /^r:[0-9a-f]{32}$/;
 const MISSING = Symbol('missing');
@@ -115,17 +111,66 @@ function canonicalCommand(input) {
       || !Number.isSafeInteger(canonicalAction.destination.slot) || canonicalAction.destination.slot < 1
       || Object.is(canonicalAction.destination.slot, -0)) reject('INVALID_COMMAND');
   }
+  else if (type === 'executeLayered') {
+    canonicalAction = exact(action, ['type', 'cardRef', 'materialRefs', 'destination'], 'INVALID_COMMAND');
+    if (typeof canonicalAction.cardRef !== 'string' || canonicalAction.cardRef.length !== 34
+      || !REFERENCE_TOKEN.test(canonicalAction.cardRef)) reject('INVALID_COMMAND');
+    canonicalAction.materialRefs = dense(canonicalAction.materialRefs, 'INVALID_COMMAND');
+    if (canonicalAction.materialRefs.length < 1
+      || !canonicalAction.materialRefs.every(cardRef => typeof cardRef === 'string' && cardRef.length === 34
+        && REFERENCE_TOKEN.test(cardRef))
+      || new Set(canonicalAction.materialRefs).size !== canonicalAction.materialRefs.length) reject('INVALID_COMMAND');
+    canonicalAction.destination = exact(canonicalAction.destination, ['zone', 'slot'], 'INVALID_COMMAND');
+    if (!['front', 'back'].includes(canonicalAction.destination.zone)
+      || !Number.isSafeInteger(canonicalAction.destination.slot) || canonicalAction.destination.slot < 1
+      || Object.is(canonicalAction.destination.slot, -0)) reject('INVALID_COMMAND');
+  }
   else if (type === 'activateAbility') {
     canonicalAction = exact(action, ['type', 'ability'], 'INVALID_COMMAND');
     canonicalAction.ability = exact(canonicalAction.ability, ['kind', 'key'], 'INVALID_COMMAND');
     if (!nonempty(canonicalAction.ability.kind) || !nonempty(canonicalAction.ability.key)) reject('INVALID_COMMAND');
     if (canonicalAction.ability.kind !== 'user' || canonicalAction.ability.key !== 'turbo') reject('ACTION_SCHEMA_UNAVAILABLE');
   }
+  else if (type === 'sandboxAddCard') {
+    canonicalAction = exact(action, ['type', 'definitionId', 'targetSeat'], 'INVALID_COMMAND');
+    if (!nonempty(canonicalAction.definitionId) || !nonempty(canonicalAction.targetSeat)) reject('INVALID_COMMAND');
+  }
+  else if (type === 'attack') {
+    canonicalAction = exact(action, ['type', 'attackerRef', 'target'], 'INVALID_COMMAND');
+    if (typeof canonicalAction.attackerRef !== 'string' || canonicalAction.attackerRef.length !== 34
+      || !REFERENCE_TOKEN.test(canonicalAction.attackerRef)) reject('INVALID_COMMAND');
+    ordinary(canonicalAction.target, 'INVALID_COMMAND');
+    const kind = own(canonicalAction.target, 'kind', 'INVALID_COMMAND');
+    if (kind === 'card') {
+      canonicalAction.target = exact(canonicalAction.target, ['kind', 'cardRef'], 'INVALID_COMMAND');
+      if (typeof canonicalAction.target.cardRef !== 'string' || canonicalAction.target.cardRef.length !== 34
+        || !REFERENCE_TOKEN.test(canonicalAction.target.cardRef)) reject('INVALID_COMMAND');
+    } else if (kind === 'user') {
+      canonicalAction.target = exact(canonicalAction.target, ['kind', 'seatId'], 'INVALID_COMMAND');
+      if (!nonempty(canonicalAction.target.seatId)) reject('INVALID_COMMAND');
+    } else reject('INVALID_COMMAND');
+  }
+  else if (type === 'answerChoice') {
+    canonicalAction = exact(action, ['type', 'choiceId', 'optionIds', 'allocation'], 'INVALID_COMMAND');
+    if (!nonempty(canonicalAction.choiceId)) reject('INVALID_COMMAND');
+    canonicalAction.optionIds = dense(canonicalAction.optionIds, 'INVALID_COMMAND');
+    if (!canonicalAction.optionIds.every(nonempty) || new Set(canonicalAction.optionIds).size !== canonicalAction.optionIds.length) reject('INVALID_COMMAND');
+    canonicalAction.allocation = dense(canonicalAction.allocation, 'INVALID_COMMAND').map(entry => {
+      const value = exact(entry, ['optionId', 'amount'], 'INVALID_COMMAND');
+      if (!nonempty(value.optionId) || !Number.isSafeInteger(value.amount) || value.amount < 0 || Object.is(value.amount, -0)) reject('INVALID_COMMAND');
+      return value;
+    });
+    if (new Set(canonicalAction.allocation.map(entry => entry.optionId)).size !== canonicalAction.allocation.length) reject('INVALID_COMMAND');
+  }
+  else if (type === 'declineChoice') {
+    canonicalAction = exact(action, ['type', 'choiceId'], 'INVALID_COMMAND');
+    if (!nonempty(canonicalAction.choiceId)) reject('INVALID_COMMAND');
+  }
   else if (REFERENCE_ACTIONS.has(type)) {
     canonicalAction = exact(action, ['type', 'cardRef'], 'INVALID_COMMAND');
     if (typeof canonicalAction.cardRef !== 'string' || canonicalAction.cardRef.length !== 34
       || !REFERENCE_TOKEN.test(canonicalAction.cardRef)) reject('INVALID_COMMAND');
-  } else reject(UNAVAILABLE_ACTIONS.has(type) ? 'ACTION_SCHEMA_UNAVAILABLE' : 'INVALID_COMMAND');
+  } else reject('INVALID_COMMAND');
   const command = { ...source, action: canonicalAction };
   return { command, canonicalPayload: canonicalJson(command) };
 }
@@ -231,6 +276,10 @@ export function createCommandJournal(input) {
 
 export function canonicalizeCommand(input) {
   return envelope(() => canonicalCommand(input));
+}
+
+export function validateCommandJournal(input) {
+  return envelope(() => copyData(journalData(input), 'INVALID_JOURNAL'));
 }
 
 export function classifyCommand(journal, context, command) {

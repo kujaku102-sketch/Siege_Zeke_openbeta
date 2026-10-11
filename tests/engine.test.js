@@ -15,6 +15,7 @@ import {
   activateTurbo,
   canActivateTurbo,
   addSandboxCardToHand,
+  canAddSandboxCardToHand,
   attack,
   canAttack,
   canExecuteRegistryCard,
@@ -3788,6 +3789,29 @@ test("sandbox separates the card catalog from both ten-card test decks and hands
   assert.equal(state.players.ai.hand.at(-1).id, "STD-041");
   assert.notEqual(state.players.player.hand.at(-1).uid, state.players.ai.hand.at(-1).uid);
   assert.deepEqual(state.sandboxUi, { query: "", expansion: "all", catalogOwner: "player", opponentControl: "manual", actor: "player" });
+});
+
+test("sandbox card supply eligibility is pure and rejects hidden prototype definitions", () => {
+  const state = createGame({ mode: "sandbox", rng: () => 0.5 });
+  const before = {
+    tokenSerial: state.tokenSerial,
+    playerHand: [...state.players.player.hand], aiHand: [...state.players.ai.hand],
+    log: [...state.log]
+  };
+  assert.equal(canAddSandboxCardToHand(state, "player", "STD-020"), true);
+  assert.equal(canAddSandboxCardToHand(state, "ai", "STD-020"), true);
+  assert.equal(canAddSandboxCardToHand(state, "missing", "STD-020"), false);
+  assert.equal(canAddSandboxCardToHand(state, "player", "missing"), false);
+  assert.equal(canAddSandboxCardToHand(state, "player", "toString"), false);
+  assert.equal(canAddSandboxCardToHand(state, "player", "constructor"), false);
+  assert.equal(state.tokenSerial, before.tokenSerial);
+  assert.deepEqual(state.players.player.hand, before.playerHand);
+  assert.deepEqual(state.players.ai.hand, before.aiHand);
+  assert.deepEqual(state.log, before.log);
+
+  const battle = createGame({ mode: "ai", rng: () => 0.5 });
+  assert.equal(canAddSandboxCardToHand(battle, "player", "STD-020"), false);
+  assert.equal(addSandboxCardToHand(battle, "player", "STD-020"), false);
 });
 
 test("STD-001 and STD-002 use common placement and attack-damage windows", () => {

@@ -202,6 +202,129 @@ const openingMulliganCommand = (overrides = {}) => baseCommand({
 const activateTurboCommand = (overrides = {}) => baseCommand({
   action: { type: 'activateAbility', ability: { kind: 'user', key: 'turbo' } }, ...overrides
 });
+const sandboxAddCommand = (definitionId = 'STD-020', targetSeat = 'seat-a', overrides = {}) => baseCommand({
+  action: { type: 'sandboxAddCard', definitionId, targetSeat }, ...overrides
+});
+const sandboxAddFixture = ({ mode = 'sandbox', active = 'player', stateChanges = {} } = {}) => {
+  const authority = baseAuthority();
+  authority.metadata.startOptions.mode = mode;
+  Object.assign(authority.engineState, stateChanges, { mode, active });
+  authority.engineState.players = { player: {}, ai: {} };
+  return authority;
+};
+const attackCommand = (attackerRef, target, overrides = {}) => baseCommand({
+  action: { type: 'attack', attackerRef, target }, ...overrides
+});
+const attackFixture = ({ playerId = 'player', attackerId = 'STD-020', targetId = 'STD-020',
+  attackerChanges = {}, targetChanges = {}, targetZone = 'front' } = {}) => {
+  const session = createRuntimeSession({
+    matchId: 'match-a', seatIds: ['seat-a', 'seat-b'], seed: 31, ruleVersion: 'rules-1', cardVersion: 'cards-1',
+    gameOptions: { mode: 'ai', playerDeckRecipe: [], aiDeckRecipe: [] }
+  });
+  assert.equal(session.ok, true);
+  const engineState = session.value.engineState;
+  const opponentId = playerId === 'player' ? 'ai' : 'player';
+  engineState.active = playerId;
+  engineState.players[playerId].scriptActivatedTurn = engineState.turnNumber;
+  engineState.players[opponentId].scriptActivatedTurn = engineState.turnNumber;
+  const attacker = Object.assign(createRuntimeCard(engineState.runtimeContext, attackerId, playerId), {
+    sleep: false, summoningSick: false
+  }, attackerChanges);
+  const target = Object.assign(createRuntimeCard(engineState.runtimeContext, targetId, opponentId), {
+    sleep: true, summoningSick: false
+  }, targetChanges);
+  assert.equal(placeCardInBoardSlot(engineState.players[playerId].front, attacker,
+    { controllerId: playerId, zoneName: 'front', limit: 5 }), true);
+  assert.equal(placeCardInBoardSlot(engineState.players[opponentId][targetZone], target,
+    { controllerId: opponentId, zoneName: targetZone, limit: 5 }), true);
+  const index = buildRuntimeIdentityIndex(engineState);
+  assert.equal(index.ok, true);
+  const frame = {
+    matchId: index.value.matchId, seatIds: [...session.value.metadata.seatIds],
+    cards: index.value.entries.map(entry => ({ ...entry, faceDown: false }))
+  };
+  const refs = createRuntimeReferenceState({
+    frame, newRefs: Array.from({ length: frame.cards.length * 2 },
+      (_, indexValue) => `r:${(indexValue + 101).toString(16).padStart(32, '0')}`)
+  });
+  assert.equal(refs.ok, true);
+  const actorSeat = session.value.metadata.seatIds[playerId === 'player' ? 0 : 1];
+  const opponentSeat = session.value.metadata.seatIds[opponentId === 'player' ? 0 : 1];
+  const refFor = card => refs.value.entries.find(entry => entry.viewerSeat === actorSeat
+    && entry.identity.instanceId === card.identity.instanceId).cardRef;
+  const journal = createCommandJournal({ matchId: 'match-a', seatIds: session.value.metadata.seatIds });
+  assert.equal(journal.ok, true);
+  return {
+    authority: { ...session.value, engineState, journal: journal.value, referenceState: refs.value },
+    playerId, opponentId, actorSeat, opponentSeat, attacker, target,
+    attackerRef: refFor(attacker), targetRef: refFor(target)
+  };
+};
+const executeLayeredCommand = (cardRef, materialRefs, zone = 'front', slot = 5, overrides = {}) => baseCommand({
+  action: { type: 'executeLayered', cardRef, materialRefs, destination: { zone, slot } }, ...overrides
+});
+const layeredFixture = ({ playerId = 'player', sourceId = 'STD-232', sourceChanges = {},
+  materialSpecs = [{ id: 'STD-020', zone: 'front' }, { id: 'STD-021', zone: 'registry' }],
+  destinationZone = 'back', destinationSlot = 5, occupyDestination = false } = {}) => {
+  const session = createRuntimeSession({
+    matchId: 'match-a', seatIds: ['seat-a', 'seat-b'], seed: 37, ruleVersion: 'rules-1', cardVersion: 'cards-1',
+    gameOptions: { mode: 'ai', playerDeckRecipe: [], aiDeckRecipe: [] }
+  });
+  assert.equal(session.ok, true);
+  const engineState = session.value.engineState;
+  engineState.active = playerId;
+  engineState.players[playerId].memory = 30;
+  const source = Object.assign(createRuntimeCard(engineState.runtimeContext, sourceId, playerId),
+    { color: null }, sourceChanges);
+  engineState.players[playerId].hand.push(source);
+  const materials = materialSpecs.map((spec, indexValue) => {
+    const controller = spec.controller ?? playerId;
+    const owner = spec.owner ?? controller;
+    const card = Object.assign(createRuntimeCard(engineState.runtimeContext, spec.id, owner),
+      { faceDown: false }, spec.changes ?? {});
+    if (spec.zone === 'front' || spec.zone === 'back') {
+      assert.equal(placeCardInBoardSlot(engineState.players[controller][spec.zone], card, {
+        controllerId: controller, zoneName: spec.zone, limit: 5, requestedSlot: spec.slot ?? indexValue + 1
+      }), true);
+    } else engineState.players[controller][spec.zone].push(card);
+    return card;
+  });
+  if (occupyDestination) {
+    const blocker = createRuntimeCard(engineState.runtimeContext, 'STD-023', playerId);
+    assert.equal(placeCardInBoardSlot(engineState.players[playerId][destinationZone], blocker, {
+      controllerId: playerId, zoneName: destinationZone, limit: 5, requestedSlot: destinationSlot
+    }), true);
+  }
+  const index = buildRuntimeIdentityIndex(engineState);
+  assert.equal(index.ok, true);
+  const cards = [source, ...materials];
+  const faceDown = new Map(cards.map(card => [card.identity.instanceId, card.faceDown]));
+  const frame = {
+    matchId: index.value.matchId, seatIds: [...session.value.metadata.seatIds],
+    cards: index.value.entries.map(entry => ({ ...entry, faceDown: faceDown.get(entry.identity.instanceId) ?? false }))
+  };
+  const refsNeeded = frame.cards.reduce((count, entry) => {
+    if (entry.location.kind === 'board') return count + 2;
+    if (entry.location.zone === 'hand') return count + 1;
+    if (['registry', 'trash', 'ban'].includes(entry.location.zone) && !entry.faceDown) return count + 2;
+    return count;
+  }, 0);
+  const refs = createRuntimeReferenceState({
+    frame, newRefs: Array.from({ length: refsNeeded },
+      (_, indexValue) => `r:${(indexValue + 201).toString(16).padStart(32, '0')}`)
+  });
+  assert.equal(refs.ok, true);
+  const actorSeat = session.value.metadata.seatIds[playerId === 'player' ? 0 : 1];
+  const refFor = card => refs.value.entries.find(entry => entry.viewerSeat === actorSeat
+    && entry.identity.instanceId === card.identity.instanceId)?.cardRef;
+  const journal = createCommandJournal({ matchId: 'match-a', seatIds: session.value.metadata.seatIds });
+  assert.equal(journal.ok, true);
+  return {
+    authority: { ...session.value, engineState, journal: journal.value, referenceState: refs.value },
+    playerId, actorSeat, source, materials, sourceRef: refFor(source), materialRefs: materials.map(refFor),
+    destinationZone, destinationSlot
+  };
+};
 const mulliganFixture = ({ active = 'player', abilityKey = 'watching_you', initialHand = 5,
   mulligansUsed = 0, turnNumber = 1, handCount = initialHand ?? 5, occupiedZone = null } = {}) => {
   const authority = baseAuthority();
@@ -1535,4 +1658,251 @@ test('S03-CBR-72: Turbo retry precedes state reads and descriptor failures never
   const prepared = prepareRuntimeCommand(frozen, contextFor(), frozenCommand);
   assert.equal(prepared.ok, true);
   assert.deepEqual(prepared.value.adapter, { engineFunction: 'activateTurbo', playerId: 'player' });
+});
+
+test('S03-CBR-73: sandboxAddCard prepares either target seat independently of actor and active seat', () => {
+  for (const actorSeat of ['seat-a', 'seat-b']) {
+    for (const [targetSeat, playerId] of [['seat-a', 'player'], ['seat-b', 'ai']]) {
+      const authority = sandboxAddFixture({ active: actorSeat === 'seat-a' ? 'ai' : 'player' });
+      const command = sandboxAddCommand('STD-020', targetSeat, { actorSeat });
+      const before = structuredClone(authority);
+      const result = prepareRuntimeCommand(authority, contextFor(actorSeat), command);
+      assert.equal(result.ok, true, `${actorSeat}:${targetSeat}`);
+      assert.deepEqual(result.value.adapter,
+        { engineFunction: 'addSandboxCardToHand', playerId, cardId: 'STD-020' });
+      assert.deepEqual(authority, before);
+    }
+  }
+});
+
+test('S03-CBR-74: sandboxAddCard rejects non-sandbox modes, result, busy, unknown seat and definition', () => {
+  for (const mode of ['ai', 'tutorial']) {
+    const authority = sandboxAddFixture({ mode });
+    code(prepareRuntimeCommand(authority, contextFor(), sandboxAddCommand()), 'UNAVAILABLE_MODE');
+  }
+  for (const authority of [
+    sandboxAddFixture({ stateChanges: { pending: { type: 'awaiting-choice' } } }),
+    sandboxAddFixture({ stateChanges: {
+      winner: 'player', victory: { lockedOutcome: 'player', lockedAtEffectId: 'effect-1', finished: true }
+    } })
+  ]) code(prepareRuntimeCommand(authority, contextFor(), sandboxAddCommand()), 'ACTION_NOT_ALLOWED');
+
+  const authority = sandboxAddFixture();
+  code(prepareRuntimeCommand(authority, contextFor(), sandboxAddCommand('STD-020', 'seat-c')), 'ACTION_NOT_ALLOWED');
+  for (const definitionId of ['missing', 'toString', 'constructor']) {
+    code(prepareRuntimeCommand(authority, contextFor(), sandboxAddCommand(definitionId)), 'ACTION_NOT_ALLOWED');
+  }
+});
+
+test('S03-CBR-75: sandboxAddCard retry precedes state reads and planning rejects accessors without invoking them', () => {
+  const retry = sandboxAddFixture();
+  const command = sandboxAddCommand('STD-020', 'seat-b');
+  retry.journal = recordTerminal(retry.journal, contextFor(), command, accepted).value;
+  let stateReads = 0;
+  Object.defineProperty(retry, 'engineState', {
+    enumerable: true, configurable: true,
+    get() { stateReads += 1; throw new Error('retry must return before engine state'); }
+  });
+  assert.equal(prepareRuntimeCommand(retry, contextFor(), command).value.kind, 'retry');
+  assert.equal(stateReads, 0);
+
+  const accessor = sandboxAddFixture();
+  let playerReads = 0;
+  Object.defineProperty(accessor.engineState.players, 'player', {
+    enumerable: true, configurable: true,
+    get() { playerReads += 1; return {}; }
+  });
+  code(prepareRuntimeCommand(accessor, contextFor(), sandboxAddCommand()), 'INVALID_AUTHORITY');
+  assert.equal(playerReads, 0);
+
+  const frozen = sandboxAddFixture({ mode: 'lab' });
+  const frozenCommand = deepFreeze(sandboxAddCommand('STD-020', 'seat-b'));
+  deepFreeze(frozen);
+  assert.deepEqual(prepareRuntimeCommand(frozen, contextFor(), frozenCommand).value.adapter,
+    { engineFunction: 'addSandboxCardToHand', playerId: 'ai', cardId: 'STD-020' });
+});
+
+test('S03-CBR-76: attack prepares card and user targets for either active seat without mutation', () => {
+  for (const playerId of ['player', 'ai']) {
+    const fixture = attackFixture({ playerId });
+    const targets = [
+      [{ kind: 'card', cardRef: fixture.targetRef }, fixture.target.uid],
+      [{ kind: 'user', seatId: fixture.opponentSeat }, `${fixture.opponentId}-fortress`]
+    ];
+    for (const [target, targetUid] of targets) {
+      const command = attackCommand(fixture.attackerRef, target, { actorSeat: fixture.actorSeat });
+      const before = JSON.stringify(fixture.authority);
+      const result = prepareRuntimeCommand(fixture.authority, contextFor(fixture.actorSeat), command);
+      assert.equal(result.ok, true, `${playerId}:${target.kind}`);
+      assert.deepEqual(result.value.adapter, {
+        engineFunction: 'attack', playerId, attackerUid: fixture.attacker.uid, targetUid
+      });
+      assert.equal(JSON.stringify(fixture.authority), before);
+    }
+  }
+});
+
+test('S03-CBR-77: attack preserves Security, Hacking, Contact, QA and Encryption target rules', () => {
+  const security = attackFixture({ targetId: 'STD-022' });
+  code(prepareRuntimeCommand(security.authority, contextFor(),
+    attackCommand(security.attackerRef, { kind: 'user', seatId: security.opponentSeat })), 'ACTION_NOT_ALLOWED');
+  assert.equal(prepareRuntimeCommand(security.authority, contextFor(),
+    attackCommand(security.attackerRef, { kind: 'card', cardRef: security.targetRef })).ok, true);
+
+  const hacking = attackFixture({ attackerId: 'STD-123', targetId: 'STD-022', attackerChanges: { atk: 5 } });
+  assert.equal(prepareRuntimeCommand(hacking.authority, contextFor(),
+    attackCommand(hacking.attackerRef, { kind: 'user', seatId: hacking.opponentSeat })).ok, true);
+
+  const contact = attackFixture({ attackerChanges: { summoningSick: true, grantedKeywords: ['CONTACT'] } });
+  assert.equal(prepareRuntimeCommand(contact.authority, contextFor(),
+    attackCommand(contact.attackerRef, { kind: 'card', cardRef: contact.targetRef })).ok, true);
+  code(prepareRuntimeCommand(contact.authority, contextFor(),
+    attackCommand(contact.attackerRef, { kind: 'user', seatId: contact.opponentSeat })), 'ACTION_NOT_ALLOWED');
+
+  const qa = attackFixture({ attackerId: 'STD-100', attackerChanges: { summoningSick: true } });
+  assert.equal(prepareRuntimeCommand(qa.authority, contextFor(),
+    attackCommand(qa.attackerRef, { kind: 'user', seatId: qa.opponentSeat })).ok, true);
+
+  const encrypted = attackFixture({ targetChanges: { grantedKeywords: ['ENCRYPTION'] } });
+  code(prepareRuntimeCommand(encrypted.authority, contextFor(),
+    attackCommand(encrypted.attackerRef, { kind: 'card', cardRef: encrypted.targetRef })), 'ACTION_NOT_ALLOWED');
+});
+
+test('S03-CBR-78: attack preserves card-specific declaration and target restrictions', () => {
+  const obFirst = attackFixture({ attackerId: 'STD-091' });
+  code(prepareRuntimeCommand(obFirst.authority, contextFor(),
+    attackCommand(obFirst.attackerRef, { kind: 'user', seatId: obFirst.opponentSeat })), 'ACTION_NOT_ALLOWED');
+
+  const scriptTurn = attackFixture({ attackerId: 'STD-181' });
+  scriptTurn.authority.engineState.players.player.scriptActivatedTurn = null;
+  code(prepareRuntimeCommand(scriptTurn.authority, contextFor(),
+    attackCommand(scriptTurn.attackerRef, { kind: 'card', cardRef: scriptTurn.targetRef })), 'ACTION_NOT_ALLOWED');
+
+  const registryTurn = attackFixture({ attackerId: 'STD-220' });
+  registryTurn.attacker.std220RegistryExecutedTurn = registryTurn.authority.engineState.turnNumber;
+  code(prepareRuntimeCommand(registryTurn.authority, contextFor(),
+    attackCommand(registryTurn.attackerRef, { kind: 'user', seatId: registryTurn.opponentSeat })), 'ACTION_NOT_ALLOWED');
+  assert.equal(prepareRuntimeCommand(registryTurn.authority, contextFor(),
+    attackCommand(registryTurn.attackerRef, { kind: 'card', cardRef: registryTurn.targetRef })).ok, true);
+});
+
+test('S03-CBR-79: attack rejects invalid location, state, seat and reference scope', () => {
+  for (const fixture of [
+    attackFixture({ attackerChanges: { sleep: true } }),
+    attackFixture({ attackerChanges: { summoningSick: true } }),
+    attackFixture({ targetChanges: { sleep: false } }),
+    attackFixture({ targetZone: 'back' })
+  ]) code(prepareRuntimeCommand(fixture.authority, contextFor(fixture.actorSeat),
+    attackCommand(fixture.attackerRef, { kind: 'card', cardRef: fixture.targetRef }, { actorSeat: fixture.actorSeat })),
+  'ACTION_NOT_ALLOWED');
+
+  const fixture = attackFixture();
+  code(prepareRuntimeCommand(fixture.authority, contextFor(),
+    attackCommand(fixture.attackerRef, { kind: 'user', seatId: 'seat-a' })), 'ACTION_NOT_ALLOWED');
+  code(prepareRuntimeCommand(fixture.authority, contextFor(),
+    attackCommand(fixture.attackerRef, { kind: 'user', seatId: 'seat-c' })), 'ACTION_NOT_ALLOWED');
+  code(prepareRuntimeCommand(fixture.authority, contextFor('seat-b'),
+    attackCommand(fixture.attackerRef, { kind: 'card', cardRef: fixture.targetRef }, { actorSeat: 'seat-b' })),
+  'ACTION_NOT_ALLOWED');
+});
+
+test('S03-CBR-80: attack retry precedes reference reads and selected accessors never run', () => {
+  const retry = attackFixture();
+  const command = attackCommand(retry.attackerRef, { kind: 'card', cardRef: retry.targetRef });
+  retry.authority.journal = recordTerminal(retry.authority.journal, contextFor(), command, accepted).value;
+  let referenceReads = 0;
+  Object.defineProperty(retry.authority, 'referenceState', {
+    enumerable: true, configurable: true,
+    get() { referenceReads += 1; throw new Error('retry must not read references'); }
+  });
+  assert.equal(prepareRuntimeCommand(retry.authority, contextFor(), command).value.kind, 'retry');
+  assert.equal(referenceReads, 0);
+
+  const accessor = attackFixture();
+  let sleepReads = 0;
+  Object.defineProperty(accessor.attacker, 'sleep', {
+    enumerable: true, configurable: true,
+    get() { sleepReads += 1; return false; }
+  });
+  code(prepareRuntimeCommand(accessor.authority, contextFor(),
+    attackCommand(accessor.attackerRef, { kind: 'card', cardRef: accessor.targetRef })), 'INVALID_AUTHORITY');
+  assert.equal(sleepReads, 0);
+});
+
+test('S03-CBR-81: executeLayered prepares ordered materials for either active seat without mutation', () => {
+  for (const playerId of ['player', 'ai']) {
+    const fixture = layeredFixture({ playerId });
+    const command = executeLayeredCommand(fixture.sourceRef, fixture.materialRefs,
+      fixture.destinationZone, fixture.destinationSlot, { actorSeat: fixture.actorSeat });
+    const before = JSON.stringify(fixture.authority);
+    const result = prepareRuntimeCommand(fixture.authority, contextFor(fixture.actorSeat), command);
+    assert.equal(result.ok, true, playerId);
+    assert.deepEqual(result.value.adapter, {
+      engineFunction: 'playLayeredCard', playerId, uid: fixture.source.uid,
+      materialUids: fixture.materials.map(card => card.uid), zone: fixture.destinationZone,
+      options: { requestedSlot: fixture.destinationSlot }
+    });
+    assert.equal(JSON.stringify(fixture.authority), before);
+  }
+});
+
+test('S03-CBR-82: executeLayered preserves hand material and explicit input order', () => {
+  const fixture = layeredFixture({
+    sourceId: 'SZTB-094', destinationZone: 'front',
+    materialSpecs: [
+      { id: 'SZTB-090', zone: 'hand' },
+      { id: 'SZTB-091', zone: 'front' },
+      { id: 'SZTB-092', zone: 'back' }
+    ]
+  });
+  const orderedRefs = [fixture.materialRefs[2], fixture.materialRefs[0], fixture.materialRefs[1]];
+  const result = prepareRuntimeCommand(fixture.authority, contextFor(),
+    executeLayeredCommand(fixture.sourceRef, orderedRefs, 'front', 5));
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.value.adapter.materialUids,
+    [fixture.materials[2].uid, fixture.materials[0].uid, fixture.materials[1].uid]);
+});
+
+test('S03-CBR-83: executeLayered rejects rule, location, payment and slot failures', () => {
+  const enemy = layeredFixture({ sourceId: 'STD-205', materialSpecs: [{ id: 'STD-020', zone: 'front', controller: 'ai' }] });
+  code(prepareRuntimeCommand(enemy.authority, contextFor(),
+    executeLayeredCommand(enemy.sourceRef, enemy.materialRefs)), 'ACTION_NOT_ALLOWED');
+
+  const trash = layeredFixture({ sourceId: 'STD-205', materialSpecs: [{ id: 'STD-020', zone: 'trash' }] });
+  code(prepareRuntimeCommand(trash.authority, contextFor(),
+    executeLayeredCommand(trash.sourceRef, trash.materialRefs)), 'ACTION_NOT_ALLOWED');
+
+  const costly = layeredFixture({ sourceId: 'STD-205', sourceChanges: { cost: 99 },
+    materialSpecs: [{ id: 'STD-020', zone: 'front' }] });
+  code(prepareRuntimeCommand(costly.authority, contextFor(),
+    executeLayeredCommand(costly.sourceRef, costly.materialRefs)), 'ACTION_NOT_ALLOWED');
+
+  const occupied = layeredFixture({ occupyDestination: true });
+  code(prepareRuntimeCommand(occupied.authority, contextFor(),
+    executeLayeredCommand(occupied.sourceRef, occupied.materialRefs,
+      occupied.destinationZone, occupied.destinationSlot)), 'ACTION_NOT_ALLOWED');
+});
+
+test('S03-CBR-84: executeLayered retry precedes refs and selected accessors stay uncalled', () => {
+  const retry = layeredFixture();
+  const command = executeLayeredCommand(retry.sourceRef, retry.materialRefs, retry.destinationZone, retry.destinationSlot);
+  retry.authority.journal = recordTerminal(retry.authority.journal, contextFor(), command, accepted).value;
+  let referenceReads = 0;
+  Object.defineProperty(retry.authority, 'referenceState', {
+    enumerable: true, configurable: true,
+    get() { referenceReads += 1; throw new Error('retry must not read references'); }
+  });
+  assert.equal(prepareRuntimeCommand(retry.authority, contextFor(), command).value.kind, 'retry');
+  assert.equal(referenceReads, 0);
+
+  const accessor = layeredFixture();
+  let classReads = 0;
+  Object.defineProperty(accessor.materials[0], 'classes', {
+    enumerable: true, configurable: true,
+    get() { classReads += 1; return []; }
+  });
+  code(prepareRuntimeCommand(accessor.authority, contextFor(),
+    executeLayeredCommand(accessor.sourceRef, accessor.materialRefs,
+      accessor.destinationZone, accessor.destinationSlot)), 'INVALID_AUTHORITY');
+  assert.equal(classReads, 0);
 });

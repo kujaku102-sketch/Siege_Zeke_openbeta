@@ -372,6 +372,7 @@ function hydrateCard(instance) {
     printedCategory,
     classes: normalizeClasses(instance),
     compiled,
+    faceDown: instance.faceDown === true,
     protect: Number(instance.protect ?? keywordValue({ ...instance, compiled }, "PROTECT") ?? 0)
   });
 }
@@ -515,8 +516,14 @@ function arrangeLab(players, runtimeContext = null) {
   players.ai.user.memory = 99;
 }
 
+export function canAddSandboxCardToHand(state, playerId, cardId) {
+  return Boolean(state && ["lab", "sandbox"].includes(state.mode)
+    && state.players && typeof state.players === "object" && Object.hasOwn(state.players, playerId)
+    && typeof cardId === "string" && cardId.length > 0 && Object.hasOwn(CARD_LIBRARY, cardId));
+}
+
 export function addSandboxCardToHand(state, playerId, cardId) {
-  if (!["lab", "sandbox"].includes(state.mode) || !CARD_LIBRARY[cardId] || !state.players[playerId]) return false;
+  if (!canAddSandboxCardToHand(state, playerId, cardId)) return false;
   const card = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, cardId, playerId, ++state.tokenSerial + 9000));
   state.players[playerId].hand.push(card);
   addLog(state, `ALL CARD LISTから${state.players[playerId].user.name}の手札へ「${card.name}」を追加。`, "system");
@@ -2130,7 +2137,7 @@ function triggerRequiresChoice(trigger) {
 
 function drainTriggerQueue(state) {
   if (state.processingTriggers || state.effectDepth > 0) return;
-  if (state.interactive && state.triggerQueue.length > 1 && !state.triggerThread?.status?.includes("resolving")) {
+  if ((state.interactive || state.runtimeContext) && state.triggerQueue.length > 1 && !state.triggerThread?.status?.includes("resolving")) {
     const triggers = state.triggerQueue.splice(0);
     state.triggerThread = {
       id: `THREAD-${state.triggerSerial}`,
@@ -2224,14 +2231,14 @@ function emitUserAbilityFeedback(state, abilityKey, ownerPlayerId, affectedPlaye
     ownerPlayerId,
     affectedPlayerId,
     branch: fields.branch ?? "resolved",
-    before: Number.isFinite(fields.before) ? fields.before : undefined,
-    after: Number.isFinite(fields.after) ? fields.after : undefined,
-    amount: Number.isFinite(fields.amount) ? fields.amount : undefined,
-    strBefore: Number.isFinite(fields.strBefore) ? fields.strBefore : undefined,
-    strAfter: Number.isFinite(fields.strAfter) ? fields.strAfter : undefined,
-    memoryBefore: Number.isFinite(fields.memoryBefore) ? fields.memoryBefore : undefined,
-    memoryAfter: Number.isFinite(fields.memoryAfter) ? fields.memoryAfter : undefined,
-    anchorCardUid: typeof fields.anchorCardUid === "string" ? fields.anchorCardUid : undefined,
+    ...(Number.isFinite(fields.before) ? { before: fields.before } : {}),
+    ...(Number.isFinite(fields.after) ? { after: fields.after } : {}),
+    ...(Number.isFinite(fields.amount) ? { amount: fields.amount } : {}),
+    ...(Number.isFinite(fields.strBefore) ? { strBefore: fields.strBefore } : {}),
+    ...(Number.isFinite(fields.strAfter) ? { strAfter: fields.strAfter } : {}),
+    ...(Number.isFinite(fields.memoryBefore) ? { memoryBefore: fields.memoryBefore } : {}),
+    ...(Number.isFinite(fields.memoryAfter) ? { memoryAfter: fields.memoryAfter } : {}),
+    ...(typeof fields.anchorCardUid === "string" ? { anchorCardUid: fields.anchorCardUid } : {}),
     steps: steps.map((step) => structuredClone(step)),
     outcome: fields.outcome ?? null
   });
@@ -6767,7 +6774,7 @@ export function dealFortressDamage(state, victimId, amount, sourcePlayerId, sour
     addLog(state, `INCIDENT ${threshold}: ${victim.user.name}のメモリ上限+1・アクティブメモリ1回復、${sourcePlayer.user.name}が1ドロー。`, "incident");
   }
   if (victim.fortressStr <= 0) recordVictoryFact(state, { type: "str-zero", playerId: victimId, sourcePlayerId });
-  if (state.interactive && amount > 0 && sourcePlayerId !== victimId) {
+  if ((state.interactive || state.runtimeContext) && amount > 0 && sourcePlayerId !== victimId) {
     const queued = { playerId: victimId, event: { sourcePlayerId, source, amount, kind } };
     if (state.resolvingResponse) (state.responseEventQueue ??= []).push(queued);
     else openResponseWindow(state, queued.playerId, queued.event) || startNextQueuedResponse(state);

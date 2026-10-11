@@ -1,13 +1,17 @@
 import { canonicalizeCommand, classifyCommand } from './command-record.js';
-import { canActivateTurbo, canDirectRelogAtSlot, canExecuteAtSlot, canOpeningMulligan, cardHasKeyword, enabledSymbols, supportsDirectHandObExecution, supportsNormalScriptActivation } from '../engine.js';
+import { canActivateTurbo, canAddSandboxCardToHand, canAttack, canDirectRelogAtSlot, canExecuteAtSlot, canOpeningMulligan, canPlayLayeredCard, cardHasKeyword, enabledSymbols, getAttackTargets, supportsDirectHandObExecution, supportsNormalScriptActivation } from '../engine.js';
 import { isObCard } from '../card-types.js';
 import { buildRuntimeIdentityIndex } from './bridge.js';
 import { findIdentityEntry } from './identity.js';
 import { lookupRuntimeCardReference } from './references.js';
+import { createActionRegistry, lookupActionHandler } from './action-registry.js';
+import { prepareRequiredInputAction } from './required-input.js';
+import {
+  SAFE_READ_MISSING, SafeReadError, readDenseData, readFiniteNumber, readOrdinary, readOwnData
+} from './safe-read.js';
 
 const AUTHORITY_KEYS = ['metadata', 'revision', 'engineState', 'journal'];
 const REFERENCE_AUTHORITY_KEYS = [...AUTHORITY_KEYS, 'referenceState'];
-const REFERENCE_ACTIONS = new Set(['restSecurity', 'install', 'recoverRegistry', 'activateScript', 'executeCard', 'redeploy']);
 const METADATA_KEYS = ['matchId', 'seatIds', 'ruleVersion', 'cardVersion', 'startOptions'];
 const START_OPTION_KEYS = ['mode', 'tutorialId', 'playerDeckId', 'aiDeckId', 'playerDeckRecipe', 'aiDeckRecipe', 'playerUserId', 'aiUserId', 'sandboxDeckSetup'];
 const CONTEXT_KEYS = ['matchId', 'seatIds', 'identityState', 'rngState', 'uidAliases'];
@@ -23,7 +27,8 @@ const OPTIONAL_EMPTY_ARRAYS = ['deferredTrashMoves', 'independentEffects'];
 const OPTIONAL_FLAGS = ['drainingIndependentEffects', 'resolvingStd165', 'skipSavageTurnEnd'];
 const OPTIONAL_PLAYER_FLAGS = ['securityRestWindow', 'std094TurnEndDone', 'std141TurnEndDone', 'std142TurnEndDone', 'resumeTurnEndAfterSelection'];
 const ATTACK_STAGES = ['start', 'std182-script', 'after-declare', 'after-battle'];
-const MISSING = Symbol('missing');
+const MISSING = SAFE_READ_MISSING;
+const CHOICE_ACTIONS = new Set(['answerChoice', 'declineChoice']);
 const nonempty = value => typeof value === 'string' && value.length > 0;
 const safeRevision = value => Number.isSafeInteger(value) && value >= 0 && !Object.is(value, -0);
 
@@ -311,38 +316,9 @@ function physicalCardMap(engineState) {
   return cards;
 }
 
-function selectedObject(value, code, ancestors) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) reject(code);
-  if (ancestors.has(value)) reject(code);
-  ancestors.add(value);
-  return value;
-}
-
-function selectedField(object, key, code, fallback = MISSING) {
-  const descriptor = Object.getOwnPropertyDescriptor(object, key);
-  if (!descriptor) return fallback;
-  if (!descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) reject(code);
-  return descriptor.value;
-}
-
-function selectedArray(value, code, ancestors, mapper) {
-  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) reject(code);
-  if (ancestors.has(value)) reject(code);
-  ancestors.add(value);
-  try {
-    const keys = Reflect.ownKeys(value);
-    const length = Object.getOwnPropertyDescriptor(value, 'length');
-    if (!length || !Object.hasOwn(length, 'value') || length.enumerable || length.configurable
-      || !Number.isSafeInteger(length.value) || length.value < 0 || keys.length !== length.value + 1) reject(code);
-    const result = [];
-    for (let index = 0; index < length.value; index += 1) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-      if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) reject(code);
-      result.push(mapper(descriptor.value));
-    }
-    return result;
-  } finally { ancestors.delete(value); }
-}
+const selectedObject = readOrdinary;
+const selectedField = readOwnData;
+const selectedArray = readDenseData;
 
 function securityEligibilityView(card) {
   const code = 'INVALID_AUTHORITY';
@@ -590,13 +566,7 @@ function activateScriptTarget(engineState, referenceInput, cardRef, metadata, ac
   return { uid: target.uid };
 }
 
-function finiteNumberField(object, key, code, { fallback = 0, minimum = null } = {}) {
-  const raw = selectedField(object, key, code, MISSING);
-  const value = raw === MISSING || raw === null || raw === undefined ? fallback : raw;
-  if (typeof value !== 'number' || !Number.isFinite(value) || Object.is(value, -0)
-    || (minimum !== null && value < minimum)) reject(code);
-  return value;
-}
+const finiteNumberField = readFiniteNumber;
 
 function executionCardView(card) {
   const code = 'INVALID_AUTHORITY';
@@ -727,6 +697,100 @@ function executeCardTarget(engineState, referenceInput, action, metadata, actorS
   return { uid: target.uid, options };
 }
 
+function layeredCardView(card, controllerId, zone) {
+  const code = 'INVALID_AUTHORITY';
+  const keywordView = securityEligibilityView(card);
+  const executionView = executionCardView(card);
+  const ancestors = new Set();
+  selectedObject(card, code, ancestors);
+  try {
+    const uid = selectedField(card, 'uid', code);
+    const faceDown = selectedField(card, 'faceDown', code);
+    const rawClasses = selectedField(card, 'classes', code, []);
+    const classes = selectedArray(rawClasses, code, ancestors, item => {
+      if (!nonempty(item)) reject(code);
+      return item;
+    });
+    if (!nonempty(uid) || typeof faceDown !== 'boolean') reject(code);
+    const view = { ...keywordView, ...executionView, uid, faceDown, classes };
+    if (zone === 'front' || zone === 'back') {
+      const slot = selectedField(card, 'boardSlot', code);
+      const slotController = selectedField(card, 'boardSlotController', code);
+      const slotZone = selectedField(card, 'boardSlotZone', code);
+      if (!Number.isSafeInteger(slot) || slot < 1 || Object.is(slot, -0)
+        || slotController !== controllerId || slotZone !== zone) reject(code);
+      Object.assign(view, { boardSlot: slot, boardSlotController: slotController, boardSlotZone: slotZone });
+    }
+    return view;
+  } finally { ancestors.delete(card); }
+}
+
+function layeredPlayerView(engineState, playerId) {
+  const code = 'INVALID_AUTHORITY';
+  const players = own(engineState, 'players', code);
+  ordinary(players, code);
+  const player = own(players, playerId, code);
+  ordinary(player, code);
+  const user = selectedField(player, 'user', code);
+  const ancestors = new Set();
+  selectedObject(user, code, ancestors);
+  let userView;
+  try {
+    const frontLimit = selectedField(user, 'frontLimit', code);
+    const backLimit = selectedField(user, 'backLimit', code);
+    const abilityRaw = selectedField(user, 'abilityKey', code, null);
+    if (!Number.isSafeInteger(frontLimit) || frontLimit < 0 || Object.is(frontLimit, -0)
+      || !Number.isSafeInteger(backLimit) || backLimit < 0 || Object.is(backLimit, -0)
+      || (abilityRaw !== null && abilityRaw !== undefined && typeof abilityRaw !== 'string')) reject(code);
+    userView = { frontLimit, backLimit, abilityKey: abilityRaw ?? null };
+  } finally { ancestors.delete(user); }
+  const zoneView = name => selectedArray(selectedField(player, name, code), code, new Set(), card =>
+    layeredCardView(card, playerId, name));
+  const firstRaw = selectedField(player, 'firstObExecutionTurn', code, null);
+  if (firstRaw !== null && firstRaw !== undefined && !safeRevision(firstRaw)) reject(code);
+  return {
+    memory: finiteNumberField(player, 'memory', code, { minimum: 0 }),
+    firstObExecutionTurn: firstRaw ?? null,
+    hand: zoneView('hand'), front: zoneView('front'), back: zoneView('back'),
+    registry: zoneView('registry'), trash: zoneView('trash'), user: userView
+  };
+}
+
+function layeredPlanningView(engineState) {
+  const active = own(engineState, 'active', 'INVALID_AUTHORITY');
+  const mode = own(engineState, 'mode', 'INVALID_AUTHORITY');
+  const turnNumber = own(engineState, 'turnNumber', 'INVALID_AUTHORITY');
+  if (!['player', 'ai'].includes(active) || !['ai', 'tutorial', 'lab', 'sandbox'].includes(mode)
+    || !safeRevision(turnNumber)) reject('INVALID_AUTHORITY');
+  return {
+    active, mode, turnNumber,
+    players: { player: layeredPlayerView(engineState, 'player'), ai: layeredPlayerView(engineState, 'ai') }
+  };
+}
+
+function executeLayeredTarget(engineState, referenceInput, action, metadata, actorSeat, playerId) {
+  const source = currentReferencedCard(engineState, referenceInput, action.cardRef, metadata, actorSeat);
+  if (source.entry.location.kind !== 'zone' || source.entry.location.zone !== 'hand'
+    || source.entry.location.seatId !== actorSeat || source.entry.controllerSeat !== actorSeat) reject('ACTION_NOT_ALLOWED');
+  const materials = action.materialRefs.map(cardRef =>
+    currentReferencedCard(engineState, referenceInput, cardRef, metadata, actorSeat));
+  const materialUids = materials.map(material => material.uid);
+  if (materialUids.includes(source.uid) || new Set(materialUids).size !== materialUids.length) reject('ACTION_NOT_ALLOWED');
+  for (const material of materials) {
+    const location = material.entry.location;
+    const allowed = location.kind === 'board' && ['front', 'back'].includes(location.zone)
+      || location.kind === 'zone' && ['hand', 'registry'].includes(location.zone);
+    if (!allowed) reject('ACTION_NOT_ALLOWED');
+  }
+  const stateView = layeredPlanningView(engineState);
+  if (!canPlayLayeredCard(stateView, playerId, source.uid, materialUids,
+    action.destination.zone, action.destination.slot).ok) reject('ACTION_NOT_ALLOWED');
+  return {
+    uid: source.uid, materialUids, zone: action.destination.zone,
+    options: { requestedSlot: action.destination.slot }
+  };
+}
+
 function selectedLayerCount(card, code, ancestors = new Set()) {
   const mounted = selectedField(card, 'mounted', code, []);
   return selectedArray(mounted, code, ancestors, layer => {
@@ -753,6 +817,135 @@ function redeployTarget(engineState, referenceInput, action, metadata, actorSeat
   };
   if (!canDirectRelogAtSlot(stateView, playerId, cardView, options).ok) reject('ACTION_NOT_ALLOWED');
   return { uid: target.uid, targetZone: options.zone, options: { requestedSlot: options.requestedSlot } };
+}
+
+function attackCardView(card) {
+  const code = 'INVALID_AUTHORITY';
+  const keywordView = securityEligibilityView(card);
+  const ancestors = new Set();
+  selectedObject(card, code, ancestors);
+  try {
+    const uid = selectedField(card, 'uid', code);
+    const name = selectedField(card, 'name', code);
+    const colorRaw = selectedField(card, 'color', code, null);
+    const faceDown = selectedField(card, 'faceDown', code);
+    const sleep = selectedField(card, 'sleep', code);
+    const summoningSick = selectedField(card, 'summoningSick', code);
+    if (!nonempty(uid) || typeof name !== 'string'
+      || (colorRaw !== null && colorRaw !== undefined && typeof colorRaw !== 'string')
+      || typeof faceDown !== 'boolean' || typeof sleep !== 'boolean' || typeof summoningSick !== 'boolean') reject(code);
+
+    const rawClasses = selectedField(card, 'classes', code, []);
+    const classes = selectedArray(rawClasses, code, ancestors, item => {
+      if (!nonempty(item)) reject(code);
+      return item;
+    });
+    const timedRaw = selectedField(card, 'timedModifiers', code, []);
+    const timedModifiers = selectedArray(timedRaw, code, ancestors, item => {
+      selectedObject(item, code, ancestors);
+      try {
+        const result = {};
+        for (const key of ['keyword', 'atk', 'expiresAfterTurn']) {
+          const value = selectedField(item, key, code, MISSING);
+          if (value === MISSING || value === null || value === undefined) continue;
+          if (key === 'keyword') {
+            if (!nonempty(value)) reject(code);
+          } else if (typeof value !== 'number' || !Number.isFinite(value) || Object.is(value, -0)
+            || (key === 'expiresAfterTurn' && (!Number.isSafeInteger(value) || value < 0))) reject(code);
+          result[key] = value;
+        }
+        return result;
+      } finally { ancestors.delete(item); }
+    });
+    const mountedRaw = selectedField(card, 'mounted', code, []);
+    const mounted = selectedArray(mountedRaw, code, ancestors, provider => {
+      selectedObject(provider, code, ancestors);
+      try {
+        const id = selectedField(provider, 'id', code);
+        const protectRaw = selectedField(provider, 'protectConsumed', code, false);
+        if (!nonempty(id) || (protectRaw !== null && protectRaw !== undefined && typeof protectRaw !== 'boolean')) reject(code);
+        return { id, protectConsumed: protectRaw ?? false };
+      } finally { ancestors.delete(provider); }
+    });
+    const std220Raw = selectedField(card, 'std220RegistryExecutedTurn', code, null);
+    if (std220Raw !== null && std220Raw !== undefined && !safeRevision(std220Raw)) reject(code);
+    return {
+      ...keywordView, uid, name, color: colorRaw ?? null, classes, faceDown, sleep, summoningSick,
+      atk: finiteNumberField(card, 'atk', code), tempAtk: finiteNumberField(card, 'tempAtk', code),
+      permanentAtk: finiteNumberField(card, 'permanentAtk', code), load: finiteNumberField(card, 'load', code),
+      timedModifiers, mounted, std220RegistryExecutedTurn: std220Raw ?? null
+    };
+  } finally { ancestors.delete(card); }
+}
+
+function attackPlayerView(engineState, playerId) {
+  const code = 'INVALID_AUTHORITY';
+  const players = own(engineState, 'players', code);
+  ordinary(players, code);
+  const player = own(players, playerId, code);
+  ordinary(player, code);
+  const user = selectedField(player, 'user', code);
+  const ancestors = new Set();
+  selectedObject(user, code, ancestors);
+  let abilityKey;
+  try {
+    const raw = selectedField(user, 'abilityKey', code, null);
+    if (raw !== null && raw !== undefined && typeof raw !== 'string') reject(code);
+    abilityKey = raw ?? null;
+  } finally { ancestors.delete(user); }
+  const scriptActivatedRaw = selectedField(player, 'scriptActivatedTurn', code, null);
+  if (scriptActivatedRaw !== null && scriptActivatedRaw !== undefined && !safeRevision(scriptActivatedRaw)) reject(code);
+  const zone = name => selectedArray(selectedField(player, name, code), code, new Set(), attackCardView);
+  const registry = selectedArray(selectedField(player, 'registry', code), code, new Set(), card => {
+    const cardCode = 'INVALID_AUTHORITY';
+    const cardAncestors = new Set();
+    selectedObject(card, cardCode, cardAncestors);
+    try {
+      const category = selectedField(card, 'category', cardCode);
+      const faceDown = selectedField(card, 'faceDown', cardCode);
+      const colorRaw = selectedField(card, 'color', cardCode, null);
+      if (typeof category !== 'string' || typeof faceDown !== 'boolean'
+        || (colorRaw !== null && colorRaw !== undefined && typeof colorRaw !== 'string')) reject(cardCode);
+      return { category, faceDown, color: colorRaw ?? null };
+    } finally { cardAncestors.delete(card); }
+  });
+  return {
+    front: zone('front'), back: zone('back'), registry,
+    scriptActivatedTurn: scriptActivatedRaw ?? null, user: { abilityKey }
+  };
+}
+
+function attackPlanningView(engineState) {
+  const active = own(engineState, 'active', 'INVALID_AUTHORITY');
+  const turnNumber = own(engineState, 'turnNumber', 'INVALID_AUTHORITY');
+  if (!['player', 'ai'].includes(active) || !safeRevision(turnNumber)) reject('INVALID_AUTHORITY');
+  return {
+    active, turnNumber,
+    players: { player: attackPlayerView(engineState, 'player'), ai: attackPlayerView(engineState, 'ai') }
+  };
+}
+
+function attackTarget(engineState, referenceInput, action, metadata, actorSeat, playerId) {
+  const attacker = currentReferencedCard(engineState, referenceInput, action.attackerRef, metadata, actorSeat);
+  if (attacker.entry.location.kind !== 'board' || attacker.entry.location.zone !== 'front'
+    || attacker.entry.location.seatId !== actorSeat || attacker.entry.controllerSeat !== actorSeat) reject('ACTION_NOT_ALLOWED');
+  const opponentId = playerId === 'player' ? 'ai' : 'player';
+  const opponentSeat = metadata.seatIds[opponentId === 'player' ? 0 : 1];
+  let targetUid;
+  if (action.target.kind === 'user') {
+    if (action.target.seatId !== opponentSeat) reject('ACTION_NOT_ALLOWED');
+    targetUid = `${opponentId}-fortress`;
+  } else {
+    const target = currentReferencedCard(engineState, referenceInput, action.target.cardRef, metadata, actorSeat);
+    if (target.entry.location.kind !== 'board' || target.entry.location.zone !== 'front'
+      || target.entry.location.seatId !== opponentSeat || target.entry.controllerSeat !== opponentSeat) reject('ACTION_NOT_ALLOWED');
+    targetUid = target.uid;
+  }
+  const view = attackPlanningView(engineState);
+  const attackerView = view.players[playerId].front.find(card => card.uid === attacker.uid);
+  if (!attackerView || !canAttack(view, playerId, attackerView)
+    || !getAttackTargets(view, playerId, attackerView).some(candidate => candidate.uid === targetUid)) reject('ACTION_NOT_ALLOWED');
+  return { attackerUid: attacker.uid, targetUid };
 }
 
 function mulliganEligibilityView(engineState, playerId) {
@@ -809,7 +1002,136 @@ function turboEligibilityView(engineState, playerId) {
   };
 }
 
+function sandboxAddEligibilityView(engineState, mode, playerId) {
+  const code = 'INVALID_AUTHORITY';
+  const players = own(engineState, 'players', code);
+  ordinary(players, code);
+  const player = own(players, playerId, code);
+  ordinary(player, code);
+  return { mode, players: { [playerId]: {} } };
+}
+
 function stateOwnerRegistered(ownerSeat, seats) { return seats.includes(ownerSeat); }
+
+function prepared(canonical, adapter) {
+  return { ok: true, value: {
+    kind: 'prepared', command: canonical.value.command,
+    canonicalPayload: canonical.value.canonicalPayload, adapter
+  } };
+}
+
+function prepareSandboxAddAction({ source, engine, metadata, canonical }) {
+  if (!['lab', 'sandbox'].includes(engine.mode)) reject('UNAVAILABLE_MODE');
+  if (engine.hasResult || engine.busy) reject('ACTION_NOT_ALLOWED');
+  const targetIndex = metadata.seatIds.indexOf(canonical.value.command.action.targetSeat);
+  if (targetIndex < 0) reject('ACTION_NOT_ALLOWED');
+  const targetPlayerId = targetIndex === 0 ? 'player' : 'ai';
+  if (!canAddSandboxCardToHand(
+    sandboxAddEligibilityView(source.engineState, engine.mode, targetPlayerId),
+    targetPlayerId,
+    canonical.value.command.action.definitionId
+  )) reject('ACTION_NOT_ALLOWED');
+  return prepared(canonical, {
+    engineFunction: 'addSandboxCardToHand', playerId: targetPlayerId,
+    cardId: canonical.value.command.action.definitionId
+  });
+}
+
+function prepareAttackAction({ source, metadata, trusted, canonical, playerId, readReferenceState }) {
+  const target = attackTarget(source.engineState, readReferenceState(), canonical.value.command.action,
+    metadata, trusted.actorSeat, playerId);
+  return prepared(canonical, {
+    engineFunction: 'attack', playerId, attackerUid: target.attackerUid, targetUid: target.targetUid
+  });
+}
+
+function prepareRestSecurityAction({ source, engine, metadata, trusted, canonical, playerId, readReferenceState }) {
+  if (engine.securityRestWindow !== playerId) reject('ACTION_NOT_ALLOWED');
+  const target = restSecurityTarget(source.engineState, readReferenceState(), canonical.value.command.action.cardRef,
+    metadata, trusted.actorSeat);
+  return prepared(canonical, { engineFunction: 'restSecurity', playerId, uid: target.uid });
+}
+
+function prepareInstallAction({ source, metadata, trusted, canonical, playerId, readReferenceState }) {
+  requireRegistryAction(source.engineState, playerId);
+  const target = installTarget(source.engineState, readReferenceState(), canonical.value.command.action.cardRef,
+    metadata, trusted.actorSeat);
+  return prepared(canonical, { engineFunction: 'installCard', playerId, uid: target.uid });
+}
+
+function prepareRecoverRegistryAction({ source, metadata, trusted, canonical, playerId, readReferenceState }) {
+  requireRegistryAction(source.engineState, playerId);
+  const target = recoverRegistryTarget(source.engineState, readReferenceState(), canonical.value.command.action.cardRef,
+    metadata, trusted.actorSeat);
+  return prepared(canonical, { engineFunction: 'recoverRegistryCard', playerId, uid: target.uid });
+}
+
+function prepareActivateScriptAction({ source, engine, metadata, trusted, canonical, playerId, readReferenceState }) {
+  const target = activateScriptTarget(source.engineState, readReferenceState(), canonical.value.command.action.cardRef,
+    metadata, trusted.actorSeat, playerId, engine.mode);
+  return prepared(canonical, { engineFunction: 'activateScript', playerId, uid: target.uid });
+}
+
+function prepareExecuteCardAction({ source, metadata, trusted, canonical, playerId, readReferenceState }) {
+  const target = executeCardTarget(source.engineState, readReferenceState(), canonical.value.command.action,
+    metadata, trusted.actorSeat, playerId);
+  return prepared(canonical, { engineFunction: 'playCard', playerId, uid: target.uid, options: target.options });
+}
+
+function prepareExecuteLayeredAction({ source, metadata, trusted, canonical, playerId, readReferenceState }) {
+  const target = executeLayeredTarget(source.engineState, readReferenceState(), canonical.value.command.action,
+    metadata, trusted.actorSeat, playerId);
+  return prepared(canonical, {
+    engineFunction: 'playLayeredCard', playerId, uid: target.uid,
+    materialUids: target.materialUids, zone: target.zone, options: target.options
+  });
+}
+
+function prepareRedeployAction({ source, metadata, trusted, canonical, playerId, readReferenceState }) {
+  const target = redeployTarget(source.engineState, readReferenceState(), canonical.value.command.action,
+    metadata, trusted.actorSeat, playerId);
+  return prepared(canonical, {
+    engineFunction: 'relogCard', playerId, uid: target.uid,
+    targetZone: target.targetZone, options: target.options
+  });
+}
+
+function prepareOpeningMulliganAction({ source, canonical, playerId }) {
+  if (!canOpeningMulligan(mulliganEligibilityView(source.engineState, playerId), playerId)) reject('ACTION_NOT_ALLOWED');
+  return prepared(canonical, { engineFunction: 'openingMulligan', playerId });
+}
+
+function prepareActivateAbilityAction({ source, canonical, playerId }) {
+  if (!canActivateTurbo(turboEligibilityView(source.engineState, playerId), playerId)) reject('ACTION_NOT_ALLOWED');
+  return prepared(canonical, { engineFunction: 'activateTurbo', playerId });
+}
+
+function prepareEndTurnAction({ canonical, playerId }) {
+  return prepared(canonical, { engineFunction: 'endTurn', playerId });
+}
+
+function prepareChoiceAction({ authority, trusted, canonical }) {
+  const result = prepareRequiredInputAction(authority, trusted.actorSeat, canonical.value.command.action);
+  if (!result.ok) reject(result.error.code);
+  return prepared(canonical, result.value);
+}
+
+const ACTION_REGISTRY = createActionRegistry([
+  { type: 'endTurn', requiresReferenceState: false, prepare: prepareEndTurnAction },
+  { type: 'restSecurity', requiresReferenceState: true, prepare: prepareRestSecurityAction },
+  { type: 'install', requiresReferenceState: true, prepare: prepareInstallAction },
+  { type: 'recoverRegistry', requiresReferenceState: true, prepare: prepareRecoverRegistryAction },
+  { type: 'activateScript', requiresReferenceState: true, prepare: prepareActivateScriptAction },
+  { type: 'executeCard', requiresReferenceState: true, prepare: prepareExecuteCardAction },
+  { type: 'executeLayered', requiresReferenceState: true, prepare: prepareExecuteLayeredAction },
+  { type: 'redeploy', requiresReferenceState: true, prepare: prepareRedeployAction },
+  { type: 'attack', requiresReferenceState: true, prepare: prepareAttackAction },
+  { type: 'openingMulligan', requiresReferenceState: false, prepare: prepareOpeningMulliganAction },
+  { type: 'activateAbility', requiresReferenceState: false, prepare: prepareActivateAbilityAction },
+  { type: 'sandboxAddCard', requiresReferenceState: false, prepare: prepareSandboxAddAction },
+  { type: 'answerChoice', requiresReferenceState: true, prepare: prepareChoiceAction },
+  { type: 'declineChoice', requiresReferenceState: true, prepare: prepareChoiceAction }
+]);
 
 export function prepareRuntimeCommand(authority, context, envelope) {
   try {
@@ -822,22 +1144,14 @@ export function prepareRuntimeCommand(authority, context, envelope) {
     const header = publicAuthorityHeader(authority);
     if (header.matchId !== trusted.matchId || !header.seatIds.includes(trusted.actorSeat)) reject('NOT_AUTHORIZED');
 
-    const actionType = canonical.value.command.action.type;
-    const isRestSecurity = actionType === 'restSecurity';
-    const isInstall = actionType === 'install';
-    const isRecoverRegistry = actionType === 'recoverRegistry';
-    const isActivateScript = actionType === 'activateScript';
-    const isExecuteCard = actionType === 'executeCard';
-    const isRedeploy = actionType === 'redeploy';
-    const isOpeningMulligan = actionType === 'openingMulligan';
-    const isActivateAbility = actionType === 'activateAbility';
-    const usesReference = REFERENCE_ACTIONS.has(actionType);
-    const journal = journalAfterAuthorization(authority, usesReference);
+    const action = lookupActionHandler(ACTION_REGISTRY, canonical.value.command.action.type);
+    if (!action) reject('ACTION_SCHEMA_UNAVAILABLE');
+    const journal = journalAfterAuthorization(authority, action.requiresReferenceState);
     const classified = classifyCommand(journal, trusted, envelope);
     if (!classified.ok) return classified;
     if (classified.value.kind === 'retry') return { ok: true, value: classified.value };
 
-    const source = usesReference
+    const source = action.requiresReferenceState
       ? {
         metadata: own(authority, 'metadata', 'INVALID_AUTHORITY'),
         revision: own(authority, 'revision', 'INVALID_AUTHORITY'),
@@ -847,11 +1161,16 @@ export function prepareRuntimeCommand(authority, context, envelope) {
       : authorityData(authority);
     const metadata = metadataData(source.metadata);
     if (metadata.matchId !== trusted.matchId || !metadata.seatIds.includes(trusted.actorSeat)) reject('NOT_AUTHORIZED');
-    const engine = engineData(source.engineState, metadata, isRestSecurity);
+    const engine = engineData(source.engineState, metadata, action.type === 'restSecurity');
     journalSeatOrder(source.journal, metadata);
     if (!safeRevision(source.revision)) reject('INVALID_AUTHORITY');
     if (canonical.value.command.expectedRevision !== source.revision) reject('STALE_REVISION');
     if (source.revision === Number.MAX_SAFE_INTEGER) reject('REVISION_EXHAUSTED');
+    const readReferenceState = () => own(authority, 'referenceState', 'INVALID_AUTHORITY');
+    const preparation = { authority, source, engine, metadata, trusted, canonical, readReferenceState };
+    if (action.type === 'sandboxAddCard') return action.prepare(preparation);
+    if (CHOICE_ACTIONS.has(action.type)) return action.prepare(preparation);
+
     if (engine.mode === 'tutorial') reject('UNAVAILABLE_MODE');
     const playerId = engine.active;
     const activeSeat = metadata.seatIds[playerId === 'player' ? 0 : 1];
@@ -859,120 +1178,9 @@ export function prepareRuntimeCommand(authority, context, envelope) {
     if (engine.hasResult) reject('ACTION_NOT_ALLOWED');
     if (engine.busy) reject('ACTION_NOT_ALLOWED');
 
-    if (isRestSecurity) {
-      if (engine.securityRestWindow !== playerId) reject('ACTION_NOT_ALLOWED');
-      const target = restSecurityTarget(
-        source.engineState,
-        own(authority, 'referenceState', 'INVALID_AUTHORITY'),
-        canonical.value.command.action.cardRef,
-        metadata,
-        trusted.actorSeat
-      );
-      return { ok: true, value: {
-        kind: 'prepared', command: canonical.value.command, canonicalPayload: canonical.value.canonicalPayload,
-        adapter: { engineFunction: 'restSecurity', playerId, uid: target.uid }
-      } };
-    }
-
-    if (isInstall) {
-      requireRegistryAction(source.engineState, playerId);
-      const target = installTarget(
-        source.engineState,
-        own(authority, 'referenceState', 'INVALID_AUTHORITY'),
-        canonical.value.command.action.cardRef,
-        metadata,
-        trusted.actorSeat
-      );
-      return { ok: true, value: {
-        kind: 'prepared', command: canonical.value.command, canonicalPayload: canonical.value.canonicalPayload,
-        adapter: { engineFunction: 'installCard', playerId, uid: target.uid }
-      } };
-    }
-
-    if (isRecoverRegistry) {
-      requireRegistryAction(source.engineState, playerId);
-      const target = recoverRegistryTarget(
-        source.engineState,
-        own(authority, 'referenceState', 'INVALID_AUTHORITY'),
-        canonical.value.command.action.cardRef,
-        metadata,
-        trusted.actorSeat
-      );
-      return { ok: true, value: {
-        kind: 'prepared', command: canonical.value.command, canonicalPayload: canonical.value.canonicalPayload,
-        adapter: { engineFunction: 'recoverRegistryCard', playerId, uid: target.uid }
-      } };
-    }
-
-    if (isActivateScript) {
-      const target = activateScriptTarget(
-        source.engineState,
-        own(authority, 'referenceState', 'INVALID_AUTHORITY'),
-        canonical.value.command.action.cardRef,
-        metadata,
-        trusted.actorSeat,
-        playerId,
-        engine.mode
-      );
-      return { ok: true, value: {
-        kind: 'prepared', command: canonical.value.command, canonicalPayload: canonical.value.canonicalPayload,
-        adapter: { engineFunction: 'activateScript', playerId, uid: target.uid }
-      } };
-    }
-
-    if (isExecuteCard) {
-      const target = executeCardTarget(
-        source.engineState,
-        own(authority, 'referenceState', 'INVALID_AUTHORITY'),
-        canonical.value.command.action,
-        metadata,
-        trusted.actorSeat,
-        playerId
-      );
-      return { ok: true, value: {
-        kind: 'prepared', command: canonical.value.command, canonicalPayload: canonical.value.canonicalPayload,
-        adapter: { engineFunction: 'playCard', playerId, uid: target.uid, options: target.options }
-      } };
-    }
-
-
-    if (isRedeploy) {
-      const target = redeployTarget(
-        source.engineState,
-        own(authority, 'referenceState', 'INVALID_AUTHORITY'),
-        canonical.value.command.action,
-        metadata,
-        trusted.actorSeat,
-        playerId
-      );
-      return { ok: true, value: {
-        kind: 'prepared', command: canonical.value.command, canonicalPayload: canonical.value.canonicalPayload,
-        adapter: { engineFunction: 'relogCard', playerId, uid: target.uid, targetZone: target.targetZone, options: target.options }
-      } };
-    }
-
-    if (isOpeningMulligan) {
-      if (!canOpeningMulligan(mulliganEligibilityView(source.engineState, playerId), playerId)) reject('ACTION_NOT_ALLOWED');
-      return { ok: true, value: {
-        kind: 'prepared', command: canonical.value.command, canonicalPayload: canonical.value.canonicalPayload,
-        adapter: { engineFunction: 'openingMulligan', playerId }
-      } };
-    }
-
-    if (isActivateAbility) {
-      if (!canActivateTurbo(turboEligibilityView(source.engineState, playerId), playerId)) reject('ACTION_NOT_ALLOWED');
-      return { ok: true, value: {
-        kind: 'prepared', command: canonical.value.command, canonicalPayload: canonical.value.canonicalPayload,
-        adapter: { engineFunction: 'activateTurbo', playerId }
-      } };
-    }
-
-    return { ok: true, value: {
-      kind: 'prepared', command: canonical.value.command, canonicalPayload: canonical.value.canonicalPayload,
-      adapter: { engineFunction: 'endTurn', playerId }
-    } };
+    return action.prepare({ ...preparation, playerId });
   } catch (error) {
-    if (error instanceof CommandBridgeError) return { ok: false, error: { code: error.code } };
+    if (error instanceof CommandBridgeError || error instanceof SafeReadError) return { ok: false, error: { code: error.code } };
     throw error;
   }
 }

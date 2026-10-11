@@ -52,10 +52,9 @@ test('S03-REC-04: distinguishes unsupported contract versions from malformed ver
   code(canonicalizeCommand(malformedAction), 'UNSUPPORTED_CONTRACT');
 });
 
-test('S03-REC-05: known non-endTurn action families remain unavailable, never generic', () => {
-  for (const type of ['executeLayered',
-    'attack', 'answerChoice', 'declineChoice', 'sandboxAddCard']) {
-    code(canonicalizeCommand(baseCommand({ action: { type, target: 'card-1' } })), 'ACTION_SCHEMA_UNAVAILABLE');
+test('S03-REC-05: malformed choice actions are rejected, never accepted as generic commands', () => {
+  for (const action of [{ type: 'answerChoice', target: 'card-1' }, { type: 'declineChoice', target: 'card-1' }]) {
+    code(canonicalizeCommand(baseCommand({ action })), 'INVALID_COMMAND');
   }
   for (const type of ['playCard', 'activate', 'pass', 'move', 'unknownAction']) {
     code(canonicalizeCommand(baseCommand({ action: { type } })), 'INVALID_COMMAND');
@@ -290,11 +289,10 @@ test('S03-REC-25: install shares only the exact opaque-reference schema', () => 
   ]) code(canonicalizeCommand(installCommand({ action })), 'INVALID_COMMAND');
 });
 
-test('S03-REC-26: install alone leaves the remaining known families unavailable', () => {
+test('S03-REC-26: install does not loosen exact choice schemas', () => {
   assert.equal(canonicalizeCommand(installCommand()).ok, true);
-  for (const type of ['executeLayered',
-    'attack', 'answerChoice', 'declineChoice', 'sandboxAddCard']) {
-    code(canonicalizeCommand(baseCommand({ action: { type } })), 'ACTION_SCHEMA_UNAVAILABLE');
+  for (const type of ['answerChoice', 'declineChoice']) {
+    code(canonicalizeCommand(baseCommand({ action: { type } })), 'INVALID_COMMAND');
   }
 });
 
@@ -322,11 +320,10 @@ test('S03-REC-28: recoverRegistry uses only the exact opaque-reference schema', 
   ]) code(canonicalizeCommand(recoverCommand({ action })), 'INVALID_COMMAND');
 });
 
-test('S03-REC-29: recoverRegistry opens no other known action family', () => {
+test('S03-REC-29: recoverRegistry does not loosen exact choice schemas', () => {
   assert.equal(canonicalizeCommand(recoverCommand()).ok, true);
-  for (const type of ['executeLayered',
-    'attack', 'answerChoice', 'declineChoice', 'sandboxAddCard']) {
-    code(canonicalizeCommand(baseCommand({ action: { type } })), 'ACTION_SCHEMA_UNAVAILABLE');
+  for (const type of ['answerChoice', 'declineChoice']) {
+    code(canonicalizeCommand(baseCommand({ action: { type } })), 'INVALID_COMMAND');
   }
 });
 
@@ -339,6 +336,45 @@ test('S03-REC-30: recoverRegistry payload records and retries under the v1 contr
   assert.equal(retry.value.kind, 'retry');
   assert.equal(retry.value.receipt.revision, 0);
   assert.equal(canonicalizeCommand(command).value.command.contractVersion, 1);
+});
+
+test('S03-REC-47: executeLayered preserves ordered material references and exact destination', () => {
+  const cardRef = `r:${'1'.repeat(32)}`;
+  const materialRefs = [`r:${'2'.repeat(32)}`, `r:${'3'.repeat(32)}`];
+  const command = baseCommand({ action: {
+    type: 'executeLayered', cardRef, materialRefs, destination: { zone: 'back', slot: 4 }
+  } });
+  const output = canonicalizeCommand(command);
+  assert.equal(output.ok, true);
+  assert.deepEqual(output.value.command.action,
+    { type: 'executeLayered', cardRef, materialRefs, destination: { zone: 'back', slot: 4 } });
+  assert.equal(output.value.canonicalPayload.includes(`"materialRefs":["${materialRefs[0]}","${materialRefs[1]}"]`), true);
+});
+
+test('S03-REC-48: executeLayered rejects malformed, duplicate and privileged input', () => {
+  const ref = value => `r:${value.repeat(32)}`;
+  const valid = { type: 'executeLayered', cardRef: ref('1'), materialRefs: [ref('2')], destination: { zone: 'front', slot: 1 } };
+  for (const action of [
+    { ...valid, materialRefs: [] },
+    { ...valid, materialRefs: [ref('2'), ref('2')] },
+    { ...valid, materialRefs: [ref('A')] },
+    { ...valid, materialRefs: { 0: ref('2'), length: 1 } },
+    { ...valid, destination: { zone: 'registry', slot: 1 } },
+    { ...valid, destination: { zone: 'front', slot: 0 } },
+    { ...valid, free: true }
+  ]) code(canonicalizeCommand(baseCommand({ action })), 'INVALID_COMMAND');
+});
+
+test('S03-REC-49: executeLayered records and retries without reordering materials', () => {
+  const command = baseCommand({ action: {
+    type: 'executeLayered', cardRef: `r:${'1'.repeat(32)}`,
+    materialRefs: [`r:${'3'.repeat(32)}`, `r:${'2'.repeat(32)}`], destination: { zone: 'front', slot: 2 }
+  } });
+  const recorded = recordTerminal(newJournal(), context, command, rejected);
+  assert.equal(recorded.ok, true);
+  assert.equal(classifyCommand(recorded.value, context, command).value.kind, 'retry');
+  const reversed = { ...command, action: { ...command.action, materialRefs: [...command.action.materialRefs].reverse() } };
+  code(classifyCommand(recorded.value, context, reversed), 'COMMAND_ID_COLLISION');
 });
 
 test('S03-REC-31: activateScript uses only the exact reference action and participates in retry', () => {
@@ -458,4 +494,94 @@ test('S03-REC-35: activateAbility accepts only the exact user Turbo action and r
   assert.equal(classifyCommand(recorded.value, context, command).value.kind, 'retry');
   assert.deepEqual(recordTerminal(recorded.value, context, command, rejected),
     { ok: false, error: { code: 'COMMAND_ALREADY_RECORDED' } });
+});
+
+test('S03-REC-36: sandboxAddCard uses exact definition and target seat fields', () => {
+  const command = baseCommand({ action: {
+    type: 'sandboxAddCard', definitionId: 'STD-020', targetSeat: 'seat-b'
+  } });
+  const output = canonicalizeCommand(command);
+  assert.equal(output.ok, true);
+  assert.deepEqual(output.value.command.action,
+    { type: 'sandboxAddCard', definitionId: 'STD-020', targetSeat: 'seat-b' });
+  assert.equal(output.value.canonicalPayload,
+    '{"action":{"definitionId":"STD-020","targetSeat":"seat-b","type":"sandboxAddCard"},"actorSeat":"seat-a","commandId":"command-a","contractVersion":1,"expectedRevision":0,"matchId":"match-a"}');
+  for (const action of [
+    { type: 'sandboxAddCard' },
+    { type: 'sandboxAddCard', definitionId: '', targetSeat: 'seat-b' },
+    { type: 'sandboxAddCard', definitionId: 'STD-020', targetSeat: '' },
+    { type: 'sandboxAddCard', definitionId: 20, targetSeat: 'seat-b' },
+    { type: 'sandboxAddCard', definitionId: 'STD-020', targetSeat: 'seat-b', force: true },
+    { type: 'sandboxAddCard', definitionId: 'STD-020', targetSeat: 'seat-b', playerId: 'ai' }
+  ]) code(canonicalizeCommand(baseCommand({ action })), 'INVALID_COMMAND');
+});
+
+test('S03-REC-37: sandboxAddCard target and definition participate in retry identity', () => {
+  const command = baseCommand({ action: {
+    type: 'sandboxAddCard', definitionId: 'STD-020', targetSeat: 'seat-b'
+  } });
+  const frozen = Object.freeze({ ...command, action: Object.freeze({ ...command.action }) });
+  const recorded = recordTerminal(newJournal(), context, frozen, rejected);
+  assert.equal(recorded.ok, true);
+  assert.equal(classifyCommand(recorded.value, context, command).value.kind, 'retry');
+  for (const changed of [
+    { ...structuredClone(command), action: { ...command.action, definitionId: 'STD-021' } },
+    { ...structuredClone(command), action: { ...command.action, targetSeat: 'seat-a' } }
+  ]) code(classifyCommand(recorded.value, context, changed), 'COMMAND_ID_COLLISION');
+});
+
+test('S03-REC-38: attack canonicalizes exact card and user target unions', () => {
+  const attackerRef = `r:${'4'.repeat(32)}`;
+  const cardRef = `r:${'5'.repeat(32)}`;
+  for (const target of [
+    { kind: 'card', cardRef },
+    { kind: 'user', seatId: 'seat-b' }
+  ]) {
+    const command = baseCommand({ action: { type: 'attack', attackerRef, target } });
+    const output = canonicalizeCommand(command);
+    assert.equal(output.ok, true);
+    assert.deepEqual(output.value.command.action, { type: 'attack', attackerRef, target });
+  }
+  for (const action of [
+    { type: 'attack', target: { kind: 'user', seatId: 'seat-b' } },
+    { type: 'attack', attackerRef, target: { kind: 'card' } },
+    { type: 'attack', attackerRef, target: { kind: 'user', seatId: '' } },
+    { type: 'attack', attackerRef, target: { kind: 'card', cardRef, seatId: 'seat-b' } },
+    { type: 'attack', attackerRef, target: { kind: 'user', seatId: 'seat-b', cardRef } },
+    { type: 'attack', attackerRef, target: { kind: 'fortress', seatId: 'seat-b' } },
+    { type: 'attack', attackerRef, target: { kind: 'user', seatId: 'seat-b' }, force: true }
+  ]) code(canonicalizeCommand(baseCommand({ action })), 'INVALID_COMMAND');
+});
+
+test('S03-REC-39: attack target kind and value are part of retry identity', () => {
+  const attackerRef = `r:${'4'.repeat(32)}`;
+  const cardRef = `r:${'5'.repeat(32)}`;
+  const command = baseCommand({ action: { type: 'attack', attackerRef, target: { kind: 'card', cardRef } } });
+  const recorded = recordTerminal(newJournal(), context, command, rejected);
+  assert.equal(recorded.ok, true);
+  assert.equal(classifyCommand(recorded.value, context, command).value.kind, 'retry');
+  for (const target of [{ kind: 'user', seatId: 'seat-b' }, { kind: 'card', cardRef: `r:${'6'.repeat(32)}` }]) {
+    code(classifyCommand(recorded.value, context, { ...command, action: { ...command.action, target } }),
+      'COMMAND_ID_COLLISION');
+  }
+});
+
+test('S04-REC-01: choice answer and decline use exact deterministic-input schemas', () => {
+  const answer = canonicalizeCommand(baseCommand({ action: {
+    type: 'answerChoice', choiceId: 'choice:0:selection', optionIds: ['option:2', 'option:1'],
+    allocation: [{ optionId: 'option:2', amount: 3 }]
+  } }));
+  assert.equal(answer.ok, true, JSON.stringify(answer));
+  assert.deepEqual(answer.value.command.action, {
+    type: 'answerChoice', choiceId: 'choice:0:selection', optionIds: ['option:2', 'option:1'],
+    allocation: [{ optionId: 'option:2', amount: 3 }]
+  });
+  const decline = canonicalizeCommand(baseCommand({ action: { type: 'declineChoice', choiceId: 'choice:0:selection' } }));
+  assert.equal(decline.ok, true, JSON.stringify(decline));
+  for (const action of [
+    { type: 'answerChoice', choiceId: '', optionIds: [], allocation: [] },
+    { type: 'answerChoice', choiceId: 'choice:0:selection', optionIds: ['option:1', 'option:1'], allocation: [] },
+    { type: 'answerChoice', choiceId: 'choice:0:selection', optionIds: [], allocation: [{ optionId: 'option:1', amount: -1 }] },
+    { type: 'declineChoice', choiceId: 'choice:0:selection', optionIds: [] }
+  ]) code(canonicalizeCommand(baseCommand({ action })), 'INVALID_COMMAND');
 });

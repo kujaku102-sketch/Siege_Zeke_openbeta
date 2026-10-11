@@ -5,6 +5,7 @@ import { planRuntimeReferenceTransition } from './references.js';
 import { queryRuntimeSeat, queryRuntimeCard } from './query.js';
 import { projectRuntimeView } from './projection.js';
 import { restoreRngState } from './rng.js';
+import { buildRequiredInput } from './required-input.js';
 
 const FORMAT = 'siege-zeke.authority-snapshot';
 const SNAPSHOT_KEYS = ['format', 'schemaVersion', 'metadata', 'revision', 'engineState', 'referenceState'];
@@ -246,6 +247,25 @@ function idleState(state) {
   validateOptionalRoot(state);
 }
 
+function snapshotState(state, metadata, referenceState, revision) {
+  try {
+    idleState(state);
+    return;
+  } catch (error) {
+    if (!(error instanceof SnapshotError) || error.code !== UNSUPPORTED) throw error;
+  }
+  const mode = own(state, 'mode', STATE);
+  const phase = own(state, 'phase', STATE);
+  const interactive = own(state, 'interactive', STATE);
+  const processing = own(state, 'processingTriggers', STATE);
+  const resolving = own(state, 'resolvingResponse', STATE);
+  const depth = own(state, 'effectDepth', STATE);
+  if (!['ai', 'tutorial'].includes(mode) || phase !== 'main' || interactive !== false
+    || processing !== false || resolving !== false || depth !== 0) reject(UNSUPPORTED);
+  const required = buildRequiredInput({ metadata, revision, engineState: state, referenceState }, metadata.seatIds[0]);
+  if (!required.ok || required.value === null) reject(UNSUPPORTED);
+}
+
 function stateData(input, { rootCode = INVALID, busy = true, live = false, runtime = true } = {}) {
   const state = allowedRootKeys(input, rootCode, live);
   if (busy) idleState(state);
@@ -355,10 +375,10 @@ export function createRuntimeSnapshot(input) {
     const metadata = metadataData(args.metadata, INVALID);
     const liveState = allowedRootKeys(args.engineState, UNSUPPORTED, true);
     validateRootNumbers(liveState);
-    idleState(liveState);
     const engineState = copyJson(liveState, UNSUPPORTED);
-    const state = stateData(engineState, { rootCode: UNSUPPORTED });
+    const state = stateData(engineState, { rootCode: UNSUPPORTED, busy: false });
     const referenceState = copyJson(args.referenceState, STATE);
+    snapshotState(state, metadata, referenceState, args.revision);
     consistency(metadata, state, args.revision);
     checkRuntime(state, referenceState, metadata, args.revision);
     return {
@@ -381,16 +401,18 @@ export function restoreRuntimeSnapshot(snapshot, expected) {
     const references = copyJson(raw.referenceState, INVALID);
     const copiedState = copyJson(raw.engineState, INVALID);
     const metadata = metadataData(rawMetadata, INVALID);
-    const state = stateData(copiedState, { rootCode: UNSUPPORTED, runtime: false });
+    const state = stateData(copiedState, { rootCode: UNSUPPORTED, runtime: false, busy: false });
     if (binding.matchId !== metadata.matchId || !sameArray(binding.seatIds, metadata.seatIds)) reject(SCOPE);
     if (binding.ruleVersion !== metadata.ruleVersion || binding.cardVersion !== metadata.cardVersion) reject(VERSION);
     runtimeData(state);
+    snapshotState(state, metadata, references, revision);
     consistency(metadata, state, revision);
     checkRuntime(state, references, metadata, revision);
     const restored = cloneForHistory({ ...state, rng: null, history: [] });
     validateRootNumbers(restored);
     const rng = restoreRngState(restored.runtimeContext.rngState);
     if (!rng.ok) reject(rng.error.code === 'RNG_UNSUPPORTED_FORMAT' ? FORMAT_ERROR : STATE);
+    snapshotState(restored, metadata, references, revision);
     consistency(metadata, restored, revision);
     checkRuntime(restored, references, metadata, revision);
     return { metadata: copyJson(metadata, INVALID), revision, engineState: restored, referenceState: references };

@@ -466,7 +466,7 @@ test('S02-SNAPSHOT-35: optional-root type errors differ from valid non-idle valu
   const activeBoolean = structuredClone(base); activeBoolean.engineState.drainingIndependentEffects = true;
   rejects(restore(activeBoolean), 'SNAPSHOT_UNSUPPORTED_STATE');
   const activeNullGroup = input(); activeNullGroup.engineState.securityRestWindow = 'player';
-  rejects(createRuntimeSnapshot(activeNullGroup), 'SNAPSHOT_UNSUPPORTED_STATE');
+  assert.equal(createRuntimeSnapshot(activeNullGroup).ok, true, 'Stage04 supports the optional Security input window');
 });
 
 test('S02-SNAPSHOT-36: accepts frozen inputs and propagates reflection exceptions', () => {
