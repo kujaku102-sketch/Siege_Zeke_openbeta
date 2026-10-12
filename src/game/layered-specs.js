@@ -89,6 +89,25 @@ export function layeredCandidates(state, playerId, sourceCard) {
   return entries;
 }
 
+export function layeredSelectionPlan(state, playerId, sourceCard) {
+  const spec = layeredSpecFor(sourceCard);
+  if (!spec) return null;
+  const entries = layeredCandidates(state, playerId, sourceCard);
+  const groups = spec.groups.map((group, index) => ({
+    groupId: `group:${index + 1}`,
+    minimum: group.minimum,
+    maximum: Number.isFinite(group.maximum) ? group.maximum : entries.length,
+    entries: entries.filter((entry) => entryMatchesGroup(entry, group, playerId))
+  }));
+  return {
+    minimum: spec.minimum,
+    maximum: Math.min(entries.length, groups.reduce((sum, group) => sum + group.maximum, 0)),
+    label: spec.label,
+    entries,
+    groups
+  };
+}
+
 export function validatesLayeredSelection(card, playerId, entries) {
   const spec = layeredSpecFor(card);
   if (!spec || entries.length < spec.minimum) return false;

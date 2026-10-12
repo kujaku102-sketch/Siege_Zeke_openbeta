@@ -1,0 +1,391 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { canonicalizeCommand } from '../src/game/runtime/command-record.js';
+import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
+import { createMatchLifecycleController } from '../src/adapters/match-lifecycle-controller.js';
+import { createMatchUiController } from '../src/adapters/match-ui-controller.js';
+import { createTutorialOpponentController } from '../src/adapters/tutorial-opponent-controller.js';
+import { mountRuntimeMatch } from '../src/ui-refresh/runtime-match-surface.js';
+import { runtimeGameHtml } from '../src/ui-refresh/runtime-read-view.js';
+import { runtimeShellHtml } from '../src/ui-refresh/runtime-shell-view.js';
+
+const config = (mode='sandbox',matchId='main-wiring') => ({matchId,seatIds:['a','b'],seed:1,ruleVersion:'rules',cardVersion:'cards',
+  gameOptions:mode==='tutorial'
+    ? {mode,tutorialId:'basics',playerDeckId:'red',aiDeckId:'yellow',playerUserId:'doors_zx',aiUserId:'doors_zx',
+      playerDeckRecipe:null,aiDeckRecipe:null,sandboxDeckSetup:false}
+    : {mode,sandboxDeckSetup:mode==='sandbox',playerDeckRecipe:[['STD-020',40]],aiDeckRecipe:[['STD-020',40]]}});
+function setup(mode='sandbox') {
+  const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),created=lifecycle.start(config(mode));
+  assert.equal(created.ok,true,JSON.stringify(created));
+  const session=created.value,port=session.port('a').value;
+  return {lifecycle,session,port};
+}
+let serial=0;
+function submit(port,action) {
+  const query=port.query().value,result=port.submit({commandId:'integration:'+ ++serial,expectedRevision:query.status.revision,action});
+  assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.value.kind,'accepted',JSON.stringify(result));
+  return port.query().value;
+}
+function add(session,port,id) {
+  const seatId=port.query().value.status.viewerSeat;
+  const query=port.query().value,result=session.sandboxControl('a').value.submit({commandId:'add:'+ ++serial,expectedRevision:query.status.revision,
+    action:{type:'sandboxAddCard',definitionId:id,targetSeat:seatId}});
+  assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.value.kind,'accepted',JSON.stringify(result));
+  return port.query().value.observation.seats.find(seat=>seat.seatId===seatId).hand.cards.findLast(card=>card.definition.id===id).cardRef;
+}
+function choose(request,predicate=()=>true) {
+  const options=[...request.options].sort((a,b)=>Number(predicate(b))-Number(predicate(a))),chosen=[];
+  const search=(start,count)=> {
+    if(!count){const answer={requestId:request.requestId,optionIds:[...chosen],allocation:[]};return validSelectionAnswer(request,answer)?answer:null;}
+    for(let index=start;index<=options.length-count;index+=1){chosen.push(options[index].optionId);const found=search(index+1,count-1);chosen.pop();if(found)return found;}return null;
+  };
+  for(let count=request.constraints.minimum??0;count<=Math.min(request.constraints.maximum??0,options.length);count+=1){const answer=search(0,count);if(answer)return answer;}
+  assert.fail('no valid selection '+request.presentationKey);
+}
+function plan(port,type,cardRef,predicate) {
+  const query=port.query().value,entry=query.legalActions.find(entry=>(entry.actionType??entry.action?.type)===type
+    && (!cardRef || (entry.base?.cardRef??entry.base?.attackerRef??entry.action?.cardRef)===cardRef));
+  assert.ok(entry,'legal '+type);
+  if(entry.kind==='fixed')return entry.action;
+  const selections=[];
+  for(let stage=0;stage<6;stage+=1){const result=port.queryAction({expectedRevision:query.status.revision,actionId:entry.actionId,selections});
+    assert.equal(result.ok,true,JSON.stringify(result));if(result.value.completion)return result.value.completion.action;
+    selections.push(choose(result.value.selectionRequests[0],predicate));
+  }
+  assert.fail('incomplete '+type);
+}
+function drain(port,predicate) {
+  for(let step=0;step<50;step+=1){const input=port.query().value.requiredInput;if(!input)return;
+    assert.equal(input.canAnswer,true);
+    const answer=choose({...input,requestId:input.choiceId},predicate);
+    submit(port,{type:'answerChoice',choiceId:input.choiceId,optionIds:answer.optionIds,allocation:answer.allocation});
+  }assert.fail('required input not settled');
+}
+function fakeRoot() {
+  const listeners={};
+  return {listeners,childNodes:[],firstChild:null,querySelector:()=>null,querySelectorAll:()=>[],
+    ownerDocument:{createElement:()=>({content:{childNodes:[]},set innerHTML(value){this.html=value;}})},
+    addEventListener(type,handler){listeners[type]=handler;}};
+}
+
+test('main uses one lifecycle and bound surface, with no raw game/UID/undo fallback',()=>{
+  const source=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  assert.equal((source.match(/createMatchLifecycleController\(/g)??[]).length,1);
+  assert.match(source,/mountRuntimeMatch/);assert.match(source,/runtimeShellHtml/);
+  assert.doesNotMatch(source,/getState|setState|selectedUid|tutorialUndo|from ['"].*game\/engine|chooseAiAction|applyVisualEffects\(/);
+  assert.match(source,/get\('e2e'\) === '1'/);
+});
+test('surface delegates an end-turn once, and session replacement revokes old handlers and ports',()=>{
+  const {lifecycle,session,port}=setup(),root=fakeRoot(),mounted=mountRuntimeMatch({root,session,viewerSeat:'a'});
+  assert.equal(mounted.ok,true,JSON.stringify(mounted));
+  const entry=port.query().value.legalActions.find(entry=>entry.action?.type==='endTurn');
+  const button={dataset:{actionId:entry.actionId},hasAttribute:name=>name==='data-action-id'};
+  const event={target:{closest:selector=>selector==='button'?button:null}};
+  root.listeners.click(event);assert.equal(port.query().value.status.revision,1);
+  const next=lifecycle.rematch();assert.equal(next.ok,true);
+  root.listeners.click(event);assert.equal(port.query().ok,false);
+  assert.equal(next.value.port('a').value.query().value.status.revision,0);
+  lifecycle.dispose();
+});
+test('normal schema accepts exact generic Target and registry destination, rejects legacy fields/duplicates/getters',()=>{
+  const ref='r:'+ 'a'.repeat(32),other='r:'+ 'b'.repeat(32);
+  const command=action=>canonicalizeCommand({contractVersion:1,matchId:'m',commandId:'c',actorSeat:'a',expectedRevision:0,action});
+  assert.equal(command({type:'executeSpell',cardRef:ref,targets:[{kind:'user',seatId:'b'}],selectionScope:null}).ok,true);
+  assert.equal(command({type:'redeploy',cardRef:ref,destination:{zone:'registry'}}).ok,true);
+  assert.equal(command({type:'redeploy',cardRef:ref,destination:{zone:'registry',slot:1}}).ok,false);
+  assert.equal(command({type:'executeSpell',cardRef:ref,targetRefs:[other],selectionScope:null}).ok,false);
+  assert.equal(command({type:'executeSpell',cardRef:ref,targets:[{kind:'card',cardRef:other},{kind:'card',cardRef:other}],selectionScope:null}).ok,false);
+  let read=0;const target={kind:'user',get seatId(){read+=1;return 'b';}};
+  assert.equal(command({type:'executeSpell',cardRef:ref,targets:[target],selectionScope:null}).ok,false);assert.equal(read,0);
+  assert.equal(command({type:'mountCard',cardRef:ref,hostRef:other,mountKind:'belowOb',force:true}).ok,false);
+});
+test('standalone Code and legal mounted Code use the same staged normal ports without draft mutation',()=>{
+  const {lifecycle,session,port}=setup(),ob=port.query().value.observation.seats[0].hand.cards[0].cardRef;
+  submit(port,plan(port,'executeCard',ob,option=>option.zone==='front'));
+  const code=add(session,port,'SZTB-091'),revision=port.query().value.status.revision;
+  const action=plan(port,'mountCard',code,option=>option.hostRef===ob);
+  assert.equal(port.query().value.status.revision,revision);
+  const query=submit(port,action),host=query.observation.seats[0].front.cards.find(card=>card.cardRef===ob);
+  assert.equal(host.mounted[0].definition.id,'SZTB-091');
+  const standalone=add(session,port,'SZTB-091');submit(port,plan(port,'executeCard',standalone,option=>option.zone==='back'));
+  assert.ok(port.query().value.observation.seats[0].back.cards.some(card=>card.definition.id==='SZTB-091'));
+  lifecycle.dispose();
+});
+test('normal spell preserves generic user target and stale action refuses without a second mutation',()=>{
+  const {lifecycle,session,port}=setup(),source=add(session,port,'STD-011');
+  const action=plan(port,'executeSpell',source,option=>option.kind==='user');
+  assert.deepEqual(action.targets,[{kind:'user',seatId:'b'}]);
+  const revision=port.query().value.status.revision;
+  const original=port.submit({commandId:'original-spell',expectedRevision:revision,action});
+  assert.equal(original.ok,true,JSON.stringify(original));assert.equal(original.value.kind,'accepted');drain(port);
+  const settled=port.query().value,settledScope=session.scope();
+  assert.ok(port.query().value.observation.seats[0].trash.cards.some(card=>card.definition.id==='STD-011'));
+  const retry=port.submit({commandId:'retry-spell',expectedRevision:revision,action});
+  assert.deepEqual(retry,original);assert.equal(retry.value.kind,'accepted');
+  assert.deepEqual(port.query().value,settled);assert.deepEqual(session.scope(),settledScope);
+  const stale=port.submit({commandId:'stale-spell',expectedRevision:revision,action:{type:'endTurn'}});
+  assert.equal(stale.ok?stale.value.receipt.reasonCode:stale.error.code,'STALE_REVISION');
+  assert.ok(!stale.ok||stale.value.kind==='rejected');
+  assert.deepEqual(port.query().value,settled);assert.deepEqual(session.scope(),settledScope);
+  lifecycle.dispose();
+});
+test('native Script remains silhouette; detached owner inspection is temporary and absent from shared/other-seat reads',()=>{
+  const {lifecycle,session,port}=setup(),source=add(session,port,'STD-001');
+  submit(port,plan(port,'executeCard',source,option=>option.zone==='back'));
+  const hidden=port.query().value.observation.seats[0].back.cards.find(card=>card.cardRef===source);
+  assert.equal(hidden.faceDown,true);assert.equal(hidden.definition,undefined);
+  const inspected=port.query({inspectRef:source});
+  assert.equal(inspected.ok,true,JSON.stringify(inspected));assert.equal(inspected.value.inspection.definition.id,'STD-001');
+  assert.equal(port.query().value.inspection,undefined);
+  const foreign=session.port('b').value.query().value.observation.seats[0].back.cards[0].cardRef;
+  assert.equal(session.port('b').value.query({inspectRef:foreign}).ok,false);
+  const ui=createMatchUiController({session,viewerSeat:'a'}).value;
+  assert.equal(ui.selectCard(source,true).value.inspection.definition.id,'STD-001');
+  assert.equal(ui.closeDetail().value.inspection,null);
+  ui.selectCard(source,true);submit(port,{type:'endTurn'});
+  assert.equal(ui.read().value.inspection,null);
+  ui.switchViewer('b');assert.equal(ui.read().value.inspection,null);
+  lifecycle.dispose();assert.equal(ui.read().ok,false);
+});
+test('Ob-as-Script, self executable registry and registry-relog destinations are normal shared plans',()=>{
+  const {lifecycle,session,port}=setup();
+  const script=add(session,port,'STD-184'),green=add(session,port,'STD-184');submit(port,{type:'install',cardRef:green});submit(port,plan(port,'setScript',script,option=>option.zone==='back'));
+  assert.ok(port.query().value.observation.seats[0].back.cards.some(card=>card.faceDown));
+  submit(port,{type:'endTurn'});drain(port);const other=session.port('b').value;submit(other,{type:'endTurn'});drain(other);
+  const source=add(session,port,'STD-215');submit(port,{type:'install',cardRef:source});drain(port);
+  const executed=submit(port,plan(port,'executeRegistry',source,option=>option.zone==='front'));drain(port);
+  assert.ok(executed.observation.seats[0].front.cards.some(card=>!card.faceDown&&card.definition.id==='STD-215'));
+  const relog=plan(port,'redeploy',source,option=>option.zone==='registry');
+  assert.deepEqual(relog.destination,{zone:'registry'});submit(port,relog);drain(port);
+  assert.ok(port.query().value.observation.seats[0].registry.cards.some(card=>card.definition.id==='STD-215'));
+  lifecycle.dispose();
+});
+test('card-effect targets and target-zone preserve the exact approved semantic command',()=>{
+  const {lifecycle,session,port}=setup(),source=add(session,port,'STD-192'),symbol=add(session,port,'STD-191');
+  submit(port,{type:'install',cardRef:symbol});submit(port,plan(port,'executeCard',source,option=>option.zone==='front'));drain(port);
+  const ob=port.query().value.observation.seats[0].hand.cards.find(card=>card.definition.id==='STD-020').cardRef;
+  submit(port,plan(port,'executeCard',ob,option=>option.zone==='front'));drain(port);
+  const action=plan(port,'activateCardEffect',source,option=>option.cardRef===ob||option.zone==='back');
+  assert.equal(action.targetZone,'back');assert.deepEqual(action.targets,[{kind:'card',cardRef:ob}]);
+  submit(port,action);drain(port);assert.ok(port.query().value.observation.seats[0].back.cards.some(card=>!card.faceDown&&card.cardRef===ob));
+  lifecycle.dispose();
+});
+test('required Back/collapse never undo committed cost and viewer switch removes temporary inspect/log',()=>{
+  const {lifecycle,session,port}=setup(),source=add(session,port,'STD-224');submit(port,{type:'install',cardRef:source});
+  const ui=createMatchUiController({session,viewerSeat:'a'}).value,read=ui.read().value;
+  assert.ok(read.model.requiredInput);const revision=read.model.match.revision,id=read.model.requiredInput.choiceId;
+  const after=ui.back().value;assert.equal(after.collapsed,true);assert.equal(after.model.match.revision,revision);assert.equal(after.model.requiredInput.choiceId,id);
+  assert.equal(ui.confirm().ok,false);assert.equal(ui.decline().ok,false);
+  ui.switchViewer('b');assert.equal(ui.read().value.inspection,null);
+  lifecycle.dispose();
+});
+test('all users retain descriptive unique modal while only legal activated ability receives command control',()=>{
+  const {lifecycle,session}=setup(),ui=createMatchUiController({session,viewerSeat:'a'}).value;
+  const read=ui.openUnique('b').value,html=runtimeGameHtml(read.model,read);
+  assert.match(html,/ユーザー能力/);assert.match(html,/インシデント/);assert.match(html,/data-runtime-unique="a"/);
+  assert.doesNotMatch(html,/unique-effect-button is-available/);
+  lifecycle.dispose();
+});
+test('tutorial opponent performs install/play/pass as individually scheduled normal commands; dispose cancels callbacks',()=>{
+  const {lifecycle,session,port}=setup('tutorial');
+  for(let index=0;index<8;index+=1)assert.equal(session.advanceTutorial().ok,true);
+  const ownCards=()=>port.query().value.observation.seats[0].hand.cards;
+  submit(port,plan(port,'install',ownCards().find(card=>card.definition.id==='STD-076').cardRef));
+  submit(port,plan(port,'executeCard',ownCards().find(card=>card.definition.id==='STD-075').cardRef,option=>option.zone==='front'));
+  const attacker=port.query().value.observation.seats[0].front.cards.find(card=>card.definition.id==='STD-075').cardRef;
+  submit(port,plan(port,'attack',attacker,option=>option.kind==='user'));submit(port,{type:'endTurn'});drain(port);
+  const queue=[],controller=createTutorialOpponentController({session,seatId:'b',scheduler:{schedule:task=>{queue.push(task);return task;},cancel:task=>{const index=queue.indexOf(task);if(index>=0)queue.splice(index,1);}}});
+  assert.equal(controller.ok,true);
+  controller.value.start();assert.equal(queue.length,1);
+  const before=port.query().value.status.revision;queue.shift()();assert.equal(port.query().value.status.revision,before+1);
+  for(let index=0;index<10 && queue.length;index+=1)queue.shift()();
+  assert.equal(session.tutorial().value.opponentScript,null);
+  assert.ok(port.query().value.observation.seats[1].front.cards.some(card=>!card.faceDown&&card.definition.id==='STD-131'&&card.status.sleep));
+  controller.value.dispose();assert.equal(queue.length,0);lifecycle.dispose();
+});
+test('fresh tutorial skip replaces required choice and invalidates old match actions; premature completion refuses',()=>{
+  const {lifecycle,session,port}=setup('tutorial');
+  assert.equal(lifecycle.completeTutorial().ok,false);
+  const source=port.query().value.observation.seats[0].hand.cards[0].cardRef;
+  const next=lifecycle.skipTutorial();assert.equal(next.ok,true);
+  assert.equal(port.query().ok,false);
+  const current=next.value.port('a').value;
+  assert.equal(current.query().value.status.revision,0);assert.equal(current.query().value.requiredInput,null);
+  const late=current.submit({commandId:'late',expectedRevision:0,action:{type:'install',cardRef:source}});
+  assert.ok(!late.ok||late.value.kind==='rejected');lifecycle.dispose();
+});
+const seatView=(query,seatId=query.status.viewerSeat)=>query.observation.seats.find(seat=>seat.seatId===seatId);
+function answerCurrent(port,predicate) {
+  const input=port.query().value.requiredInput;assert.ok(input?.canAnswer);
+  const answer=choose({...input,requestId:input.choiceId},predicate);
+  return submit(port,{type:'answerChoice',choiceId:input.choiceId,optionIds:answer.optionIds,allocation:answer.allocation});
+}
+function active(session,port,seatId) {
+  const result=session.sandboxControl('a').value.submit({commandId:'active:'+ ++serial,expectedRevision:port.query().value.status.revision,
+    action:{type:'sandboxSelectActiveSeat',targetSeat:seatId}});
+  assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.value.kind,'accepted',JSON.stringify(result));
+}
+function assertRefused(port,action,expectedRevision=port.query().value.status.revision) {
+  const before=port.query().value,result=port.submit({commandId:'invalid:'+ ++serial,expectedRevision,action});
+  assert.ok(!result.ok || result.value.kind==='rejected',JSON.stringify(result));
+  assert.deepEqual(port.query().value,before);
+}
+test('manual answering-viewer switch retains mandatory choice/revision/active seat; active mutation remains busy-denied',()=>{
+  const {lifecycle,session,port}=setup(),other=session.port('b').value;
+  active(session,port,'b');const source=add(session,other,'STD-224');submit(other,{type:'install',cardRef:source});
+  let menuCalls=0;
+  const answeringBefore=other.query().value;
+  assert.equal(answeringBefore.requiredInput.canAnswer,true);
+  const initial=port.query().value,root=fakeRoot(),surface=mountRuntimeMatch({root,session,viewerSeat:'a',onMenu:()=>{menuCalls+=1;}}).value;
+  assert.equal(initial.requiredInput.actorSeat,'b');assert.equal(initial.requiredInput.canAnswer,false);
+  assert.deepEqual(initial.requiredInput.options,[]);assert.equal(Object.hasOwn(initial.requiredInput,'choiceId'),false);
+  const waiting=surface.refresh().value;
+  assert.match(runtimeGameHtml(waiting.model,waiting),/相手の選択待ち<\/p><button data-runtime-menu>メニュー<\/button>/);
+  // Delegation/markup regression only; fakeRoot does not prove real pointer hit-testing.
+  root.listeners.click({target:{closest:selector=>selector==='button'?{hasAttribute:name=>name==='data-runtime-menu'}:null}});
+  assert.equal(menuCalls,1);assert.deepEqual(port.query().value,initial);
+  const switched=surface.switchViewer('b');assert.equal(switched.ok,true,JSON.stringify(switched));
+  const current=other.query().value;
+  assert.equal(current.status.revision,initial.status.revision);assert.equal(current.status.activeSeat,initial.status.activeSeat);
+  assert.equal(current.requiredInput.choiceId,answeringBefore.requiredInput.choiceId);assert.equal(current.requiredInput.canAnswer,true);
+  const denial=session.sandboxControl('a').value.submit({commandId:'busy-active',expectedRevision:current.status.revision,
+    action:{type:'sandboxSelectActiveSeat',targetSeat:'a'}});
+  assert.ok(!denial.ok||denial.value.kind==='rejected');assert.equal(other.query().value.status.revision,current.status.revision);
+  const button=attribute=>({dataset:attribute==='data-option-id'?{optionId:current.requiredInput.options[0].optionId}:{},
+    hasAttribute:name=>name===attribute});
+  for(const attribute of ['data-option-id','data-runtime-confirm'])root.listeners.click({target:{closest:selector=>selector==='button'?button(attribute):null}});
+  assert.equal(other.query().value.requiredInput,null);assert.equal(other.query().value.status.revision,current.status.revision+1);
+  const html=runtimeShellHtml({screen:'game',mode:'sandbox',view:'pc',options:true,busy:true,actor:'b',activeSeat:'b',opponentControl:'manual',
+    savedDecks:[],deckBuilder:{open:false},catalog:{},effectsEnabled:false});
+  assert.ok(html.indexOf('data-sandbox-actor')>html.indexOf('</fieldset>'));
+  assert.ok(html.indexOf('data-sandbox-active')<html.indexOf('</fieldset>'));
+  assert.match(html,/<fieldset disabled>/);
+  assert.match(html,/class="r2-modal runtime-host-options/);
+  const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+  assert.ok(css.includes('[data-shell-overlays] > .r2-modal.runtime-host-options { z-index:calc(var(--z-modal) + 1); }'));
+  const entry=runtimeShellHtml({screen:'entry',mode:'sandbox',view:'pc',options:true,savedDecks:[],deckBuilder:{open:false},catalog:{}});
+  assert.doesNotMatch(entry,/runtime-host-options/);lifecycle.dispose();
+});
+test('public owner/opponent/mounted detail preserves location and complete layer rows without inspection substitution',()=>{
+  const {lifecycle,session,port}=setup(),host=seatView(port.query().value).hand.cards[0].cardRef;
+  submit(port,plan(port,'executeCard',host,option=>option.zone==='front'));
+  const code=add(session,port,'SZTB-091');submit(port,plan(port,'mountCard',code,option=>option.hostRef===host));
+  const ui=createMatchUiController({session,viewerSeat:'a'}).value,read=ui.selectCard(host,true).value;
+  assert.equal(read.inspection,null);
+  const html=runtimeGameHtml(read.model,read);
+  assert.match(html,/<dd>front<\/dd>/);assert.match(html,/レイヤー 2/);assert.match(html,/アームズバンド・ジャケット/);
+  const mounted=ui.selectCard(code,true).value;assert.equal(mounted.inspection,null);assert.match(runtimeGameHtml(mounted.model,mounted),/mounted/);
+  const otherRef=session.port('b').value.query().value.observation.seats[0].front.cards[0].cardRef;
+  const foreign=ui.switchViewer('b');assert.equal(foreign.ok,true);
+  const detail=ui.selectCard(otherRef,true).value;assert.equal(detail.inspection,null);assert.match(runtimeGameHtml(detail.model,detail),/レイヤー 2/);
+  assert.equal(ui.closeDetail().value.model.ui.detailCardRef,null);lifecycle.dispose();
+});
+test('OC normal port keeps explicit slot/source/resources before choice, pays only accepted +4 and supports manual answering viewer',()=>{
+  for(const pay of [false,true]){
+    const {lifecycle,session,port}=setup(),actor=pay ? session.port('b').value : port;
+    if(pay)active(session,port,'b');
+    const symbol=add(session,actor,'STD-125');submit(actor,{type:'install',cardRef:symbol});
+    const source=add(session,actor,'STD-125'),before=actor.query().value,memory=seatView(before).memory.current;
+    const action=plan(actor,'executeCard',source,option=>option.zone==='front'&&option.slot===3);
+    assert.deepEqual(actor.query().value,before);submit(actor,action);
+    const waiting=actor.query().value;assert.equal(seatView(waiting).memory.current,memory);
+    assert.ok(seatView(waiting).hand.cards.some(card=>card.cardRef===source));assert.equal(seatView(waiting).front.cards.length,0);
+    assert.ok(waiting.requiredInput.options.every(option=>option.kind==='value'));
+    if(pay){
+      const ui=createMatchUiController({session,viewerSeat:'a'}).value;
+      assert.equal(ui.read().value.model.requiredInput.canAnswer,false);
+      const switched=ui.switchViewer('b').value;assert.equal(switched.model.match.revision,waiting.status.revision);
+      assert.equal(switched.model.requiredInput.choiceId,waiting.requiredInput.choiceId);
+      const option=switched.request.options.find(option=>option.label==='+4払う');ui.toggleOption(option.optionId);
+      assert.equal(actor.query().value.status.revision,waiting.status.revision);assert.equal(ui.confirm().ok,true);
+    }else answerCurrent(actor,option=>option.label==='支払わない');
+    drain(actor);
+    const after=actor.query().value,card=seatView(after).front.cards.find(card=>card.cardRef===source);
+    assert.equal(card.location.position,3);assert.equal(seatView(after).memory.current,memory-1-(pay?4:0));
+    assert.equal(card.computed.currentAtk,pay?3:1);assert.equal(card.computed.maxStr,pay?3:1);
+    lifecycle.dispose();
+  }
+});
+test('magazine normal port confirmation and exact layer continuation retain untouched layers and reject invalid/stale options',()=>{
+  for(const accept of [false,true]){
+    const {lifecycle,session,port}=setup(),host=seatView(port.query().value).hand.cards[0].cardRef;
+    submit(port,plan(port,'executeCard',host,option=>option.zone==='front'));
+    const first=add(session,port,'SZTB-091');submit(port,plan(port,'mountCard',first,option=>option.hostRef===host));
+    const second=add(session,port,'SZTB-091');submit(port,plan(port,'mountCard',second,option=>option.hostRef===host));
+    const source=add(session,port,'SZTB-099'),before=port.query().value,memory=seatView(before).memory.current;
+    const action=plan(port,'executeSpell',source);assert.deepEqual(port.query().value,before);submit(port,action);
+    let query=port.query().value;assert.equal(seatView(query).memory.current,memory);
+    assert.deepEqual(seatView(query).front.cards[0].mounted.map(card=>card.cardRef),[first,second]);
+    const oldChoice=query.requiredInput.choiceId;answerCurrent(port,option=>option.label===(accept?'使用する':'使用しない'));
+    if(accept){
+      query=port.query().value;const input=query.requiredInput;assert.equal(input.constraints.minimum,1);assert.equal(input.constraints.maximum,1);
+      assert.equal(seatView(query).memory.current,memory);assert.equal(seatView(query).front.cards[0].mounted.length,2);
+      assertRefused(port,{type:'answerChoice',choiceId:input.choiceId,optionIds:[],allocation:[]});
+      assertRefused(port,{type:'answerChoice',choiceId:input.choiceId,optionIds:input.options.map(option=>option.optionId),allocation:[]});
+      assertRefused(port,{type:'answerChoice',choiceId:oldChoice,optionIds:[],allocation:[]});
+      answerCurrent(port,option=>option.cardRef===first);
+    }
+    drain(port);query=port.query().value;
+    assert.equal(seatView(query).memory.current,memory-(accept?2:3));
+    assert.deepEqual(seatView(query).front.cards[0].mounted.map(card=>card.cardRef),accept?[second]:[first,second]);
+    assert.ok(seatView(query).trash.cards.some(card=>card.definition.id==='SZTB-099'));
+    if(accept)assert.ok(seatView(query).trash.cards.some(card=>card.cardRef===first));
+    lifecycle.dispose();
+  }
+});
+test('special placement cost normal port rejects hidden/not-distinct/count choices and frees the chosen explicit occupied slot',()=>{
+  const {lifecycle,session,port}=setup(),symbol=add(session,port,'STD-118');submit(port,{type:'install',cardRef:symbol});
+  const terminals=[];
+  for(const [index,id]of ['STD-118','STD-118','STD-119','STD-120'].entries()){
+    const ref=add(session,port,id);submit(port,plan(port,'executeCard',ref,option=>option.zone==='back'&&option.slot===index+1));terminals.push(ref);
+  }
+  const source=add(session,port,'STD-121');
+  assert.equal(port.query().value.legalActions.some(entry=>entry.actionType==='executeCard'&&entry.base.cardRef===source),false);
+  for(const ref of terminals){submit(port,plan(port,'activateScript',ref));drain(port);}
+  const before=port.query().value,memory=seatView(before).memory.current;
+  const action=plan(port,'executeCard',source,option=>option.zone==='back'&&option.slot===1);assert.deepEqual(port.query().value,before);submit(port,action);
+  const query=port.query().value,input=query.requiredInput;
+  assert.ok(seatView(query).hand.cards.some(card=>card.cardRef===source));assert.equal(seatView(query).memory.current,memory);
+  assert.equal(seatView(query).back.cards.length,4);
+  const optionFor=ref=>input.options.find(option=>option.cardRef===ref).optionId;
+  assertRefused(port,{type:'answerChoice',choiceId:input.choiceId,optionIds:[optionFor(terminals[0]),optionFor(terminals[2])],allocation:[]});
+  assertRefused(port,{type:'answerChoice',choiceId:input.choiceId,optionIds:[optionFor(terminals[0]),optionFor(terminals[1]),optionFor(terminals[2])],allocation:[]});
+  submit(port,{type:'answerChoice',choiceId:input.choiceId,optionIds:[optionFor(terminals[0]),optionFor(terminals[2]),optionFor(terminals[3])],allocation:[]});drain(port);
+  const after=port.query().value,placed=seatView(after).back.cards.find(card=>card.cardRef===source);
+  assert.equal(placed.faceDown,true);assert.equal(placed.slot,1);assert.equal(seatView(after).memory.current,memory);
+  assert.equal(seatView(after).back.cards.length,2);
+  for(const ref of [terminals[0],terminals[2],terminals[3]])assert.ok(seatView(after).trash.cards.some(card=>card.cardRef===ref));
+  lifecycle.dispose();
+});
+test('registry Sp normal provider access executes in place once, rejecting same-turn/no-provider/foreign/stale attempts',()=>{
+  const lifecycle=createMatchLifecycleController(),runtimeConfig=config();
+  runtimeConfig.gameOptions.playerDeckRecipe=[['STD-011',40]];
+  const created=lifecycle.start(runtimeConfig);assert.equal(created.ok,true);
+  const session=created.value,port=session.port('a').value;
+  const symbol=add(session,port,'STD-215');submit(port,{type:'install',cardRef:symbol});
+  const provider=add(session,port,'STD-236');submit(port,plan(port,'executeCard',provider,option=>option.zone==='front'));drain(port);
+  const before=port.query().value,registry=seatView(before).registry.cards.filter(card=>card.definition.id==='STD-011');
+  assert.equal(registry.length,2);
+  const action=plan(port,'executeRegistry',registry[0].cardRef,option=>option.kind==='user'&&option.seatId==='b');
+  assert.deepEqual(action.placement,{kind:'none'});assert.deepEqual(action.targets,[{kind:'user',seatId:'b'}]);assert.deepEqual(port.query().value,before);
+  const original=port.submit({commandId:'original-registry',expectedRevision:before.status.revision,action});
+  assert.equal(original.ok,true,JSON.stringify(original));assert.equal(original.value.kind,'accepted');
+  drain(port);const after=port.query().value,afterScope=session.scope();
+  assert.ok(seatView(after).trash.cards.some(card=>card.cardRef===registry[0].cardRef));
+  assert.equal(seatView(after).hand.cards.some(card=>card.cardRef===registry[0].cardRef),false);
+  const retry=port.submit({commandId:'retry-registry',expectedRevision:before.status.revision,action});
+  assert.deepEqual(retry,original);assert.equal(retry.value.kind,'accepted');
+  assert.deepEqual(port.query().value,after);assert.deepEqual(session.scope(),afterScope);
+  assertRefused(port,{...action,cardRef:registry[1].cardRef});
+  const beforeStale=port.query().value,beforeStaleScope=session.scope();
+  const stale=port.submit({commandId:'stale-registry',expectedRevision:before.status.revision,action:{...action,cardRef:registry[1].cardRef}});
+  assert.equal(stale.ok?stale.value.receipt.reasonCode:stale.error.code,'STALE_REVISION');
+  assert.ok(!stale.ok||stale.value.kind==='rejected');
+  assert.deepEqual(port.query().value,beforeStale);assert.deepEqual(session.scope(),beforeStaleScope);
+  active(session,port,'b');const foreign=session.port('b').value;
+  const ref=foreign.query().value.observation.seats[0].registry.cards.find(card=>card.definition.id==='STD-011').cardRef;
+  assertRefused(foreign,{...action,cardRef:ref,targets:[{kind:'user',seatId:'a'}]});lifecycle.dispose();
+  const fresh=setup(),noProvider=add(fresh.session,fresh.port,'STD-011');submit(fresh.port,{type:'install',cardRef:noProvider});
+  assertRefused(fresh.port,{type:'executeRegistry',cardRef:noProvider,placement:{kind:'none'},targets:[{kind:'user',seatId:'b'}],selectionScope:null});fresh.lifecycle.dispose();
+});

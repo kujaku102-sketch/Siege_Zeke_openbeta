@@ -1,5 +1,5 @@
 /* Full artwork behind a compact, readable inspector. No changes to game actions. */
-.r2-content .card-inspector.r2-detail {
+.r2-content .r2-detail {
   --detail-width:276px;
   --detail-base:#18181b;
   /* 1920 CSS px reference: info 10pt, body 11pt, title 16px.
@@ -7,11 +7,21 @@
   --detail-info-font:max(8pt, calc(100vw / 144));
   --detail-body-font:max(8pt, calc(100vw * 11 / 1440));
   --detail-title-font:max(8pt, calc(100vw / 120));
-  width:var(--detail-width); padding:0 10px 12px; border:0;
+  box-sizing:border-box; display:flex; flex-direction:column; width:var(--detail-width); padding:0; border:0;
   border-radius:8px; background:var(--detail-base); isolation:isolate;
-  box-shadow:0 8px 28px #0006; scrollbar-width:thin;
+  box-shadow:0 8px 28px #0006; overflow:hidden; scrollbar-width:thin;
 }
-body[data-view="mobile"] .r2-content .card-inspector.r2-detail { --detail-width:184px; }
+body[data-view="mobile"] .r2-content .r2-detail { --detail-width:184px; }
+body[data-view="mobile"] .r2-content .r2-detail { padding:0; }
+.r2-content .r2-detail>header {
+  position:relative; z-index:3; flex:none; min-height:42px; margin:0; padding:6px 8px;
+  border-bottom:1px solid #ffffff18; background:linear-gradient(#18181be8,#18181b80);
+}
+.r2-content .r2-detail>.card-inspector {
+  position:relative; top:auto; z-index:1; flex:0 1 auto; min-height:0; width:100%; max-height:none;
+  margin:0; padding:calc(var(--detail-width) * .58) 10px 12px; overflow-y:auto;
+  border:0; background:transparent; box-shadow:none; scrollbar-width:thin;
+}
 .r2-content .r2-detail .detail-art {
   position:absolute; top:0; left:0; width:100%; height:auto; min-height:0;
   padding:0; margin:0; border:0; border-radius:0; box-shadow:none;
@@ -36,7 +46,7 @@ body[data-view="mobile"] .r2-content .card-inspector.r2-detail { --detail-width:
 }
 .r2-content .r2-detail>button:not(.detail-art)::after { content:"×" / ""; font:24px/1 sans-serif; }
 .r2-content .r2-detail .detail-heading {
-  position:relative; margin-top:calc(var(--detail-width) * .66); padding:0 0 6px;
+  position:relative; margin-top:0; padding:0 0 6px;
   border:0; text-shadow:0 1px 4px #000,0 1px 10px #000;
 }
 .r2-content .r2-detail .detail-heading span { display:inline-block; padding:1px 4px; border-radius:3px; background:#343439; font:var(--detail-info-font)/1.2 "Segoe UI",sans-serif; color:#e1e1e5; }

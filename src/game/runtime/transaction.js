@@ -5,10 +5,12 @@ import { buildRuntimeReferenceFrame } from './reference-frame.js';
 import { advanceRuntimeReferenceTransition, planRuntimeReferenceTransition } from './references.js';
 import { applyPreparedRuntimeAction, classifyPreparedRuntimeAction } from './transaction-actions.js';
 import { buildRuntimePublicResult } from './public-result.js';
+import { createRuntimeReferenceTokens } from './reference-token.js';
 
 const AUTHORITY_KEYS = ['metadata', 'revision', 'engineState', 'referenceState', 'journal'];
 const REFERENCE_ACTIONS = new Set([
   'restSecurity', 'install', 'recoverRegistry', 'activateScript', 'executeCard', 'executeLayered', 'redeploy', 'attack',
+  'executeSpell','mountCard','setScript','executeRegistry','activateCardEffect',
   'answerChoice', 'declineChoice'
 ]);
 const RECORDABLE_REJECTIONS = new Map([
@@ -98,24 +100,9 @@ function issuedReferenceSet(referenceState) {
 }
 
 function opaqueReferences(count, referenceState) {
-  if (!Number.isSafeInteger(count) || count < 0) fail('REFERENCE_GENERATION_FAILED');
-  const crypto = globalThis.crypto;
-  if (!crypto || typeof crypto.getRandomValues !== 'function') fail('REFERENCE_GENERATION_FAILED');
-  const issued = issuedReferenceSet(referenceState);
-  const result = [];
-  for (let index = 0; index < count; index += 1) {
-    let token = null;
-    for (let attempt = 0; attempt < 1024 && token === null; attempt += 1) {
-      const bytes = new Uint8Array(16);
-      crypto.getRandomValues(bytes);
-      const candidate = `r:${[...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('')}`;
-      if (!issued.has(candidate)) token = candidate;
-    }
-    if (token === null) fail('REFERENCE_GENERATION_FAILED');
-    issued.add(token);
-    result.push(token);
-  }
-  return result;
+  const generated = createRuntimeReferenceTokens({ count, issuedRefs: [...issuedReferenceSet(referenceState)] });
+  if (!generated.ok) fail(generated.error.code);
+  return generated.value;
 }
 
 function baseline(root) {
@@ -126,10 +113,10 @@ function baseline(root) {
   return { ok: true, value: frame.value };
 }
 
-export function submitRuntimeCommand(authority, context, command) {
+export function submitRuntimeCommand(authority, context, command, policy = {}) {
   try {
     const root = authorityRoot(authority);
-    const prepared = prepareRuntimeCommand(preparationAuthority(root, actionType(command)), context, command);
+    const prepared = prepareRuntimeCommand(preparationAuthority(root, actionType(command)), context, command, policy);
     if (!prepared.ok) {
       const reason = RECORDABLE_REJECTIONS.get(prepared.error.code);
       return reason ? recordRejection(root, context, command, reason) : prepared;

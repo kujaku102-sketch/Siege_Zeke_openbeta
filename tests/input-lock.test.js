@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { liveInputLocked, syncLiveInputLocks } from "../src/ui-refresh/input-lock.js";
+import { activateCrtTarget, shouldActivateCrtPointer } from "../src/ui-refresh/entry-crt-viewport.js";
 
 function node(entry = false) {
   return { inert: false, matches: selector => entry && selector === ".r2-entry" };
@@ -48,4 +49,24 @@ test("non-entry live regions stay locked behind an open title modal", () => {
   const main = node(), utilities = node(), overlays = node();
   syncLiveInputLocks(root([main, utilities, overlays]), { optionsOpen: true, entryCrtReady: true });
   assert.ok([main, utilities, overlays].every(item => item.inert === true));
+});
+
+test("CRT pointer activation accepts a tap and rejects drags or changed targets", () => {
+  const target = {};
+  const start = { pointerId: 7, clientX: 100, clientY: 200, target };
+  assert.equal(shouldActivateCrtPointer(start, { pointerId: 7, clientX: 108, clientY: 206, target }), true);
+  assert.equal(shouldActivateCrtPointer(start, { pointerId: 7, clientX: 120, clientY: 200, target }), false);
+  assert.equal(shouldActivateCrtPointer(start, { pointerId: 8, clientX: 100, clientY: 200, target }), false);
+  assert.equal(shouldActivateCrtPointer(start, { pointerId: 7, clientX: 100, clientY: 200, target: {} }), false);
+});
+
+test("CRT target activation focuses once and dispatches one bubbling click", () => {
+  const calls = [];
+  const event = { type: "click", bubbles: true };
+  const target = {
+    focus: options => calls.push(["focus", options]),
+    dispatchEvent: received => { calls.push(["dispatch", received]); return true; }
+  };
+  assert.equal(activateCrtTarget(target, () => event), true);
+  assert.deepEqual(calls, [["focus", { preventScroll: true }], ["dispatch", event]]);
 });

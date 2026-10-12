@@ -2,25 +2,34 @@
 // Keys identify UI instances. Only visible board/hand cards may move across parents.
 export function nodeKey(node) {
   if (node.nodeType !== 1) return null;
-  if (node.classList.contains("hand-card")) return `hand:${node.querySelector('[data-card-uid]')?.dataset.cardUid ?? "empty"}`;
+  if (node.classList.contains("hand-card")) {
+    const card = node.querySelector('[data-card-ref], [data-card-uid]');
+    return `hand:${card?.dataset.cardRef ?? card?.dataset.cardUid ?? "empty"}`;
+  }
+  for (const name of ['data-card-ref', 'data-action-id', 'data-option-id', 'data-request-id', 'data-user-seat', 'data-slot']) {
+    if (node.hasAttribute(name)) return `${node.tagName}:${name}:${node.getAttribute(name)}`;
+  }
+  if (node.hasAttribute('data-runtime-zone')) return `admin:${node.dataset.seat}:${node.dataset.runtimeZone}`;
   for (const name of ["id", "data-live-region", "data-card-uid", "data-deck-card-id", "data-slot-index", "data-fortress", "data-action", "data-live", "data-mode", "data-view", "data-effect-id", "data-selection-option", "data-trigger-item", "data-response-card", "data-security-uid", "data-catalog-card", "data-deck-plus", "data-deck-minus"]) {
     if (node.hasAttribute(name)) return `${node.tagName}:${name}:${node.getAttribute(name)}`;
   }
   if (node.hasAttribute("data-admin-zone")) return `admin:${node.dataset.owner}:${node.dataset.adminZone}`;
-  if (node.classList.contains("zone")) return `zone:${node.dataset.player}:${node.classList.contains("zone-front") ? "front" : "back"}`;
-  if (node.classList.contains("side")) return `side:${node.classList.contains("opponent") ? "ai" : "player"}`;
+  if (node.classList.contains("zone")) return `zone:${node.dataset.seat ?? node.dataset.player}:${node.classList.contains("zone-front") ? "front" : "back"}`;
+  if (node.classList.contains("side")) return `side:${node.dataset.seat ?? (node.classList.contains("opponent") ? "ai" : "player")}`;
   if (node.classList.contains("stat")) return `stat:${node.classList.contains("stat-atk") ? "atk" : "str"}`;
   // Structural identity keeps optional panels from consuming unrelated siblings.
   return node.classList.length ? `${node.tagName}:class:${node.classList[0]}` : null;
 }
 
-const movableKey = node => node.nodeType === 1 && node.matches('.card[data-card-uid][data-card-id]') && node.closest('.r2-stage, .r2-hand') ? node.dataset.cardUid : null;
+const movableKey = node => node.nodeType === 1 && node.matches('.card[data-card-id]') && node.closest('.r2-stage, .r2-hand')
+  ? node.dataset.cardRef ?? node.dataset.cardUid ?? null : null;
 const compatible = (a, b) => a.nodeType === b.nodeType && (a.nodeType !== 1 || a.tagName === b.tagName && nodeKey(a) === nodeKey(b));
 
 export function patchHtml(root, html) {
   const template = root.ownerDocument.createElement("template");
   template.innerHTML = html;
-  const cards = new Map([...root.querySelectorAll('.r2-stage .card[data-card-uid][data-card-id], .r2-hand .card[data-card-uid][data-card-id]')].map(node => [node.dataset.cardUid, node]));
+  const cards = new Map([...root.querySelectorAll('.r2-stage .card[data-card-id], .r2-hand .card[data-card-id]')]
+    .map(node => [node.dataset.cardRef ?? node.dataset.cardUid, node]).filter(([key]) => key));
   const claimed = new Set();
   const sync = (old, next) => {
     if (old.nodeType !== 1) {

@@ -64,7 +64,7 @@ export function deckBuilderHtml(state, options = {}) {
     <div class="deck-builder-toolbar">
       <select data-deck-load><option value="">新規デッキ</option>${state.savedDecks.map((deck) => `<option value="${esc(deck.id)}" ${draft.id === deck.id ? "selected" : ""}>${esc(deck.name)}${validateDeck(deck).valid ? "" : "（要修正）"}</option>`).join("")}</select>
       <input data-deck-name value="${esc(draft.name)}" maxlength="40" aria-label="デッキ名">
-      <select data-deck-user>${Object.entries(USER_CARDS).map(([id,user]) => `<option value="${id}" ${draft.userId === id ? "selected" : ""}>${esc(user.name)}</option>`).join("")}</select>
+      <select data-deck-user aria-label="ユーザーカード">${Object.entries(USER_CARDS).map(([id,user]) => `<option value="${id}" ${draft.userId === id ? "selected" : ""}>${esc(user.name)}</option>`).join("")}</select>
       <button data-deck-new>新規</button><button data-deck-save class="primary" ${check.valid ? "" : 'disabled title="構築規定を満たしてから保存できます"'}>保存</button><button data-deck-delete ${state.savedDecks.some((deck) => deck.id === draft.id) ? "" : "disabled"}>削除</button>
       <button data-deck-export>JSON出力</button><label class="deck-import">JSON読込<input type="file" accept="application/json" data-deck-import></label>
     </div>

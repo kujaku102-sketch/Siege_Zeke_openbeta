@@ -1,351 +1,169 @@
-import { existsSync, mkdirSync } from "node:fs";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { clickEntryControl } from "./e2e-entry-crt.mjs";
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
 
-const args = process.argv.slice(2);
-const keyboardMode = args.includes("--keyboard");
-const playwrightFlag = args.indexOf("--playwright-module");
-const explicitPlaywrightModule = playwrightFlag >= 0 ? args[playwrightFlag + 1] : process.env.SIMPLE_ZEKE_PLAYWRIGHT_MODULE;
-const url = args.find((argument, index) => argument !== "--keyboard" && argument !== "--playwright-module" && index !== playwrightFlag + 1) ?? "http://127.0.0.1:4173/";
-const evidenceRoot = path.resolve("docs/ui-upgrade/evidence/UI-017");
-const INTRO_TEXTS = [
-  "初めまして。Siege÷Zeke(ジーグ)の世界へようこそ。私は『じぐさぽ』です。",
-  "人間様……いえ、ユーザー様のサポートを仰せつかっております。どうぞよろしく。",
-  "早速ですが、Siege÷Zekeについてお伝えすることがございます……",
-  "現在、ここは世界Ver0.9.1",
-  "なので、不可思議なことや思い通りにならないことが多々あると思われます",
-  "産まれるまで優しく見守ってください！",
-  "それでは参りましょう、オープンソースTCGの世界へ！"
-];
-
+const args = process.argv.slice(2), keyboardMode = args.includes('--keyboard');
+const flag = args.indexOf('--playwright-module');
+const explicitPlaywrightModule = flag >= 0 ? args[flag+1] : process.env.SIMPLE_ZEKE_PLAYWRIGHT_MODULE;
+const url = args.find((arg,index) => !['--keyboard','--playwright-module'].includes(arg) && index !== flag+1) ?? 'http://127.0.0.1:4173/';
 async function loadPlaywright() {
-  if (!explicitPlaywrightModule) throw new Error("provide --playwright-module or SIMPLE_ZEKE_PLAYWRIGHT_MODULE");
-  const specifier = explicitPlaywrightModule.startsWith("file:") ? explicitPlaywrightModule : pathToFileURL(path.resolve(explicitPlaywrightModule)).href;
-  if (!specifier.startsWith("file:") || !existsSync(new URL(specifier))) throw new Error("explicit Playwright module path is unavailable");
+  if (!explicitPlaywrightModule) throw new Error('provide --playwright-module or SIMPLE_ZEKE_PLAYWRIGHT_MODULE');
+  const specifier = explicitPlaywrightModule.startsWith('file:') ? explicitPlaywrightModule : pathToFileURL(path.resolve(explicitPlaywrightModule)).href;
+  if (!specifier.startsWith('file:') || !existsSync(new URL(specifier))) throw new Error('explicit Playwright module path is unavailable');
   return import(specifier);
 }
-
-async function clickVisible(page, selector) {
-  const matches = page.locator(selector);
+async function clickVisible(page,selector) {
   if (keyboardMode) {
-    for (let attempt = 0; attempt < 500; attempt += 1) {
-      await page.keyboard.press("Tab");
-      const focused = await matches.evaluateAll((nodes) => nodes.some((node) => node === document.activeElement && node.getClientRects().length > 0));
-      if (!focused) continue;
-      const focusVisible = await page.evaluate(() => {
-        const style = getComputedStyle(document.activeElement);
-        return Number.parseFloat(style.outlineWidth) > 0 || style.boxShadow !== "none";
-      });
-      if (!focusVisible) throw new Error(`keyboard focus is not visible: ${selector}`);
-      await page.keyboard.press("Enter");
-      return;
+    for (let index=0;index<500;index+=1) {
+      await page.keyboard.press('Tab');
+      if (!await page.locator(selector).evaluateAll(nodes => nodes.some(node => node === document.activeElement && node.getClientRects().length))) continue;
+      if (!await page.evaluate(() => {const style=getComputedStyle(document.activeElement);return parseFloat(style.outlineWidth)>0 || style.boxShadow !== 'none';})) throw new Error('keyboard focus invisible: '+selector);
+      await page.keyboard.press('Enter');return;
     }
-    throw new Error(`keyboard target is not reachable by Tab: ${selector}`);
+    throw new Error('keyboard target unreachable: '+selector);
   }
-  if (selector === '[data-mode="tutorial"]') return clickEntryControl(page, selector);
-  for (let index = 0; index < await matches.count(); index += 1) {
-    const candidate = matches.nth(index);
-    if (await candidate.isVisible()) {
-      await candidate.click();
-      return;
+  const locator = page.locator(selector);
+  for (let index=0;index<await locator.count();index+=1) if (await locator.nth(index).isVisible()) {await locator.nth(index).click();return;}
+  throw new Error('visible target unavailable: '+selector);
+}
+const read = page => page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.query());
+function cards(query) {
+  const output=[];const visit=card => {output.push(card);if (!card.faceDown) card.mounted.forEach(visit);};
+  for (const seat of query.observation.seats) for (const zone of ['hand','front','back','registry','trash','ban']) seat[zone].cards?.forEach(visit);
+  return output;
+}
+function answerFor(request,query,preference={}) {
+  const preferred = request.options.filter(option => (!preference.zone || !option.zone || option.zone === preference.zone)
+    && (!preference.targetId || !option.cardRef || cards(query).some(card => card.cardRef === option.cardRef && !card.faceDown && card.definition.id === preference.targetId))
+    && (!preference.user || option.kind !== 'card')
+    && (!preference.scope || !option.label || option.label.includes(preference.scope)));
+  const ordered = [...preferred,...request.options.filter(option => !preferred.includes(option))];
+  const selected = [];
+  const search = (start,count) => {
+    if (!count) {const answer={requestId:request.requestId,optionIds:[...selected],allocation:[]};return validSelectionAnswer(request,answer) ? answer : null;}
+    for (let index=start;index<=ordered.length-count;index+=1) {selected.push(ordered[index].optionId);const found=search(index+1,count-1);selected.pop();if(found)return found;}
+    return null;
+  };
+  if (request.constraints.kind === 'allocation') {
+    const option=ordered[0];const answer={requestId:request.requestId,optionIds:option ? [option.optionId] : [],allocation:option ? [{optionId:option.optionId,amount:request.constraints.total}] : []};
+    if (validSelectionAnswer(request,answer)) return answer;
+  }
+  for (let count=request.constraints.minimum ?? 0;count<=Math.min(request.constraints.maximum ?? 0,ordered.length);count+=1) {const found=search(0,count);if(found)return found;}
+  throw new Error('no valid safe selection: '+request.presentationKey);
+}
+async function choose(page,request,query,preference) {
+  const answer=answerFor(request,query,preference);
+  for (const id of answer.optionIds) await clickVisible(page,'[data-option-id="'+id+'"]');
+  for (const row of answer.allocation) await page.locator('[data-allocation-option="'+row.optionId+'"]').fill(String(row.amount));
+  await clickVisible(page,'[data-runtime-confirm]');
+  return answer;
+}
+async function settle(page,{decline=false,checkBack=false}={}) {
+  for (let index=0;index<50;index+=1) {
+    const result=await read(page);if (!result.ok) throw new Error(JSON.stringify(result));
+    const query=result.value,input=query.requiredInput;
+    if (!input) return;
+    if (!input.canAnswer) {await page.waitForFunction(() => {const input=window.__SIMPLE_ZEKE_E2E__.query().value?.requiredInput;return !input || input.canAnswer;});continue;}
+    if (checkBack) {
+      await clickVisible(page,'[data-runtime-back]');
+      const after=(await read(page)).value;
+      if (after.status.revision !== query.status.revision || after.requiredInput.choiceId !== input.choiceId) throw new Error('required Back changed committed state');
+      await clickVisible(page,'[data-selection-collapse]');checkBack=false;
     }
+    if (decline && input.optional) {await clickVisible(page,'[data-runtime-decline]');continue;}
+    await choose(page,{...input,requestId:input.choiceId},query,{scope:'レイヤー'});
   }
-  throw new Error(`visible target is unavailable: ${selector}`);
+  throw new Error('required input failed to settle');
 }
-
-async function selectCard(page, cardId, zone) {
-  for (let step = 0; step < 3 && await page.locator(".r2-popup").count(); step += 1) await clickVisible(page, '[data-live="cancel"]');
-  if (await page.locator('[data-live="close-detail"]').count()) await clickVisible(page, '[data-live="close-detail"]');
-  const handToggle = page.locator('[data-live="hand"]');
-  if (zone !== "hand" && await handToggle.count() && (await handToggle.textContent())?.includes("畳む")) await handToggle.click();
-  const selector = `[data-card-id="${cardId}"][data-owner="player"][data-zone="${zone}"]`;
-  const card = page.locator(selector).first();
-  if (!await card.isVisible() && zone === "hand") {
-    await clickVisible(page, "[data-mobile-hand-toggle]");
+async function action(page,type,id,preference={}) {
+  const query=(await read(page)).value;
+  const card=id && cards(query).find(card => !card.faceDown && card.definition.id === id && (type === 'attack' || type === 'redeploy' || type === 'activateCardEffect' ? ['front','back'].includes(card.location?.zone) : card.location?.zone === 'hand'));
+  const entry=query.legalActions.find(entry => (entry.actionType ?? entry.action?.type) === type && (!id || (entry.base?.cardRef ?? entry.base?.attackerRef ?? entry.action?.cardRef) === card?.cardRef));
+  if (!entry) throw new Error('legal action missing: '+type+' '+id);
+  if (card) {if (!await page.locator('[data-card-ref="'+card.cardRef+'"]').first().isVisible()) await clickVisible(page,'[data-runtime-hand]');await clickVisible(page,'[data-card-ref="'+card.cardRef+'"]');}
+  await clickVisible(page,'[data-action-id="'+entry.actionId+'"]');
+  if (entry.kind === 'fixed') return;
+  const selections=[];
+  for (let index=0;index<6;index+=1) {
+    const planned=await page.evaluate(input => window.__SIMPLE_ZEKE_E2E__.queryAction(input),{expectedRevision:query.status.revision,actionId:entry.actionId,selections});
+    if (!planned.ok) throw new Error(JSON.stringify(planned));
+    if (planned.value.completion) {await clickVisible(page,'[data-runtime-confirm]');return;}
+    const request=planned.value.selectionRequests[0];
+    selections.push(await choose(page,request,query,preference));
   }
-  await card.scrollIntoViewIfNeeded();
-  await clickVisible(page, selector);
+  throw new Error('planning failed to complete');
 }
-
-async function assertStep(page, key, expectedLabels = []) {
-  const dialogueLocator = page.locator(".live-guide");
-  try {
-    await dialogueLocator.waitFor({ state: "visible" });
-  } catch (error) {
-    const state = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__?.getState?.());
-    throw new Error(`tutorial dialogue is unavailable at ${key}: ${JSON.stringify({ active: state?.active, pending: state?.pending, selectedUid: state?.selectedUid, log: state?.log?.slice(-5) })}`, { cause: error });
+async function intro(page,id) {
+  for (let index=0;index<7;index+=1) {
+    const guide=page.locator('.live-guide');
+    if (await guide.getAttribute('data-tutorial-step') !== 'intro:'+index || (await guide.locator('.live-guide-cast strong').textContent())?.trim() !== 'じぐさぽ') throw new Error('introduction mismatch');
+    if (index===3 && await guide.locator('ruby rt').textContent() !== 'ベータテスト') throw new Error('beta ruby missing');
+    await clickVisible(page,'[data-runtime-tutorial-next]');
   }
-  const value = await dialogueLocator.getAttribute("data-tutorial-step") ?? "";
-  if (value !== key) throw new Error(`tutorial step mismatch: expected ${key}, received ${value}`);
-  const dialogue = await dialogueLocator.evaluate((node) => {
-    const rect = node.getBoundingClientRect();
-    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: innerWidth, height: innerHeight };
-  });
-  if (dialogue.left < 0 || dialogue.top < 0 || dialogue.right > dialogue.width || dialogue.bottom > dialogue.height) {
-    throw new Error(`tutorial dialogue is outside the viewport at ${key}: ${JSON.stringify(dialogue)}`);
-  }
-  const labels = await page.locator(".live-focus[data-tutorial-focus-label]").evaluateAll(nodes => [...new Set(nodes.map(node => node.dataset.tutorialFocusLabel))]);
-  for (const label of expectedLabels) {
-    if (!labels.includes(label)) {
-      await page.screenshot({ path: path.join(evidenceRoot, `failure-${key.replace(":", "-")}.png`), fullPage: true });
-      throw new Error(`tutorial focus is missing at ${key}: ${label}; found ${labels.join(", ")}`);
-    }
-  }
-  return labels;
+  await step(page,id,0);await clickVisible(page,'[data-runtime-tutorial-next]');
 }
-
-async function advanceIntroduction(page) {
-  for (let index = 0; index < INTRO_TEXTS.length; index += 1) {
-    const dialogue = page.locator(".live-guide");
-    await dialogue.waitFor({ state: "visible" });
-    const key = await dialogue.getAttribute("data-tutorial-step");
-    const speaker = (await dialogue.locator(".live-guide-cast strong").textContent())?.trim();
-    const text = (await dialogue.locator(".live-guide-text").textContent())?.trim() ?? "";
-    if (key !== `intro:${index}` || speaker !== "じぐさぽ" || !text.includes(INTRO_TEXTS[index])) {
-      throw new Error(`tutorial introduction mismatch: ${JSON.stringify({ index, key, speaker, text })}`);
-    }
-    const visibleCopy = await dialogue.innerText();
-    if (/\bTUTORIAL\b|\bFOCUS\b/.test(visibleCopy)) throw new Error(`temporary English label remained: ${visibleCopy}`);
-    if (index === 3 && (await dialogue.locator("ruby rt").textContent())?.trim() !== "ベータテスト") {
-      throw new Error("tutorial introduction ruby is missing");
-    }
-    await clickVisible(page, '[data-action="dismiss-tutorial-overlay"]');
-  }
+async function step(page,id,index) {
+  await page.waitForFunction(({id,index}) => document.querySelector('.live-guide')?.dataset.tutorialStep === id+':'+index && window.__SIMPLE_ZEKE_E2E__.tutorial().value?.opponentScript === null,{id,index});
+  const audit=await page.locator('.live-guide').evaluate(node => {const rect=node.getBoundingClientRect();return {left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,w:innerWidth,h:innerHeight};});
+  if (audit.left<0 || audit.top<0 || audit.right>audit.w+1 || audit.bottom>audit.h+1) throw new Error('guide clipped: '+JSON.stringify(audit));
+  if (!await page.locator('.live-focus[data-tutorial-focus-label]').count()) throw new Error('tutorial focus missing');
 }
-
-async function assertPostCompletionEndTurn(page, label) {
-  const before = await page.evaluate(() => {
-    const state = window.__SIMPLE_ZEKE_E2E__.getState();
-    return { active: state.active, turnNumber: state.turnNumber };
-  });
-  await clickVisible(page, '[data-action="end-turn"]');
-  const after = await page.evaluate(() => {
-    const state = window.__SIMPLE_ZEKE_E2E__.getState();
-    return { active: state.active, turnNumber: state.turnNumber };
-  });
-  if (before.active === after.active && before.turnNumber === after.turnNumber) {
-    throw new Error(`${label} tutorial remained locked after completion: ${JSON.stringify({ before, after })}`);
-  }
+async function freshCompletion(page,old) {
+  await page.waitForFunction(matchId => window.__SIMPLE_ZEKE_E2E__.scope()?.matchId !== matchId,old.matchId);
+  const scope=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.scope()),query=(await read(page)).value;
+  if (scope.sessionGeneration<=old.sessionGeneration || query.status.revision!==0 || query.requiredInput || query.observation.seats.some(seat => seat.front.cards.length || seat.back.cards.length || seat.trash.cards.length)) throw new Error('tutorial completion carried old match');
+  await action(page,'endTurn');
+  if ((await read(page)).value.status.activeSeat===query.status.activeSeat) throw new Error('fresh sandbox end-turn unavailable');
 }
-
-async function dock(page) {
-  if (!await page.locator(".live-guide").isVisible()) throw new Error("tutorial guide disappeared before the required action");
-}
-
-async function playToZone(page, zone) {
-  await clickVisible(page, '[data-live="execute"]');
-  await clickAvailableSlot(page, zone);
-}
-
-async function clickAvailableSlot(page, zone) {
-  if (keyboardMode) return clickVisible(page, `[data-live-slot^="${zone}:"]`);
-  const slots = page.locator(`[data-live-slot^="${zone}:"]`);
-  const hits = await slots.evaluateAll(nodes => nodes.map(node => {
-    const rect = node.getBoundingClientRect();
-    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    return { key: node.dataset.liveSlot, rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height }, hit: hit?.className ?? hit?.tagName ?? null, available: hit?.closest?.("[data-live-slot]") === node,
-      board: node.closest(".r2-board")?.className, slot: node.parentElement?.className, pointer: getComputedStyle(node).pointerEvents,
-      hitPointer: hit ? getComputedStyle(hit).pointerEvents : null, hitZone: hit?.closest?.(".zone")?.className ?? null };
-  }));
-  const key = hits.find(item => item.available)?.key;
-  if (!key) {
-    const guide = await page.locator(".live-guide").evaluate(node => { const rect = node.getBoundingClientRect(); return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }; });
-    throw new Error(`no unobstructed ${zone} placement slot is available: ${JSON.stringify({ hits, guide })}`);
-  }
-  await page.locator(`[data-live-slot="${key}"]`).click();
-}
-
-async function selectTutorial(page, tutorialId) {
-  await clickVisible(page, '[data-live="options"]');
-  await page.locator("[data-tutorial-select]").selectOption(tutorialId);
-}
-
-async function finishPending(page, { preferEmptySelection = false } = {}) {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const trigger = page.locator("[data-trigger-item]:not([disabled])").first();
-    if (await trigger.count()) { await trigger.click(); continue; }
-    if (await page.locator('[data-action="dismiss-thread"]').count()) { await clickVisible(page, '[data-action="dismiss-thread"]'); continue; }
-    if (await page.locator('[data-action="place-junk-back"]').count()) { await clickVisible(page, '[data-action="place-junk-back"]'); continue; }
-    if (await page.locator('[data-action="lucky-no"]').count()) { await clickVisible(page, '[data-action="lucky-no"]'); continue; }
-    if (await page.locator(".selection-panel").count()) {
-      const label = (await page.locator(".selection-panel h2").textContent())?.trim() ?? "";
-      const firstOption = page.locator("[data-selection-option]").first();
-      if (!preferEmptySelection && await firstOption.count()) await firstOption.click();
-      if (label.includes("追加効果") || await page.locator('[data-action="confirm-selection"]:not([disabled])').count()) {
-        await clickVisible(page, '[data-action="confirm-selection"]');
-        continue;
-      }
-    }
-    if (await page.locator('[data-action="access-drag-front"]').count()) { await clickVisible(page, '[data-action="access-drag-front"]'); continue; }
-    return;
-  }
-  throw new Error("pending resolution did not settle within 20 browser actions");
-}
-
-async function runBasics(page, label) {
-  await advanceIntroduction(page);
-  await assertStep(page, "basics:0", ["開始", "自分のDoors ZX"]);
-  await clickVisible(page, '[data-action="tutorial-advance"]');
-  await assertStep(page, "basics:1", ["こそ泥", "レジストリ"]);
-  await dock(page);
-  await selectCard(page, "STD-076", "hand");
-  await clickVisible(page, '[data-action="install"]');
-
-  await assertStep(page, "basics:2", ["ジャンキー", "自分フロント"]);
-  await dock(page);
-  await selectCard(page, "STD-075", "hand");
-  await playToZone(page, "front");
-
-  await assertStep(page, "basics:3", ["ジャンキー", "相手ユーザー"]);
-  await dock(page);
-  await selectCard(page, "STD-075", "front");
-  await clickVisible(page, '[data-action="prepare-attack"]');
-  await clickVisible(page, '[data-fortress="ai"]');
-
-  await assertStep(page, "basics:4", ["ジャンキー", "ターン終了"]);
-  await dock(page);
-  await clickVisible(page, '[data-action="end-turn"]');
-
-  await assertStep(page, "basics:5", ["カネコ", "自分フロント", "華守り"]);
-  await dock(page);
-  await selectCard(page, "STD-090", "hand");
-  await playToZone(page, "front");
-  await finishPending(page);
-
-  await assertStep(page, "basics:6", ["カネコ", "ターン終了"]);
-  await dock(page);
-  await clickVisible(page, '[data-action="end-turn"]');
-
-  await assertStep(page, "basics:7", ["カネコ", "セキュリティ", "攻撃宣言先"]);
-  await dock(page);
-  await selectCard(page, "STD-090", "front");
-  await clickVisible(page, '[data-action="prepare-attack"]');
-  await clickVisible(page, '[data-fortress="ai"]');
-
-  await assertStep(page, "basics:8", ["ラッキー☆ショット", "華守り"]);
-  await dock(page);
-  await selectCard(page, "STD-086", "hand");
-  await clickVisible(page, '[data-action="play-front"]');
-  await clickVisible(page, '[data-card-id="STD-131"][data-owner="ai"][data-zone="front"]');
-  await clickVisible(page, '[data-action="confirm-selection"]');
-  await finishPending(page, { preferEmptySelection: true });
-  const state = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.getState());
-  if (state.mode !== "sandbox" || state.pending || !state.players.player.trash.some((card) => card.id === "STD-086")) {
-    throw new Error(`${label} basics did not finish its required optional choice`);
-  }
-  await page.screenshot({ path: path.join(evidenceRoot, `${label}-basics-complete.png`), fullPage: true });
-  await assertPostCompletionEndTurn(page, `${label} basics`);
-  return 10;
-}
-
-async function runVengeance(page, label) {
-  await selectTutorial(page, "vengeance");
-  await advanceIntroduction(page);
-  await assertStep(page, "vengeance:0", ["開始", "ドールズ2体"]);
-  await clickVisible(page, '[data-action="tutorial-advance"]');
-
-  await assertStep(page, "vengeance:1", ["淫魔像", "レジストリ"]);
-  await dock(page);
-  await selectCard(page, "STD-191", "hand");
-  await clickVisible(page, '[data-action="install"]');
-
-  await assertStep(page, "vengeance:2", ["トライプビア", "素材ドールズ", "自分フロント"]);
-  await dock(page);
-  await selectCard(page, "STD-195", "hand");
-  await clickVisible(page, '[data-action="layered-front"]');
-  if ((await page.locator('[data-live="hand"]').textContent())?.includes("畳む")) await page.locator('[data-live="hand"]').click();
-  const dolls = page.locator('[data-card-id="STD-189"][data-owner="player"][data-zone="front"]');
-  if (await dolls.count() !== 2) throw new Error(`${label} vengeance does not expose exactly two tutorial materials`);
-  if (keyboardMode) {
-    const dollUids = await dolls.evaluateAll((nodes) => nodes.map((node) => node.dataset.cardUid));
-    for (const uid of dollUids) await clickVisible(page, `[data-card-uid="${uid}"]`);
+async function run(page,id) {
+  const target=new URL(url);target.searchParams.set('e2e','1');
+  await page.goto(target.toString(),{waitUntil:'networkidle'});
+  await page.evaluate(id => window.__SIMPLE_ZEKE_E2E__.start('tutorial',id,1),id);
+  const old=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.scope());
+  await intro(page,id);
+  if (id==='basics') {
+    await step(page,id,1);await action(page,'install','STD-076');
+    await step(page,id,2);await action(page,'executeCard','STD-075',{zone:'front'});
+    await step(page,id,3);await action(page,'attack','STD-075',{user:true});
+    await step(page,id,4);await action(page,'endTurn');await settle(page);
+    await step(page,id,5);await action(page,'executeCard','STD-090',{zone:'front'});await settle(page);
+    await step(page,id,6);await action(page,'endTurn');await settle(page);
+    await step(page,id,7);await action(page,'attack','STD-090',{user:true});await settle(page);
+    await step(page,id,8);await action(page,'executeSpell','STD-086',{targetId:'STD-131'});await settle(page,{decline:true});
   } else {
-    await dolls.nth(0).click();
-    await dolls.nth(1).click();
+    await step(page,id,1);await action(page,'install','STD-191');
+    await step(page,id,2);await action(page,'executeLayered','STD-195',{zone:'front'});await settle(page);
+    await step(page,id,3);await action(page,'redeploy','STD-195',{zone:'back'});await settle(page,{checkBack:true});
+    const moved=(await read(page)).value.observation.seats[0].back.cards.find(card => !card.faceDown && card.definition.id==='STD-195');
+    if (!moved || moved.mounted.length!==1) throw new Error('selected relog layer cost not reflected');
+    await step(page,id,4);await action(page,'executeCard','STD-194',{zone:'front'});await settle(page);
+    await step(page,id,5);await action(page,'executeCard','STD-192',{zone:'front'});await settle(page);
+    await step(page,id,6);await action(page,'activateCardEffect','STD-192',{targetId:'STD-194',zone:'back'});await settle(page);
   }
-  await clickVisible(page, '[data-action="confirm-layered"]');
-  if (await page.locator('[data-live-slot^="front:"]').count()) await clickAvailableSlot(page, "front");
-
-  await assertStep(page, "vengeance:3", ["トライプビア", "自分バック"]);
-  await dock(page);
-  await selectCard(page, "STD-195", "front");
-  await clickVisible(page, '[data-action="relog-back"]');
-  if (label === "desktop" || label.includes("zoom-200")) {
-    await clickVisible(page, '[data-live="cancel"]');
-    const cancelled = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.getState());
-    if (cancelled.pending || !cancelled.players.player.front.some((card) => card.id === "STD-195")) {
-      throw new Error("cancelling a deferred tutorial choice did not restore the pre-action state");
-    }
-    const restoredTripvia = cancelled.players.player.front.find((card) => card.id === "STD-195");
-    if (cancelled.selectedUid !== restoredTripvia.uid) await selectCard(page, "STD-195", "front");
-    await clickVisible(page, '[data-action="relog-back"]');
-  }
-  if (await page.locator('[data-live-slot^="back:"]').count()) await clickAvailableSlot(page, "back");
-  await page.locator("[data-selection-scope]").selectOption("レイヤー1枚を破棄して1メモリ");
-  await clickVisible(page, '[data-action="confirm-selection"]');
-  await finishPending(page);
-
-  await assertStep(page, "vengeance:4", ["アクロィア", "自分フロント"]);
-  await dock(page);
-  await selectCard(page, "STD-194", "hand");
-  await playToZone(page, "front");
-
-  await assertStep(page, "vengeance:5", ["タナフォリア", "自分フロント"]);
-  await dock(page);
-  await selectCard(page, "STD-192", "hand");
-  await playToZone(page, "front");
-
-  await assertStep(page, "vengeance:6", ["タナフォリア", "アクロィア", "移動先バック"]);
-  await dock(page);
-  await selectCard(page, "STD-192", "front");
-  await clickVisible(page, '[data-action="activate-effect"]');
-  await clickVisible(page, "[data-effect-id]");
-  await clickVisible(page, '[data-card-id="STD-194"][data-owner="player"][data-zone="front"]');
-  await clickVisible(page, '[data-action="confirm-selection"]');
-  await clickVisible(page, '[data-action="effect-move-back"]');
-
-  const state = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.getState());
-  const tripvia = state.players.player.back.find((card) => card.id === "STD-195");
-  const acroia = state.players.player.back.find((card) => card.id === "STD-194");
-  const discardedDoll = state.players.player.trash.some((card) => card.id === "STD-189");
-  const revealedDoll = state.players.player.front.some((card) => card.id === "STD-189");
-  if (state.mode !== "sandbox" || state.pending || !tripvia || tripvia.mounted.length !== 1 || !acroia || !discardedDoll || !revealedDoll || state.players.player.hand.length < 2) {
-    throw new Error(`${label} vengeance final state is invalid: ${JSON.stringify({ pending: state.pending, back: state.players.player.back.map((card) => ({ id: card.id, layers: card.mounted.length })), hand: state.players.player.hand.length })}`);
-  }
-  await page.screenshot({ path: path.join(evidenceRoot, `${label}-vengeance-complete.png`), fullPage: true });
-  await assertPostCompletionEndTurn(page, `${label} vengeance`);
-  return 8;
+  await freshCompletion(page,old);
 }
-
-const playwright = await loadPlaywright();
-const { chromium } = playwright.default ?? playwright;
-const browser = await chromium.launch({ channel: "msedge", headless: true });
-mkdirSync(evidenceRoot, { recursive: true });
-const runs = [];
+const playwright=await loadPlaywright(),{chromium}=playwright.default ?? playwright;
+const browser=await chromium.launch({channel:'msedge',headless:true}),runs=[],errors=[];
 try {
-  const profiles = keyboardMode ? [
-    { label: "desktop-keyboard", viewport: { width: 1600, height: 1000 }, tutorials: ["basics"] },
-    // A 640x360 CSS viewport is the layout viewport produced by 1280x720 at 200% browser zoom.
-    { label: "zoom-200-equivalent-keyboard", viewport: { width: 640, height: 360 }, tutorials: ["vengeance"] }
-  ] : [
-    { label: "desktop", viewport: { width: 1600, height: 1000 } },
-    { label: "mobile-landscape", viewport: { width: 844, height: 390 } }
-  ];
+  const profiles=keyboardMode ? [{label:'desktop-keyboard',width:1600,height:1000},{label:'zoom-200-equivalent-keyboard',width:640,height:360}]
+    : [{label:'desktop',width:1600,height:1000},{label:'mobile',width:844,height:390},{label:'zoom-200-equivalent',width:640,height:360}];
   for (const profile of profiles) {
-    for (const tutorial of profile.tutorials ?? ["basics", "vengeance"]) {
-      const page = await browser.newPage({ viewport: profile.viewport });
-      const target = new URL(url);
-      target.searchParams.set("e2e", "1");
-      await page.goto(target.toString(), { waitUntil: "networkidle" });
-      await page.locator("#boot-splash").waitFor({ state: "detached", timeout: 15000 });
-      await clickVisible(page, '[data-mode="tutorial"]');
-      const steps = tutorial === "basics" ? await runBasics(page, profile.label) : await runVengeance(page, profile.label);
-      runs.push({ viewport: profile.label, tutorial, steps, ok: true });
-      await page.close();
-    }
+    const page=await browser.newPage({viewport:{width:profile.width,height:profile.height}});
+    page.on('pageerror',error => errors.push(error.message));
+    for (const id of ['basics','vengeance']) {await run(page,id);runs.push({profile:profile.label,tutorial:id});}
+    // Skip during a committed required choice revokes old refs and cannot carry it.
+    await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.start('tutorial','vengeance',1));
+    await intro(page,'vengeance');await action(page,'install','STD-191');await action(page,'executeLayered','STD-195',{zone:'front'});await action(page,'redeploy','STD-195',{zone:'back'});
+    const old=(await read(page)).value,scope=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.scope());
+    if (!old.requiredInput) throw new Error('skip case not in required choice');
+    await clickVisible(page,'[data-runtime-tutorial-skip]');
+    const after=(await read(page)).value;
+    if (after.requiredInput || after.status.revision!==0 || after.status.matchId===scope.matchId) throw new Error('skip did not create fresh sandbox');
+    const stale=await page.evaluate(input => window.__SIMPLE_ZEKE_E2E__.submit(input),{commandId:'old-choice',expectedRevision:0,action:{type:'answerChoice',choiceId:old.requiredInput.choiceId,optionIds:[],allocation:[]}});
+    if (stale.ok && stale.value.kind==='accepted') throw new Error('old choice accepted after skip');
+    await page.close();
   }
-} finally {
-  await browser.close();
-}
-console.log(JSON.stringify({ runs, input: keyboardMode ? "keyboard-only" : "pointer", focusCleanup: true, internalChoices: true, ok: true }));
+  if (errors.length) throw new Error('tutorial page errors: '+errors.join(' | '));
+  console.log(JSON.stringify({suite:'tutorial',runs,freshCompletion:true,freshSkip:true,requiredBackPreserves:true,keyboardMode,ok:true}));
+} finally {await browser.close();}

@@ -5,6 +5,7 @@ import { runSimpleAiTurnSteps } from "../src/game/ai.js";
 import { createCardInstance } from "../src/data/cards.js";
 import { createTutorialFlow, completeTutorialIntroduction } from "../src/data/tutorial.js";
 import { leaveTutorial, requestTurnEnd, executionSlots, livePlacementSlots, avoidFocus, shouldAutoStartAiTurn, stepBackInput, dismissBoardSelection, mobileConsoleScale, isDownwardHandSwipe } from "../src/ui-refresh/session.js";
+import { mobileViewportMetrics } from "../src/ui-refresh/mobile-viewport.js";
 import { liveHtml, liveInteractionHtml } from "../src/ui-refresh/live-view.js";
 import { createInteractionPatcher, selectionFlags, updateSelectionMarkers } from "../src/ui-refresh/selection-render.js";
 import { adminDrawerHtml, triggerThreadHtml } from "../src/ui/render.js";
@@ -63,6 +64,29 @@ test("mobile console preserves its 660px design ratio and downward hand swipe ig
   assert.equal(isDownwardHandSwipe({ x: 20, y: 20 }, { x: 35, y: 90 }), true);
   assert.equal(isDownwardHandSwipe({ x: 20, y: 20 }, { x: 100, y: 90 }), false);
   assert.equal(isDownwardHandSwipe({ x: 20, y: 20 }, { x: 20, y: 90 }, "mouse"), false);
+});
+
+test("mobile layout uses CSS viewport occupancy and remains independent from physical DPR", () => {
+  const profiles = [
+    [667, 375, 2],
+    [844, 390, 3],
+    [915, 412, 2.625],
+    [932, 430, 3],
+    [1280, 720, 2],
+    [960, 360, 3],
+  ];
+  for (const [width, height] of profiles) {
+    const atOne = mobileViewportMetrics({ width, height });
+    const atDeviceDpr = mobileViewportMetrics({ width, height, devicePixelRatio: 3 });
+    assert.deepEqual(atDeviceDpr, atOne);
+    assert.ok(atOne.consoleScale >= 0 && atOne.consoleScale <= 1);
+    assert.ok(atOne.consoleWidth <= atOne.contentWidth * .25 + .001);
+    assert.ok(atOne.playWidth + atOne.consoleWidth + atOne.gutter * 2 <= atOne.contentWidth + .001);
+    assert.ok(atOne.playWidth > 0);
+  }
+  const safe = mobileViewportMetrics({ width: 932, height: 430, safeLeft: 24, safeRight: 12, safeTop: 8, safeBottom: 10 });
+  assert.equal(safe.contentWidth, 896);
+  assert.equal(safe.contentHeight, 412);
 });
 
 test("AI turn starts after a player's turn-end access choice completes", () => {

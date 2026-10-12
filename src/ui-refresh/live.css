@@ -223,3 +223,68 @@ body[data-view="mobile"] .action-log-icon { width:38px; height:38px; }
 .r2-content .r2-entry { max-height:100%; padding-top:56px; }
 .live-menu-nav { display:flex; flex-wrap:wrap; gap:8px; }
 .r2-notice { position:fixed; z-index:20; bottom:calc(6px + env(safe-area-inset-bottom,0px)); left:calc(8px + env(safe-area-inset-left,0px)); max-width:45vw; padding:4px 6px; background:#09090bd9; color:#bdbdc4; font-size:10px; line-height:1.4; pointer-events:none; }
+
+/* Mobile layout is bound to one CSS-pixel stage. DPR is reserved for raster
+   backing stores; HTML occupancy stays stable across low/high-density screens. */
+body[data-view="mobile"] .r2-content {
+  --turn-rail-width:var(--mobile-console-width,calc(210px * var(--mobile-console-scale,1)));
+  box-sizing:border-box;
+  width:var(--mobile-viewport-width,100dvw);
+  height:var(--mobile-viewport-height,100dvh);
+  min-width:0;
+  min-height:0;
+  overflow:hidden;
+  container-name:sz-mobile-stage;
+  container-type:size;
+}
+body[data-view="mobile"] .r2-content>.r2-mobile,
+body[data-view="mobile"] .r2-content [data-match-root],
+body[data-view="mobile"] .r2-content .r2-runtime-view.r2-mobile {
+  width:100%;
+  height:100%;
+  min-width:0;
+  min-height:0;
+}
+body[data-view="mobile"] .r2-content .r2-mobile .r2-stage {
+  left:var(--mobile-gutter,6px);
+  right:calc(var(--turn-rail-width) + var(--mobile-gutter,6px));
+  top:var(--mobile-gutter,6px);
+  bottom:var(--mobile-gutter,6px);
+}
+body[data-view="mobile"] .r2-content .r2-mobile-tools {
+  right:var(--mobile-gutter,6px);
+}
+body[data-view="mobile"] .r2-content .r2-mobile-hand {
+  left:calc(var(--mobile-gutter,6px) + var(--mobile-play-width,70cqw) / 2);
+  width:min(54cqw,calc(var(--mobile-play-width,70cqw) - var(--mobile-gutter,6px) * 2));
+}
+body[data-view="mobile"] .r2-content .r2-hand-toggle {
+  right:calc(var(--turn-rail-width) + var(--mobile-gutter,6px) * 2);
+  max-width:min(100px,calc(var(--mobile-play-width,70cqw) - var(--mobile-gutter,6px) * 2));
+}
+body[data-view="mobile"] .r2-content .r2-target-dock {
+  right:calc(var(--turn-rail-width) + var(--mobile-gutter,6px) * 2);
+  width:min(340px,calc(var(--mobile-play-width,70cqw) - var(--mobile-gutter,6px) * 2));
+  max-height:calc(100cqh - var(--mobile-gutter,6px) * 2);
+}
+body[data-view="mobile"] .r2-content .selection-panel,
+body[data-view="mobile"] .r2-content .selection-panel-cards,
+body[data-view="mobile"] .r2-content .selection-panel-collapsed {
+  box-sizing:border-box;
+  width:min(560px,calc(var(--mobile-play-width,70cqw) - var(--mobile-gutter,6px) * 2));
+  max-width:calc(100cqw - var(--mobile-gutter,6px) * 2);
+}
+body[data-view="mobile"] .r2-content .r2-detail {
+  width:min(var(--detail-width,184px),calc(var(--mobile-play-width,70cqw) - var(--mobile-gutter,6px) * 2));
+  max-height:calc(100cqh - var(--mobile-gutter,6px) * 2);
+}
+body[data-view="mobile"] .r2-content .r2-action-log {
+  width:calc(100cqw - var(--mobile-gutter,6px) * 2);
+  max-height:calc(100cqh - var(--mobile-gutter,6px) * 2);
+}
+body[data-view="mobile"] .r2-content .deck-builder {
+  width:auto;
+  height:auto;
+  max-width:calc(100cqw - var(--mobile-gutter,6px) * 2);
+  max-height:calc(100cqh - var(--mobile-gutter,6px) * 2);
+}

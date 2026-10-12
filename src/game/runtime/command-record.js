@@ -91,6 +91,40 @@ function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
+function reference(value) {
+  if (typeof value !== 'string' || !REFERENCE_TOKEN.test(value)) reject('INVALID_COMMAND');
+  return value;
+}
+function destination(value, registry = false) {
+  ordinary(value, 'INVALID_COMMAND');
+  if (registry && own(value, 'zone', 'INVALID_COMMAND') === 'registry') return exact(value, ['zone'], 'INVALID_COMMAND');
+  const result = exact(value, ['zone', 'slot'], 'INVALID_COMMAND');
+  if (!['front', 'back'].includes(result.zone) || !Number.isSafeInteger(result.slot)
+    || result.slot < 1 || Object.is(result.slot, -0)) reject('INVALID_COMMAND');
+  return result;
+}
+function target(value) {
+  ordinary(value, 'INVALID_COMMAND');
+  const kind = own(value, 'kind', 'INVALID_COMMAND');
+  if (kind === 'card') { const result = exact(value, ['kind', 'cardRef'], 'INVALID_COMMAND'); reference(result.cardRef); return result; }
+  if (kind === 'user') { const result = exact(value, ['kind', 'seatId'], 'INVALID_COMMAND'); if (!nonempty(result.seatId)) reject('INVALID_COMMAND'); return result; }
+  reject('INVALID_COMMAND');
+}
+function targets(value) {
+  const result = dense(value, 'INVALID_COMMAND').map(target);
+  if (new Set(result.map(canonicalJson)).size !== result.length) reject('INVALID_COMMAND');
+  return result;
+}
+function placement(value) {
+  ordinary(value, 'INVALID_COMMAND');
+  const kind = own(value, 'kind', 'INVALID_COMMAND');
+  if (kind === 'none') return exact(value, ['kind'], 'INVALID_COMMAND');
+  if (kind === 'slot') { const result = exact(value, ['kind', 'zone', 'slot'], 'INVALID_COMMAND'); destination({zone:result.zone,slot:result.slot}); return result; }
+  if (kind === 'aboveCode' || kind === 'belowOb') { const result = exact(value, ['kind', 'hostRef'], 'INVALID_COMMAND'); reference(result.hostRef); return result; }
+  if (kind === 'asScript') { const result = exact(value, ['kind', 'slot'], 'INVALID_COMMAND'); destination({zone:'back',slot:result.slot}); return result; }
+  reject('INVALID_COMMAND');
+}
+
 function canonicalCommand(input) {
   const source = exact(input, ENVELOPE_KEYS, 'INVALID_COMMAND');
   if (!Number.isSafeInteger(source.contractVersion) || Object.is(source.contractVersion, -0) || source.contractVersion < 0) reject('INVALID_COMMAND');
@@ -102,14 +136,29 @@ function canonicalCommand(input) {
   if (!nonempty(type)) reject('INVALID_COMMAND');
   let canonicalAction;
   if (type === 'endTurn' || type === 'openingMulligan') canonicalAction = exact(action, ['type'], 'INVALID_COMMAND');
-  else if (type === 'executeCard' || type === 'redeploy') {
+  else if (type === 'executeSpell' || type === 'executeRegistry' || type === 'activateCardEffect') {
+    const keys = type === 'executeSpell' ? ['type','cardRef','targets','selectionScope']
+      : type === 'executeRegistry' ? ['type','cardRef','placement','targets','selectionScope']
+      : ['type','cardRef','effectKey','targets','targetZone'];
+    canonicalAction = exact(action, keys, 'INVALID_COMMAND');
+    reference(canonicalAction.cardRef);
+    canonicalAction.targets = targets(canonicalAction.targets);
+    if (type === 'activateCardEffect') {
+      if (!nonempty(canonicalAction.effectKey) || ![null,'front','back'].includes(canonicalAction.targetZone)) reject('INVALID_COMMAND');
+    } else if (canonicalAction.selectionScope !== null && !nonempty(canonicalAction.selectionScope)) reject('INVALID_COMMAND');
+    if (type === 'executeRegistry') canonicalAction.placement = placement(canonicalAction.placement);
+  }
+  else if (type === 'mountCard') {
+    canonicalAction = exact(action, ['type','cardRef','hostRef','mountKind'], 'INVALID_COMMAND');
+    reference(canonicalAction.cardRef); reference(canonicalAction.hostRef);
+    if (canonicalAction.cardRef === canonicalAction.hostRef || !['aboveCode','belowOb'].includes(canonicalAction.mountKind)) reject('INVALID_COMMAND');
+  }
+  else if (type === 'executeCard' || type === 'redeploy' || type === 'setScript') {
     canonicalAction = exact(action, ['type', 'cardRef', 'destination'], 'INVALID_COMMAND');
     if (typeof canonicalAction.cardRef !== 'string' || canonicalAction.cardRef.length !== 34
       || !REFERENCE_TOKEN.test(canonicalAction.cardRef)) reject('INVALID_COMMAND');
-    canonicalAction.destination = exact(canonicalAction.destination, ['zone', 'slot'], 'INVALID_COMMAND');
-    if (!['front', 'back'].includes(canonicalAction.destination.zone)
-      || !Number.isSafeInteger(canonicalAction.destination.slot) || canonicalAction.destination.slot < 1
-      || Object.is(canonicalAction.destination.slot, -0)) reject('INVALID_COMMAND');
+    canonicalAction.destination = destination(canonicalAction.destination, type === 'redeploy');
+    if (type === 'setScript' && canonicalAction.destination.zone !== 'back') reject('INVALID_COMMAND');
   }
   else if (type === 'executeLayered') {
     canonicalAction = exact(action, ['type', 'cardRef', 'materialRefs', 'destination'], 'INVALID_COMMAND');
@@ -134,6 +183,10 @@ function canonicalCommand(input) {
   else if (type === 'sandboxAddCard') {
     canonicalAction = exact(action, ['type', 'definitionId', 'targetSeat'], 'INVALID_COMMAND');
     if (!nonempty(canonicalAction.definitionId) || !nonempty(canonicalAction.targetSeat)) reject('INVALID_COMMAND');
+  }
+  else if (type === 'sandboxSelectActiveSeat') {
+    canonicalAction = exact(action, ['type', 'targetSeat'], 'INVALID_COMMAND');
+    if (!nonempty(canonicalAction.targetSeat)) reject('INVALID_COMMAND');
   }
   else if (type === 'attack') {
     canonicalAction = exact(action, ['type', 'attackerRef', 'target'], 'INVALID_COMMAND');

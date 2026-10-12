@@ -207,6 +207,17 @@ export function createRuntimeReferenceState(args) {
     return allocate(state, frame, tracking(frame), supplied);
   });
 }
+export function planRuntimeReferenceCreation(inputFrame) {
+  return envelope(() => {
+    const frame = frameData(inputFrame);
+    const tracked = tracking(frame);
+    let newRefCount = 0;
+    for (const card of frame.cards) for (const viewerSeat of frame.seatIds) {
+      if (tracked.trackable(card, viewerSeat)) newRefCount += 1;
+    }
+    return { newRefCount };
+  });
+}
 export function advanceRuntimeReferenceState(inputState, args) {
   return envelope(() => {
     const input = exact(args, ['frame', 'invalidatedIdentities', 'newRefs'], INPUT);
@@ -270,4 +281,33 @@ export function findRuntimeCardReference(state, args) {
 }
 export function lookupRuntimeCardReference(state, args) {
   return envelope(() => ({ identity: { ...lookupInput(state, args, false).identity } }));
+}
+
+// Validate the complete scope once, then resolve only within this detached read.
+export function createRuntimeReferenceLookup(inputState, inputFrame, viewerSeat) {
+  return envelope(() => {
+    const state = stateData(inputState);
+    const frame = frameData(inputFrame);
+    scope(state, frame, INVALID_REF);
+    if (!state.seatIds.includes(viewerSeat)) reject(INVALID_REF);
+    const tracked = tracking(frame);
+    const rows = state.entries.filter(entry => entry.viewerSeat === viewerSeat);
+    const byId = new Map(rows.map(entry => [entry.identity.instanceId, entry]));
+    const byRef = new Map(rows.map(entry => [entry.cardRef, entry]));
+    const available = entry => {
+      const card = entry && tracked.cards.get(entry.identity.instanceId);
+      return card && tracked.trackable(card, viewerSeat);
+    };
+    return Object.freeze({
+      find(identity) {
+        if (identity?.matchId !== state.matchId) return null;
+        const entry = byId.get(identity.instanceId);
+        return available(entry) ? entry.cardRef : null;
+      },
+      lookup(cardRef) {
+        const entry = byRef.get(cardRef);
+        return available(entry) ? { ...entry.identity } : null;
+      }
+    });
+  });
 }

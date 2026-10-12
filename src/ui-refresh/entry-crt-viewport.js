@@ -3,6 +3,7 @@
 const CRT_CURVE = 0.16;
 const BUTTON_GLITCH_MS = 220;
 const MENU_FONT = 'SZDotGothic, "Yu Gothic UI", sans-serif';
+const POINTER_ACTIVATION_SLOP = 12;
 const vertexSource = `
 attribute vec2 a_position;
 attribute vec2 a_uv;
@@ -97,6 +98,21 @@ function drawIcon(ctx, svg, frame, color) {
   ctx.restore();
 }
 
+export function shouldActivateCrtPointer(start, end, maxDistance = POINTER_ACTIVATION_SLOP) {
+  if (!start?.target || start.pointerId !== end?.pointerId || start.target !== end.target) return false;
+  return Math.hypot(end.clientX - start.clientX, end.clientY - start.clientY) <= maxDistance;
+}
+
+export function activateCrtTarget(target, createEvent = () => new MouseEvent("click", {
+  bubbles: true,
+  cancelable: true,
+  view: window
+})) {
+  if (!target || typeof target.dispatchEvent !== "function") return false;
+  target.focus?.({ preventScroll: true });
+  return target.dispatchEvent(createEvent());
+}
+
 function mount(entry, initialOptions = {}) {
   const inner = entry.querySelector(".r2-entry-inner");
   const logo = entry.querySelector(".r2-intro img");
@@ -168,6 +184,7 @@ function mount(entry, initialOptions = {}) {
   let lastNoiseFrame = 0;
   let options = initialOptions;
   let ready = false;
+  let pressed = null;
   let menuTargets = [];
   const glitchStart = new Map();
   const listeners = [];
@@ -382,8 +399,23 @@ function mount(entry, initialOptions = {}) {
   }
 
   listen(canvas, "pointermove", event => { const next = targetAt(event); if (next !== hovered) { hovered = next; if (next) glitchStart.set(next, performance.now()); canvas.style.cursor = next ? "pointer" : "default"; redraw(); } });
-  listen(canvas, "pointerleave", () => { hovered = null; redraw(); });
-  listen(canvas, "click", event => { const target = targetAt(event); if (target) { target.focus(); target.click(); } });
+  listen(canvas, "pointerdown", event => {
+    if (event.button !== 0) return;
+    pressed = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, target: targetAt(event) };
+    try { canvas.setPointerCapture?.(event.pointerId); } catch { /* Synthetic pointer tests have no active native pointer. */ }
+  });
+  listen(canvas, "pointerup", event => {
+    const end = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, target: targetAt(event) };
+    const start = pressed;
+    pressed = null;
+    try { if (canvas.hasPointerCapture?.(event.pointerId)) canvas.releasePointerCapture(event.pointerId); } catch { /* Capture may already be released. */ }
+    if (shouldActivateCrtPointer(start, end)) {
+      event.preventDefault();
+      activateCrtTarget(end.target);
+    }
+  });
+  listen(canvas, "pointercancel", () => { pressed = null; });
+  listen(canvas, "pointerleave", event => { if (!canvas.hasPointerCapture?.(event.pointerId)) pressed = null; hovered = null; redraw(); });
   listen(entry, "focusin", event => { if (buttons.includes(event.target)) glitchStart.set(event.target, performance.now()); redraw(); });
   listen(entry, "focusout", () => requestAnimationFrame(redraw));
   listen(menuButton, "focusin", redraw);

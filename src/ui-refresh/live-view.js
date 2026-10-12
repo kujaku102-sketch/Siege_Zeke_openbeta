@@ -8,6 +8,7 @@ import { boardHtml, entryHtml, esc } from "./view.js";
 import { actionLogHtml } from "./action-log.js";
 import { actorFor, canLeaveTutorial, canStepBackInput, resolutionBusy, securityCandidates } from "./session.js";
 import { isObCard } from "../game/card-types.js";
+export { runtimeGameHtml } from "./runtime-read-view.js";
 
 function settingsHtml(state, ui) {
   if (ui.screen === "entry") {

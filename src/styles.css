@@ -682,3 +682,27 @@ body { background:radial-gradient(ellipse at 50% 8%,rgba(255,255,255,.055),trans
 .effect-modal,.selection-panel,.trigger-thread-panel,.prompt-toast,.deck-builder-modal { z-index:var(--z-modal); }
 .tutorial-adv-copy ruby { ruby-align:center; }
 .tutorial-adv-copy rt { color:#d4d4d8; font-size:.55em; letter-spacing:.08em; }
+
+/* Port-backed match views: retain existing board/hand geometry. */
+.runtime-selection-options { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; overflow:auto; max-height:60vh; }
+.runtime-selection-option { min-width:0; }
+.runtime-selection-option > button { width:100%; height:100%; padding:4px; }
+.runtime-selection-option.selected > button { outline:2px solid #69e8ff; }
+.runtime-selection-card { display:flex; flex-direction:column; aspect-ratio:5/8; overflow:hidden; }
+.runtime-selection-card > img { width:100%; min-height:0; flex:1; object-fit:cover; }
+.runtime-selection-card > strong { font-size:12px; }
+.runtime-selection-reopen { position:fixed; left:50%; bottom:8%; z-index:var(--z-modal); }
+.r2-runtime-view .effect-modal > nav { display:flex; gap:8px; padding:8px; background:#101820; }
+.r2-runtime-view .r2-log { position:fixed; z-index:var(--z-modal); inset:8% 25%; padding:16px; background:#101820; border:1px solid #69e8ff; display:flex; flex-direction:column; }
+.r2-runtime-view .r2-log > header { display:flex; justify-content:space-between; }
+.r2-runtime-view .r2-log-scroll { overflow:auto; }
+.r2-runtime-view .r2-log-entry { display:flex; gap:8px; max-width:85%; margin:8px 0; padding:8px; background:#142a32; }
+.r2-runtime-view .r2-log-entry.is-opponent { margin-left:auto; background:#302433; }
+.r2-runtime-view .r2-log-card-icon { width:48px; height:48px; border-radius:50%; object-fit:cover; object-position:50% 25%; }
+.r2-runtime-view .r2-log-turn { border-bottom:1px solid #69e8ff; text-align:center; }
+.r2-runtime-view .r2-detail .detail-art img { width:100%; }
+.r2-runtime-view.r2-mobile .r2-log { inset:5% 10%; }
+:root .r2-content > [data-match-root] { height: 100%; min-height: 0; position: relative; }
+:root .r2-content > [data-match-root]:empty { pointer-events: none; }
+:root [data-match-root] > main { height: 100%; max-width: none; padding: 0; }
+[data-shell-overlays] > .r2-modal.runtime-host-options { z-index:calc(var(--z-modal) + 1); }

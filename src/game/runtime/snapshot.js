@@ -27,7 +27,8 @@ const OPTIONAL_ROOT = {
     'attackResumeStage', 'std094TurnEndQueue', 'std141TurnEndQueue', 'std142TurnEndQueue', 'std142DestroyBatch', 'std211DestructionBatch'],
   array: ['deferredTrashMoves', 'destroyLkiFollowUps', 'independentEffects'],
   object: ['runtimeDestructionContinuations', 'std142DestructionContinuations', 'std211DestructionContinuations'],
-  boolean: ['drainingIndependentEffects', 'resolvingStd165', 'resumeTurnEndAfterSelection', 'skipSavageTurnEnd']
+  boolean: ['drainingIndependentEffects', 'resolvingStd165', 'skipSavageTurnEnd'],
+  player: ['std094TurnEndDone', 'std141TurnEndDone', 'std142TurnEndDone', 'resumeTurnEndAfterSelection']
 };
 const CONTEXT_KEYS = ['matchId', 'seatIds', 'identityState', 'rngState', 'uidAliases'];
 const INVALID = 'SNAPSHOT_INVALID_INPUT';
@@ -221,6 +222,20 @@ function validateOptionalRoot(state) {
     if (typeof value !== 'boolean') reject(STATE);
     if (value) reject(UNSUPPORTED);
   }
+  for (const name of OPTIONAL_ROOT.player) {
+    if (!Object.hasOwn(state, name)) continue;
+    const value = own(state, name, STATE);
+    if (value !== 'player' && value !== 'ai') reject(STATE);
+    reject(UNSUPPORTED);
+  }
+}
+
+function validatePlayerMarkers(state) {
+  for (const name of OPTIONAL_ROOT.player) {
+    if (!Object.hasOwn(state, name)) continue;
+    const value = own(state, name, STATE);
+    if (value !== 'player' && value !== 'ai') reject(STATE);
+  }
 }
 
 function idleState(state) {
@@ -234,7 +249,7 @@ function idleState(state) {
   const depth = own(state, 'effectDepth', STATE);
   if (typeof phase !== 'string' || typeof interactive !== 'boolean' || typeof processing !== 'boolean'
     || typeof resolving !== 'boolean' || !Number.isSafeInteger(depth) || depth < 0) reject(STATE);
-  if (phase !== 'main' || interactive || processing || resolving || depth !== 0) reject(UNSUPPORTED);
+  if (phase !== 'main' || processing || resolving || depth !== 0) reject(UNSUPPORTED);
   for (const key of ['effectResolution', 'mandatoryDrawContinuation', 'resolvingDeclaredEffect', 'deferredDeclaredResponseCleanup',
     'deferredDeclaredScriptCleanup', 'placementCostBatch', 'triggerThread', 'threadNotice', 'selectedUid', 'openAdmin', 'pending', 'prompt']) {
     if (own(state, key, STATE) !== null) reject(UNSUPPORTED);
@@ -248,6 +263,7 @@ function idleState(state) {
 }
 
 function snapshotState(state, metadata, referenceState, revision) {
+  validatePlayerMarkers(state);
   try {
     idleState(state);
     return;
@@ -256,11 +272,10 @@ function snapshotState(state, metadata, referenceState, revision) {
   }
   const mode = own(state, 'mode', STATE);
   const phase = own(state, 'phase', STATE);
-  const interactive = own(state, 'interactive', STATE);
   const processing = own(state, 'processingTriggers', STATE);
   const resolving = own(state, 'resolvingResponse', STATE);
   const depth = own(state, 'effectDepth', STATE);
-  if (!['ai', 'tutorial'].includes(mode) || phase !== 'main' || interactive !== false
+  if (!['ai', 'tutorial'].includes(mode) || phase !== 'main'
     || processing !== false || resolving !== false || depth !== 0) reject(UNSUPPORTED);
   const required = buildRequiredInput({ metadata, revision, engineState: state, referenceState }, metadata.seatIds[0]);
   if (!required.ok || required.value === null) reject(UNSUPPORTED);

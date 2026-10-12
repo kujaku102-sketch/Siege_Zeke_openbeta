@@ -1,17 +1,72 @@
 import {
   activateResponse, activateScript, cardHasKeyword, configurePlugin, declinePrompt, declineResponse, endTurn,
-  resolveAccessDragPlacement, resolveCardSelection, resolveTriggerChoice, restSecurity
+  resolveAccessDragPlacement, resolveCardSelection, resolveTriggerChoice, restSecurity, findCard
 } from '../engine.js';
 import { canConfirmSelection, confirmSelection } from '../selection-model.js';
 import { isObCard } from '../card-types.js';
 import { buildRuntimeIdentityIndex } from './bridge.js';
 import { buildRuntimeReferenceFrame } from './reference-frame.js';
 import { findRuntimeCardReference } from './references.js';
+import { opaqueOrdinal } from './opaque-id.js';
+import { requiredSelectionRequest, validSelectionAnswer } from './selection-contract.js';
+import { CARD_LIBRARY } from '../../data/cards.js';
 
 const failure = code => ({ ok: false, error: { code } });
-const optionId = index => `option:${index + 1}`;
+const optionId = index => opaqueOrdinal('option', index);
+const groupId = index => opaqueOrdinal('group', index);
 const choiceId = (revision, source) => `choice:${revision}:${source}`;
 const seatForPlayer = (metadata, playerId) => metadata.seatIds[playerId === 'player' ? 0 : 1];
+
+function pickConstraints(request, candidates) {
+  const optionFor = new Map(candidates.map((value, index) => [value, optionId(index)]));
+  const comparator = request.exactBudget !== null && request.exactBudget !== undefined ? '='
+    : request.budget !== null && request.budget !== undefined ? '<=' : null;
+  const aggregate = comparator === null ? null : {
+    comparator,
+    value: Number(comparator === '=' ? request.exactBudget : request.budget),
+    optionValues: candidates.map((value, index) => ({
+      optionId: optionId(index), value: Number(request.candidateValues?.[value] ?? 0)
+    }))
+  };
+  const groups = (request.groups ?? []).map((group, index) => ({
+    groupId: groupId(index),
+    minimum: Number(group.minimum ?? 0),
+    maximum: Math.min(candidates.length, Number.isFinite(group.maximum ?? group.count)
+      ? Number(group.maximum ?? group.count) : candidates.length),
+    optionIds: candidates.filter(value => group.candidates?.includes(value)).map(value => optionFor.get(value))
+  }));
+  return {
+    kind: 'pick', minimum: Number(request.minimum ?? 0),
+    maximum: Math.min(candidates.length, Number.isFinite(request.maximum ?? request.count)
+      ? Number(request.maximum ?? request.count) : candidates.length), aggregate, groups
+  };
+}
+
+function selectionConstraints(request, candidates) {
+  if (request.mode === 'random') return {
+    kind: 'random', answer: 'commit-empty', count: Number(request.count ?? 0)
+  };
+  if (request.spec?.kind === 'allocation') return {
+    kind: 'allocation', total: Number(request.spec.total ?? 0),
+    minimumPerOption: Number(request.spec.minimumPerTarget ?? 0),
+    maximumPerOption: request.spec.maximumPerTarget === null ? null : Number(request.spec.maximumPerTarget),
+    allowNoOptions: Boolean(request.spec.allowNoTargets),
+    optionIds: candidates.map((_, index) => optionId(index))
+  };
+  return pickConstraints(request, candidates);
+}
+
+const fixedPick = (minimum, maximum) => ({
+  kind: 'pick', minimum, maximum, aggregate: null, groups: []
+});
+
+function selectionPresentationKey(request) {
+  if (request.spec?.kind === 'allocation') return 'allocation';
+  if (request.mode === 'random') return 'random';
+  if (request.mode === 'scope') return request.spec?.kind === 'choice' ? 'choice' : 'value';
+  if ((request.groups ?? []).length > 0) return 'grouped-card';
+  return 'card';
+}
 
 function cardReference(engineState, referenceState, metadata, viewerSeat, uid) {
   const index = buildRuntimeIdentityIndex(engineState);
@@ -28,12 +83,23 @@ function cardReference(engineState, referenceState, metadata, viewerSeat, uid) {
   return found.ok ? found.value.cardRef : null;
 }
 
-function cardOptions(engineState, referenceState, metadata, actorSeat, candidates, labels = {}) {
-  return candidates.map((uid, index) => ({
-    optionId: optionId(index), kind: 'card',
-    cardRef: cardReference(engineState, referenceState, metadata, actorSeat, uid),
-    label: typeof labels?.[uid] === 'string' ? labels[uid] : null
-  }));
+function cardOptions(engineState, referenceState, metadata, actorSeat, candidates, labels = {}, surfacePermission = false) {
+  const actorId = metadata.seatIds[0] === actorSeat ? 'player' : 'ai';
+  return candidates.map((uid, index) => {
+    const found = findCard(engineState, uid);
+    const visible = found && (found.playerId === actorId && found.zoneName === 'hand'
+      || surfacePermission && found.playerId === actorId && !found.card.faceDown
+      || !['hand', 'deck'].includes(found.zoneName) && !found.card.faceDown);
+    const definition = visible ? CARD_LIBRARY[found.card.id] : null;
+    return {
+      optionId: optionId(index), kind: 'card',
+      cardRef: cardReference(engineState, referenceState, metadata, actorSeat, uid),
+      label: visible ? (typeof labels?.[uid] === 'string' ? labels[uid] : found.card.name) : null,
+      ...(definition ? { preview: { definitionId:definition.id,name:definition.name,
+        definition:{id:definition.id,name:definition.name,category:definition.category,color:definition.color ?? null,
+          cost:definition.cost ?? null,atk:definition.atk ?? null,str:definition.str ?? null,text:definition.text ?? '',classes:[...(definition.classes ?? [])]} } } : {})
+    };
+  });
 }
 
 function selectionInput(engineState, referenceState, metadata, revision, pending) {
@@ -46,15 +112,17 @@ function selectionInput(engineState, referenceState, metadata, revision, pending
   if (!Array.isArray(candidates)) return null;
   const options = request.mode === 'random' ? [] : scope
     ? candidates.map((value, index) => ({ optionId: optionId(index), kind: 'value', label: String(value) }))
-    : cardOptions(engineState, referenceState, metadata, actorSeat, candidates, request.candidateLabels);
+    : cardOptions(engineState, referenceState, metadata, actorSeat, candidates, request.candidateLabels,
+      ['runtime-access-reference','access-to-hand','access-drag','access-distribute','selection-module-look'].includes(request.continuation?.type));
   return {
     source: 'selection', playerId, actorSeat, rawOptions: [...candidates],
     dto: {
       choiceId: choiceId(revision, 'selection'), kind: request.spec?.kind === 'allocation' ? 'allocation' : 'selection',
-      presentationKey: String(request.continuation?.type ?? 'selection'), actorSeat,
-      optional: Number(request.minimum ?? 1) === 0,
+      presentationKey: selectionPresentationKey(request), actorSeat,
+      optional: request.mode !== 'random' && Number(request.minimum ?? 1) === 0,
       minimum: request.mode === 'random' ? 0 : Number(request.minimum ?? 0),
-      maximum: request.mode === 'random' ? 0 : Number(request.maximum ?? request.count ?? 1), options
+      maximum: request.mode === 'random' ? 0 : Number(request.maximum ?? request.count ?? 1), options,
+      constraints: selectionConstraints(request, candidates)
     }
   };
 }
@@ -68,7 +136,8 @@ function promptInput(metadata, revision, prompt) {
     dto: {
       choiceId: choiceId(revision, 'plugin-number'), kind: 'selection', presentationKey: 'plugin-number', actorSeat,
       optional: false, minimum: 1, maximum: 1,
-      options: Array.from({ length: 8 }, (_, value) => ({ optionId: optionId(value), kind: 'value', label: String(value) }))
+      options: Array.from({ length: 8 }, (_, value) => ({ optionId: optionId(value), kind: 'value', label: String(value) })),
+      constraints: fixedPick(1, 1)
     }
   };
   if (prompt.type === 'script-activation') return {
@@ -76,7 +145,8 @@ function promptInput(metadata, revision, prompt) {
     dto: {
       choiceId: choiceId(revision, 'script-activation'), kind: 'confirmation', presentationKey: 'script-activation', actorSeat,
       optional: true, minimum: 0, maximum: 1,
-      options: [{ optionId: optionId(0), kind: 'value', label: '起動' }]
+      options: [{ optionId: optionId(0), kind: 'value', label: '起動' }],
+      constraints: { kind: 'confirmation', minimum: 0, maximum: 1 }
     }
   };
   return null;
@@ -91,7 +161,8 @@ function pendingInput(engineState, referenceState, metadata, revision, pending) 
       dto: {
         choiceId: choiceId(revision, 'response-window'), kind: 'selection', presentationKey: 'response-window', actorSeat,
         optional: true, minimum: 0, maximum: 1,
-        options: cardOptions(engineState, referenceState, metadata, actorSeat, pending.candidates, pending.candidateLabels)
+        options: cardOptions(engineState, referenceState, metadata, actorSeat, pending.candidates, pending.candidateLabels),
+        constraints: fixedPick(0, 1)
       }
     };
   }
@@ -102,7 +173,8 @@ function pendingInput(engineState, referenceState, metadata, revision, pending) 
       dto: {
         choiceId: choiceId(revision, 'response-target'), kind: 'selection', presentationKey: 'response-target', actorSeat,
         optional: false, minimum: 1, maximum: 1,
-        options: cardOptions(engineState, referenceState, metadata, actorSeat, pending.validTargets)
+        options: cardOptions(engineState, referenceState, metadata, actorSeat, pending.validTargets),
+        constraints: fixedPick(1, 1)
       }
     };
   }
@@ -116,7 +188,8 @@ function pendingInput(engineState, referenceState, metadata, revision, pending) 
       dto: {
         choiceId: choiceId(revision, 'trigger-order'), kind: 'selection', presentationKey: 'trigger-order', actorSeat,
         optional: false, minimum: 1, maximum: 1,
-        options: items.map((item, index) => ({ optionId: optionId(index), kind: 'value', label: item.trigger?.source?.card?.name ?? `誘発${index + 1}` }))
+        options: items.map((item, index) => ({ optionId: optionId(index), kind: 'value', label: item.trigger?.source?.card?.name ?? `誘発${index + 1}` })),
+        constraints: fixedPick(1, 1)
       }
     };
   }
@@ -139,7 +212,8 @@ function pendingInput(engineState, referenceState, metadata, revision, pending) 
             optionId: optionId(index + 2), kind: 'destination', label: 'レイヤー配置',
             cardRef: cardReference(engineState, referenceState, metadata, actorSeat, host.underUid)
           }))
-        ]
+        ],
+        constraints: fixedPick(1, 1)
       }
     };
   }
@@ -158,7 +232,8 @@ function securityInput(engineState, referenceState, metadata, revision) {
     dto: {
       choiceId: choiceId(revision, 'security-rest'), kind: 'selection', presentationKey: 'security-rest', actorSeat,
       optional: true, minimum: 0, maximum: 1,
-      options: cardOptions(engineState, referenceState, metadata, actorSeat, candidates)
+      options: cardOptions(engineState, referenceState, metadata, actorSeat, candidates),
+      constraints: fixedPick(0, 1)
     }
   };
 }
@@ -175,7 +250,11 @@ export function buildRequiredInput(authority, viewerSeat) {
     const input = current(authority);
     if (!input) return { ok: true, value: null };
     const canAnswer = input.actorSeat === viewerSeat;
-    return { ok: true, value: { ...input.dto, canAnswer, options: canAnswer ? input.dto.options : [] } };
+    if (!canAnswer) return { ok: true, value: {
+      kind: 'waiting', actorSeat: input.actorSeat, canAnswer: false,
+      options: [], constraints: { kind: 'waiting' }
+    } };
+    return { ok: true, value: { ...input.dto, canAnswer: true } };
   } catch {
     return failure('REQUIRED_INPUT_INVALID_STATE');
   }
@@ -188,13 +267,28 @@ export function prepareRequiredInputAction(authority, actorSeat, action) {
     if (!input.dto.optional) return failure('ACTION_NOT_ALLOWED');
     return { ok: true, value: { engineFunction: 'declineRequiredInput', playerId: input.playerId, revision: authority.revision } };
   }
+  if (!validSelectionAnswer(requiredSelectionRequest(input.dto), {
+    requestId: action.choiceId, optionIds: action.optionIds, allocation: action.allocation
+  })) return failure('ACTION_NOT_ALLOWED');
   const indexes = action.optionIds.map(id => input.dto.options.findIndex(option => option.optionId === id));
   if (indexes.some(index => index < 0) || new Set(indexes).size !== indexes.length) return failure('ACTION_NOT_ALLOWED');
+  if (input.dto.optional && indexes.length === 0 && action.allocation.length === 0 && input.source !== 'selection') {
+    return {ok:true,value:{engineFunction:'declineRequiredInput',playerId:input.playerId,revision:authority.revision}};
+  }
   const allocation = action.allocation.map(entry => ({
     optionIndex: input.dto.options.findIndex(option => option.optionId === entry.optionId), amount: entry.amount
   }));
   if (allocation.some(entry => entry.optionIndex < 0)) return failure('ACTION_NOT_ALLOWED');
   if (input.dto.kind !== 'allocation' && allocation.length) return failure('ACTION_NOT_ALLOWED');
+  if (input.dto.kind === 'allocation') {
+    if (allocation.some(entry => !Number.isSafeInteger(entry.amount) || entry.amount <= 0)
+      || new Set(allocation.map(entry => entry.optionIndex)).size !== allocation.length) return failure('ACTION_NOT_ALLOWED');
+    const positive = [...allocation.map(entry => entry.optionIndex)].sort((a, b) => a - b);
+    const selected = [...indexes].sort((a, b) => a - b);
+    if (positive.length !== selected.length || positive.some((value, index) => value !== selected[index])) {
+      return failure('ACTION_NOT_ALLOWED');
+    }
+  }
   if (input.source === 'selection' && authority.engineState.pending.request.mode === 'random' && action.optionIds.length) {
     return failure('ACTION_NOT_ALLOWED');
   }

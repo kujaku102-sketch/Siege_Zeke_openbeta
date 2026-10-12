@@ -1,5 +1,5 @@
 import { CARD_LIBRARY, USER_CARDS } from "../data/cards.js";
-import { isObCard } from "./card-types.js";
+import { DECK_EVALUATION_AXES, DECK_STRATEGY_PROFILES, evaluateCardForDeck, strategyTargets } from "./card-deck-evaluation.js";
 
 export const DECK_STORAGE_KEY = "simple-zeke.saved-decks.v1";
 export const MAX_SAVED_DECKS = 20;
@@ -7,6 +7,7 @@ export const MAX_SAVED_DECKS = 20;
 export const BUILDABLE_CARDS = Object.freeze(Object.values(CARD_LIBRARY)
   .filter((card) => card?.id && !card.token && !["VOb", "Plugin"].includes(card.category) && Number.isFinite(Number(card.cost)))
   .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" })));
+const BUILDABLE_EVALUATIONS = new Map(BUILDABLE_CARDS.map(card => [card.id,evaluateCardForDeck(card)]));
 
 const COLOR_ORDER = ["赤", "黄", "紫", "青", "橙", "黒", "緑", "無色"];
 const availableColors = new Set(BUILDABLE_CARDS.map((card) => card.color ?? "無色"));
@@ -63,42 +64,62 @@ export const DECK_STRATEGIES = Object.freeze({
   endurance: "回復・耐久", class_synergy: "クラスシナジー"
 });
 
-const includesAny = (card, terms) => terms.some((term) => `${card.name} ${card.text ?? ""}`.includes(term));
-const roleScore = (card, strategy, focusClass) => {
-  const cost = Number(card.cost ?? 0);
-  const classes = card.classes ?? [];
-  const scores = {
-    balanced: isObCard(card) ? 4 : 2,
-    rush: (isObCard(card) ? 6 : 0) + Math.max(0, 5 - cost) + (includesAny(card, ["[QA]", "[コンタクト]", "攻撃時"]) ? 5 : 0),
-    control: (["Sp", "Script"].includes(card.category) ? 6 : 1) + (includesAny(card, ["破壊", "スリープ", "BAN", "ダメージ"]) ? 5 : 0),
-    registry: (includesAny(card, ["レジストリ", "インストール", "アクセス"]) ? 8 : 0) + (isObCard(card) ? 2 : 0),
-    layered: (includesAny(card, ["レイヤード", "レイヤー", "マウント", "オーバーライド"]) || card.printedCategory === "LOb" ? 9 : 0),
-    script: (card.category === "Script" ? 9 : 0) + (includesAny(card, ["Script", "スクリプト"]) ? 5 : 0),
-    security: (includesAny(card, ["セキュリティ", "プロテクト", "バックアップ", "暗号化"]) ? 8 : 0) + (isObCard(card) ? 2 : 0),
-    damage: (includesAny(card, ["ダメージ", "攻撃", "+1/+0", "+2/+0"]) ? 7 : 0) + (Number(card.atk ?? 0) * 0.7),
-    endurance: (includesAny(card, ["回復", "プロテクト", "バックアップ", "ファイアウォール"]) ? 9 : 0) + Number(card.str ?? 0) * 0.5,
-    class_synergy: focusClass && classes.includes(focusClass) ? 10 : 0
-  };
-  return Number(scores[strategy] ?? scores.balanced);
+const addEvaluation = (totals, evaluation, copies = 1) => {
+  for (const axis of DECK_EVALUATION_AXES) totals[axis] = Number(totals[axis] ?? 0) + Number(evaluation[axis] ?? 0) * copies;
 };
 
-export function recommendDeck({ userId = "doors_zx", color = "赤", strategy = "balanced" } = {}) {
+const candidateScore = ({ card, evaluation, totals, targets, strategy, focusClass, color, copies }) => {
+  const profile = DECK_STRATEGY_PROFILES[strategy] ?? DECK_STRATEGY_PROFILES.balanced;
+  let score = card.color === color ? 7 : !card.color ? 2.5 : -5;
+  for (const axis of DECK_EVALUATION_AXES) {
+    const contribution = Number(evaluation[axis] ?? 0);
+    if (!contribution) continue;
+    const target = Number(targets[axis] ?? 0);
+    const deficit = Math.max(0,target - Number(totals[axis] ?? 0));
+    const need = target > 0 ? (deficit > 0 ? 1 + deficit / target : .12) : .08;
+    score += contribution * Number(profile.weights[axis] ?? 1) * need * Number(evaluation.reliability ?? 1) * 4;
+  }
+  if (strategy === 'class_synergy' && focusClass && (card.classes ?? []).includes(focusClass)) score += 9;
+  score -= copies * 1.4;
+  return score;
+};
+
+export function recommendDeck({ userId = "doors_zx", color = "赤", strategy = "balanced", cards: existingCards = {} } = {}) {
   const rule = ruleFor(userId);
   const colored = BUILDABLE_CARDS.filter((card) => card.color === color || !card.color);
   const classCounts = new Map();
   for (const card of colored) for (const value of card.classes ?? []) classCounts.set(value, Number(classCounts.get(value) ?? 0) + 1);
-  const focusClass = [...classCounts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-  const ranked = BUILDABLE_CARDS.map((card) => ({ card, score:
-    (card.color === color ? 14 : !card.color ? 5 : -8) + roleScore(card, strategy, focusClass)
-    - Math.max(0, Number(card.cost ?? 0) - 5) * 0.35
-  })).sort((a, b) => b.score - a.score || a.card.id.localeCompare(b.card.id, undefined, { numeric: true }));
-  const cards = {}; const nameCounts = new Map(); let remaining = rule.size;
-  for (const { card } of ranked) {
-    if (remaining <= 0) break;
-    const used = Number(nameCounts.get(card.name) ?? 0);
-    const copies = Math.min(rule.sameName - used, remaining);
-    if (copies <= 0) continue;
-    cards[card.id] = copies; nameCounts.set(card.name, used + copies); remaining -= copies;
+  const cards = { ...normalizeSavedDeck({ userId, cards: existingCards }, "").cards };
+  const fixedCardIds = new Set(Object.keys(cards));
+  const nameCounts = new Map();
+  const existingClassCounts = new Map();
+  const totals = {};
+  let kept = 0;
+  for (const [id, count] of Object.entries(cards)) {
+    const copies = Number(count);
+    kept += copies;
+    const existing = CARD_LIBRARY[id], name = existing.name;
+    nameCounts.set(name, Number(nameCounts.get(name) ?? 0) + copies);
+    for (const value of existing.classes ?? []) existingClassCounts.set(value,Number(existingClassCounts.get(value) ?? 0) + copies);
+    addEvaluation(totals,BUILDABLE_EVALUATIONS.get(id) ?? evaluateCardForDeck(existing),copies);
+  }
+  const focusClass = [...(existingClassCounts.size ? existingClassCounts : classCounts)].sort((a,b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0]?.[0] ?? null;
+  const targets = strategyTargets(strategy,rule.size);
+  let remaining = Math.max(0, rule.size - kept);
+  while (remaining > 0) {
+    const ranked = BUILDABLE_CARDS.map(card => {
+      if (fixedCardIds.has(card.id)) return null;
+      const used = Number(nameCounts.get(card.name) ?? 0);
+      if (used >= rule.sameName) return null;
+      const evaluation = BUILDABLE_EVALUATIONS.get(card.id);
+      return {card,evaluation,score:candidateScore({card,evaluation,totals,targets,strategy,focusClass,color,copies:used})};
+    }).filter(Boolean).sort((a,b) => b.score - a.score || a.card.id.localeCompare(b.card.id,undefined,{numeric:true}));
+    const selected = ranked[0];
+    if (!selected) break;
+    cards[selected.card.id] = Number(cards[selected.card.id] ?? 0) + 1;
+    nameCounts.set(selected.card.name,Number(nameCounts.get(selected.card.name) ?? 0) + 1);
+    addEvaluation(totals,selected.evaluation);
+    remaining -= 1;
   }
   const categories = Object.entries(cards).reduce((counts, [id, count]) => {
     const category = CARD_LIBRARY[id].category; counts[category] = Number(counts[category] ?? 0) + count; return counts;
@@ -106,7 +127,7 @@ export function recommendDeck({ userId = "doors_zx", color = "赤", strategy = "
   const offColor = Object.entries(cards).reduce((sum, [id, count]) => sum + (CARD_LIBRARY[id].color && CARD_LIBRARY[id].color !== color ? count : 0), 0);
   return {
     cards,
-    explanation: `${color}・${DECK_STRATEGIES[strategy] ?? strategy}。${Object.entries(categories).map(([key,value]) => `${key}${value}`).join(" / ")}${focusClass && strategy === "class_synergy" ? ` / 軸:${focusClass}` : ""}${offColor ? ` / 枚数確保のため他色${offColor}` : ""}`
+    explanation: `${color}・${DECK_STRATEGIES[strategy] ?? strategy}。既存${kept}枚を維持・${Math.max(0, rule.size - kept - remaining)}枚追加。${Object.entries(categories).map(([key,value]) => `${key}${value}`).join(" / ")}${focusClass && strategy === "class_synergy" ? ` / 軸:${focusClass}` : ""}${offColor ? ` / 枚数確保のため他色${offColor}` : ""}`
   };
 }
 

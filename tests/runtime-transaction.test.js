@@ -8,6 +8,7 @@ import { submitRuntimeCommand } from '../src/game/runtime/transaction.js';
 import { createRuntimeCard } from '../src/game/runtime/factory.js';
 import { activateCardEffect, getActivatableEffects, installCard, playCard } from '../src/game/engine.js';
 import { placeCardInBoardSlot } from '../src/game/board-slots.js';
+import { buildRequiredInput } from '../src/game/runtime/required-input.js';
 
 const token = serial => `r:${serial.toString(16).padStart(32, '0')}`;
 const command = (overrides = {}) => ({
@@ -581,7 +582,7 @@ test('S04-TRX-01: plugin prompt is projected and answered through one determinis
   assert.equal(required.options[5].label, '5');
   const answer = command({
     commandId: 'answer-plugin-choice', expectedRevision: 1,
-    action: { type: 'answerChoice', choiceId: required.choiceId, optionIds: ['option:6'], allocation: [] }
+    action: { type: 'answerChoice', choiceId: required.choiceId, optionIds: [required.options[5].optionId], allocation: [] }
   });
   const answered = submitRuntimeCommand(installed.value.authority, context(), answer);
   assert.equal(answered.ok, true, JSON.stringify(answered));
@@ -602,9 +603,12 @@ test('S04-TRX-02: wrong seat and stale choice identity cannot consume an opponen
     commandId: 'install-observed', action: { type: 'install', cardRef: fixture.cardRef }
   }));
   assert.equal(installed.ok, true, JSON.stringify(installed));
-  assert.equal(installed.value.publicResult.requiredInput.choiceId, 'choice:1:selection');
-  assert.equal(installed.value.publicResult.requiredInput.canAnswer, false);
-  assert.deepEqual(installed.value.publicResult.requiredInput.options, []);
+  assert.deepEqual(installed.value.publicResult.requiredInput, {
+    kind: 'waiting', actorSeat: 'seat-b', canAnswer: false,
+    options: [], constraints: { kind: 'waiting' }
+  });
+  const opponentInput = buildRequiredInput(installed.value.authority, 'seat-b');
+  assert.equal(opponentInput.ok, true, JSON.stringify(opponentInput));
   const stale = command({
     commandId: 'stale-choice', actorSeat: 'seat-b', expectedRevision: 1,
     action: { type: 'answerChoice', choiceId: 'choice:0:selection', optionIds: ['option:1'], allocation: [] }
@@ -616,7 +620,10 @@ test('S04-TRX-02: wrong seat and stale choice identity cannot consume an opponen
   assert.equal(rejected.value.authority.engineState.pending?.type, 'selection');
   const answer = command({
     commandId: 'answer-opponent-choice', actorSeat: 'seat-b', expectedRevision: 1,
-    action: { type: 'answerChoice', choiceId: 'choice:1:selection', optionIds: ['option:1'], allocation: [] }
+    action: {
+      type: 'answerChoice', choiceId: opponentInput.value.choiceId,
+      optionIds: [opponentInput.value.options[0].optionId], allocation: []
+    }
   });
   const answered = submitRuntimeCommand(installed.value.authority, context('seat-b'), answer);
   assert.equal(answered.ok, true, JSON.stringify(answered));
@@ -670,9 +677,14 @@ test('S04-TRX-04: headless damage opens and resolves a Response without the GUI 
   assert.equal(attacked.value.authority.engineState.pending?.type, 'response-window');
   assert.equal(attacked.value.publicResult.requiredInput.actorSeat, 'seat-a');
   assert.equal(attacked.value.publicResult.requiredInput.canAnswer, false);
+  const responseInput = buildRequiredInput(attacked.value.authority, 'seat-a');
+  assert.equal(responseInput.ok, true, JSON.stringify(responseInput));
   const answered = submitRuntimeCommand(attacked.value.authority, context(), command({
     commandId: 'headless-response', expectedRevision: 1,
-    action: { type: 'answerChoice', choiceId: 'choice:1:response-window', optionIds: ['option:1'], allocation: [] }
+    action: {
+      type: 'answerChoice', choiceId: responseInput.value.choiceId,
+      optionIds: [responseInput.value.options[0].optionId], allocation: []
+    }
   }));
   assert.equal(answered.ok, true, JSON.stringify(answered));
   assert.equal(answered.value.kind, 'accepted');
@@ -698,14 +710,24 @@ test('S04-TRX-05: trigger order advances through deterministic choice IDs until 
   assert.equal(activateCardEffect(engine, 'player', tana.uid, effect.id, { targetUid: tana.uid, targetZone: 'back' }), true);
   assert.equal(engine.pending?.type, 'trigger-order');
   const ready = rebuilt(source);
+  const firstInput = buildRequiredInput(ready, 'seat-a');
+  assert.equal(firstInput.ok, true, JSON.stringify(firstInput));
   const first = submitRuntimeCommand(ready, context(), command({
-    commandId: 'trigger-order-1', action: { type: 'answerChoice', choiceId: 'choice:0:trigger-order', optionIds: ['option:1'], allocation: [] }
+    commandId: 'trigger-order-1', action: {
+      type: 'answerChoice', choiceId: firstInput.value.choiceId,
+      optionIds: [firstInput.value.options[0].optionId], allocation: []
+    }
   }));
   assert.equal(first.ok, true, JSON.stringify(first));
   assert.equal(first.value.authority.engineState.pending?.type, 'trigger-order');
+  const secondInput = buildRequiredInput(first.value.authority, 'seat-a');
+  assert.equal(secondInput.ok, true, JSON.stringify(secondInput));
   const second = submitRuntimeCommand(first.value.authority, context(), command({
     commandId: 'trigger-order-2', expectedRevision: 1,
-    action: { type: 'answerChoice', choiceId: 'choice:1:trigger-order', optionIds: ['option:1'], allocation: [] }
+    action: {
+      type: 'answerChoice', choiceId: secondInput.value.choiceId,
+      optionIds: [secondInput.value.options[0].optionId], allocation: []
+    }
   }));
   assert.equal(second.ok, true, JSON.stringify(second));
   assert.equal(second.value.authority.engineState.triggerThread?.status, 'resolved');
@@ -771,9 +793,14 @@ test('S04-TRX-07: lethal headless attack stays awaitingInput through Response cl
   assert.equal(attacked.value.publicResult.receipt.progress, 'awaitingInput');
   assert.equal(attacked.value.authority.engineState.pending?.type, 'response-window');
   assert.equal(attacked.value.publicResult.requiredInput.actorSeat, 'seat-a');
+  const lethalInput = buildRequiredInput(attacked.value.authority, 'seat-a');
+  assert.equal(lethalInput.ok, true, JSON.stringify(lethalInput));
   const answered = submitRuntimeCommand(attacked.value.authority, context(), command({
     commandId: 'lethal-response-answer', expectedRevision: 1,
-    action: { type: 'answerChoice', choiceId: 'choice:1:response-window', optionIds: ['option:1'], allocation: [] }
+    action: {
+      type: 'answerChoice', choiceId: lethalInput.value.choiceId,
+      optionIds: [lethalInput.value.options[0].optionId], allocation: []
+    }
   }));
   assert.equal(answered.ok, true, JSON.stringify(answered));
   assert.equal(answered.value.publicResult.receipt.progress, 'finished');

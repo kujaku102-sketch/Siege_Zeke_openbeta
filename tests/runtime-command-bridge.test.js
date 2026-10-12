@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { prepareRuntimeCommand } from '../src/game/runtime/command-bridge.js';
+import { submitRuntimeCommand } from '../src/game/runtime/transaction.js';
+import { buildRequiredInput } from '../src/game/runtime/required-input.js';
 import { createCommandJournal, recordTerminal } from '../src/game/runtime/command-record.js';
 import { createRuntimeReferenceState } from '../src/game/runtime/references.js';
 import { createRuntimeCard } from '../src/game/runtime/factory.js';
@@ -1200,10 +1202,18 @@ test('S03-CBR-49: executeCard prepares the shared trial Ob route without executi
 });
 
 test('S03-CBR-50: executeCard rejects stale location, controller, unsupported cards and illegal slots', () => {
-  for (const id of ['STD-001', 'STD-125', 'STD-184']) {
+  for (const id of ['STD-001']) {
     const unsupported = installFixture({ id, cardChanges: { color: null }, playerChanges: { memory: 20 } });
     code(prepareRuntimeCommand(unsupported.authority, contextFor(),
       executeCardCommand(unsupported.cardRef, 'front', 5)), 'ACTION_NOT_ALLOWED');
+  }
+  for (const id of ['STD-125','STD-184']) {
+    const legal = installFixture({id,cardChanges:{color:null},playerChanges:{memory:20}});
+    const before = JSON.stringify(legal.authority);
+    const prepared = prepareRuntimeCommand(legal.authority,contextFor(),executeCardCommand(legal.cardRef,'front',5));
+    assert.equal(prepared.ok,true,JSON.stringify(prepared));
+    assert.deepEqual(prepared.value.adapter,{engineFunction:'playCard',playerId:'player',uid:legal.card.uid,options:{zone:'front',requestedSlot:5}});
+    assert.equal(JSON.stringify(legal.authority),before);
   }
   for (const zone of ['front', 'back', 'trash']) {
     const misplaced = installFixture({ id: 'STD-020', zone, cardChanges: { color: null }, playerChanges: { memory: 20 } });
@@ -1387,16 +1397,31 @@ test('S03-CBR-58: executeCard preserves STD-100 distinct-name class cost reducti
     executeCardCommand(duplicate.cardRef, 'back', 5)), 'ACTION_NOT_ALLOWED');
 });
 
-test('S03-CBR-59: executeCard rejects OC, Layered and placement-cost Ob before preparation', () => {
-  for (const id of ['STD-085', 'STD-121', 'STD-125']) {
+test('S03-CBR-59: executeCard preserves Layered/wrong-zone/cost negatives while preparing legal OC and terminal cost', () => {
+  for (const id of ['STD-085', 'STD-121']) {
     const fixture = installFixture({ id, cardChanges: { color: null }, playerChanges: { memory: 20 } });
     code(prepareRuntimeCommand(fixture.authority, contextFor(),
       executeCardCommand(fixture.cardRef, 'front', 5)), 'ACTION_NOT_ALLOWED');
   }
+  const missing = installFixture({id:'STD-121',cardChanges:{color:null},playerChanges:{memory:20}});
+  code(prepareRuntimeCommand(missing.authority,contextFor(),executeCardCommand(missing.cardRef,'back',1)),'ACTION_NOT_ALLOWED');
   const zero = installFixture({ id: 'STD-027', cardChanges: { color: null, text: '[OC+0]' },
     playerChanges: { memory: 20 } });
-  code(prepareRuntimeCommand(zero.authority, contextFor(),
-    executeCardCommand(zero.cardRef, 'front', 5)), 'ACTION_NOT_ALLOWED');
+  const oc = installFixture({id:'STD-125',cardChanges:{color:null},playerChanges:{memory:20}});
+  const terminal = installFixture({id:'STD-121',cardChanges:{color:null},playerChanges:{memory:20}});
+  for (const [index,id] of ['STD-118','STD-119','STD-120'].entries()) {
+    const card = createRuntimeCard(terminal.authority.engineState.runtimeContext,id,'player');
+    card.faceDown = false;
+    assert.equal(placeCardInBoardSlot(terminal.authority.engineState.players.player.back,card,
+      {controllerId:'player',zoneName:'back',limit:5,requestedSlot:index+1}),true);
+  }
+  for (const [fixture,zone,slot] of [[zero,'front',5],[oc,'front',5],[terminal,'back',1]]) {
+    const before = JSON.stringify(fixture.authority);
+    const prepared = prepareRuntimeCommand(fixture.authority,contextFor(),executeCardCommand(fixture.cardRef,zone,slot));
+    assert.equal(prepared.ok,true,JSON.stringify(prepared));
+    assert.deepEqual(prepared.value.adapter,{engineFunction:'playCard',playerId:'player',uid:fixture.card.uid,options:{zone,requestedSlot:slot}});
+    assert.equal(JSON.stringify(fixture.authority),before);
+  }
 });
 
 test('S03-CBR-60: executeCard rejects text and provider-class accessors without invoking them', () => {
@@ -1484,7 +1509,7 @@ test('S03-CBR-63: redeploy rejects same-zone, occupied, nonroot and non-Ob sourc
     redeployCommand(mounted.cardRef, 'back', 5)).ok, true);
 });
 
-test('S03-CBR-64: redeploy excludes registry and layer-payment routes but permits the same card without layers', () => {
+test('S03-CBR-64: redeploy excludes registry board routes and supports ordinary/layer payment continuations', () => {
   for (const id of ['STD-215', 'STD-220']) {
     const fixture = installFixture({ id, zone: 'front', cardChanges: { color: null }, playerChanges: { memory: 20 } });
     code(prepareRuntimeCommand(fixture.authority, contextFor(),
@@ -1496,13 +1521,62 @@ test('S03-CBR-64: redeploy excludes registry and layer-payment routes but permit
   assert.equal(prepareRuntimeCommand(plain.authority, contextFor(),
     redeployCommand(plain.cardRef, 'back', 5)).ok, true);
 
-  const layered = installFixture({ id: 'STD-195', zone: 'front', cardChanges: { color: null },
-    playerChanges: { memory: 20 } });
-  const layer = createRuntimeCard(layered.authority.engineState.runtimeContext, 'STD-020', 'player');
-  layer.layerRole = 'layered';
-  layered.card.mounted.push(layer);
-  code(prepareRuntimeCommand(layered.authority, contextFor(),
-    redeployCommand(layered.cardRef, 'back', 5)), 'ACTION_NOT_ALLOWED');
+  for (const discounted of [false, true]) {
+    const layered = installFixture({ id: 'STD-195', zone: 'front', cardChanges: { color: null },
+      playerChanges: { memory: 20 },
+      mountedCards: [{ id: 'STD-020', cardChanges: { faceDown: false, layerRole: 'layered' } }] });
+    const before = JSON.stringify(layered.authority), layer = layered.mounted[0];
+    const command = redeployCommand(layered.cardRef, 'back', 5);
+    const prepared = prepareRuntimeCommand(layered.authority, contextFor(), command);
+    assert.equal(prepared.ok, true, JSON.stringify(prepared));
+    assert.deepEqual(prepared.value.adapter, {
+      engineFunction: 'relogCard', playerId: 'player', uid: layered.card.uid,
+      targetZone: 'back', options: { requestedSlot: 5 }
+    });
+    assert.equal(JSON.stringify(layered.authority), before);
+    const started = submitRuntimeCommand(layered.authority, contextFor(), command);
+    assert.equal(started.ok, true, JSON.stringify(started));assert.equal(started.value.kind, 'accepted');
+    assert.equal(JSON.stringify(layered.authority), before);
+    let authority = started.value.authority;
+    const assertUnpaid = () => {
+      const player = authority.engineState.players.player;
+      assert.equal(player.memory, 20);assert.equal(player.front.length, 1);assert.equal(player.back.length, 0);
+      assert.equal(player.front[0].uid, layered.card.uid);assert.equal(player.front[0].mounted.length, 1);
+      assert.equal(player.front[0].mounted[0].uid, layer.uid);assert.equal(player.trash.length, 0);
+      assert.equal(authority.engineState.pending.request.continuation.requestedSlot, 5);
+    };
+    assertUnpaid();
+    const payment = buildRequiredInput(authority, 'seat-a');
+    assert.equal(payment.ok, true);assert.equal(payment.value.canAnswer, true);
+    const option = payment.value.options.find(item => item.kind === 'value'
+      && item.label === (discounted ? 'レイヤー1枚を破棄して1メモリ' : '通常コストを払う'));
+    assert.ok(option);
+    const paid = submitRuntimeCommand(authority, contextFor(), baseCommand({commandId:'payment-choice',
+      expectedRevision:authority.revision,action:{type:'answerChoice',choiceId:payment.value.choiceId,optionIds:[option.optionId],allocation:[]}}));
+    assert.equal(paid.ok, true, JSON.stringify(paid));assert.equal(paid.value.kind, 'accepted');
+    authority = paid.value.authority;
+    if (discounted) {
+      assertUnpaid();
+      assert.equal(authority.engineState.pending.request.continuation.type, 'relog-layer-select');
+      const selection = buildRequiredInput(authority, 'seat-a');
+      assert.equal(selection.ok, true);assert.equal(selection.value.canAnswer, true);
+      const layerRef = authority.referenceState.entries.find(entry => entry.viewerSeat === 'seat-a'
+        && entry.identity.instanceId === layer.identity.instanceId).cardRef;
+      const selected = selection.value.options.find(item => item.cardRef === layerRef);assert.ok(selected);
+      const consumed = submitRuntimeCommand(authority, contextFor(), baseCommand({commandId:'layer-choice',
+        expectedRevision:authority.revision,action:{type:'answerChoice',choiceId:selection.value.choiceId,optionIds:[selected.optionId],allocation:[]}}));
+      assert.equal(consumed.ok, true, JSON.stringify(consumed));assert.equal(consumed.value.kind, 'accepted');
+      authority = consumed.value.authority;
+    }
+    const player = authority.engineState.players.player;
+    assert.equal(player.memory, discounted ? 19 : 16);assert.equal(player.front.length, 0);assert.equal(player.back.length, 1);
+    const moved = player.back[0];assert.equal(moved.uid, layered.card.uid);assert.equal(moved.boardSlot, 5);
+    assert.equal(moved.sleep, false);assert.equal(moved.summoningSick, false);
+    assert.equal(moved.mounted.length, discounted ? 0 : 1);
+    if (!discounted) assert.equal(moved.mounted[0].uid, layer.uid);
+    assert.deepEqual(player.trash.map(item => item.uid), discounted ? [layer.uid] : []);
+    assert.equal(buildRequiredInput(authority, 'seat-a').value, null);
+  }
 });
 
 test('S03-CBR-65: redeploy retry precedes reference reads and mounted accessors stay uncalled', () => {

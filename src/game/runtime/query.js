@@ -1,6 +1,8 @@
 import { CARD_LIBRARY } from '../../data/cards.js';
 import { getMaxMemory, enabledSymbols, executionCost, cardAtk, cardMaxStr, cardCurrentStr, cardHasKeyword } from '../engine.js';
 import { buildRuntimeIdentityIndex } from './bridge.js';
+import { runtimeReadIdentityIndex } from './read-context.js';
+import { runtimeComponents } from '../../ui/runtime-components.js';
 
 const INPUT = 'RUNTIME_INVALID_QUERY_INPUT';
 const STATE = 'RUNTIME_INVALID_QUERY_STATE';
@@ -211,7 +213,7 @@ function definition(id) {
 }
 function cardState(card) {
   const result = {};
-  for (const key of ['faceDown', 'sleep', 'summoningSick', 'token', 'virtual']) result[key] = booleanField(card, key);
+  for (const key of ['faceDown', 'sleep', 'summoningSick', 'token', 'virtual', 'residentActive']) result[key] = booleanField(card, key);
   const damage = own(card, 'damage', true);
   result.damage = damage === MISSING ? 0 : number(damage);
   for (const key of ['protect', 'backup', 'load']) {
@@ -227,6 +229,41 @@ function cardState(card) {
       Object.defineProperty(result.counters, key, { value: integer(own(counters, key)), enumerable: true, writable: true, configurable: true });
     }
   }
+  return result;
+}
+function componentView(original) {
+  const result = {};
+  for (const key of ['text','backupUsedTurn','backupUsesThisTurn','protect','backup','load','permanentAtk','permanentStr',
+    'tempAtk','tempStr','battleStrBonus','turnCostModifier','costReductionThisTurn','revealedExecutionCost']) {
+    const value = own(original,key,true);
+    if (value !== MISSING && value !== null && value !== undefined) {
+      if (key === 'text' ? typeof value !== 'string' : typeof value !== 'number' || !Number.isFinite(value)) reject(STATE);
+      result[key] = value;
+    }
+  }
+  const granted = own(original,'grantedKeywords',true);
+  result.grantedKeywords = granted === MISSING || granted === null || granted === undefined ? [] : strings(granted);
+  for (const list of ['timedModifiers','damageModifiers']) {
+    const value = own(original,list,true);
+    result[list] = value === MISSING || value === null || value === undefined ? [] : dense(value).map(item => {
+      const row = {};
+      for (const key of list === 'timedModifiers' ? ['keyword','atk','str','expiresAfterTurn'] : ['activeTurn','damageKind','direction','operation','amount','duration']) {
+        const field = own(item,key,true);
+        if (field !== MISSING && field !== null && field !== undefined) {
+          if (!['string','number'].includes(typeof field) || typeof field === 'number' && !Number.isFinite(field)) reject(STATE);
+          row[key] = field;
+        }
+      }
+      return row;
+    });
+  }
+  result.counters = cardState(original).counters;
+  const compiled = own(original,'compiled',true);
+  result.compiled = {keywords: compiled === MISSING || compiled === null ? [] : dense(own(compiled,'keywords')).map(item => {
+    const name = own(item,'name'), value = own(item,'value',true);
+    if (typeof name !== 'string' || value !== MISSING && value !== null && !['number','string'].includes(typeof value)) reject(STATE);
+    return {name,value:value === MISSING ? null : value};
+  })};
   return result;
 }
 function envelope(action) {
@@ -258,23 +295,21 @@ export function queryRuntimeSeat(engineState, args) {
   });
 }
 
-export function queryRuntimeCard(engineState, args) {
-  return envelope(() => {
-    const input = exact(args, ['identity', 'keywordNames']);
-    const identity = ref(input.identity);
-    const names = strings(input.keywordNames, INPUT);
-    if (!names.every(nonempty) || new Set(names).size !== names.length) reject(INPUT);
-    const built = buildRuntimeIdentityIndex(engineState);
-    if (!built.ok) return built;
-    if (identity.matchId !== built.value.matchId) reject('MATCH_MISMATCH');
-    const entries = new Map(built.value.entries.map(entry => [entry.identity.instanceId, entry]));
+function runtimeCardBatch(engineState, identities, names, shared = null) {
+  if (!names.every(nonempty) || new Set(names).size !== names.length) reject(INPUT);
+  if (new Set(identities.map(identity => identity.instanceId)).size !== identities.length) reject(INPUT);
+  const built = shared?.built ?? buildRuntimeIdentityIndex(engineState);
+  if (!built.ok) return built;
+  if (identities.some(identity => identity.matchId !== built.value.matchId)) reject('MATCH_MISMATCH');
+  const entries = new Map(built.value.entries.map(entry => [entry.identity.instanceId, entry]));
+  const seats = dense(own(own(engineState, 'runtimeContext'), 'seatIds'));
+  const view = shared?.view ?? computationView(engineState);
+  const values = identities.map(identity => {
     const entry = entries.get(identity.instanceId);
     if (!entry) reject('UNKNOWN_INSTANCE');
-    const seats = dense(own(own(engineState, 'runtimeContext'), 'seatIds'));
     const original = resolvePhysical(engineState, entries, entry, seats);
     const physicalIdentity = own(original, 'identity');
     if (own(physicalIdentity, 'matchId') !== identity.matchId || own(physicalIdentity, 'instanceId') !== identity.instanceId) reject(STATE);
-    const view = computationView(engineState);
     const card = view.copyCard(original);
     const controller = playerId(seats, entry.controllerSeat);
     const cost = number(executionCost(card, view.state, controller));
@@ -284,10 +319,70 @@ export function queryRuntimeCard(engineState, args) {
       if (typeof enabled !== 'boolean') reject(STATE);
       return { name, enabled };
     });
-    return { ok: true, value: { identity: { ...entry.identity }, ownerSeat: entry.ownerSeat, controllerSeat: entry.controllerSeat,
+    return { identity: { ...entry.identity }, ownerSeat: entry.ownerSeat, controllerSeat: entry.controllerSeat,
       location: entry.location, definition: definition(own(original, 'id')), state: cardState(original), computed: {
         executionCost: cost, atk: number(cardAtk(view.state, controller, card)), maxStr: number(cardMaxStr(view.state, controller, card)),
-        currentStr: number(cardCurrentStr(view.state, controller, card)), keywords
-      } } };
+        currentStr: number(cardCurrentStr(view.state, controller, card)), keywords,
+        components: runtimeComponents(componentView(original),view.state.turnNumber).map(({label,value,note,abilityName,tone}) => ({label,value,note,abilityName,tone}))
+      } };
+  });
+  return { ok: true, value: values };
+}
+
+export function queryRuntimeCards(engineState, args) {
+  return envelope(() => {
+    const input = exact(args, ['identities', 'keywordNames']);
+    const identities = dense(input.identities, INPUT).map(identity => ref(identity));
+    const names = strings(input.keywordNames, INPUT);
+    return runtimeCardBatch(engineState, identities, names);
+  });
+}
+
+export function queryRuntimeLocations(engineState) {
+  return envelope(() => {
+    const built = buildRuntimeIdentityIndex(engineState);
+    if (!built.ok) return built;
+    const seats = dense(own(own(engineState, 'runtimeContext'), 'seatIds'));
+    const entries = new Map(built.value.entries.map(entry => [entry.identity.instanceId, entry]));
+    const cards = built.value.entries.map(entry => {
+      const physical = resolvePhysical(engineState, entries, entry, seats);
+      const faceDown = own(physical, 'faceDown');
+      if (typeof faceDown !== 'boolean') reject(STATE);
+      return { identity: { ...entry.identity }, ownerSeat: entry.ownerSeat, controllerSeat: entry.controllerSeat,
+        location: entry.location.kind === 'mounted' ? { ...entry.location, host: { ...entry.location.host } } : { ...entry.location }, faceDown };
+    });
+    return { ok: true, value: { matchId: built.value.matchId, seatIds: [...seats], cards } };
+  });
+}
+
+export function queryRuntimeRead(engineState, args, readContext = null) {
+  return envelope(() => {
+    const input = exact(args, ['identities', 'keywordNames']);
+    const identities = dense(input.identities, INPUT).map(identity => ref(identity));
+    const names = strings(input.keywordNames, INPUT);
+    const built = runtimeReadIdentityIndex(engineState, readContext);
+    if (!built.ok) return built;
+    const view = computationView(engineState);
+    const cards = runtimeCardBatch(engineState, identities, names, { built, view });
+    if (!cards.ok) return cards;
+    const seatIds = dense(own(own(engineState, 'runtimeContext'), 'seatIds'));
+    const seats = seatIds.map((seatId, index) => {
+      const id = index === 0 ? 'player' : 'ai';
+      const original = own(own(engineState, 'players'), id);
+      return { seatId, fortressStr: number(own(original, 'fortressStr')),
+        memory: { current: number(own(original, 'memory')), max: number(getMaxMemory(view.state.players[id])) },
+        enabledSymbols: strings(enabledSymbols(view.state.players[id])) };
+    });
+    return { ok: true, value: { cards: cards.value, seats } };
+  });
+}
+
+export function queryRuntimeCard(engineState, args) {
+  return envelope(() => {
+    const input = exact(args, ['identity', 'keywordNames']);
+    const identity = ref(input.identity);
+    const names = strings(input.keywordNames, INPUT);
+    const result = runtimeCardBatch(engineState, [identity], names);
+    return result.ok ? { ok: true, value: result.value[0] } : result;
   });
 }

@@ -1,6 +1,6 @@
 import {
   activateScript, activateTurbo, addSandboxCardToHand, attack, endTurn, installCard, openingMulligan,
-  playCard, playLayeredCard, recoverRegistryCard, relogCard, restSecurity
+  playCard, playLayeredCard, recoverRegistryCard, relogCard, restSecurity, executeRegistryCard, activateCardEffect
 } from '../engine.js';
 import { applyRequiredInputAction } from './required-input.js';
 
@@ -22,10 +22,31 @@ function awaitingInput(state) {
 
 const normalProgress = state => awaitingInput(state) ? 'awaiting-input' : 'complete';
 const slotOptions = value => exactObject(value, ['requestedSlot']) && slot(value.requestedSlot);
-const playOptions = value => exactObject(value, ['zone', 'requestedSlot'])
-  && ['front', 'back'].includes(value.zone) && slot(value.requestedSlot);
+const playOptions = value => {
+  if (!value || Object.getPrototypeOf(value) !== Object.prototype) return false;
+  const keys = Reflect.ownKeys(value);
+  const allowed = ['zone','requestedSlot','baseUid','underUid','asScript','targetUid','targetUids','selectionScope'];
+  if (keys.some(key => !allowed.includes(key) || !Object.hasOwn(Object.getOwnPropertyDescriptor(value,key),'value'))) return false;
+  if (Object.hasOwn(value,'zone') && !['front','back'].includes(value.zone)
+    || Object.hasOwn(value,'requestedSlot') && !slot(value.requestedSlot)
+    || value.baseUid && value.underUid || value.baseUid && !text(value.baseUid) || value.underUid && !text(value.underUid)
+    || Object.hasOwn(value,'asScript') && value.asScript !== true
+    || Object.hasOwn(value,'targetUid') && value.targetUid !== null && !text(value.targetUid)
+    || Object.hasOwn(value,'targetUids') && (!Array.isArray(value.targetUids) || !value.targetUids.every(text))
+    || Object.hasOwn(value,'selectionScope') && value.selectionScope !== null && !text(value.selectionScope)) return false;
+  return true;
+};
 
 const HANDLERS = Object.freeze({
+  selectSandboxActiveSeat: {
+    keys: ['engineFunction', 'playerId'],
+    apply: (state, adapter) => {
+      if (state.mode !== 'sandbox' || !['player', 'ai'].includes(adapter.playerId)) return false;
+      state.active = adapter.playerId;
+      return true;
+    },
+    progress: () => 'complete'
+  },
   addSandboxCardToHand: {
     keys: ['engineFunction', 'playerId', 'cardId'],
     apply: (state, adapter) => addSandboxCardToHand(state, adapter.playerId, adapter.cardId),
@@ -62,6 +83,21 @@ const HANDLERS = Object.freeze({
     apply: (state, adapter) => playCard(state, adapter.playerId, adapter.uid, adapter.options),
     progress: normalProgress
   },
+  executeRegistryCard: {
+    keys: ['engineFunction','playerId','uid','options'],
+    validate: adapter => playOptions(adapter.options),
+    apply: (state,adapter) => executeRegistryCard(state,adapter.playerId,adapter.uid,adapter.options),
+    progress: normalProgress
+  },
+  activateCardEffect: {
+    keys: ['engineFunction','playerId','uid','effectId','options'],
+    validate: adapter => exactObject(adapter.options,['targetUid','targetUids','targetZone'])
+      && (adapter.options.targetUid === null || text(adapter.options.targetUid))
+      && Array.isArray(adapter.options.targetUids) && adapter.options.targetUids.every(text)
+      && [null,'front','back'].includes(adapter.options.targetZone),
+    apply: (state,adapter) => activateCardEffect(state,adapter.playerId,adapter.uid,adapter.effectId,adapter.options),
+    progress: normalProgress
+  },
   playLayeredCard: {
     keys: ['engineFunction', 'playerId', 'uid', 'materialUids', 'zone', 'options'],
     validate: adapter => stringList(adapter.materialUids) && ['front', 'back'].includes(adapter.zone)
@@ -73,7 +109,8 @@ const HANDLERS = Object.freeze({
   },
   relogCard: {
     keys: ['engineFunction', 'playerId', 'uid', 'targetZone', 'options'],
-    validate: adapter => ['front', 'back'].includes(adapter.targetZone) && slotOptions(adapter.options),
+    validate: adapter => ['front', 'back'].includes(adapter.targetZone) && exactObject(adapter.options,['requestedSlot'])
+      && (adapter.options.requestedSlot === null || slot(adapter.options.requestedSlot)),
     apply: (state, adapter) => relogCard(state, adapter.playerId, adapter.uid, adapter.targetZone, adapter.options),
     progress: normalProgress
   },

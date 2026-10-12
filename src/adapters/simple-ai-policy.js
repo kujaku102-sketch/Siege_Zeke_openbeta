@@ -1,0 +1,201 @@
+const failure = code => ({ ok: false, error: { code } });
+const nonempty = value => typeof value === 'string' && value.length > 0;
+
+const PRIORITY = Object.freeze([
+  'openingMulligan', 'install', 'activateAbility', 'executeLayered', 'executeCard',
+  'executeSpell','mountCard','setScript','executeRegistry','activateCardEffect',
+  'activateScript', 'attack', 'redeploy', 'recoverRegistry', 'endTurn'
+]);
+
+function pickOptionIds(options, constraints) {
+  if (!constraints || constraints.kind !== 'pick') return null;
+  if (constraints.assignment === 'exclusive') {
+    const groups = constraints.groups;
+    const memberships = options.map(option => groups
+      .map((group, index) => group.optionIds.includes(option.optionId) ? index : -1).filter(index => index >= 0));
+    const search = (index, selected, counts) => {
+      if (selected.length > constraints.maximum
+        || selected.length + options.length - index < constraints.minimum) return null;
+      if (selected.length >= constraints.minimum
+        && groups.every((group, groupIndex) => counts[groupIndex] >= group.minimum
+          && counts[groupIndex] <= group.maximum)) return [...selected];
+      if (index === options.length) return selected.length >= constraints.minimum
+        && groups.every((group, groupIndex) => counts[groupIndex] >= group.minimum
+          && counts[groupIndex] <= group.maximum) ? [...selected] : null;
+      const option = options[index];
+      for (const groupIndex of memberships[index]) {
+        if (counts[groupIndex] >= groups[groupIndex].maximum) continue;
+        counts[groupIndex] += 1;
+        selected.push(option.optionId);
+        const assigned = search(index + 1, selected, counts);
+        if (assigned) return assigned;
+        selected.pop();
+        counts[groupIndex] -= 1;
+      }
+      return search(index + 1, selected, counts);
+    };
+    return search(0, [], groups.map(() => 0));
+  }
+  if (constraints.groups.length === 0 && constraints.aggregate === null) {
+    return options.length >= constraints.minimum ? options.slice(0, constraints.minimum).map(option => option.optionId) : null;
+  }
+  const groupSets = constraints.groups.map(group => new Set(group.optionIds));
+  const values = new Map((constraints.aggregate?.optionValues ?? []).map(entry => [entry.optionId, entry.value]));
+  const memo = new Set();
+  const valid = selected => {
+    if (selected.length < constraints.minimum || selected.length > constraints.maximum) return false;
+    for (let index = 0; index < constraints.groups.length; index += 1) {
+      const group = constraints.groups[index];
+      const count = selected.filter(id => groupSets[index].has(id)).length;
+      if (count < group.minimum || count > group.maximum) return false;
+    }
+    if (constraints.aggregate) {
+      const total = selected.reduce((sum, id) => sum + Number(values.get(id) ?? 0), 0);
+      if (constraints.aggregate.comparator === '=' && total !== constraints.aggregate.value) return false;
+      if (constraints.aggregate.comparator === '<=' && total > constraints.aggregate.value) return false;
+    }
+    return true;
+  };
+  const search = (index, selected, counts, total) => {
+    if (selected.length > constraints.maximum || selected.length + options.length - index < constraints.minimum) return null;
+    if (constraints.aggregate && total > constraints.aggregate.value) return null;
+    for (let groupIndex = 0; groupIndex < constraints.groups.length; groupIndex += 1) {
+      const group = constraints.groups[groupIndex];
+      if (counts[groupIndex] > group.maximum) return null;
+      let remaining = 0;
+      for (let optionIndex = index; optionIndex < options.length; optionIndex += 1) {
+        if (groupSets[groupIndex].has(options[optionIndex].optionId)) remaining += 1;
+      }
+      if (counts[groupIndex] + remaining < group.minimum) return null;
+    }
+    const key = `${index}|${selected.length}|${total}|${counts.join(',')}`;
+    if (memo.has(key)) return null;
+    if (index === options.length) return valid(selected) ? [...selected] : null;
+    const id = options[index].optionId;
+    const nextCounts = counts.map((count, groupIndex) => count + (groupSets[groupIndex].has(id) ? 1 : 0));
+    const included = search(index + 1, [...selected, id], nextCounts, total + Number(values.get(id) ?? 0));
+    if (included) return included;
+    const excluded = search(index + 1, selected, counts, total);
+    if (excluded) return excluded;
+    memo.add(key);
+    return null;
+  };
+  return search(0, [], constraints.groups.map(() => 0), 0);
+}
+
+function allocationAnswer(input) {
+  const constraints = input.constraints;
+  if (!constraints || constraints.kind !== 'allocation') return null;
+  if (constraints.total === 0 && constraints.allowNoOptions) return { optionIds: [], allocation: [] };
+  const minimum = Math.max(1, constraints.minimumPerOption);
+  const memo = new Set();
+  const search = (index, remaining, allocation) => {
+    if (remaining === 0) return allocation.length > 0 || constraints.allowNoOptions ? [...allocation] : null;
+    if (index >= input.options.length) return null;
+    const key = `${index}|${remaining}`;
+    if (memo.has(key)) return null;
+    const maximum = Math.min(remaining,
+      constraints.maximumPerOption === null ? remaining : constraints.maximumPerOption);
+    for (let amount = maximum; amount >= minimum; amount -= 1) {
+      allocation.push({ optionId: input.options[index].optionId, amount });
+      const result = search(index + 1, remaining - amount, allocation);
+      if (result) return result;
+      allocation.pop();
+    }
+    const skipped = search(index + 1, remaining, allocation);
+    if (skipped) return skipped;
+    memo.add(key);
+    return null;
+  };
+  const allocation = search(0, constraints.total, []);
+  return allocation ? { optionIds: allocation.map(entry => entry.optionId), allocation } : null;
+}
+
+function requiredInputAction(input) {
+  if (!input.canAnswer) return null;
+  if (input.constraints?.kind === 'random') return {
+    type: 'answerChoice', choiceId: input.choiceId, optionIds: [], allocation: []
+  };
+  if (input.optional) return { type: 'declineChoice', choiceId: input.choiceId };
+  if (input.constraints?.kind === 'allocation') {
+    const answer = allocationAnswer(input);
+    return answer ? { type: 'answerChoice', choiceId: input.choiceId, ...answer } : null;
+  }
+  const optionIds = input.constraints?.kind === 'confirmation'
+    ? input.options.slice(0, input.constraints.minimum).map(option => option.optionId)
+    : pickOptionIds(input.options, input.constraints);
+  if (!optionIds) return null;
+  return {
+    type: 'answerChoice', choiceId: input.choiceId,
+    optionIds, allocation: []
+  };
+}
+
+function templateAction(entry) {
+  if (entry?.kind !== 'template' || entry.actionType !== 'executeLayered') return null;
+  const materials = entry.parameters?.materials;
+  const destinations = entry.parameters?.destination?.options;
+  if (!materials || !Array.isArray(materials.options) || !Array.isArray(materials.groups)
+    || !Array.isArray(destinations) || destinations.length === 0) return null;
+  const optionIds = pickOptionIds(materials.options, {
+    kind: 'pick', minimum: materials.minimum, maximum: materials.maximum,
+    aggregate: null, groups: materials.groups, assignment: materials.assignment
+  });
+  if (!optionIds) return null;
+  const byId = new Map(materials.options.map(option => [option.optionId, option.cardRef]));
+  const destination = destinations[0];
+  const materialRefs = optionIds.map(id => byId.get(id));
+  if (materialRefs.some(ref => typeof ref !== 'string')) return null;
+  return {
+    type: 'executeLayered', cardRef: entry.base.cardRef, materialRefs,
+    destination: { zone: destination.zone, slot: destination.slot }
+  };
+}
+
+export function chooseSimpleAiIntent(query, commandId, queryAction = null) {
+  if (!nonempty(commandId) || query === null || typeof query !== 'object') return failure('INVALID_AI_INPUT');
+  const revision = query.status?.revision;
+  if (!Number.isSafeInteger(revision) || revision < 0 || !Array.isArray(query.legalActions)) return failure('INVALID_AI_INPUT');
+  if (query.requiredInput !== null) {
+    const action = requiredInputAction(query.requiredInput);
+    if (!action) return failure(query.requiredInput.canAnswer ? 'AI_REQUIRED_INPUT_UNSUPPORTED' : 'AI_NOT_ACTIVE');
+    return { ok: true, value: { commandId, expectedRevision: revision, action } };
+  }
+  let selected = null;
+  let plannedAction = null;
+  for (const type of PRIORITY) {
+    for (const entry of query.legalActions.filter(entry => (entry?.kind === 'fixed' ? entry.action?.type : entry?.actionType) === type)) {
+      if (entry.kind !== 'intent') { selected = entry; break; }
+      if (typeof queryAction !== 'function') continue;
+      const selections = [];
+      for (let stage = 0; stage < 5; stage += 1) {
+        const planned = queryAction({ expectedRevision: revision, actionId: entry.actionId, selections });
+        if (!planned.ok) break;
+        if (planned.value.completion) { plannedAction = planned.value.completion.action; selected = entry; break; }
+        const request = planned.value.selectionRequests[0];
+        if (!request) break;
+        const ids = pickOptionIds(request.options, request.constraints);
+        if (!ids) break;
+        selections.push({ requestId: request.requestId, optionIds: ids, allocation: [] });
+      }
+      if (selected) break;
+    }
+    if (selected) break;
+  }
+  if (!selected) return failure('AI_NO_LEGAL_ACTION');
+  const action = selected.kind === 'intent' ? plannedAction
+    : selected.kind === 'template' ? templateAction(selected) : structuredClone(selected.action);
+  if (!action) return failure('AI_ACTION_TEMPLATE_UNSUPPORTED');
+  return { ok: true, value: {
+    commandId, expectedRevision: revision, action
+  } };
+}
+
+export function runSimpleAiPortStep(port, commandId) {
+  if (!port || typeof port.query !== 'function' || typeof port.submit !== 'function') return failure('INVALID_AI_PORT');
+  const query = port.query();
+  if (!query.ok) return query;
+  const intent = chooseSimpleAiIntent(query.value, commandId, input => port.queryAction(input));
+  if (!intent.ok) return intent;
+  return port.submit(intent.value);
+}

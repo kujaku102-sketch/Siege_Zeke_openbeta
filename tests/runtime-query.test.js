@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CARD_LIBRARY, USER_CARDS } from '../src/data/cards.js';
-import { queryRuntimeSeat, queryRuntimeCard } from '../src/game/runtime/query.js';
+import { queryRuntimeSeat, queryRuntimeCard, queryRuntimeCards } from '../src/game/runtime/query.js';
 import { createRuntimeSession } from '../src/game/runtime/session.js';
 import { retireInstanceId } from '../src/game/runtime/identity.js';
 import {
@@ -55,7 +55,9 @@ function cardQuery(state, card, names = ['SECURITY', 'HACKING', 'CONTACT', 'ENCR
   assert.equal(result.ok, true);
   const value = result.value;
   const controller = value.controllerSeat === 'seat-a' ? 'player' : 'ai';
-  assert.deepEqual(value.computed, {
+  const { components, ...computed } = value.computed;
+  assert.equal(Array.isArray(components), true);
+  assert.deepEqual(computed, {
     executionCost: executionCost(card, state, controller), atk: cardAtk(state, controller, card),
     maxStr: cardMaxStr(state, controller, card), currentStr: cardCurrentStr(state, controller, card),
     keywords: names.map(name => ({ name, enabled: cardHasKeyword(state, controller, card, name) }))
@@ -99,10 +101,25 @@ test('S02-QUERY-02: printed definition stays separate from mutable card stats an
   const value = cardQuery(state, card);
   assert.deepEqual(Object.keys(value), ['identity', 'ownerSeat', 'controllerSeat', 'location', 'definition', 'state', 'computed']);
   assert.deepEqual(value.definition, { id: 'STD-003', name: CARD_LIBRARY['STD-003'].name, category: 'Script', printedCategory: 'Script', color: null, cost: 3, atk: null, str: null, text: CARD_LIBRARY['STD-003'].text, classes: [] });
-  assert.deepEqual(value.state, { faceDown: false, sleep: false, summoningSick: true, token: false, virtual: false, damage: 0, protect: 0, backup: 0, load: 0, counters: {} });
+  assert.deepEqual(value.state, { faceDown: false, sleep: false, summoningSick: true, token: false, virtual: false, residentActive:false, damage: 0, protect: 0, backup: 0, load: 0, counters: {} });
   const plugin = symbol(state, 'STD-004');
   assert.equal(cardQuery(state, plugin).definition.cost, null);
   assert.equal(seatQuery(state, 'seat-a').memory.max, getMaxMemory(state.players.player));
+});
+
+test('S05-QUERY-02A: batch card query preserves order and matches individual public values', () => {
+  const state = fresh();
+  const first = add(state, 'STD-020');
+  const second = add(state, 'STD-022');
+  const keywordNames = ['SECURITY', 'CONTACT'];
+  const result = invoke(queryRuntimeCards, state, {
+    identities: [{ ...first.identity }, { ...second.identity }], keywordNames
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepEqual(result.value, [cardQuery(state, first, keywordNames), cardQuery(state, second, keywordNames)]);
+  fail(queryRuntimeCards, state, {
+    identities: [{ ...first.identity }, { ...first.identity }], keywordNames
+  }, 'RUNTIME_INVALID_QUERY_INPUT');
 });
 
 test('S02-QUERY-03: both-seat providers, trash-name discounts and user abilities change current costs', () => {

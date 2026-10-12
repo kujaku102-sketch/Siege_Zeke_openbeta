@@ -1,6 +1,8 @@
 import { canonicalizeCommand, classifyCommand } from './command-record.js';
 import { canActivateTurbo, canAddSandboxCardToHand, canAttack, canDirectRelogAtSlot, canExecuteAtSlot, canOpeningMulligan, canPlayLayeredCard, cardHasKeyword, enabledSymbols, getAttackTargets, supportsDirectHandObExecution, supportsNormalScriptActivation } from '../engine.js';
 import { isObCard } from '../card-types.js';
+import { normalExecutionCheck, normalSpellSelection, normalCardEffectSelection, getActivatableEffects, relogPreparationKind, supportsAlternateScriptSetup } from '../engine.js';
+import { opaqueOrdinal } from './opaque-id.js';
 import { buildRuntimeIdentityIndex } from './bridge.js';
 import { findIdentityEntry } from './identity.js';
 import { lookupRuntimeCardReference } from './references.js';
@@ -689,11 +691,12 @@ function executeCardTarget(engineState, referenceInput, action, metadata, actorS
   const { entry, card } = target;
   if (entry.location.kind !== 'zone' || entry.location.zone !== 'hand'
     || entry.location.seatId !== actorSeat || entry.controllerSeat !== actorSeat) reject('ACTION_NOT_ALLOWED');
-  const cardView = executionCardView(card);
-  if (!supportsDirectHandObExecution(cardView) || cardView.dragFree) reject('ACTION_NOT_ALLOWED');
-  const stateView = executionPlanningView(engineState);
+  const stateView = normalPlanningView(engineState);
+  const cardView = normalCardInView(stateView, target.uid);
+  if (!cardView || !(isObCard(cardView) || ['Code', 'Script'].includes(cardView.category))
+    || cardView.category === 'Script' && action.destination.zone !== 'back') reject('ACTION_NOT_ALLOWED');
   const options = { zone: action.destination.zone, requestedSlot: action.destination.slot };
-  if (!canExecuteAtSlot(stateView, playerId, cardView, options).ok) reject('ACTION_NOT_ALLOWED');
+  if (!normalExecutionCheck(stateView, playerId, cardView, options).ok) reject('ACTION_NOT_ALLOWED');
   return { uid: target.uid, options };
 }
 
@@ -811,10 +814,11 @@ function redeployTarget(engineState, referenceInput, action, metadata, actorSeat
   const stateView = executionPlanningView(engineState);
   const options = {
     sourceZone: entry.location.zone,
-    zone: action.destination.zone,
-    requestedSlot: action.destination.slot,
+    zone: action.destination.zone === 'registry' ? entry.location.zone === 'front' ? 'back' : 'front' : action.destination.zone,
+    requestedSlot: action.destination.zone === 'registry' ? null : action.destination.slot,
     layerCount
   };
+  if ((relogPreparationKind(cardView, layerCount) === 'registry') !== (action.destination.zone === 'registry')) reject('ACTION_NOT_ALLOWED');
   if (!canDirectRelogAtSlot(stateView, playerId, cardView, options).ok) reject('ACTION_NOT_ALLOWED');
   return { uid: target.uid, targetZone: options.zone, options: { requestedSlot: options.requestedSlot } };
 }
@@ -1020,6 +1024,126 @@ function prepared(canonical, adapter) {
   } };
 }
 
+function normalPlanningView(engineState) {
+  const code = 'INVALID_AUTHORITY';
+  const scalar = (object, key, fallback = null) => {
+    const value = selectedField(object, key, code, fallback);
+    if (value === undefined || value === null) return fallback;
+    if (!['string', 'number', 'boolean'].includes(typeof value) || typeof value === 'number' && (!Number.isFinite(value) || Object.is(value, -0))) reject(code);
+    return value;
+  };
+  const ancestors = new Set();
+  const cardView = card => {
+    selectedObject(card, code, ancestors);
+    try {
+      const result = {};
+      for (const key of ['uid','id','name','owner','category','printedCategory','text','color','cost','setupCost','activationCost',
+        'faceDown','sleep','residentActive','summoningSick','dragFree','boardSlot','boardSlotController','boardSlotZone',
+        'atk','str','damage','tempAtk','tempStr','permanentAtk','permanentStr','load','turnCostModifier','costReductionThisTurn','revealedExecutionCost']) {
+        const value = scalar(card, key); if (value !== null) result[key] = value;
+      }
+      for (const key of ['classes','grantedKeywords']) result[key] = selectedArray(selectedField(card,key,code,[]),code,ancestors,item => {
+        if (typeof item !== 'string') reject(code); return item;
+      });
+      const compiled = selectedField(card,'compiled',code,null);
+      result.compiled = { keywords: compiled ? selectedArray(selectedField(compiled,'keywords',code),code,ancestors,item => ({
+        name: scalar(item,'name'), value: scalar(item,'value'), intrinsic: scalar(item,'intrinsic',true)
+      })) : [] };
+      result.mounted = selectedArray(selectedField(card,'mounted',code,[]),code,ancestors,cardView);
+      return result;
+    } finally { ancestors.delete(card); }
+  };
+  const state = { active: own(engineState,'active',code), mode: own(engineState,'mode',code), turnNumber: own(engineState,'turnNumber',code), players: {} };
+  const players = own(engineState,'players',code);
+  for (const id of ['player','ai']) {
+    const source = own(players,id,code), user = selectedField(source,'user',code);
+    const player = { user: {}, memory: finiteNumberField(source,'memory',code,{minimum:0}),
+      firstObExecutionTurn: scalar(source,'firstObExecutionTurn'), triggerUsage: {} };
+    for (const key of ['abilityKey','name','frontLimit','backLimit']) player.user[key] = scalar(user,key);
+    const usage = selectedField(source,'triggerUsage',code,{});
+    player.triggerUsage['STD-236:registry-execute'] = scalar(usage,'STD-236:registry-execute',false);
+    for (const zone of ['hand','deck','front','back','registry','trash','ban']) player[zone] = selectedArray(selectedField(source,zone,code),code,new Set(),cardView);
+    state.players[id] = player;
+  }
+  return state;
+}
+function normalCardInView(view, uid) {
+  return Object.values(view.players).flatMap(player => ['hand','front','back','registry'].flatMap(zone => player[zone])).find(card => card.uid === uid);
+}
+function normalEffectEntries(view, playerId, card) {
+  return getActivatableEffects(view,playerId,card).flatMap((effect,index) => {
+    const plan = normalCardEffectSelection(view,playerId,card,effect.id);
+    return plan && plan.candidates.length >= plan.minimum ? [{ effectKey: opaqueOrdinal('effect',index), label: effect.label, plan }] : [];
+  });
+}
+function prepareNormalAction({ source, metadata, trusted, canonical, playerId, readReferenceState }) {
+  const action = canonical.value.command.action;
+  const refs = readReferenceState();
+  const resolve = ref => currentReferencedCard(source.engineState,refs,ref,metadata,trusted.actorSeat);
+  const sourceCard = resolve(action.cardRef);
+  const location = sourceCard.entry.location;
+  if (sourceCard.entry.controllerSeat !== trusted.actorSeat || location.seatId !== trusted.actorSeat) reject('ACTION_NOT_ALLOWED');
+  const view = normalPlanningView(source.engineState), card = normalCardInView(view,sourceCard.uid);
+  if (!card || card.dragFree) reject('ACTION_NOT_ALLOWED');
+  const registry = action.type === 'executeRegistry';
+  if (action.type === 'activateCardEffect') {
+    if (!['hand','front','back'].includes(location.zone)) reject('ACTION_NOT_ALLOWED');
+    const effect = normalEffectEntries(view,playerId,card).find(item => item.effectKey === action.effectKey);
+    if (!effect) reject('ACTION_NOT_ALLOWED');
+    const uids = normalTargetUids(action.targets, resolve, metadata);
+    const plan = normalCardEffectSelection(view,playerId,card,effect.plan.effect.id,uids);
+    validateNormalTargets(plan, uids);
+    if (plan.needsZone ? !plan.zones.includes(action.targetZone) : action.targetZone !== null) reject('ACTION_NOT_ALLOWED');
+    return prepared(canonical,{engineFunction:'activateCardEffect',playerId,uid:sourceCard.uid,effectId:plan.effect.id,
+      options:{targetUid:uids.length === 1 ? uids[0] : null,targetUids:uids.length > 1 ? uids : [],targetZone:action.targetZone}});
+  }
+  if (location.kind !== 'zone' || location.zone !== (registry ? 'registry' : 'hand')) reject('ACTION_NOT_ALLOWED');
+  let options = {};
+  const place = registry ? action.placement : action.type === 'mountCard' ? {kind:action.mountKind,hostRef:action.hostRef}
+    : action.type === 'setScript' ? {kind:'asScript',slot:action.destination.slot} : {kind:'none'};
+  if (place.kind === 'slot' || place.kind === 'asScript') {
+    if (place.kind === 'asScript' ? !supportsAlternateScriptSetup(card) : !(isObCard(card) || ['Code','Script'].includes(card.category))) reject('ACTION_NOT_ALLOWED');
+    options = {zone:place.kind === 'asScript' ? 'back' : place.zone,requestedSlot:place.slot,...(place.kind === 'asScript' ? {asScript:true} : {})};
+    if (card.category === 'Script' && options.zone !== 'back') reject('ACTION_NOT_ALLOWED');
+  } else if (['aboveCode','belowOb'].includes(place.kind)) {
+    const host = resolve(place.hostRef);
+    if (host.entry.controllerSeat !== trusted.actorSeat || host.entry.location.kind !== 'board' || host.entry.location.seatId !== trusted.actorSeat) reject('ACTION_NOT_ALLOWED');
+    options = {zone:host.entry.location.zone,[place.kind === 'aboveCode' ? 'baseUid' : 'underUid']:host.uid};
+  } else if (card.category !== 'Sp') reject('ACTION_NOT_ALLOWED');
+  const uids = normalTargetUids(action.targets ?? [],resolve,metadata);
+  if (card.category === 'Sp') {
+    if (place.kind !== 'none') reject('ACTION_NOT_ALLOWED');
+    const plan = normalSpellSelection(view,playerId,card);
+    validateNormalTargets(plan,uids);
+    if (plan.scopes.length ? !plan.scopes.includes(action.selectionScope) : action.selectionScope !== null) reject('ACTION_NOT_ALLOWED');
+    Object.assign(options,{targetUid:uids.length === 1 ? uids[0] : null,targetUids:uids.length > 1 ? uids : [],selectionScope:action.selectionScope});
+  } else if (uids.length || registry && action.selectionScope !== null) reject('ACTION_NOT_ALLOWED');
+  if (!normalExecutionCheck(view,playerId,card,options,registry).ok) reject('ACTION_NOT_ALLOWED');
+  return prepared(canonical,{engineFunction:registry ? 'executeRegistryCard' : 'playCard',playerId,uid:sourceCard.uid,options});
+}
+function normalTargetUids(targets, resolve, metadata) {
+  return targets.map(target => {
+    if (target.kind === 'card') return resolve(target.cardRef).uid;
+    const index = metadata.seatIds.indexOf(target.seatId);
+    if (index < 0) reject('ACTION_NOT_ALLOWED');
+    return `${index === 0 ? 'player' : 'ai'}-fortress`;
+  });
+}
+function validateNormalTargets(plan,uids) {
+  if (!plan || uids.length < plan.minimum || uids.length > plan.maximum || new Set(uids).size !== uids.length
+    || uids.some(uid => !plan.candidates.some(item => item.uid === uid))
+    || (plan.groups ?? []).some(group => uids.filter(uid => group.some(item => item.uid === uid)).length !== 1)) reject('ACTION_NOT_ALLOWED');
+}
+
+// Internal planners and submit preparation use the same descriptor-safe views.
+// These functions do not authorize, prepare, or apply a command.
+export const runtimePlanningReads = Object.freeze({
+  metadataData, engineData, physicalCardMap, executionPlanningView, executionCardView,
+  layeredPlanningView, selectedLayerCount, attackPlanningView,
+  requireRegistryAction, scriptEligibilityView, activationPlayerView,
+  mulliganEligibilityView, turboEligibilityView, normalPlanningView, normalCardInView, normalEffectEntries
+});
+
 function prepareSandboxAddAction({ source, engine, metadata, canonical }) {
   if (!['lab', 'sandbox'].includes(engine.mode)) reject('UNAVAILABLE_MODE');
   if (engine.hasResult || engine.busy) reject('ACTION_NOT_ALLOWED');
@@ -1035,6 +1159,14 @@ function prepareSandboxAddAction({ source, engine, metadata, canonical }) {
     engineFunction: 'addSandboxCardToHand', playerId: targetPlayerId,
     cardId: canonical.value.command.action.definitionId
   });
+}
+
+function prepareSandboxSelectAction({ engine, metadata, canonical }) {
+  if (engine.mode !== 'sandbox') reject('UNAVAILABLE_MODE');
+  if (engine.hasResult || engine.busy) reject('ACTION_NOT_ALLOWED');
+  const index = metadata.seatIds.indexOf(canonical.value.command.action.targetSeat);
+  if (index < 0) reject('ACTION_NOT_ALLOWED');
+  return prepared(canonical, { engineFunction: 'selectSandboxActiveSeat', playerId: index === 0 ? 'player' : 'ai' });
 }
 
 function prepareAttackAction({ source, metadata, trusted, canonical, playerId, readReferenceState }) {
@@ -1123,17 +1255,19 @@ const ACTION_REGISTRY = createActionRegistry([
   { type: 'recoverRegistry', requiresReferenceState: true, prepare: prepareRecoverRegistryAction },
   { type: 'activateScript', requiresReferenceState: true, prepare: prepareActivateScriptAction },
   { type: 'executeCard', requiresReferenceState: true, prepare: prepareExecuteCardAction },
+  ...['executeSpell','mountCard','setScript','executeRegistry','activateCardEffect'].map(type => ({type,requiresReferenceState:true,prepare:prepareNormalAction})),
   { type: 'executeLayered', requiresReferenceState: true, prepare: prepareExecuteLayeredAction },
   { type: 'redeploy', requiresReferenceState: true, prepare: prepareRedeployAction },
   { type: 'attack', requiresReferenceState: true, prepare: prepareAttackAction },
   { type: 'openingMulligan', requiresReferenceState: false, prepare: prepareOpeningMulliganAction },
   { type: 'activateAbility', requiresReferenceState: false, prepare: prepareActivateAbilityAction },
   { type: 'sandboxAddCard', requiresReferenceState: false, prepare: prepareSandboxAddAction },
+  { type: 'sandboxSelectActiveSeat', requiresReferenceState: false, prepare: prepareSandboxSelectAction },
   { type: 'answerChoice', requiresReferenceState: true, prepare: prepareChoiceAction },
   { type: 'declineChoice', requiresReferenceState: true, prepare: prepareChoiceAction }
 ]);
 
-export function prepareRuntimeCommand(authority, context, envelope) {
+export function prepareRuntimeCommand(authority, context, envelope, { tutorialAuthorized = false } = {}) {
   try {
     const canonical = canonicalizeCommand(envelope);
     if (!canonical.ok) return canonical;
@@ -1168,10 +1302,10 @@ export function prepareRuntimeCommand(authority, context, envelope) {
     if (source.revision === Number.MAX_SAFE_INTEGER) reject('REVISION_EXHAUSTED');
     const readReferenceState = () => own(authority, 'referenceState', 'INVALID_AUTHORITY');
     const preparation = { authority, source, engine, metadata, trusted, canonical, readReferenceState };
-    if (action.type === 'sandboxAddCard') return action.prepare(preparation);
+    if (['sandboxAddCard', 'sandboxSelectActiveSeat'].includes(action.type)) return action.prepare(preparation);
     if (CHOICE_ACTIONS.has(action.type)) return action.prepare(preparation);
 
-    if (engine.mode === 'tutorial') reject('UNAVAILABLE_MODE');
+    if (engine.mode === 'tutorial' && !tutorialAuthorized) reject('UNAVAILABLE_MODE');
     const playerId = engine.active;
     const activeSeat = metadata.seatIds[playerId === 'player' ? 0 : 1];
     if (trusted.actorSeat !== activeSeat) reject('ACTION_NOT_ALLOWED');

@@ -4,7 +4,7 @@ import { abilityBadgeDefinition, normalizeAbilityName } from "../data/ability-ba
 export function runtimeComponents(card, turnNumber) {
   const rows = [];
   const add = (label, value = "", note = "", ability = null, tone = "") => {
-    rows.push({ label, value, note, asset: ability ? abilityBadgeDefinition(ability).asset : null, tone });
+    rows.push({ label, value, note, abilityName: ability, asset: ability ? abilityBadgeDefinition(ability).asset : null, tone });
   };
   const signed = (value) => Number(value) > 0 ? `+${Number(value)}` : String(Number(value));
   const abilityLabel = (name) => name === "BACKUP" ? "バックアップ" : abilityBadgeDefinition(name).label;
@@ -55,4 +55,12 @@ export function runtimeComponents(card, turnNumber) {
     add(`${direction}${kind}ダメージ`, value, ({ turn: "このターン", battle: "この戦闘" })[item.duration] ?? "期限指定なし");
   }
   return rows;
+}
+
+export function runtimeComponentRowsHtml(rows, escape) {
+  if (!rows?.length) return '<p class="runtime-empty">付与・変動なし</p>';
+  return `<ul class="component-list" aria-label="付与コンポーネントと能力残数">${rows.map(item => {
+    const asset = item.abilityName ? abilityBadgeDefinition(item.abilityName).asset : null;
+    return `<li class="component-tile ${item.tone ? `component-${escape(item.tone)}` : ''}">${asset ? `<img class="component-icon" src="${escape(asset)}" alt="" loading="lazy" decoding="async">` : ''}<span class="component-copy"><span class="component-heading"><span class="component-label">${escape(item.label)}</span>${item.value ? `<b>${escape(item.value)}</b>` : ''}</span>${item.note ? `<small>${escape(item.note)}</small>` : ''}</span></li>`;
+  }).join('')}</ul>`;
 }

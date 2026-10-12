@@ -7,6 +7,7 @@ import { createCommandJournal } from '../src/game/runtime/command-record.js';
 import { createRuntimeAuthoritySnapshot, restoreRuntimeAuthoritySnapshot } from '../src/game/runtime/authority-snapshot.js';
 import { submitRuntimeCommand } from '../src/game/runtime/transaction.js';
 import { createRuntimeCard } from '../src/game/runtime/factory.js';
+import { buildRequiredInput } from '../src/game/runtime/required-input.js';
 
 function authority({ playerUserId = 'bigboss', playerDeckRecipe = [['STD-001', 10]], aiDeckRecipe = [['STD-001', 10]] } = {}) {
   const session = createRuntimeSession({
@@ -113,9 +114,14 @@ test('S04-ASN-01: a supported plugin input roundtrips and remains answerable aft
   const restored = restoreRuntimeAuthoritySnapshot(structuredClone(result.value), expected);
   assert.equal(restored.ok, true, JSON.stringify(restored));
   assert.equal(restored.value.engineState.prompt?.type, 'plugin-number');
+  const required = buildRequiredInput(restored.value, 'seat-a');
+  assert.equal(required.ok, true, JSON.stringify(required));
   const answered = submitRuntimeCommand(restored.value, context, {
     contractVersion: 1, matchId: 'snapshot-command-match', commandId: 'answer-plugin', actorSeat: 'seat-a', expectedRevision: 1,
-    action: { type: 'answerChoice', choiceId: 'choice:1:plugin-number', optionIds: ['option:4'], allocation: [] }
+    action: {
+      type: 'answerChoice', choiceId: required.value.choiceId,
+      optionIds: [required.value.options[3].optionId], allocation: []
+    }
   });
   assert.equal(answered.ok, true, JSON.stringify(answered));
   assert.equal(answered.value.kind, 'accepted');

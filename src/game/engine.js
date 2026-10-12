@@ -9,7 +9,7 @@ import { collectActivationWindows, createEventContext, createScriptActivationWin
 import { evaluatePlacement } from "./placement-policy.js";
 import { normalizeLayerState } from "./layer-state.js";
 import { boardSlotOf, cardAtBoardSlot, inheritBoardSlot, normalizeBoardSlots, normalizeZoneSlots, placeCardInBoardSlot, projectZoneSlots, swapBoardSlots } from "./board-slots.js";
-import { flattenMaterialStack, flattenedLayerCount, flattenedLayers, layeredCandidates, layeredSpecFor, normalizeMountedStack, validatesLayeredSelection } from "./layered-specs.js";
+import { flattenMaterialStack, flattenedLayerCount, flattenedLayers, layeredCandidates, layeredSelectionPlan, layeredSpecFor, normalizeMountedStack, validatesLayeredSelection } from "./layered-specs.js";
 import { battleStatModifierSpecsFor, cardPlacementCostSpec, cardRuntimeRoute, cardRuntimeSpec } from "./card-runtime-specs.js";
 import { damageModifierSpecsFor } from "./damage-modifier-specs.js";
 import { isLydCard, isObCard, isObCategory, matchesCardCategory } from "./card-types.js";
@@ -65,7 +65,7 @@ export function supportsDirectHandObExecution(card) {
     && !Number.isFinite(card.setupCost) && !layeredSpecFor(card) && !cardPlacementCostSpec(card.id));
 }
 
-function relogPreparationKind(card, layerCount = flattenedLayerCount(card)) {
+export function relogPreparationKind(card, layerCount = flattenedLayerCount(card)) {
   const compiled = compileEffectText(card?.text ?? "", { category: card?.category, id: card?.id });
   const operationTypes = new Set((compiled.operations ?? []).map((operation) => operation.type));
   if (operationTypes.has("registry_executable_and_logout_install_self")
@@ -81,11 +81,12 @@ export function canDirectRelogAtSlot(state, playerId, card, { sourceZone, zone, 
   if (!Number.isSafeInteger(effectiveLayerCount) || effectiveLayerCount < 0 || Object.is(effectiveLayerCount, -0)) return { ok: false };
   if (!["front", "back"].includes(sourceZone) || !["front", "back"].includes(zone)
     || sourceZone === zone || sourceZone !== (zone === "front" ? "back" : "front")) return { ok: false };
-  if (relogPreparationKind(card, effectiveLayerCount) !== "normal") return { ok: false };
+  const preparationKind = relogPreparationKind(card, effectiveLayerCount);
+  if (preparationKind === "registry") return requestedSlot === null && player.memory >= Number(card.cost ?? 0) ? { ok: true } : { ok: false };
   const slot = requestedExecutionSlot(state, playerId, card, { zone, requestedSlot });
   if (!slot.ok) return slot;
   if (!placementResult(player, zone).ok) return { ok: false };
-  if (player.memory < Number(card.cost ?? 0)) return { ok: false };
+  if (player.memory < (preparationKind === "payment-choice" ? 1 : Number(card.cost ?? 0))) return { ok: false };
   return { ok: true };
 }
 
@@ -2171,7 +2172,7 @@ function drainTriggerQueue(state) {
 }
 
 export function emitGameEvent(state, event) {
-  const normalized = { id: `EV-${++state.triggerSerial}`, ...event };
+  const normalized = { id: `EV-${++state.triggerSerial}`, turnNumber: state.turnNumber, ...event };
   state.events.push(normalized);
   if (state.winner) {
     if (state.events.length > 200) state.events.shift();
@@ -3123,7 +3124,8 @@ export function canExecuteRegistryCard(state, playerId, card, options = {}) {
   const magazineMatch = card.category === "Sp" ? String(card.text ?? "").match(/\[弾倉[:：]\s*(\d+)\]/) : null;
   const magazineAmount = Number(magazineMatch?.[1] ?? 0);
   const executionCostReduction = magazineAmount > 0 && ownLayerEntries(player).length >= magazineAmount ? magazineAmount : 0;
-  return canPlayCard(state, playerId, card, { ...options, executionCostReduction });
+  const normal = { ...options, ignoreColor: selfExecutable, executionCostReduction };
+  return card.category === "Script" || options.asScript ? canExecuteAtSlot(state, playerId, card, normal) : canPlayCard(state, playerId, card, normal);
 }
 
 export function executeRegistryCard(state, playerId, uid, options = {}) {
@@ -3154,7 +3156,7 @@ export function enabledSymbols(player) {
 }
 
 // Standalone execution/set uses explicit slots. Mounting inherits its host slot.
-function requestedExecutionSlot(state, playerId, card, { requestedSlot = null, zone = "front", baseUid = null, underUid = null, asScript = false, placementMode = "normal" } = {}) {
+function requestedExecutionSlot(state, playerId, card, { requestedSlot = null, zone = "front", baseUid = null, underUid = null, asScript = false, placementMode = "normal", placementCostPaid = false } = {}) {
   if (requestedSlot === null) return { ok: true };
   if (!card || !(isObCard(card) || ["Code", "Script"].includes(card.category)) || baseUid || underUid || placementMode !== "normal") return { ok: false, reason: "この実行経路では空きマスを指定できません。" };
   if ((card.category === "Script" || asScript) && zone !== "back") return { ok: false, reason: "設置先はバックです。" };
@@ -3162,17 +3164,21 @@ function requestedExecutionSlot(state, playerId, card, { requestedSlot = null, z
   const limit = Number(player?.user?.[`${zone}Limit`]);
   if (!player || !["front", "back"].includes(zone) || !Number.isSafeInteger(limit) || !Number.isSafeInteger(requestedSlot) || requestedSlot < 1 || requestedSlot > limit) return { ok: false, reason: "配置マスが不正。" };
   const slots = projectZoneSlots(player[zone], { controllerId: playerId, zoneName: zone, limit: player.user[`${zone}Limit`] });
-  return slots[requestedSlot - 1] ? { ok: false, reason: "そのマスには既にカードがあります。" } : { ok: true };
+  const occupant = slots[requestedSlot - 1];
+  const cost = cardPlacementCostSpec(card.id);
+  if (occupant && cost && !placementCostPaid && placementCostCandidates(state, cost).some(item => item.card.uid === occupant.uid)) return { ok: true };
+  return occupant ? { ok: false, reason: "そのマスには既にカードがあります。" } : { ok: true };
 }
 
+export const supportsAlternateScriptSetup = card => card?.id === 'STD-184';
 export function canExecuteAtSlot(state, playerId, card, options = {}) {
   const slot = requestedExecutionSlot(state, playerId, card, options);
   if (!slot.ok) return slot;
   if (card.category !== "Script" && !options.asScript) return canPlayCard(state, playerId, card, options);
   const player = state.players[playerId];
-  if (state.active !== playerId || !placementResult(player, "back").ok) return { ok: false, reason: "設置するターンまたはバック上限を確認してください。" };
-  if (cardPlacementCostSpec(card.id)) return canPlayCard(state, playerId, card, options);
-  if (options.asScript && (card.id !== "STD-184" || player.memory < Number(card.setupCost ?? 3) || state.mode !== "lab" && card.color && !enabledSymbols(player).includes(card.color))) return { ok: false, reason: "Script設置条件を満たしていません。" };
+  if (state.active !== playerId || !placementResult(player, "back").ok && !cardPlacementCostSpec(card.id)) return { ok: false, reason: "設置するターンまたはバック上限を確認してください。" };
+  if (cardPlacementCostSpec(card.id)) return canPlayCard(state, playerId, card, {...options,ignoreColor:true});
+  if (options.asScript && (!supportsAlternateScriptSetup(card) || player.memory < Number(card.setupCost ?? 3) || state.mode !== "lab" && card.color && !enabledSymbols(player).includes(card.color))) return { ok: false, reason: "Script設置条件を満たしていません。" };
   return { ok: true };
 }
 
@@ -3213,6 +3219,40 @@ export function canPlayCard(state, playerId, card, { ignoreColor = false, free =
 
 export function spellNeedsTarget(card) {
   return ["STD-011", "STD-014", "STD-015", "STD-032", "STD-033", "STD-086", "STD-104", "STD-111", "STD-138", "STD-202", "STD-203", "STD-209", "SZTB-096"].includes(card.id);
+}
+
+// These are the existing normal input rules, shared by draft and submit.
+// The class catalog is public and never depends on either hidden deck.
+export function normalSpellSelection(state, playerId, card) {
+  if (card.category !== "Sp") return null;
+  if (card.id === "STD-211") return { candidates: [], minimum: 0, maximum: 0, groups: [], scopes:
+    [...new Set(Object.values(CARD_LIBRARY).flatMap(item => item.classes ?? []))].sort() };
+  if (card.id === "STD-203") {
+    const own = [...state.players[playerId].front, ...state.players[playerId].back].filter(isObCard);
+    const enemy = [...state.players[otherPlayer(playerId)].front, ...state.players[otherPlayer(playerId)].back].filter(isObCard);
+    return { candidates: [...own, ...enemy], minimum: 2, maximum: 2, scopes: [], groups: [own, enemy] };
+  }
+  const candidates = spellNeedsTarget(card) ? getEffectTargets(state, card.id === "STD-111" ? playerId : otherPlayer(playerId), card) : [];
+  const count = spellNeedsTarget(card) && !(card.id === "STD-015" && candidates.length === 0) ? 1 : 0;
+  return { candidates, minimum: count, maximum: count, scopes: [], groups: [] };
+}
+export function normalExecutionCheck(state, playerId, card, options = {}, registry = false) {
+  if (card.dragFree || card.category === "Plugin") return { ok: false };
+  if (registry) return canExecuteRegistryCard(state, playerId, card, options);
+  if (layeredSpecFor(card)) return {ok:false};
+  const amount = Number(String(card.text ?? "").match(/\[弾倉[:：]\s*(\d+)\]/)?.[1] ?? 0);
+  const normal = { ...options, executionCostReduction: amount > 0 && ownLayerEntries(state.players[playerId]).length >= amount ? amount : 0 };
+  return card.category === "Script" || options.asScript ? canExecuteAtSlot(state, playerId, card, normal) : canPlayCard(state, playerId, card, normal);
+}
+export function normalCardEffectSelection(state, playerId, card, effectId, targetUids = []) {
+  const effect = getActivatableEffects(state, playerId, card).find(item => item.id === effectId && item.enabled);
+  if (!effect || card.faceDown || effect.kind === "proxy" && state.mode !== "lab" && card.color && !enabledSymbols(state.players[playerId]).includes(card.color)) return null;
+  const candidates = getEffectActivationTargets(state, playerId, card, effectId);
+  const count = card.id === "STD-196" ? 2 : candidates.length || ["STD-192", "STD-157", "STD-049", "STD-169"].includes(card.id) ? 1 : 0;
+  const moveUid = card.id === "STD-200" ? card.uid : card.id === "STD-192" ? targetUids[0] : null;
+  const moving = moveUid ? findCard(state, moveUid) : null;
+  const zones = moving ? [moving.zoneName === "front" ? "back" : "front"].filter(zone => placementResult(state.players[playerId], zone).ok) : [];
+  return { effect, candidates, minimum: count, maximum: count, needsZone: ["STD-192", "STD-200"].includes(card.id), zones };
 }
 
 function ownLayerEntries(player) {
@@ -3382,7 +3422,7 @@ function playCardCore(state, playerId, uid, { targetUid = null, targetUids = [],
   const index = player.hand.findIndex((card) => card.uid === uid);
   if (index < 0) return fail(state, "そのカードは手札にない。", force);
   const card = player.hand[index];
-  const slotCheck = requestedExecutionSlot(state, playerId, card, { requestedSlot, zone, baseUid, underUid, asScript, placementMode });
+  const slotCheck = requestedExecutionSlot(state, playerId, card, { requestedSlot, zone, baseUid, underUid, asScript, placementMode, placementCostPaid: placementCostPermit === STD121_PLACEMENT_PERMIT });
   if (!slotCheck.ok) return fail(state, slotCheck.reason, force);
   const placementCostSpec = cardPlacementCostSpec(card.id);
   if (placementCostSpec && placementCostPermit !== STD121_PLACEMENT_PERMIT) {
@@ -3398,6 +3438,8 @@ function playCardCore(state, playerId, uid, { targetUid = null, targetUids = [],
     }
     const request = createSelectionRequest({
       mode: "exact", candidates: candidates.map(({ card: candidate }) => candidate.uid), count: requiredCount,
+      groups: requestedSlot !== null && cardAtBoardSlot(player[zone],requestedSlot,{controllerId:playerId,zoneName:zone})
+        ? [{id:'requested-placement-slot',minimum:1,maximum:1,candidates:[cardAtBoardSlot(player[zone],requestedSlot,{controllerId:playerId,zoneName:zone}).uid]}] : [],
       candidateLabels: Object.fromEntries(candidates.map(({ ownerId, zoneName, card: candidate }) => [candidate.uid, `${ownerId}/${zoneName}: ${candidate.name}`])),
       label: `設置コストとして破壊する異名カード${requiredCount}枚`, message: card.text,
       continuation: {
@@ -3454,7 +3496,7 @@ function playCardCore(state, playerId, uid, { targetUid = null, targetUids = [],
       scopeOptions: canUse ? ["使用しない", "使用する"] : ["使用しない"],
       label: `弾倉：${amount}を使用しますか？`,
       message: canUse ? `自分のレイヤーを${amount}枚消費し、実行メモリを${amount}少なくする。` : `使用に必要なレイヤー${amount}枚または実行メモリが不足している。`,
-      continuation: { type: "play-card-magazine-confirm", playerId, sourceUid: uid, amount, options: { targetUid, targetUids, selectionScope, ignoreColor, allowOffTurn, zone, baseUid, underUid, placementCause, placementSource, registryExecution, registryOriginIndex } }
+      continuation: { type: "play-card-magazine-confirm", playerId, sourceUid: uid, amount, options: { targetUid, targetUids, selectionScope, ignoreColor, allowOffTurn, zone, baseUid, underUid, placementCause, placementSource, placementMode, registryExecution, registryOriginIndex, requestedSlot, ocDecision } }
     });
     state.pending = { type: "selection", validTargets: [], request };
     return true;
@@ -6053,6 +6095,10 @@ export function getLayeredRequirement(card) {
   return { minimum: rule?.minimum ?? Number.POSITIVE_INFINITY, label: rule?.label ?? "未対応のレイヤード条件" };
 }
 
+export function getLayeredSelectionPlan(state, playerId, card) {
+  return layeredSelectionPlan(state, playerId, card);
+}
+
 export function canPlayLayeredCard(state, playerId, uid, materialUids, zone = "front", requestedSlot = null) {
   const player = state.players[playerId];
   const handIndex = player.hand.findIndex((card) => card.uid === uid);
@@ -6649,6 +6695,10 @@ function attackCore(state, playerId, attackerUid, targetUid) {
   const received = attackerProtected ? 0 : defenderDamage;
   const attackerStrAfter = cardCurrentStr(state, playerId, attacker);
   const defenderStrAfter = cardCurrentStr(state, opponentId, defender);
+  emitGameEvent(state, { type: "combat_resolved", playerId,
+    cardUid: attacker.uid, targetUid: defender.uid, damage: dealt, counterDamage: received,
+    sourceStrBefore: attackerStrBefore, sourceStrAfter: attackerStrAfter,
+    targetStrBefore: defenderStrBefore, targetStrAfter: defenderStrAfter });
   addLog(state, `${attacker.name}が${defender.name}を攻撃。${defender.name}へ${dealt}ダメージ、STR ${defenderStrBefore}→${defenderStrAfter}。${attacker.name}へ${received}ダメージ、STR ${attackerStrBefore}→${attackerStrAfter}。`, "damage", {
     actor: playerId, cardId: attacker.id,
     combat: { targetName: defender.name, damage: dealt, targetStrBefore: defenderStrBefore, targetStrAfter: defenderStrAfter,
@@ -6704,6 +6754,7 @@ export function dealCardDamage(state, ownerId, uid, amount, source = "効果", {
     state.lastDamageOutcome = { targetUid: uid, amount: 0, destructionDetermined: false, prevented: true };
     return true;
   }
+  const strBefore = cardCurrentStr(state, ownerId, card);
   card.damage += amount;
   addLog(state, `${source}: ${card.name}に${amount}ダメージ。残りSTR ${cardCurrentStr(state, ownerId, card)}。`, "effect");
   emitGameEvent(state, {
@@ -6715,6 +6766,8 @@ export function dealCardDamage(state, ownerId, uid, amount, source = "効果", {
     cardName: card.name,
     category: card.category,
     amount,
+    sourcePlayerId, sourceUid: sourceCard?.uid ?? null,
+    strBefore, strAfter: cardCurrentStr(state, ownerId, card),
     source
   });
   const destructionDetermined = cardCurrentStr(state, ownerId, card) <= 0;
@@ -6762,7 +6815,9 @@ export function dealFortressDamage(state, victimId, amount, sourcePlayerId, sour
   });
   else addLog(state, `${source}: ${victim.user.name}へ${amount}ダメージ。STR ${before}→${victim.fortressStr}。`, "damage");
   if (amount > 0) emitGameEvent(state, { type: "user_damaged", playerId: victimId, ownerId: victimId,
-    amount, kind, sourcePlayerId, source });
+    amount, kind, sourcePlayerId, source,
+    sourceUid: sourceCardByName(state, sourcePlayerId, source)?.uid ?? null,
+    strBefore: before, strAfter: victim.fortressStr });
   const triggered = victim.user.incidents.filter((threshold) =>
     before > threshold && victim.fortressStr <= threshold && !victim.incidentsTriggered.includes(threshold)
   );

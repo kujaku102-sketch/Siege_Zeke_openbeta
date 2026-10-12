@@ -70,12 +70,14 @@ test('S02-SNAPSHOT-01: canonical envelope, omitted runtime functions/history, an
   assert.deepEqual(Object.keys(snapshot), ['format', 'schemaVersion', 'metadata', 'revision', 'engineState', 'referenceState']);
   assert.equal(snapshot.format, 'siege-zeke.authority-snapshot');
   assert.equal(snapshot.schemaVersion, 1);
+  assert.equal(snapshot.engineState.interactive, true);
   assert.equal(Object.hasOwn(snapshot.engineState, 'rng'), false);
   assert.equal(Object.hasOwn(snapshot.engineState, 'history'), false);
   const restored = restore(snapshot);
   assert.equal(restored.ok, true, JSON.stringify(restored));
   assert.deepEqual(restored.value.engineState.runtimeContext, source.engineState.runtimeContext);
   assert.equal(typeof restored.value.engineState.rng, 'function');
+  assert.equal(restored.value.engineState.interactive, true);
   assert.deepEqual(restored.value.engineState.history, []);
   assert.notEqual(restored.value.engineState, source.engineState);
   assert.notEqual(restored.value.engineState.runtimeContext, source.engineState.runtimeContext);
@@ -352,7 +354,7 @@ test('S02-SNAPSHOT-26: permits exactly the declared idle optional-root values an
     std142TurnEndQueue: null, std142DestroyBatch: null, std211DestructionBatch: null,
     deferredTrashMoves: [], destroyLkiFollowUps: [], independentEffects: [],
     runtimeDestructionContinuations: {}, std142DestructionContinuations: {}, std211DestructionContinuations: {},
-    drainingIndependentEffects: false, resolvingStd165: false, resumeTurnEndAfterSelection: false, skipSavageTurnEnd: false
+    drainingIndependentEffects: false, resolvingStd165: false, skipSavageTurnEnd: false
   });
   const snapshot = create(current);
   const restored = restore(snapshot);
@@ -467,6 +469,18 @@ test('S02-SNAPSHOT-35: optional-root type errors differ from valid non-idle valu
   rejects(restore(activeBoolean), 'SNAPSHOT_UNSUPPORTED_STATE');
   const activeNullGroup = input(); activeNullGroup.engineState.securityRestWindow = 'player';
   assert.equal(createRuntimeSnapshot(activeNullGroup).ok, true, 'Stage04 supports the optional Security input window');
+  for (const key of ['std094TurnEndDone', 'std141TurnEndDone', 'std142TurnEndDone', 'resumeTurnEndAfterSelection']) {
+    const activePlayerMarker = input();
+    activePlayerMarker.engineState.securityRestWindow = 'player';
+    activePlayerMarker.engineState[key] = 'player';
+    const playerMarkerSnapshot = createRuntimeSnapshot(activePlayerMarker);
+    assert.equal(playerMarkerSnapshot.ok, true, `${key} accepts the runtime player marker`);
+    assert.equal(restore(playerMarkerSnapshot.value).ok, true, `${key} roundtrips with required input`);
+    const invalidPlayerMarker = input();
+    invalidPlayerMarker.engineState.securityRestWindow = 'player';
+    invalidPlayerMarker.engineState[key] = 'seat-a';
+    rejects(createRuntimeSnapshot(invalidPlayerMarker), 'SNAPSHOT_INVALID_STATE');
+  }
 });
 
 test('S02-SNAPSHOT-36: accepts frozen inputs and propagates reflection exceptions', () => {

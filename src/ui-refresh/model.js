@@ -61,3 +61,18 @@ export function cancelSelection(selection, options = {}) {
 export function gestureMoved(start, current, threshold = 10) {
   return Math.hypot(current.x - start.x, current.y - start.y) > threshold;
 }
+export function avoidFocus(panel, targets, viewport, margin = 8) {
+  const width = Math.min(panel.width, viewport.width - margin * 2), height = Math.min(panel.height, viewport.height - margin * 2);
+  const x0 = (viewport.left ?? 0) + margin, y0 = (viewport.top ?? 0) + margin;
+  const x1 = x0 + viewport.width - width - margin * 2, y1 = y0 + viewport.height - height - margin * 2;
+  const candidates = [{ left: x1, top: y0 }, { left: x0, top: y0 }, { left: x1, top: y1 }, { left: x0, top: y1 }];
+  // A larger ADV frame may fit between the detail panel and console, not at a corner.
+  const xs = new Set([x0, x1]), ys = new Set([y0, y1]);
+  for (const rect of targets) {
+    for (const x of [rect.right + margin, rect.left - width - margin]) xs.add(Math.max(x0, Math.min(x1, x)));
+    for (const y of [rect.bottom + margin, rect.top - height - margin]) ys.add(Math.max(y0, Math.min(y1, y)));
+  }
+  for (const left of xs) for (const top of ys) candidates.push({ left, top });
+  const overlap = pos => targets.reduce((sum, rect) => sum + Math.max(0, Math.min(pos.left + width, rect.right + margin) - Math.max(pos.left, rect.left - margin)) * Math.max(0, Math.min(pos.top + height, rect.bottom + margin) - Math.max(pos.top, rect.top - margin)), 0);
+  return candidates.map(pos => ({ ...pos, overlap: overlap(pos) })).sort((a, b) => a.overlap - b.overlap)[0];
+}

@@ -6,6 +6,8 @@ import { BUILDABLE_CARDS, DECK_STORAGE_KEY, DECK_STRATEGIES, loadSavedDecks, rec
 import { renderApp } from "../src/ui/render.js";
 import { captureDeckViewport, restoreDeckViewport } from "../src/ui/deck-viewport.js";
 import { deckBuilderHtml } from "../src/ui/render.js";
+import { CARD_LIBRARY } from "../src/data/cards.js";
+import { DECK_EVALUATION_AXES, evaluateCardForDeck } from "../src/game/card-deck-evaluation.js";
 
 test("integrated deck design keeps PC controls and separates mobile cards from management", () => {
  const state={savedDecks:[],deckBuilder:{open:true,color:'all',query:'',draft:{name:'<deck>',userId:'doors_zx',cards:{'STD-075':1}}}};
@@ -16,10 +18,23 @@ test("integrated deck design keeps PC controls and separates mobile cards from m
  const before=JSON.stringify(state);
  const mobile=deckBuilderHtml(state,{view:'mobile',effectsEnabled:false});
  assert.match(mobile,/data-deck-panel="closed"/);assert.match(mobile,/data-deck-fx="off"/);
+ assert.match(mobile,/data-deck-auto="closed"/);
  assert.ok(mobile.includes('deck-mobile-card'));assert.ok(mobile.includes('&lt;deck&gt;'));
+ assert.ok(mobile.indexOf('data-deck-auto-build')<mobile.indexOf('data-deck-management'));
+ assert.ok(mobile.includes('data-deck-name'));assert.ok(mobile.includes('aria-label="ユーザーカード"'));
+ assert.ok(mobile.includes('deck-builder-tools')&&mobile.includes('deck-category-filter'));
+ assert.ok(mobile.indexOf('deck-summary')<mobile.indexOf('deck-builder-tools'));
+ assert.ok(mobile.indexOf('deck-builder-tools')<mobile.indexOf('deck-mobile-catalog'));
+ assert.equal((mobile.match(/deck-mobile-placeholder/g)??[]).length,10);
+ assert.match(mobile,/deck-mobile-copies">×1<\/span>/);
+ assert.match(mobile,/deck-mobile-copies">1\/3<\/span>/);
+ assert.ok(!mobile.includes('data-toggle-effects'));
  assert.ok(mobile.indexOf('deck-mobile-selected')<mobile.indexOf('deck-mobile-catalog'));
  assert.ok(!mobile.includes('data-deck-detail="STD-075"'));
  assert.ok(mobile.includes('長押しで詳細'));
+ const complete=deckBuilderHtml({savedDecks:[],deckBuilder:{open:true,color:'all',query:'',draft:{name:'complete',userId:'doors_zx',cards:recommendDeck({userId:'doors_zx'}).cards}}},{view:'mobile',effectsEnabled:false});
+ assert.match(complete,/deck-validation valid/);
+ assert.match(complete,/構築OK/);
  assert.equal(JSON.stringify(state),before);
 });
 
@@ -94,6 +109,29 @@ test("every user's recommended decks use the correct size for every strategy", (
       assert.equal(check.count, size, `${userId}/${strategy}`);
     }
   }
+});
+
+test("automatic recommendations preserve existing cards and only fill the remainder", () => {
+  const first = BUILDABLE_CARDS[0];
+  const second = BUILDABLE_CARDS.find(card => card.name !== first.name);
+  const existing = { [first.id]: 1, [second.id]: 2 };
+  const result = recommendDeck({ userId: "doors_zx", color: "赤", strategy: "balanced", cards: existing });
+  assert.equal(result.cards[first.id],1);
+  assert.equal(result.cards[second.id],2);
+  assert.equal(validateDeck({ userId: "doors_zx", cards: result.cards }).valid, true);
+  assert.match(result.explanation,/既存3枚を維持・37枚追加/);
+  const complete = recommendDeck({ userId: "doors_zx", cards: result.cards });
+  assert.deepEqual(complete.cards, result.cards);
+  assert.match(complete.explanation,/既存40枚を維持・0枚追加/);
+});
+
+test("deck evaluation metadata exposes common axes, explicit corrections and distinct strategy results", () => {
+  assert.equal(DECK_EVALUATION_AXES.includes('removal'),true);
+  assert.equal(evaluateCardForDeck(CARD_LIBRARY['STD-001']).removal,1);
+  assert.equal(evaluateCardForDeck(CARD_LIBRARY['STD-001']).reliability,.75);
+  const rush = recommendDeck({userId:'doors_zx',color:'赤',strategy:'rush'}).cards;
+  const control = recommendDeck({userId:'doors_zx',color:'赤',strategy:'control'}).cards;
+  assert.notDeepEqual(rush,control);
 });
 
 test("loading an old thirty-card ZX deck preserves it and does not write storage", () => {

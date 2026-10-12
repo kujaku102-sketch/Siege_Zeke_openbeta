@@ -94,6 +94,10 @@ export function createRuntimeSession(input) {
   const runtimeContext = { matchId: config.matchId, seatIds: [...seatIds], identityState: identity.value, rngState: rng.value, uidAliases: [] };
   try {
     const engineState = createGame({ ...startOptions, runtimeContext });
+    engineState.interactive = true;
+    // Port-backed sandbox uses ordinary turn handoff; legacy UI's manual
+    // active-player mutation is replaced by the separate control capability.
+    if (startOptions.mode === 'sandbox') engineState.sandboxUi.alternateTurns = true;
     const index = buildRuntimeIdentityIndex(engineState);
     if (!index.ok) return failure(index.error.code);
     return { ok: true, value: {

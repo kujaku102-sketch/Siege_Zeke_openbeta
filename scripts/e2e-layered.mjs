@@ -1,245 +1,118 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
-
-const args = process.argv.slice(2);
-const playwrightFlag = args.indexOf("--playwright-module");
-const explicitPlaywrightModule = playwrightFlag >= 0
-  ? args[playwrightFlag + 1]
-  : process.env.SIMPLE_ZEKE_PLAYWRIGHT_MODULE;
-const url = args.find((argument, index) => argument !== "--playwright-module" && index !== playwrightFlag + 1)
-  ?? "http://127.0.0.1:4173/";
-
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
+const args=process.argv.slice(2),flag=args.indexOf('--playwright-module');
+const explicitPlaywrightModule=flag>=0 ? args[flag+1] : process.env.SIMPLE_ZEKE_PLAYWRIGHT_MODULE;
+const url=args.find((arg,index) => arg !== '--playwright-module' && index !== flag+1) ?? 'http://127.0.0.1:4173/';
 async function loadPlaywright() {
-  if (!explicitPlaywrightModule) {
-    throw new Error("provide --playwright-module or SIMPLE_ZEKE_PLAYWRIGHT_MODULE for the external browser runner");
-  }
-  const specifier = explicitPlaywrightModule.startsWith("file:")
-    ? explicitPlaywrightModule
-    : pathToFileURL(path.resolve(explicitPlaywrightModule)).href;
-  if (!existsSync(new URL(specifier))) throw new Error("explicit Playwright module path is unavailable");
+  if (!explicitPlaywrightModule) throw new Error('provide --playwright-module or SIMPLE_ZEKE_PLAYWRIGHT_MODULE');
+  const specifier=explicitPlaywrightModule.startsWith('file:') ? explicitPlaywrightModule : pathToFileURL(path.resolve(explicitPlaywrightModule)).href;
+  if (!specifier.startsWith('file:') || !existsSync(new URL(specifier))) throw new Error('explicit Playwright module path is unavailable');
   return import(specifier);
 }
-
-const playwright = await loadPlaywright();
-const { chromium } = playwright.default ?? playwright;
-const browser = await chromium.launch({ channel: "msedge", headless: true });
-const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-const errors = [];
-page.on("pageerror", (error) => errors.push(error.message));
-
-async function freshSandbox(cardIds) {
-  const target = new URL(url);
-  target.searchParams.set("e2e", "1");
-  await page.goto(target.toString(), { waitUntil: "networkidle" });
-  await page.evaluate(() => localStorage.clear());
-  await page.reload({ waitUntil: "networkidle" });
-  if (!await page.evaluate(() => Boolean(window.__SIMPLE_ZEKE_E2E__))) throw new Error("layered E2E hook is unavailable");
-  await page.locator('[data-mode="sandbox"]').click();
-  for (const id of cardIds) await page.locator(`[data-catalog-card="${id}"]`).click();
+const playwright=await loadPlaywright(),{chromium}=playwright.default ?? playwright;
+const browser=await chromium.launch({channel:'msedge',headless:true}),page=await browser.newPage({viewport:{width:1600,height:1000}}),errors=[];
+page.on('pageerror',error => errors.push(error.message));
+const read=() => page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.query().value);
+const visibleCards=query => {
+  const output=[];const visit=card => {output.push(card);if (!card.faceDown)card.mounted.forEach(visit);};
+  for(const seat of query.observation.seats)for(const zone of ['hand','front','back','registry','trash','ban'])seat[zone].cards?.forEach(visit);
+  return output;
+};
+const own=query => query.observation.seats[0];
+function selection(request,query,{zone='front',ids=[],scope=''}={}) {
+  const ordered=[...request.options].sort((a,b) => {
+    const rank=option => (option.zone===zone ? 100 : 0)+(option.kind==='user' ? 100 : 0)
+      +(ids.includes(visibleCards(query).find(card => card.cardRef===option.cardRef)?.definition?.id) ? 1000 : 0)
+      +(scope && option.label?.includes(scope) ? 1000 : 0);
+    return rank(b)-rank(a);
+  });
+  const picked=[],search=(start,count) => {
+    if (!count) {const value={requestId:request.requestId,optionIds:[...picked],allocation:[]};return validSelectionAnswer(request,value) ? value : null;}
+    for(let index=start;index<=ordered.length-count;index+=1){picked.push(ordered[index].optionId);const value=search(index+1,count-1);picked.pop();if(value)return value;}
+    return null;
+  };
+  for(let count=request.constraints.minimum ?? 0;count<=Math.min(request.constraints.maximum ?? 0,ordered.length);count+=1){const value=search(0,count);if(value)return value;}
+  throw new Error('no safe valid selection '+request.presentationKey);
 }
-
-async function prepareFixture({ sourceId, placements, nested = null }) {
-  return page.evaluate(({ sourceId, placements, nested }) => {
-    const fixture = window.__SIMPLE_ZEKE_E2E__;
-    const state = fixture.getState();
-    const player = state.players.player;
-    const opponent = state.players.ai;
-    const allCards = [...player.hand, ...player.front, ...player.back, ...player.registry, ...player.trash];
-    const take = (id) => {
-      const matches = allCards.filter((card) => card.id === id && !card.__e2eTaken);
-      const card = matches.at(-1);
-      if (!card) throw new Error(`fixture card unavailable: ${id}`);
-      card.__e2eTaken = true;
-      return card;
-    };
-    const source = take(sourceId);
-    for (const side of [player, opponent]) {
-      side.hand = [];
-      side.front = [];
-      side.back = [];
-      side.registry = [];
-      side.trash = [];
-      side.memory = 99;
-    }
-    player.hand.push(source);
-    if (source.color) {
-      player.registry.push({
-        ...structuredClone(source),
-        uid: `e2e-symbol-${source.uid}`,
-        id: `E2E-SYMBOL-${source.color}`,
-        name: `${source.color}シンボル fixture`,
-        category: "Code",
-        printedCategory: "Code",
-        mounted: [],
-        faceDown: false
-      });
-    }
-    const uids = { source: source.uid, materials: [] };
-    for (const placement of placements) {
-      const card = take(placement.id);
-      if (placement.faceDown) card.faceDown = true;
-      const owner = placement.owner === "ai" ? opponent : player;
-      owner[placement.zone].push(card);
-      uids.materials.push(card.uid);
-    }
-    if (nested) {
-      const host = [...player.front, ...player.back].find((card) => card.id === nested.hostId);
-      const child = take(nested.childId);
-      host.mounted = [child];
-      uids.nested = child.uid;
-    }
-    for (const card of allCards) delete card.__e2eTaken;
-    state.active = "player";
-    state.selectedUid = null;
-    state.pending = null;
-    state.prompt = null;
-    state.winner = null;
-    fixture.setState(state);
-    return uids;
-  }, { sourceId, placements, nested });
+async function click(selector) {const nodes=page.locator(selector);for(let index=0;index<await nodes.count();index+=1)if(await nodes.nth(index).isVisible()){await nodes.nth(index).click();return;}throw new Error('visible control missing '+selector);}
+async function choose(request,query,preference) {
+  const answer=selection(request,query,preference);
+  for(const id of answer.optionIds)await click('[data-option-id="'+id+'"]');
+  await click('[data-runtime-confirm]');return answer;
 }
-
-async function executeLayered(uids, selectedUids = uids.materials) {
-  await page.locator(`.hand [data-card-uid="${uids.source}"]`).click();
-  await page.locator('[data-action="layered-front"]').first().click();
-  const pending = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.getState().pending);
-  for (const uid of selectedUids) {
-    if (!pending.validTargets.includes(uid)) throw new Error(`expected layered candidate is absent: ${uid}`);
-    let target = page.locator(`[data-card-uid="${uid}"]`);
-    if (!await target.count()) {
-      const location = await page.evaluate((targetUid) => {
-        const state = window.__SIMPLE_ZEKE_E2E__.getState();
-        for (const [playerId, player] of Object.entries(state.players)) {
-          for (const zone of ["registry", "trash"]) if (player[zone].some((card) => card.uid === targetUid)) return { playerId, zone };
-        }
-        return null;
-      }, uid);
-      if (!location) throw new Error(`layered candidate has no rendered or administrative location: ${uid}`);
-      await page.locator(`[data-admin-zone="${location.zone}"][data-owner="${location.playerId}"]`).click();
-      target = page.locator(`[data-card-uid="${uid}"]`);
-    }
-    await target.first().click();
+async function settle(preference={}) {
+  for(let index=0;index<50;index+=1){
+    const query=await read(),input=query.requiredInput;if(!input)return;
+    if(!input.canAnswer)throw new Error('fixture normal action left choice to other seat');
+    await choose({...input,requestId:input.choiceId},query,preference);
   }
-  const selectedAfterClicks = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.getState().pending?.selectedTargets ?? []);
-  if (selectedAfterClicks.length !== selectedUids.length || selectedUids.some((uid) => !selectedAfterClicks.includes(uid))) {
-    throw new Error(`layered DOM selection mismatch: ${JSON.stringify({ selectedAfterClicks, selectedUids })}`);
-  }
-  const confirm = page.locator('[data-action="confirm-layered"]').first();
-  if (await confirm.isDisabled()) throw new Error("layered confirmation stayed disabled for a valid selection");
-  await confirm.click();
-  return page.evaluate((sourceUid) => {
-    const state = window.__SIMPLE_ZEKE_E2E__.getState();
-    const source = [...state.players.player.front, ...state.players.player.back].find((card) => card.uid === sourceUid);
-    return {
-      pending: state.pending?.type ?? null,
-      sourceZone: source ? (state.players.player.front.includes(source) ? "front" : "back") : null,
-      mounted: source?.mounted?.map((card) => card.id) ?? [],
-      handIds: state.players.player.hand.map((card) => card.id),
-      registryIds: state.players.player.registry.map((card) => card.id),
-      log: state.log.slice(-3).map((entry) => entry.text)
-    };
-  }, uids.source);
+  throw new Error('normal fixture choice did not settle');
 }
-
+async function action(type,id,preference={}) {
+  const query=await read(),card=id && visibleCards(query).find(card => !card.faceDown && card.definition.id===id && card.controllerSeat==='player'
+    && (['attack','redeploy'].includes(type) ? ['front','back'].includes(card.location?.zone) : card.location?.zone==='hand'));
+  const entry=query.legalActions.find(entry => (entry.actionType ?? entry.action?.type)===type
+    && (!id || (entry.base?.cardRef ?? entry.base?.attackerRef ?? entry.action?.cardRef)===card?.cardRef));
+  if(!entry)throw new Error('normal action missing '+type+' '+id);
+  if(card){await click('[data-card-ref="'+card.cardRef+'"]');}
+  await click('[data-action-id="'+entry.actionId+'"]');
+  if(entry.kind==='fixed')return;
+  const selections=[];
+  for(let index=0;index<6;index+=1){
+    const result=await page.evaluate(input => window.__SIMPLE_ZEKE_E2E__.queryAction(input),{expectedRevision:query.status.revision,actionId:entry.actionId,selections});
+    if(!result.ok)throw new Error(JSON.stringify(result));
+    if(result.value.completion){await click('[data-runtime-confirm]');return;}
+    selections.push(await choose(result.value.selectionRequests[0],query,preference));
+  }
+  throw new Error('normal plan did not complete');
+}
+async function fresh(ids) {
+  const target=new URL(url);target.searchParams.set('e2e','1');await page.goto(target.toString(),{waitUntil:'networkidle'});
+  const start=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.start('sandbox','basics',1));
+  if(!start.ok)throw new Error(JSON.stringify(start));
+  for(const id of ids){const result=await page.evaluate(id => window.__SIMPLE_ZEKE_E2E__.sandbox({type:'sandboxAddCard',definitionId:id,targetSeat:'player'}),id);if(!result.ok || result.value.kind!=='accepted')throw new Error(JSON.stringify(result));}
+}
+async function turn() {
+  await action('endTurn');await settle();
+  await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.switchViewer('ai'));
+  const query=await read(),result=await page.evaluate(query => window.__SIMPLE_ZEKE_E2E__.submit({commandId:'pass:'+query.status.revision,expectedRevision:query.status.revision,action:{type:'endTurn'}},'ai'),query);
+  if(!result.ok || result.value.kind!=='accepted')throw new Error(JSON.stringify(result));
+  await settle();await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.switchViewer('player'));
+}
+function top(query,id) {return own(query).front.cards.find(card => !card.faceDown && card.definition.id===id);}
 try {
-  await freshSandbox(["STD-205", "STD-020"]);
-  let uids = await prepareFixture({ sourceId: "STD-205", placements: [{ id: "STD-020", owner: "player", zone: "front" }] });
-  let result = await executeLayered(uids);
-  if (result.sourceZone !== "front" || result.pending || result.mounted.join() !== "STD-020") throw new Error(`area-only layered mismatch: ${JSON.stringify(result)}`);
+  await fresh(['STD-205','STD-205','STD-020']);await action('install','STD-205');await action('executeCard','STD-020');await action('executeLayered','STD-205',{ids:['STD-020']});await settle();
+  let query=await read();if(top(query,'STD-205')?.mounted.map(card => card.definition.id).join()!=='STD-020')throw new Error('area-only layered mismatch');
 
-  await freshSandbox(["STD-238", "STD-020", "STD-001"]);
-  uids = await prepareFixture({
-    sourceId: "STD-238",
-    placements: [
-      { id: "STD-020", owner: "player", zone: "front" },
-      { id: "STD-001", owner: "player", zone: "registry" }
-    ]
-  });
-  result = await executeLayered(uids);
-  if (result.sourceZone !== "front" || result.pending || result.mounted.length !== 2 || result.registryIds.includes("STD-001")) throw new Error(`registry layered mismatch: ${JSON.stringify(result)}`);
+  await fresh(['STD-238','STD-238','STD-020','STD-001']);await action('install','STD-238');await turn();await action('install','STD-001');await action('executeCard','STD-020');
+  await action('executeLayered','STD-238',{ids:['STD-020','STD-001']});await settle();
+  query=await read();if(top(query,'STD-238')?.mounted.length!==2 || own(query).registry.cards.some(card => card.definition.id==='STD-001'))throw new Error('registry layered mismatch');
 
-  await freshSandbox(["SZTB-093", "SZTB-090", "SZTB-091"]);
-  uids = await prepareFixture({
-    sourceId: "SZTB-093",
-    placements: [
-      { id: "SZTB-090", owner: "player", zone: "hand" },
-      { id: "SZTB-091", owner: "player", zone: "back" }
-    ]
-  });
-  result = await executeLayered(uids);
-  if (result.sourceZone !== "front" || result.pending || result.mounted.length !== 2 || result.handIds.includes("SZTB-090")) throw new Error(`hand-area layered mismatch: ${JSON.stringify(result)}`);
+  await fresh(['SZTB-093','SZTB-090','SZTB-091']);await action('executeCard','SZTB-091',{zone:'back'});await action('executeLayered','SZTB-093',{ids:['SZTB-090','SZTB-091']});await settle();
+  query=await read();if(top(query,'SZTB-093')?.mounted.length!==2 || own(query).hand.cards.some(card => card.definition.id==='SZTB-090'))throw new Error('hand-area layered mismatch');
 
-  await freshSandbox(["STD-096", "STD-020", "STD-021", "STD-022"]);
-  uids = await prepareFixture({
-    sourceId: "STD-096",
-    placements: [
-      { id: "STD-020", owner: "player", zone: "hand" },
-      { id: "STD-021", owner: "player", zone: "hand" },
-      { id: "STD-022", owner: "player", zone: "hand" }
-    ]
-  });
-  await page.evaluate(({ sourceUid, layerUids }) => {
-    const fixture = window.__SIMPLE_ZEKE_E2E__;
-    const state = fixture.getState();
-    const player = state.players.player;
-    const source = player.hand.find((card) => card.uid === sourceUid);
-    const layers = layerUids.map((uid) => player.hand.find((card) => card.uid === uid));
-    player.hand = player.hand.filter((card) => card.uid !== sourceUid && !layerUids.includes(card.uid));
-    source.mounted = layers;
-    source.summoningSick = false;
-    source.sleep = false;
-    player.front = [source];
-    fixture.setState(state);
-  }, { sourceUid: uids.source, layerUids: uids.materials });
-  await page.locator(`[data-card-uid="${uids.source}"]`).first().click();
-  await page.locator('[data-action="prepare-attack"]').first().click();
-  await page.locator('[data-fortress="ai"]').click();
-  await page.locator('[data-selection-scope]').selectOption("レイヤー1枚を破棄して起動");
-  await page.locator('[data-action="confirm-selection"]').first().click();
-  const chosenLayerUid = uids.materials[1];
-  await page.locator(`[data-selection-option="${chosenLayerUid}"]`).click();
-  await page.locator('[data-action="confirm-selection"]').first().click();
-  const layerChoice = await page.evaluate(({ sourceUid, chosenLayerUid }) => {
-    const state = window.__SIMPLE_ZEKE_E2E__.getState();
-    const source = state.players.player.front.find((card) => card.uid === sourceUid);
-    return {
-      remaining: source?.mounted.map((card) => card.uid) ?? [],
-      chosenInTrash: state.players.player.trash.some((card) => card.uid === chosenLayerUid),
-      attacked: source?.attackedThisTurn,
-      standby: source ? !source.sleep : false
-    };
-  }, { sourceUid: uids.source, chosenLayerUid });
-  if (layerChoice.remaining.join() !== [uids.materials[0], uids.materials[2]].join() || !layerChoice.chosenInTrash || !layerChoice.attacked || !layerChoice.standby) {
-    throw new Error(`user-selected layer cost mismatch: ${JSON.stringify(layerChoice)}`);
-  }
+  // Real layered prerequisites replace the former impossible raw STD-096 stack.
+  await fresh(['STD-094','STD-096','STD-096','STD-092','STD-075','STD-075']);await action('install','STD-096');
+  await action('executeCard','STD-092');await action('executeCard','STD-075');await action('executeCard','STD-075');
+  await action('executeLayered','STD-094',{ids:['STD-092','STD-075']});await settle();
+  await action('executeLayered','STD-096',{ids:['STD-094','STD-075']});await settle();await turn();
+  query=await read();const layers=top(query,'STD-096').mounted,chosen=layers[1].definition.id;
+  await action('attack','STD-096');await settle({scope:'破棄して起動',ids:[chosen]});
+  query=await read();if(top(query,'STD-096').mounted.length!==layers.length-1 || !own(query).trash.cards.some(card => card.definition.id===chosen) || top(query,'STD-096').status.sleep)throw new Error('user-selected attack layer cost mismatch');
 
-  await freshSandbox(["STD-205", "STD-020", "STD-001"]);
-  uids = await prepareFixture({
-    sourceId: "STD-205",
-    placements: [{ id: "STD-020", owner: "player", zone: "front" }],
-    nested: { hostId: "STD-020", childId: "STD-001" }
-  });
-  result = await executeLayered(uids);
-  if (result.sourceZone !== "front" || result.pending || result.mounted.join() !== "STD-020,STD-001") throw new Error(`nested layered mismatch: ${JSON.stringify(result)}`);
+  // A legal mounted Code preserves a nested subtree when consumed as material.
+  await fresh(['STD-205','STD-205','STD-020','SZTB-091']);await action('install','STD-205');await action('executeCard','STD-020');
+  await action('mountCard','SZTB-091',{ids:['STD-020']});await action('executeLayered','STD-205',{ids:['STD-020']});await settle();
+  query=await read();if(top(query,'STD-205').mounted.map(card => card.definition.id).join()!=='STD-020,SZTB-091')throw new Error('nested layered mismatch');
 
-  await freshSandbox(["STD-205", "STD-020", "STD-020", "STD-020", "STD-020"]);
-  uids = await prepareFixture({
-    sourceId: "STD-205",
-    placements: [
-      { id: "STD-020", owner: "player", zone: "front" },
-      { id: "STD-020", owner: "player", zone: "back", faceDown: true },
-      { id: "STD-020", owner: "player", zone: "trash" },
-      { id: "STD-020", owner: "ai", zone: "front" }
-    ]
-  });
-  await page.locator(`.hand [data-card-uid="${uids.source}"]`).click();
-  await page.locator('[data-action="layered-front"]').first().click();
-  const rejected = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.getState().pending.validTargets);
-  if (rejected.length !== 1 || rejected[0] !== uids.materials[0]) throw new Error(`illegal layered candidates leaked: ${JSON.stringify(rejected)}`);
-
-  if (errors.length) throw new Error(`layered E2E page errors: ${errors.join(" | ")}`);
-  console.log(JSON.stringify({ suite: "layered", areaOnly: true, registry: true, handAndArea: true, userSelectedLayerCost: true, nestedStack: true, illegalCandidatesRejected: true, ok: true }));
-} finally {
-  await browser.close();
-}
+  // All negative surfaces are reached through normal setup/commands.
+  await fresh(['STD-205','STD-205','STD-020','STD-020','STD-184','STD-184']);await action('install','STD-205');await turn();await action('install','STD-184');await action('executeCard','STD-020');await action('executeCard','STD-020',{zone:'back'});await action('setScript','STD-184',{zone:'back'});await settle();
+  query=await read();const entry=query.legalActions.find(entry => entry.actionType==='executeLayered');
+  const first=await page.evaluate(input => window.__SIMPLE_ZEKE_E2E__.queryAction(input),{expectedRevision:query.status.revision,actionId:entry.actionId,selections:[]});
+  const materialRequest=first.value.selectionRequests[0];
+  for(const option of materialRequest.options){const card=visibleCards(query).find(card => card.cardRef===option.cardRef);if(!card || card.faceDown || card.controllerSeat!=='player' || !['front','back'].includes(card.location?.zone))throw new Error('illegal layered candidate leaked');}
+  if(errors.length)throw new Error('layered page errors: '+errors.join(' | '));
+  console.log(JSON.stringify({suite:'layered',areaOnly:true,registry:true,handAndArea:true,userSelectedLayerCost:true,nestedStack:true,illegalCandidatesRejected:true,rawFixtures:false,ok:true}));
+} finally {await browser.close();}

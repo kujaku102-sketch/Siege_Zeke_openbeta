@@ -161,7 +161,31 @@ export function snapshotVisualState(state, previous = null) {
 }
 
 function cardElement(root, uid) {
-  return [...root.querySelectorAll("[data-card-uid]")].find((element) => element.dataset.cardUid === uid) ?? null;
+  return [...root.querySelectorAll("[data-card-ref], [data-card-uid]")].find((element) => (element.dataset.cardRef ?? element.dataset.cardUid) === uid) ?? null;
+}
+
+// Production receives only viewer-safe events and read models. Legacy snapshot
+// helpers above remain available to isolated historical unit tests.
+export function applyRuntimeVisualEvents(root, events, model) {
+  const owners = new Map();
+  const visit = card => { owners.set(card.cardRef,card.controllerSeat); if (!card.faceDown) card.mounted.forEach(visit); };
+  for (const seat of model.seats) {
+    seat.hand.cards?.forEach(visit);
+    for (const zone of ['front','back','registry','trash','ban']) seat[zone].cards.forEach(visit);
+  }
+  const target = value => value ? {...value,playerId:value.seatId,cardUid:value.cardRef} : null;
+  const effects = [];
+  for (const event of events) {
+    if (event.type === 'attack_declared' && event.source?.cardRef) effects.push({type:'attack',uid:event.source.cardRef,playerId:event.actorSeat === model.match.viewerSeat ? 'player' : 'ai'});
+    if (event.type === 'combat_resolved' && event.target?.cardRef) effects.push({type:'hit',uid:event.target.cardRef,amount:event.damage});
+    if (event.type === 'card_damaged' && event.target?.cardRef) effects.push({type:'hit',uid:event.target.cardRef,amount:event.amount});
+    if (event.type === 'user_damaged') effects.push({type:'user-hit',playerId:event.target.seatId,amount:event.amount});
+    if (event.type === 'card_moved' && event.target?.cardRef) effects.push({type:event.to.kind === 'board' ? 'deploy' : 'move',uid:event.target.cardRef});
+    if (event.type === 'user_ability_feedback') effects.push({type:'user-ability',profile:event.abilityKey,abilityKey:event.abilityKey,
+      ownerPlayerId:event.actorSeat,affectedPlayerId:event.affectedSeat,sourceEventId:event.eventId,label:USER_ABILITY_LABELS[event.abilityKey],
+      steps:event.steps.map(step => step.kind === 'transfer' ? {...step,from:target(step.from),to:target(step.to)} : {...step,target:target(step.target)})});
+  }
+  applyVisualEffects(root,{effects,next:{visibleCardOwners:owners}});
 }
 
 export function planVisualEffects(root, previous, state, queuedEffects = []) {

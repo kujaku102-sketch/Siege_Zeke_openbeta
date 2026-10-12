@@ -122,8 +122,9 @@ test('S02-PROJ-01: output uses the exact public envelope and seat shapes', () =>
   const { referenceState } = frameAndRefs(state);
   const result = successful(view(state, referenceState));
   assert.deepEqual(Object.keys(result), ['matchId', 'revision', 'viewerSeat', 'activeSeat', 'turnNumber', 'seats']);
-  assert.deepEqual(Object.keys(result.seats[0]), ['seatId', 'fortressStr', 'memory', 'deck', 'hand', 'front', 'back', 'registry', 'trash', 'ban']);
-  assert.deepEqual(Object.keys(result.seats[0].memory), ['current']);
+  assert.deepEqual(Object.keys(result.seats[0]), ['seatId', 'user', 'fortressStr', 'memory', 'enabledSymbols', 'deck', 'hand', 'front', 'back', 'registry', 'trash', 'ban','incidents','turboActive','abilityStatus']);
+  assert.deepEqual(Object.keys(result.seats[0].user), ['definitionId', 'name', 'abilityKey', 'abilityName', 'abilityText', 'maxFortressStr', 'frontLimit', 'backLimit','incidents']);
+  assert.deepEqual(Object.keys(result.seats[0].memory), ['current', 'max']);
   assert.deepEqual(Object.keys(result.seats[0].deck), ['count']);
   assert.deepEqual(Object.keys(result.seats[1].hand), ['count']);
   assert.deepEqual(Object.keys(result.seats[0].hand), ['count', 'cards']);
@@ -138,12 +139,12 @@ test('S02-PROJ-02: both viewers receive only their own hand definitions and opaq
   const { referenceState } = frameAndRefs(state);
   const a = successful(view(state, referenceState, 'seat-a'));
   const b = successful(view(state, referenceState, 'seat-b'));
-  assert.deepEqual(Object.keys(a.seats[0].hand.cards[0]), ['cardRef', 'definition', 'currentCost']);
+  assert.deepEqual(Object.keys(a.seats[0].hand.cards[0]), ['cardRef', 'ownerSeat', 'controllerSeat', 'location', 'definition', 'faceDown', 'status', 'computed', 'publicCounters', 'mounted']);
   assert.equal(a.seats[0].hand.cards[0].definition.id, own.id);
-  assert.equal(a.seats[0].hand.cards[0].currentCost, executionCost(own, state, 'player'));
+  assert.equal(a.seats[0].hand.cards[0].computed.currentCost, executionCost(own, state, 'player'));
   assert.deepEqual(Object.keys(a.seats[1].hand), ['count']);
   assert.deepEqual(Object.keys(b.seats[0].hand), ['count']);
-  assert.deepEqual(Object.keys(b.seats[1].hand.cards[0]), ['cardRef', 'definition', 'currentCost']);
+  assert.deepEqual(Object.keys(b.seats[1].hand.cards[0]), ['cardRef', 'ownerSeat', 'controllerSeat', 'location', 'definition', 'faceDown', 'status', 'computed', 'publicCounters', 'mounted']);
   assert.equal(b.seats[1].hand.cards[0].definition.id, 'STD-007');
 });
 
@@ -159,7 +160,9 @@ test('S02-PROJ-03: face-up board and zone cards use static definition allowlist 
   assert.equal(publicBoard.definition.id, board.id);
   assert.deepEqual(publicBoard.location, { kind: 'board', seatId: 'seat-a', zone: 'front', position: 2 });
   assert.deepEqual(Object.keys(publicBoard.definition), ['id', 'name', 'category', 'text', 'printedCategory', 'color', 'cost', 'atk', 'str', 'classes']);
-  assert.deepEqual(Object.keys(publicBoard), ['cardRef', 'ownerSeat', 'controllerSeat', 'location', 'definition', 'faceDown', 'publicCounters', 'mounted']);
+  assert.deepEqual(Object.keys(publicBoard), ['cardRef', 'ownerSeat', 'controllerSeat', 'location', 'definition', 'faceDown', 'status', 'computed', 'publicCounters', 'mounted']);
+  assert.deepEqual(Object.keys(publicBoard.status), ['sleep', 'summoningSick', 'damage', 'protect', 'backup', 'load', 'counters','residentActive']);
+  assert.deepEqual(Object.keys(publicBoard.computed), ['currentCost','printedCost','costTrend', 'currentAtk', 'maxStr', 'currentStr', 'badges','components']);
   assert.equal(cardIn(result, 'seat-b', 'registry').definition.id, registry.id);
   assert.deepEqual(cardIn(result, 'seat-b', 'registry').location, { kind: 'zone', seatId: 'seat-b', zone: 'registry' });
   assert.equal(result.seats[0].trash.count, 1);
@@ -263,7 +266,7 @@ test('S02-PROJ-11: face-down own trash still supplies only its name to current-c
   place(state, 'player', 'registry', take(state, 'player', 'STD-007'));
   const { referenceState } = frameAndRefs(state);
   const result = successful(view(state, referenceState, 'seat-a'));
-  assert.equal(result.seats[0].hand.cards[0].currentCost, executionCost(hand, state, 'player'));
+  assert.equal(result.seats[0].hand.cards[0].computed.currentCost, executionCost(hand, state, 'player'));
   assert.equal(result.seats[0].trash.count, 1);
   assert.deepEqual(result.seats[0].trash.cards, []);
 });
@@ -331,4 +334,26 @@ test('S02-PROJ-15: frozen inputs and full session-to-view integration remain rea
   const result = successful(projectRuntimeView(freeze(state), freeze(referenceState), Object.freeze({ matchId: 'projection-match', viewerSeat: 'seat-a', revision: 8 })));
   assert.equal(result.revision, 8);
   assert.equal(result.seats[1].front.cards[0].definition.id, 'STD-007');
+});
+
+test('S05-PROJ-16: viewer projection owns public user, current stats, status, and ability badges', () => {
+  const state = game();
+  const card = place(state, 'player', 'front', take(state, 'player', 'STD-022'), 1);
+  card.permanentAtk = 2;
+  card.damage = 1;
+  card.sleep = true;
+  card.grantedKeywords = ['SECURITY'];
+  const { referenceState } = frameAndRefs(state);
+  const result = successful(view(state, referenceState));
+  const seat = result.seats[0];
+  const projected = seat.front.cards[0];
+  assert.equal(seat.user.definitionId, state.players.player.user.id);
+  assert.equal(seat.user.abilityKey, state.players.player.user.abilityKey);
+  assert.equal(seat.memory.max >= seat.memory.current, true);
+  assert.equal(projected.status.sleep, true);
+  assert.equal(projected.status.damage, 1);
+  assert.equal(projected.computed.currentAtk, Number(card.atk) + 2);
+  assert.equal(projected.computed.currentStr, Number(card.str) - 1);
+  assert.ok(projected.computed.badges.some(item => item.name === 'SECURITY'));
+  assert.equal(JSON.stringify(result).includes(card.uid), false);
 });

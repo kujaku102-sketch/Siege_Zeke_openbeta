@@ -1,7 +1,8 @@
 import { CARD_LIBRARY } from '../../data/cards.js';
 import { executionCost } from '../engine.js';
-import { buildRuntimeIdentityIndex } from './bridge.js';
-import { findRuntimeCardReference } from './references.js';
+import { runtimeReadIdentityIndex } from './read-context.js';
+import { queryRuntimeRead } from './query.js';
+import { createRuntimeReferenceLookup } from './references.js';
 
 const INPUT = 'PROJECTION_INVALID_CONTEXT';
 const STATE = 'PROJECTION_INVALID_STATE';
@@ -11,6 +12,10 @@ const MISSING = Symbol('missing');
 const TOKEN = /^r:[0-9a-f]{32}$/;
 const INSTANCE = /^i:[1-9][0-9]*$/;
 const ZONES = ['deck', 'hand', 'front', 'back', 'registry', 'trash', 'ban'];
+const PUBLIC_KEYWORDS = [
+  'QA', 'SECURITY', 'CONTACT', 'HACKING', 'DISCONNECT', 'ENCRYPTION',
+  'RESIDENT', 'DECOY', 'PROTECT', 'LAYERED', 'LOGIN', 'LOGOUT'
+];
 class ProjectionError extends Error { constructor(code) { super(code); this.code = code; } }
 const reject = code => { throw new ProjectionError(code); };
 
@@ -227,6 +232,47 @@ function definition(id) {
   return result;
 }
 
+function publicUser(player) {
+  const user = own(player, 'user');
+  const result = {};
+  for (const [output, source] of [
+    ['definitionId', 'id'], ['name', 'name'], ['abilityKey', 'abilityKey'],
+    ['abilityName', 'abilityName'], ['abilityText', 'ability']
+  ]) result[output] = text(own(user, source));
+  result.maxFortressStr = finite(own(user, 'maxStr'));
+  result.frontLimit = integer(own(user, 'frontLimit'));
+  result.backLimit = integer(own(user, 'backLimit'));
+  result.incidents = dense(own(user,'incidents')).map(value => finite(value));
+  return result;
+}
+
+function publicDynamics(dynamicsById, entry) {
+  const value = dynamicsById.get(entry.identity.instanceId);
+  if (!value) reject(STATE);
+  const status = {
+    sleep: value.state.sleep, summoningSick: value.state.summoningSick,
+    damage: value.state.damage, protect: value.state.protect,
+    backup: value.state.backup, load: value.state.load,
+    counters: structuredClone(value.state.counters), residentActive: value.state.residentActive
+  };
+  const badges = value.computed.keywords.filter(item => item.enabled)
+    .map(item => ({ name: item.name, value: item.name === 'PROTECT' && status.protect > 0 ? status.protect : null }));
+  if (status.backup > 0) badges.push({ name: 'BACKUP', value: status.backup });
+  if (status.load > 0) badges.push({ name: 'LOAD', value: status.load });
+  return {
+    status,
+    computed: {
+      currentCost: value.computed.executionCost,
+      printedCost: value.definition.cost,
+      costTrend: Math.sign(value.computed.executionCost - Number(value.definition.cost ?? 0)),
+      currentAtk: value.computed.atk,
+      maxStr: value.computed.maxStr,
+      currentStr: value.computed.currentStr,
+      badges, components: structuredClone(value.computed.components)
+    }
+  };
+}
+
 function cardForCost(card) {
   const result = {};
   for (const key of ['id', 'name', 'category']) result[key] = text(own(card, key));
@@ -248,22 +294,7 @@ function cardForCost(card) {
   return result;
 }
 
-function cardRefFor(referenceState, frame, context, card) {
-  const result = findRuntimeCardReference(referenceState, {
-    frame, matchId: context.matchId, viewerSeat: context.viewerSeat, identity: card.identity
-  });
-  if (!result.ok) {
-    if (['REF_MAPPING_MISSING', 'REF_INVALID_REFERENCE'].includes(result.error.code)) reject(NOT_READY);
-    if (result.error.code === 'REF_INVALID_FRAME' || result.error.code === 'REF_INVALID_STATE') reject(STATE);
-    reject(STATE);
-  }
-  if (!result.value || !token(result.value.cardRef)) reject(STATE);
-  return result.value.cardRef;
-}
-
-function safeCurrentCost(engineState, seats, viewerSeat, card) {
-  const viewer = playerId(seats, viewerSeat);
-  const target = cardForCost(card);
+function safeCostView(engineState, seats, viewerSeat) {
   const statePlayers = {};
   const enginePlayers = own(engineState, 'players');
   for (const id of ['player', 'ai']) {
@@ -294,9 +325,7 @@ function safeCurrentCost(engineState, seats, viewerSeat, card) {
     statePlayers[id] = player;
   }
   const turnNumber = integer(own(engineState, 'turnNumber'), true);
-  const value = executionCost(target, { turnNumber, players: statePlayers }, viewer);
-  finite(value);
-  return value;
+  return { turnNumber, players: statePlayers };
 }
 
 function copyPublicLocation(entry, refForIdentity) {
@@ -310,7 +339,7 @@ function copyPublicLocation(entry, refForIdentity) {
   reject(STATE);
 }
 
-function cardValue(engineState, referenceState, context, frame, entry, card, refForIdentity) {
+function cardValue(engineState, referenceState, context, frame, entry, card, refForIdentity, dynamicsById) {
   const cardRef = refForIdentity(entry.identity.instanceId);
   const mounted = [];
   const children = frame.cards.filter(child => child.location.kind === 'mounted'
@@ -321,13 +350,15 @@ function cardValue(engineState, referenceState, context, frame, entry, card, ref
     if (child.faceDown) continue;
     const physical = resolvePhysical(engineState, entryMap,
       { identity: child.identity, location: child.location }, frame.seatIds);
-    const value = cardValue(engineState, referenceState, context, frame, child, physical, refForIdentity);
+    const value = cardValue(engineState, referenceState, context, frame, child, physical, refForIdentity, dynamicsById);
     mounted.push(value);
   }
+  const dynamics = publicDynamics(dynamicsById, entry);
   return {
     cardRef, ownerSeat: entry.ownerSeat, controllerSeat: entry.controllerSeat,
     location: copyPublicLocation(entry, refForIdentity), definition: definition(own(card, 'id')),
-    faceDown: false, publicCounters: {}, mounted
+    faceDown: false, status: dynamics.status, computed: dynamics.computed,
+    publicCounters: structuredClone(dynamics.status.counters), mounted
   };
 }
 
@@ -346,7 +377,7 @@ function envelope(action) {
   }
 }
 
-export function projectRuntimeView(engineState, referenceState, contextInput) {
+export function projectRuntimeView(engineState, referenceState, contextInput, readContext = null) {
   return envelope(() => {
     const context = contextData(contextInput);
     ordinary(engineState);
@@ -360,23 +391,36 @@ export function projectRuntimeView(engineState, referenceState, contextInput) {
       || seats.some((seat, index) => seat !== referenceMeta.seatIds[index])
       || !seats.includes(context.viewerSeat)) reject(SCOPE);
 
-    const built = buildRuntimeIdentityIndex(engineState);
+    const built = runtimeReadIdentityIndex(engineState, readContext);
     if (!built.ok) reject(STATE);
     if (built.value.matchId !== context.matchId) reject(STATE);
     const frame = frameFor(engineState, built, seats);
     const references = mapReferenceScope(referenceState, frame);
+    const referenceLookup = createRuntimeReferenceLookup(references, frame, context.viewerSeat);
+    if (!referenceLookup.ok) reject(STATE);
     const byId = new Map(frame.cards.map(card => [card.identity.instanceId, card]));
     const entries = new Map(built.value.entries.map(entry => [entry.identity.instanceId, entry]));
+    const visibleIdentities = references.entries
+      .filter(row => row.viewerSeat === context.viewerSeat && !byId.get(row.identity.instanceId)?.faceDown)
+      .map(row => ({ ...row.identity }));
+    const dynamicBatch = queryRuntimeRead(engineState, {
+      identities: visibleIdentities, keywordNames: [...PUBLIC_KEYWORDS]
+    }, readContext);
+    if (!dynamicBatch.ok) reject(STATE);
+    const dynamicsById = new Map(dynamicBatch.value.cards.map(value => [value.identity.instanceId, value]));
     const cardRefs = new Map();
     const refForIdentity = instanceId => {
       if (cardRefs.has(instanceId)) return cardRefs.get(instanceId);
       const frameCard = byId.get(instanceId);
       if (!frameCard) reject(STATE);
-      const value = cardRefFor(references, frame, context, frameCard);
+      const value = referenceLookup.value.find(frameCard.identity);
+      if (!value) reject(NOT_READY);
       cardRefs.set(instanceId, value);
       return value;
     };
     const statePlayers = own(engineState, 'players');
+    const costView = safeCostView(engineState, seats, context.viewerSeat);
+    const viewer = playerId(seats, context.viewerSeat);
     const active = own(engineState, 'active');
     if (!['player', 'ai'].includes(active)) reject(STATE);
     const turnNumber = integer(own(engineState, 'turnNumber'), true);
@@ -385,15 +429,21 @@ export function projectRuntimeView(engineState, referenceState, contextInput) {
       const seat = seats[seatIndex];
       const id = seatIndex === 0 ? 'player' : 'ai';
       const player = own(statePlayers, id);
+      const seatSummary = dynamicBatch.value.seats.find(value => value.seatId === seat);
+      if (!seatSummary) reject(STATE);
       const zones = Object.fromEntries(ZONES.map(zone => [zone, dense(own(player, zone))]));
       const handOwn = seat === context.viewerSeat;
       const hand = handOwn ? {
         count: zones.hand.length,
-        cards: zones.hand.map(card => ({
-          cardRef: refForIdentity(readIdentity(card).instanceId),
-          definition: definition(own(card, 'id')),
-          currentCost: safeCurrentCost(engineState, seats, context.viewerSeat, card)
-        }))
+        cards: zones.hand.map(card => {
+          const identity = readIdentity(card);
+          const entry = entries.get(identity.instanceId);
+          if (!entry || entry.location.kind !== 'zone' || entry.location.zone !== 'hand'
+            || entry.location.seatId !== seat) reject(STATE);
+          const value = cardValue(engineState, references, context, frame, entry, card, refForIdentity, dynamicsById);
+          if (value.computed.currentCost !== finite(executionCost(cardForCost(card), costView, viewer))) reject(STATE);
+          return value;
+        })
       } : { count: zones.hand.length };
       const boardCards = zone => {
         const roots = frame.cards.filter(card => card.location.kind === 'board' && card.location.seatId === seat && card.location.zone === zone);
@@ -404,7 +454,7 @@ export function projectRuntimeView(engineState, referenceState, contextInput) {
             area: zone, slot: entry.location.position, faceDown: true, placementOrder: null, publicCounters: {}
           };
           const physical = resolvePhysical(engineState, entries, entries.get(entry.identity.instanceId), seats);
-          return cardValue(engineState, references, context, frame, entry, physical, refForIdentity);
+          return cardValue(engineState, references, context, frame, entry, physical, refForIdentity, dynamicsById);
         });
       };
       const faceUpZoneCards = zone => zones[zone].flatMap(card => {
@@ -414,21 +464,47 @@ export function projectRuntimeView(engineState, referenceState, contextInput) {
         const identity = readIdentity(card);
         const entry = entries.get(identity.instanceId);
         if (!entry || entry.location.kind !== 'zone' || entry.location.seatId !== seat || entry.location.zone !== zone) reject(STATE);
-        return [cardValue(engineState, references, context, frame, entry, card, refForIdentity)];
+        return [cardValue(engineState, references, context, frame, entry, card, refForIdentity, dynamicsById)];
       });
-      const fortress = finite(own(player, 'fortressStr'));
-      const memory = finite(own(player, 'memory'));
       outputSeats.push({
-        seatId: seat, fortressStr: fortress, memory: { current: memory }, deck: { count: zones.deck.length }, hand,
+        seatId: seat, user: publicUser(player), fortressStr: seatSummary.fortressStr,
+        memory: { ...seatSummary.memory }, enabledSymbols: [...seatSummary.enabledSymbols],
+        deck: { count: zones.deck.length }, hand,
         front: { cards: boardCards('front') }, back: { cards: boardCards('back') },
         registry: { count: zones.registry.length, cards: faceUpZoneCards('registry') },
         trash: { count: zones.trash.length, cards: faceUpZoneCards('trash') },
-        ban: { count: zones.ban.length, cards: faceUpZoneCards('ban') }
+        ban: { count: zones.ban.length, cards: faceUpZoneCards('ban') },
+        incidents: dense(own(player,'incidentsTriggered')).map(value => finite(value)),
+        turboActive: own(player,'turboActive',true) === true,
+        abilityStatus: {turboUsed:own(player,'turboUsed') === true,mulligansUsed:integer(own(player,'mulligansUsed')),
+          backup:own(player,'backup',true) === MISSING ? 0 : integer(own(player,'backup')),
+          protect:own(player,'protect',true) === MISSING ? 0 : integer(own(player,'protect'))}
       });
     }
     return {
       matchId: context.matchId, revision: context.revision, viewerSeat: context.viewerSeat,
       activeSeat: seats[active === 'player' ? 0 : 1], turnNumber, seats: outputSeats
     };
+  });
+}
+
+export function inspectRuntimeCard(engineState,referenceState,contextInput,cardRef,readContext = null) {
+  return envelope(() => {
+    if (!token(cardRef)) reject(INPUT);
+    const context = contextData(contextInput), built = runtimeReadIdentityIndex(engineState,readContext);
+    if (!built.ok) reject(STATE);
+    const seats = seatIds(own(own(engineState,'runtimeContext'),'seatIds'));
+    if (built.value.matchId !== context.matchId || !seats.includes(context.viewerSeat)) reject(SCOPE);
+    const frame = frameFor(engineState,built,seats), references = mapReferenceScope(referenceState,frame);
+    const lookup = createRuntimeReferenceLookup(references,frame,context.viewerSeat);
+    if (!lookup.ok) reject(STATE);
+    const identity = lookup.value.lookup(cardRef);
+    const entry = identity && built.value.entries.find(item => item.identity.instanceId === identity.instanceId);
+    if (!entry || entry.controllerSeat !== context.viewerSeat || entry.location.kind === 'inflight') reject(SCOPE);
+    const read = queryRuntimeRead(engineState,{identities:[identity],keywordNames:[...PUBLIC_KEYWORDS]},readContext);
+    if (!read.ok) reject(STATE);
+    const value = read.value.cards[0], dynamics = publicDynamics(new Map([[identity.instanceId,value]]),entry);
+    return {matchId:context.matchId,revision:context.revision,viewerSeat:context.viewerSeat,cardRef,
+      definition:structuredClone(value.definition),status:dynamics.status,computed:dynamics.computed};
   });
 }
