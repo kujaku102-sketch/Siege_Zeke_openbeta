@@ -149,20 +149,27 @@ async function runNormalVictory({page,base,browser}) {
   const scope=()=>page.evaluate(()=>window.__SIMPLE_ZEKE_E2E__.scope());
   const hitControl=async selector=>{
     const nodes=page.locator(selector);
+    await page.waitForFunction(selector=>[...document.querySelectorAll(selector)].some(node=>{
+      const rect=node.getBoundingClientRect(),style=getComputedStyle(node);
+      return rect.width>0&&rect.height>0&&style.visibility!=='hidden'&&style.display!=='none';
+    }),selector,{timeout:2000});
+    const diagnostics=[];
     for(let index=0;index<await nodes.count();index+=1){
       const control=nodes.nth(index);if(!await control.isVisible())continue;
       await control.scrollIntoViewIfNeeded();
+      await control.focus();
       const hit=await control.evaluate((node,selector)=>{
         const rect=node.getBoundingClientRect(),enabled=!node.matches(':disabled')&&!node.closest('[inert]')&&rect.width>0&&rect.height>0
           &&rect.left>=0&&rect.top>=0&&rect.right<=innerWidth&&rect.bottom<=innerHeight;
         const points=[[.5,.5],[.5,.18],[.2,.18],[.8,.18],[.18,.5],[.82,.5],[.5,.82],[.2,.82],[.8,.82]]
           .map(([rx,ry])=>({x:rect.left+rect.width*rx,y:rect.top+rect.height*ry}));
         const point=enabled?points.find(({x,y})=>document.elementFromPoint(x,y)?.closest(selector)===node):null;
-        return {x:point?.x??0,y:point?.y??0,valid:Boolean(point)};
+        return {x:point?.x??0,y:point?.y??0,valid:Boolean(point),rect:{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,height:rect.height},tops:points.map(({x,y})=>document.elementFromPoint(x,y)?.outerHTML?.slice(0,160)??null)};
       },selector);
       if(hit.valid)return {control,x:hit.x,y:hit.y};
+      diagnostics.push(hit);
     }
-    throw new Error('enabled center-reachable victory control unavailable '+selector);
+  throw new Error('enabled reachable victory control unavailable '+selector+' '+JSON.stringify(diagnostics));
   };
   const visibleClick=async selector=>{
     const {x,y}=await hitControl(selector);
@@ -252,7 +259,14 @@ async function runNormalVictory({page,base,browser}) {
     const entry=query.legalActions.find(item=>(item.actionType??item.action?.type)===type&&(item.base?.cardRef??item.action?.cardRef)===ref);
     if(!entry)throw new Error('victory normal legal action unavailable '+type);
     const card=shownCards(query).find(card=>card.cardRef===ref);if(!card)throw new Error('victory source is not visible');
-    await visibleClick('[data-card-ref="'+ref+'"]');await visibleClick('[data-action-id="'+entry.actionId+'"]');
+    const source='[data-card-ref="'+ref+'"]';
+    await page.locator(source).first().waitFor({state:'attached',timeout:2000});
+    const sourceVisible=await page.locator(source).evaluateAll(nodes=>nodes.some(node=>{
+      const rect=node.getBoundingClientRect(),style=getComputedStyle(node);
+      return rect.width>0&&rect.height>0&&style.visibility!=='hidden'&&style.display!=='none';
+    }));
+    if(card.location?.zone==='hand'&&!sourceVisible)await visibleClick('[data-runtime-hand]');
+    await visibleClick(source);await visibleClick('[data-action-id="'+entry.actionId+'"]');
     if(entry.kind==='fixed')return;
     const selections=[];
     while(true){
@@ -267,6 +281,7 @@ async function runNormalVictory({page,base,browser}) {
   };
   const fresh=async ()=>{
     await page.goto(target.toString(),{waitUntil:'networkidle'});
+    await page.waitForFunction(()=>document.body.classList.contains('boot-done')&&!document.querySelector('#boot-splash'),null,{timeout:10000});
     const result=await page.evaluate(()=>window.__SIMPLE_ZEKE_E2E__.start('sandbox','basics',1));
     if(!result?.ok)throw new Error(JSON.stringify(result));
     let query=await readQuery();
@@ -281,13 +296,19 @@ async function runNormalVictory({page,base,browser}) {
   };
   const assertNotFinal=async gun=>{
     const query=await readQuery();
-    if(query.status.lockedOutcome!==null||query.status.finished||side(query,'player').trash.cards.some(card=>card.cardRef===gun)||await page.locator('.r2-result').count())throw new Error('fatal source finalized before optional declaration');
+    if(query.status.lockedOutcome!==null||query.status.finished||await page.locator('.r2-result').count())throw new Error('fatal result finalized before optional declaration');
     return query;
   };
-  const assertFinished=async (gun,responseId=null)=>{
+  const cleanupSnapshot=query=>({
+    trash:side(query,'player').trash.cards.filter(card=>!card.faceDown&&card.definition.id==='STD-015').length,
+    ban:side(query,'player').ban.cards.filter(card=>!card.faceDown&&card.definition.id==='STD-015').length
+  });
+  const assertFinished=async (gun,responseId=null,beforeCleanup=null)=>{
     await settle();const query=await readQuery();
     if(!query.status.finished||query.status.lockedOutcome?.kind!=='win'||query.status.lockedOutcome.winnerSeat!=='player'||!await page.locator('.r2-result').count())throw new Error('normal victory not finished or modal missing');
-    if(!side(query,'player').trash.cards.some(card=>card.cardRef===gun)||side(query,'player').ban.cards.some(card=>card.cardRef===gun))throw new Error('fatal source cleanup is not trash');
+    const afterCleanup=cleanupSnapshot(query);
+    if(beforeCleanup ? afterCleanup.trash!==beforeCleanup.trash+1||afterCleanup.ban!==beforeCleanup.ban
+      : !side(query,'player').trash.cards.some(card=>card.cardRef===gun)||side(query,'player').ban.cards.some(card=>card.cardRef===gun))throw new Error('fatal source cleanup is not trash');
     if(responseId&&!side(query,'ai').trash.cards.some(card=>!card.faceDown&&card.definition.id===responseId))throw new Error('declared response cleanup missing');
     return query;
   };
@@ -299,34 +320,37 @@ async function runNormalVictory({page,base,browser}) {
 
   await fresh();await setActive('ai');const script=await add('STD-003','ai');
   await play('executeCard',script,'ai',option=>option.zone==='back');await setActive('player');
-  gun=await add('STD-015');await play('executeSpell',gun);query=await assertNotFinal(gun);
-  if(query.requiredInput?.presentationKey!=='script-activation'||query.requiredInput.actorSeat!=='ai')throw new Error('normal STD-003 activation window missing');
+  gun=await add('STD-015');const scriptCleanup=cleanupSnapshot(await readQuery());await play('executeSpell',gun);query=await assertNotFinal(gun);
+  if(query.requiredInput?.kind!=='waiting'||query.requiredInput.actorSeat!=='ai'||query.requiredInput.canAnswer!==false)throw new Error('normal STD-003 waiting boundary missing');
   let routeCount=waitingRoutes.length;
   await viewer('ai');query=await readQuery('ai');const activation=option=>option.kind==='value'&&option.label==='起動';
+  if(query.requiredInput?.presentationKey!=='script-activation'||query.requiredInput.actorSeat!=='ai')throw new Error('normal STD-003 activation window missing');
   if(waitingRoutes.length!==routeCount+1||waitingRoutes.at(-1).pointer!=='mouse')throw new Error('STD-003 did not use real desktop waiting menu');
   await explicitRegression(query,activation);const scriptRevision=query.status.revision;
   await answer(query,activation);
   if((await readQuery('ai')).status.revision<=scriptRevision)throw new Error('STD-003 declaration did not advance revision');
-  await assertFinished(gun);
+  await assertFinished(gun,null,scriptCleanup);
   query=await readQuery();if(side(query,'ai').back.cards.some(card=>card.cardRef===script)||!side(query,'ai').trash.cards.some(card=>card.definition.id==='STD-003'))throw new Error('STD-003 cleanup missing');
 
-  await fresh();const response15=await add('STD-015','ai');gun=await add('STD-015');await play('executeSpell',gun);query=await assertNotFinal(gun);
-  if(query.requiredInput?.presentationKey!=='response-window'||query.requiredInput.actorSeat!=='ai')throw new Error('normal STD-015 response window missing');
+  await fresh();const response15=await add('STD-015','ai');gun=await add('STD-015');const response15Cleanup=cleanupSnapshot(await readQuery());await play('executeSpell',gun);query=await assertNotFinal(gun);
+  if(query.requiredInput?.kind!=='waiting'||query.requiredInput.actorSeat!=='ai'||query.requiredInput.canAnswer!==false)throw new Error('normal STD-015 waiting boundary missing');
   routeCount=waitingRoutes.length;await viewer('ai');query=await readQuery('ai');
+  if(query.requiredInput?.presentationKey!=='response-window'||query.requiredInput.actorSeat!=='ai')throw new Error('normal STD-015 response window missing');
   if(waitingRoutes.length!==routeCount+1||waitingRoutes.at(-1).pointer!=='mouse')throw new Error('STD-015 did not use real desktop waiting menu');
   const response15Predicate=option=>option.cardRef===response15;
   await explicitRegression(query,response15Predicate);const response15Revision=query.status.revision;
   await answer(query,response15Predicate);
   if((await readQuery('ai')).status.revision<=response15Revision)throw new Error('STD-015 declaration did not advance revision');
-  await assertFinished(gun,'STD-015');
+  await assertFinished(gun,'STD-015',response15Cleanup);
 
   page=await browser.newPage({viewport:{width:844,height:390},hasTouch:true,isMobile:true});touch=true;
   page.on('pageerror',error=>errors.push(error.message));target=new URL('mobile/',base);target.searchParams.set('e2e','1');
   await fresh();await setActive('ai');const purple=await add('STD-191','ai');
   await play('install',purple,'ai');const response207=await add('STD-207','ai');await setActive('player');
-  const lockedSource=await add('SZTB-091');gun=await add('STD-015');await play('executeSpell',gun);query=await assertNotFinal(gun);
-  if(query.requiredInput?.presentationKey!=='response-window'||query.requiredInput.actorSeat!=='ai')throw new Error('normal STD-207 response window missing');
+  const lockedSource=await add('SZTB-091');gun=await add('STD-015');const response207Cleanup=cleanupSnapshot(await readQuery());await play('executeSpell',gun);query=await assertNotFinal(gun);
+  if(query.requiredInput?.kind!=='waiting'||query.requiredInput.actorSeat!=='ai'||query.requiredInput.canAnswer!==false)throw new Error('normal STD-207 waiting boundary missing');
   routeCount=waitingRoutes.length;await viewer('ai');query=await readQuery('ai');
+  if(query.requiredInput?.presentationKey!=='response-window'||query.requiredInput.actorSeat!=='ai')throw new Error('normal STD-207 response window missing');
   if(waitingRoutes.length!==routeCount+1||waitingRoutes.at(-1).pointer!=='touch')throw new Error('STD-207 did not use real mobile waiting menu');
   const response207Predicate=option=>option.cardRef===response207;
   await explicitRegression(query,response207Predicate);const response207Revision=query.status.revision;
@@ -334,13 +358,13 @@ async function runNormalVictory({page,base,browser}) {
   if((await readQuery('ai')).status.revision<=response207Revision)throw new Error('STD-207 declaration did not advance revision');
   query=await readQuery('ai');
   if(query.status.progress!=='resultLocked'||query.status.finished||query.status.lockedOutcome?.winnerSeat!=='player'
-    ||!query.requiredInput?.canAnswer||query.requiredInput.actorSeat!=='ai'||!side(query,'player').trash.cards.some(card=>card.cardRef===gun)
+    ||!query.requiredInput?.canAnswer||query.requiredInput.actorSeat!=='ai'||cleanupSnapshot(query).trash!==response207Cleanup.trash+1||cleanupSnapshot(query).ban!==response207Cleanup.ban
     ||await page.locator('.r2-result').count())throw new Error('real STD-207 reveal did not preserve locked-not-finished boundary');
   const lockRevision=query.status.revision;
   const lockedDenied=await page.evaluate(input=>window.__SIMPLE_ZEKE_E2E__.submit(input,'player'),{
     commandId:'locked-play',expectedRevision:lockRevision,action:{type:'executeCard',cardRef:lockedSource,destination:{zone:'front',slot:1}}});
   if(lockedDenied?.ok&&lockedDenied.value.kind==='accepted'||(await readQuery('ai')).status.revision!==lockRevision)throw new Error('resultLocked new play changed match');
-  await answer(await readQuery('ai'));await assertFinished(gun,'STD-207');
+  await answer(await readQuery('ai'));await assertFinished(gun,'STD-207',response207Cleanup);
   if(errors.length)throw new Error('victory page errors '+errors.join(' | '));
   console.log(JSON.stringify({suite:'public-victory',single:true,script003:true,response015:true,realResultLocked207:true,
     normalDomAndSafeReads:true,explicitOptionalRegression:true,waitingMouse:waitingRoutes.filter(route=>route.pointer==='mouse').length,

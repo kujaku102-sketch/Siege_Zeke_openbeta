@@ -692,7 +692,8 @@ body { background:radial-gradient(ellipse at 50% 8%,rgba(255,255,255,.055),trans
 .runtime-selection-card > img { width:100%; min-height:0; flex:1; object-fit:cover; }
 .runtime-selection-card > strong { font-size:12px; }
 .runtime-selection-reopen { position:fixed; left:50%; bottom:8%; z-index:var(--z-modal); }
-.r2-runtime-view .effect-modal > nav { display:flex; gap:8px; padding:8px; background:#101820; }
+.r2-runtime-view .effect-modal > .effect-dialog { position:relative; z-index:1; min-height:0; max-height:calc(100vh - 96px); overflow:auto; }
+.r2-runtime-view .effect-modal > nav { position:relative; z-index:2; display:flex; gap:8px; padding:8px; background:#101820; }
 .r2-runtime-view .r2-log { position:fixed; z-index:var(--z-modal); inset:8% 25%; padding:16px; background:#101820; border:1px solid #69e8ff; display:flex; flex-direction:column; }
 .r2-runtime-view .r2-log > header { display:flex; justify-content:space-between; }
 .r2-runtime-view .r2-log-scroll { overflow:auto; }
