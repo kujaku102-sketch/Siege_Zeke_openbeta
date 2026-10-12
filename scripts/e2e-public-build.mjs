@@ -153,10 +153,12 @@ async function runNormalVictory({page,base,browser}) {
       const control=nodes.nth(index);if(!await control.isVisible())continue;
       await control.scrollIntoViewIfNeeded();
       const hit=await control.evaluate((node,selector)=>{
-        const rect=node.getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
-        return {x,y,valid:!node.matches(':disabled')&&!node.closest('[inert]')&&rect.width>0&&rect.height>0
-          &&rect.left>=0&&rect.top>=0&&rect.right<=innerWidth&&rect.bottom<=innerHeight
-          &&document.elementFromPoint(x,y)?.closest(selector)===node};
+        const rect=node.getBoundingClientRect(),enabled=!node.matches(':disabled')&&!node.closest('[inert]')&&rect.width>0&&rect.height>0
+          &&rect.left>=0&&rect.top>=0&&rect.right<=innerWidth&&rect.bottom<=innerHeight;
+        const points=[[.5,.5],[.5,.18],[.2,.18],[.8,.18],[.18,.5],[.82,.5],[.5,.82],[.2,.82],[.8,.82]]
+          .map(([rx,ry])=>({x:rect.left+rect.width*rx,y:rect.top+rect.height*ry}));
+        const point=enabled?points.find(({x,y})=>document.elementFromPoint(x,y)?.closest(selector)===node):null;
+        return {x:point?.x??0,y:point?.y??0,valid:Boolean(point)};
       },selector);
       if(hit.valid)return {control,x:hit.x,y:hit.y};
     }
