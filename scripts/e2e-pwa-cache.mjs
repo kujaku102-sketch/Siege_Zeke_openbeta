@@ -84,7 +84,8 @@ try {
   }
 
   await clickEntryControl(page, '[data-mode="sandbox"]');
-  await page.locator('[data-live="catalog"]').click();
+  await page.locator('[data-runtime-menu]').click();
+  await page.locator('[data-catalog-open]').click();
   await page.locator('[data-catalog-card="STD-075"]').click();
   const cardArtUrl = await page.locator('img[src*="STD-075-"]').first().getAttribute("src");
   if (!cardArtUrl) throw new Error("STD-075 card art did not render");

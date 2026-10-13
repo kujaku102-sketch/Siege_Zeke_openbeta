@@ -126,7 +126,7 @@ root.addEventListener('click',event => {
   else if (button.hasAttribute('data-toggle-effects')) {host.effectsEnabled = !host.effectsEnabled;localStorage.setItem('sz-ui-effects',host.effectsEnabled ? 'on' : 'off');surface?.configure({effectsEnabled:host.effectsEnabled});}
   else if (d.volume) {host.masterVolume = Number(d.volume);localStorage.setItem('sz-master-volume',String(host.masterVolume));}
   else if (button.hasAttribute('data-logo-video-clear')) {entryLogoVideoFile = null;host.logoVideoName = '';}
-  else if (button.hasAttribute('data-catalog-open')) host.catalogOpen = true;
+  else if (button.hasAttribute('data-catalog-open')) {host.catalogOpen = true;host.options = false;}
   else if (d.catalogCard) return admin({type:'sandboxAddCard',definitionId:d.catalogCard,targetSeat:host.catalog.catalogOwner});
   else return;
   renderShell();

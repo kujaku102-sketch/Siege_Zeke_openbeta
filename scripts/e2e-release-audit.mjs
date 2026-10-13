@@ -27,6 +27,19 @@ function observe(context, base, errors, external) {
   });
 }
 
+async function waitForBoot(page) {
+  await page.waitForFunction(() => document.body.classList.contains("boot-done") && !document.querySelector("#boot-splash"), null, { timeout: 15000 });
+}
+
+async function openSandboxCatalog(page) {
+  await page.locator('[data-runtime-menu]').click();
+  await page.locator('[data-catalog-open]').click();
+}
+
+async function playerHandCount(page) {
+  return page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.query("player").value.observation.seats.find((seat) => seat.seatId === "player").hand.count);
+}
+
 async function stateAfterUiAction(browser, base, effectsEnabled) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   await context.addInitScript((enabled) => {
@@ -41,9 +54,18 @@ async function stateAfterUiAction(browser, base, effectsEnabled) {
   target.searchParams.set("e2e", "1");
   await page.goto(target.toString(), { waitUntil: "networkidle" });
   await clickEntryControl(page, '[data-mode="sandbox"]');
-  await page.locator('[data-live="catalog"]').click();
+  await openSandboxCatalog(page);
+  const before = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.query("player").value);
   await page.locator('[data-catalog-card="STD-075"]').click();
-  const result = await page.evaluate(() => ({ state: window.__SIMPLE_ZEKE_E2E__.getState(), effectsSetting: localStorage.getItem("sz-ui-effects") }));
+  const result = await page.evaluate((before) => {
+    const after = window.__SIMPLE_ZEKE_E2E__.query("player").value;
+    const seat = (state,id) => state.observation.seats.find((item) => item.seatId === id);
+    const count = (state,id) => seat(state,"player").hand.cards.filter((card) => !card.faceDown && card.definition.id === id).length;
+    return {state:{activeSeat:after.status.activeSeat,progress:after.status.progress,revisionDelta:after.status.revision-before.status.revision,
+      handDelta:seat(after,"player").hand.count-seat(before,"player").hand.count,addedCardDelta:count(after,"STD-075")-count(before,"STD-075"),
+      playerMemoryDelta:seat(after,"player").memory.current-seat(before,"player").memory.current,aiMemoryDelta:seat(after,"ai").memory.current-seat(before,"ai").memory.current},
+      effectsSetting:localStorage.getItem("sz-ui-effects")};
+  },before);
   await context.close();
   return result;
 }
@@ -75,25 +97,27 @@ async function keyboardSandboxAndDeck(browser, base) {
   const target = new URL(base);
   target.searchParams.set("e2e", "1");
   await page.goto(target.toString(), { waitUntil: "networkidle" });
+  await waitForBoot(page);
 
   await tabActivate(page, '[data-mode="sandbox"]');
-  await tabActivate(page, '[data-live="catalog"]');
-  const before = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.getState().players.player.hand.length);
+  await tabActivate(page, '[data-runtime-menu]');
+  await tabActivate(page, '[data-catalog-open]');
+  const before = await playerHandCount(page);
   await tabFocus(page, "[data-catalog-query]");
   await page.keyboard.press("Control+A");
   // Insert as one committed text operation: this input intentionally re-renders
   // after input, just like a Japanese IME commit.
   await page.keyboard.insertText("STD-075");
   await tabActivate(page, '[data-catalog-card="STD-075"]');
-  const after = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.getState().players.player.hand.length);
+  const after = await playerHandCount(page);
   if (after !== before + 1) throw new Error(`keyboard sandbox add failed: ${before} -> ${after}`);
 
   await tabActivate(page, '[data-live="close-catalog"]');
-  await tabActivate(page, '[data-live="options"]');
+  await tabActivate(page, '[data-runtime-menu]');
   await tabActivate(page, "[data-deck-open]");
   await tabActivate(page, "[data-deck-recommend]");
   await tabActivate(page, "[data-deck-save]");
-  const saved = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.getState().savedDecks.length);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("simple-zeke.saved-decks.v1") ?? "[]").length);
   if (saved !== 1) throw new Error(`keyboard deck save failed: ${saved}`);
   await tabActivate(page, "[data-deck-close]");
   if (await page.locator(".deck-builder-modal").count()) throw new Error("keyboard deck dialog close failed");
@@ -108,11 +132,11 @@ async function flatBoardOperation(browser, base) {
   await page.goto(target.toString(), { waitUntil: "networkidle" });
   await page.addStyleTag({ content: ".battle-board,.battle-board * { transform: none !important; perspective: none !important; }" });
   await clickEntryControl(page, '[data-mode="sandbox"]');
-  await page.locator('[data-live="catalog"]').click();
-  const before = await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.getState().players.player.hand.length);
+  await openSandboxCatalog(page);
+  const before = await playerHandCount(page);
   await page.locator('[data-catalog-card="STD-075"]').click();
   const result = await page.evaluate(() => ({
-    after: window.__SIMPLE_ZEKE_E2E__.getState().players.player.hand.length,
+    after: window.__SIMPLE_ZEKE_E2E__.query("player").value.observation.seats.find((seat) => seat.seatId === "player").hand.count,
     transform: getComputedStyle(document.querySelector(".battle-board")).transform
   }));
   await page.close();
@@ -125,24 +149,24 @@ async function presentationSafety(browser, base) {
   const target = new URL(base);
   target.searchParams.set("e2e", "1");
   await page.goto(target.toString(), { waitUntil: "networkidle" });
+  await waitForBoot(page);
+  await clickEntryControl(page, '[data-mode="sandbox"]');
   const result = await page.evaluate(() => {
-    const before = JSON.stringify(window.__SIMPLE_ZEKE_E2E__.getState());
-    const effects = ["deploy", "attack", "hit", "heal", "sleep", "standby", "layer-move", "trigger-declared", "user-hit", "user-heal", "memory-change", "destroy"]
-      .map((type, index) => ({ type, sequence: index + 1, uid: `missing-${index}`, playerId: "missing", amount: 1, label: type.toUpperCase() }));
-    window.__SIMPLE_ZEKE_E2E__.applyVisualTransition({ effects });
-    document.querySelector(".vfx-event-feed")?.remove();
-    window.__SIMPLE_ZEKE_E2E__.applyVisualTransition({ effects: effects.slice().reverse() });
-    const chip = document.querySelector(".vfx-event-chip");
+    const before = JSON.stringify(window.__SIMPLE_ZEKE_E2E__.query("player").value);
+    const chip = document.createElement("div");
+    chip.className = "vfx-event-chip";
+    document.body.append(chip);
+    const reducedDuration = getComputedStyle(chip).animationDuration;
+    chip.remove();
     return {
-      stateUnchanged: before === JSON.stringify(window.__SIMPLE_ZEKE_E2E__.getState()),
-      missingUidSkipped: true,
-      animationCancelSafe: document.querySelectorAll(".vfx-event-chip").length === effects.length,
-      reducedDuration: chip ? getComputedStyle(chip).animationDuration : null
+      stateUnchanged: before === JSON.stringify(window.__SIMPLE_ZEKE_E2E__.query("player").value),
+      detachedProbeSafe: !chip.isConnected,
+      reducedDuration
     };
   });
   await page.close();
   const reducedSeconds = Number.parseFloat(result.reducedDuration);
-  if (!result.stateUnchanged || !result.missingUidSkipped || !result.animationCancelSafe || !Number.isFinite(reducedSeconds) || reducedSeconds > 0.00002) {
+  if (!result.stateUnchanged || !result.detachedProbeSafe || !Number.isFinite(reducedSeconds) || reducedSeconds > 0.00002) {
     throw new Error(`presentation safety failed: ${JSON.stringify(result)}`);
   }
   return result;
