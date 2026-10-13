@@ -677,7 +677,7 @@ body { background:radial-gradient(ellipse at 50% 8%,rgba(255,255,255,.055),trans
 .controls button[data-action="undo"] { --ui-icon:url("./assets/ui/undo-2.svg"); }
 .controls button[data-action="cancel"] { --ui-icon:url("./assets/ui/square.svg"); }
 
-/* Shared stacking order: board focus < tutorial dialogue < popover < modal. */
+/* Shared stacking order: board focus < popover < modal < tutorial dialogue. */
 .admin-drawer,.effect-popover { z-index:var(--z-popover); }
 .effect-modal,.selection-panel,.trigger-thread-panel,.prompt-toast,.deck-builder-modal { z-index:var(--z-modal); }
 .tutorial-adv-copy ruby { ruby-align:center; }

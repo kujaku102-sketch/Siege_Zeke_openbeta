@@ -24,7 +24,13 @@ async function clickVisible(page,selector) {
     throw new Error('keyboard target unreachable: '+selector);
   }
   const locator = page.locator(selector);
-  for (let index=0;index<await locator.count();index+=1) if (await locator.nth(index).isVisible()) {await locator.nth(index).click();return;}
+  for (let index=0;index<await locator.count();index+=1) if (await locator.nth(index).isVisible()) {
+    const control=locator.nth(index);await control.scrollIntoViewIfNeeded();await control.focus();
+    const point=await control.evaluate((node,selector)=>{const rect=node.getBoundingClientRect();return [[.5,.5],[.5,.18],[.2,.18],[.8,.18],[.18,.5],[.82,.5],[.5,.82],[.2,.82],[.8,.82]]
+      .map(([rx,ry])=>({x:rect.left+rect.width*rx,y:rect.top+rect.height*ry}))
+      .find(({x,y})=>document.elementFromPoint(x,y)?.closest(selector)===node)??null;},selector);
+    if(point){await page.mouse.click(point.x,point.y);return;}
+  }
   throw new Error('visible target unavailable: '+selector);
 }
 const read = page => page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.query());
@@ -66,7 +72,7 @@ async function settle(page,{decline=false,checkBack=false}={}) {
     if (!input) return;
     if (!input.canAnswer) {await page.waitForFunction(() => {const input=window.__SIMPLE_ZEKE_E2E__.query().value?.requiredInput;return !input || input.canAnswer;});continue;}
     if (checkBack) {
-      await clickVisible(page,'[data-runtime-back]');
+      await clickVisible(page,'.effect-modal [data-runtime-back]');
       const after=(await read(page)).value;
       if (after.status.revision !== query.status.revision || after.requiredInput.choiceId !== input.choiceId) throw new Error('required Back changed committed state');
       await clickVisible(page,'[data-selection-collapse]');checkBack=false;
@@ -81,7 +87,12 @@ async function action(page,type,id,preference={}) {
   const card=id && cards(query).find(card => !card.faceDown && card.definition.id === id && (type === 'attack' || type === 'redeploy' || type === 'activateCardEffect' ? ['front','back'].includes(card.location?.zone) : card.location?.zone === 'hand'));
   const entry=query.legalActions.find(entry => (entry.actionType ?? entry.action?.type) === type && (!id || (entry.base?.cardRef ?? entry.base?.attackerRef ?? entry.action?.cardRef) === card?.cardRef));
   if (!entry) throw new Error('legal action missing: '+type+' '+id);
-  if (card) {if (!await page.locator('[data-card-ref="'+card.cardRef+'"]').first().isVisible()) await clickVisible(page,'[data-runtime-hand]');await clickVisible(page,'[data-card-ref="'+card.cardRef+'"]');}
+  if (card) {
+    const cardSelector='[data-card-ref="'+card.cardRef+'"]';
+    if (card.location?.zone === 'hand' && !await page.locator(cardSelector).first().isVisible()) await clickVisible(page,'[data-runtime-hand]');
+    if (['front','back'].includes(card.location?.zone) && await page.locator('[data-layer="hand"]:not([hidden])').count()) await clickVisible(page,'[data-runtime-hand]');
+    await clickVisible(page,cardSelector);
+  }
   await clickVisible(page,'[data-action-id="'+entry.actionId+'"]');
   if (entry.kind === 'fixed') return;
   const selections=[];
@@ -119,6 +130,7 @@ async function freshCompletion(page,old) {
 async function run(page,id) {
   const target=new URL(url);target.searchParams.set('e2e','1');
   await page.goto(target.toString(),{waitUntil:'networkidle'});
+  await page.waitForFunction(() => document.body.classList.contains('boot-done') && !document.querySelector('#boot-splash'), null, {timeout:10000});
   await page.evaluate(id => window.__SIMPLE_ZEKE_E2E__.start('tutorial',id,1),id);
   const old=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.scope());
   await intro(page,id);
