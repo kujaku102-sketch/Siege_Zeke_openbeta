@@ -35,6 +35,13 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   let latest = null;
   let suppressedPointerId = null;
   let handDock = null;
+  let handRequestId = null;
+  // Only hand-card options keep the hand up while a request is open.
+  const requestUsesHand = value => {
+    const hand = value?.model.seats.find(seat => seat.seatId === value.model.match.viewerSeat)?.hand.cards;
+    const refs = new Set((Array.isArray(hand) ? hand : []).map(card => card.cardRef));
+    return Boolean(value?.request?.options.some(option => refs.has(option.cardRef)));
+  };
   let renderScope = null;
   let regionKeys = new Map();
   let opponents = null;
@@ -87,6 +94,11 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       }
       log.sync(next,shellRebuilt);
       handDock?.sync();
+      // A new request puts the hand away: a raised hand covers the lit slots and the confirm
+      // bar. It can be raised again, and stays up while a hand-card pick is being made.
+      const requestId = next.request?.requestId ?? null;
+      if (requestId !== null && requestId !== handRequestId) handDock?.away();
+      handRequestId = requestId;
       const geometryDirty = shellRebuilt || runtimeChanged
         || latest?.model.ui.handOpen !== next.model.ui.handOpen
         || changedLocal.some(name => ['drawer','detail','art','guide','popup','selection','result'].includes(name));
@@ -137,7 +149,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const listener = (type, handler) => root.addEventListener(type, handler, { signal: lifetime.signal });
   // Both boards raise the hand the same way; only the look differs.
   handDock = attachHandDock(root, {
-    busy: () => Boolean(latest?.request || latest?.interactionRequest), changed: queueLayout
+    busy: () => requestUsesHand(latest), changed: queueLayout
   });
   const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,

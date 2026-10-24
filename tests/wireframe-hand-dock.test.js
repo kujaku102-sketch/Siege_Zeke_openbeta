@@ -32,3 +32,10 @@ test('pending choice postpones lowering until sync after completion; outside pre
   f.emit('pointerover',{pointerType:'mouse'});f.emit('pointerup');
   f.dock.dispose();assert.equal(f.timers.size,0);assert.equal(f.listeners.size,0);
 });
+test('away() puts the hand down at once even while a pick keeps it up, and it can be raised again',()=>{
+  const f=fixture();f.emit('pointerover',{pointerType:'mouse'});f.busy=true;
+  f.emit('pointerdown',{target:f.outside});assert.equal(f.raised,true);
+  f.dock.away();assert.equal(f.raised,false);
+  f.dock.sync();assert.equal(f.raised,false,'no pending lower is left behind');
+  f.emit('pointerover',{pointerType:'mouse'});assert.equal(f.raised,true);
+});

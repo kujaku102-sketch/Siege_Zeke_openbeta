@@ -357,3 +357,47 @@ body[data-view="mobile"] .r2-content .r2-detail {
 .r2-content .effect-modal .runtime-selection-option.selected .choice-row { box-shadow: inset 0 0 0 1px #69e8ff, 0 0 12px rgba(105, 232, 255, .35); background: linear-gradient(90deg, color-mix(in srgb, var(--row-color) 26%, #0f3440), #0f344000 90%); }
 /* 処理中の効果(effect-flow)がある選択ダイアログ: flow行を潰さずリストだけ縮める */
 body[data-view] .r2-content .r2-wireframe-view .effect-dialog:has(> .effect-flow) { grid-template-rows: auto auto minmax(0,1fr) auto; }
+
+/* Mobile (landscape): sizes follow the play stage instead of fixed px, so a short or small
+   phone screen keeps the detail, the pick prompt and the choice list in proportion.
+   The wireframe view is a size container: cqh / cqw are the visible stage. The tap-target
+   floor (--wf-hit, 2.75rem) and the text floor (--wf-font) stay as they are. */
+body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view {
+  --m-row: clamp(2.5rem, 11cqh, 3.75rem);
+  --m-sel: clamp(3.5rem, min(17cqw, 22cqh), 6.5rem);
+}
+/* Card detail: its width follows the shorter side of the stage, its art square with it. */
+body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-detail {
+  --detail-width: min(32cqw, 56cqh); width: var(--detail-width);
+  max-height: min(90cqh, calc(100% - var(--wf-top) - var(--wf-bottom)));
+}
+/* Pick prompt: compact, at the top of the stage between the detail and the user window, so the lit slots stay visible. */
+body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .board-pick-guide {
+  top: var(--wf-top); left: 56cqw; transform: translateX(-50%); gap: .5em; padding: .35em .6em;
+  font-size: clamp(.75rem, 3.4cqh, 1rem); max-width: 40cqw; row-gap: .25em;
+}
+body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .board-pick-guide button { min-height: var(--wf-hit); padding: 0 .8em; }
+/* Choice dialog: header, rows and cards scale with the stage; the list takes the room that is left. */
+body[data-view="mobile"] .r2-content .r2-wireframe-view .effect-modal .cp-head { margin: 0 0 .4em; padding: 0 0 .35em; gap: .5em; }
+body[data-view="mobile"] .r2-content .r2-wireframe-view .effect-modal .cp-head h2 { font-size: clamp(1rem, 5.2cqh, 1.45rem); margin: 0; }
+body[data-view="mobile"] .r2-content .r2-wireframe-view .effect-modal .cp-head small { font-size: clamp(.55rem, 2.4cqh, .7rem); }
+body[data-view="mobile"] .r2-content .r2-wireframe-view .effect-modal .runtime-selection-options {
+  --sel-card: var(--m-sel); gap: .5em; max-height: none; min-height: 0;
+}
+body[data-view="mobile"] .r2-content .r2-wireframe-view .effect-modal .runtime-selection-options.is-list { width: 100%; max-height: none; gap: .3em; }
+body[data-view="mobile"] .r2-content .r2-wireframe-view .effect-modal .choice-card-name { font-size: clamp(.7rem, 3cqh, .85rem); }
+body[data-view="mobile"] .r2-content .r2-wireframe-view .choice-row {
+  height: var(--m-row); grid-template-columns: calc(var(--m-row) * .85) minmax(0, 1fr) calc(var(--m-row) * .66);
+}
+body[data-view="mobile"] .r2-content .r2-wireframe-view .choice-row-cost {
+  width: calc(var(--m-row) * .64); height: calc(var(--m-row) * .57); font-size: calc(var(--m-row) * .28);
+}
+body[data-view="mobile"] .r2-content .r2-wireframe-view .choice-row-category { left: .5em; top: .2em; font-size: calc(var(--m-row) * .2); }
+body[data-view="mobile"] .r2-content .r2-wireframe-view .choice-row-name { left: .5em; right: .5em; bottom: .25em; font-size: calc(var(--m-row) * .26); }
+body[data-view="mobile"] .r2-content .r2-wireframe-view .choice-row-stats { gap: calc(var(--m-row) * .04); }
+body[data-view="mobile"] .r2-content .r2-wireframe-view .choice-row-stats .stat { width: calc(var(--m-row) * .42); height: calc(var(--m-row) * .42); }
+body[data-view="mobile"] .r2-content .r2-wireframe-view .choice-row-stats .stat b { font-size: calc(var(--m-row) * .22); line-height: 1; }
+body[data-view="mobile"] .r2-content .r2-wireframe-view .choice-row-stats .stat small { font-size: calc(var(--m-row) * .1); line-height: 1; }
+body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-detail.cp-card > .cp-head { padding: .3em .5em .35em; gap: .4em; }
+body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-detail.cp-card > .cp-head h2 { font-size: clamp(.9rem, 4.6cqh, 1.15rem); margin: 0; }
+body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-detail.cp-card > .cp-head small { font-size: clamp(.5rem, 2.2cqh, .65rem); letter-spacing: .12em; }

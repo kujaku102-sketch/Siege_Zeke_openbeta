@@ -36,5 +36,7 @@ export function attachHandDock(root, { busy = () => false, changed = () => {} } 
   listen('pointercancel',()=>{openingPointer=null;});
   listen('focusin',e=>{if(inHand(e.target) && e.target.matches?.(':focus-visible'))set(true);});
   listen('focusout',e=>{if(inHand(e.target) && !inHand(e.relatedTarget))later(350);});
-  return {sync,lower,dispose(){disposed=true;cancel();for(const [type,fn] of listeners)root.removeEventListener(type,fn,true);}};
+  // Puts the hand away now even while a pick keeps it up (a new request opening over it).
+  const away=()=>{pendingLower=false;set(false);};
+  return {sync,lower,away,dispose(){disposed=true;cancel();for(const [type,fn] of listeners)root.removeEventListener(type,fn,true);}};
 }
