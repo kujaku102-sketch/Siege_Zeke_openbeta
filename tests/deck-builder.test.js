@@ -201,3 +201,22 @@ test("the builder exposes invalid saved decks for repair but disables their play
   assert.match(root.innerHTML, /40\/40 · 同名3枚まで/);
   assert.doesNotMatch(root.innerHTML, /<button data-deck-save[^>]*disabled/);
 });
+
+test("the seven 40-card start decks are the only preset choices and each starts an AI match", async () => {
+  const { START_DECKS } = await import("../src/data/start-decks.js");
+  const { DECK_OPTIONS } = await import("../src/game/engine.js");
+  assert.deepEqual(START_DECKS.map((deck) => deck.color), ["赤", "黄", "紫", "青", "黒", "緑", "橙"]);
+  for (const deck of START_DECKS) {
+    assert.equal(validateDeck(deck).valid, true, deck.name);
+    assert.equal(validateDeck(deck).count, 40);
+    const game = createGame({ mode: "ai", playerDeckId: deck.id, aiDeckId: deck.id, rng: () => .5 });
+    assert.equal(game.players.player.user.color, deck.color);
+    assert.equal(game.players.player.hand.length + game.players.player.deck.length, 40);
+  }
+  const html = deckOptionsHtml({ savedDecks: [] }, "start-red");
+  assert.deepEqual([...html.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1]), START_DECKS.map((deck) => deck.id));
+  for (const hidden of ["red", "yellow", "vengeance", "neutron"]) {
+    assert.equal(DECK_OPTIONS[hidden].hidden, true);
+    assert.doesNotMatch(html, new RegExp(`value="${hidden}"`));
+  }
+});

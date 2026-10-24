@@ -7,6 +7,22 @@ const PRIORITY = Object.freeze([
   'activateScript', 'attack', 'redeploy', 'recoverRegistry', 'endTurn'
 ]);
 
+// 同じカードの再実行は1ターン1回まで。淫魔像のように移動でメモリが戻ると、
+// 前後へ動かし続けて手番が終わらなくなるのを防ぐ。
+const REDEPLOY_LIMIT_PER_TURN = 1;
+const redeployLog = new Map();
+
+function redeployTurnCounts(query) {
+  const observation = query.observation ?? {};
+  const key = `${query.status?.matchId}|${query.status?.viewerSeat}`;
+  const turn = observation.turnNumber;
+  const current = redeployLog.get(key);
+  if (current?.turn === turn) return current.counts;
+  const next = { turn, counts: new Map() };
+  redeployLog.set(key, next);
+  return next.counts;
+}
+
 function pickOptionIds(options, constraints) {
   if (!constraints || constraints.kind !== 'pick') return null;
   if (constraints.assignment === 'exclusive') {
@@ -174,8 +190,11 @@ export function chooseSimpleAiIntent(query, commandId, queryAction = null) {
   }
   let selected = null;
   let plannedAction = null;
+  const redeployCounts = redeployTurnCounts(query);
+  const overRedeployLimit = entry => (entry?.actionType === 'redeploy' || entry?.action?.type === 'redeploy')
+    && (redeployCounts.get(entry.base?.cardRef ?? entry.action?.cardRef) ?? 0) >= REDEPLOY_LIMIT_PER_TURN;
   for (const type of PRIORITY) {
-    for (const entry of query.legalActions.filter(entry => (entry?.kind === 'fixed' ? entry.action?.type : entry?.actionType) === type)) {
+    for (const entry of query.legalActions.filter(entry => (entry?.kind === 'fixed' ? entry.action?.type : entry?.actionType) === type && !overRedeployLimit(entry))) {
       if (entry.kind !== 'intent') { selected = entry; break; }
       if (typeof queryAction !== 'function') continue;
       const selections = [];
@@ -197,6 +216,7 @@ export function chooseSimpleAiIntent(query, commandId, queryAction = null) {
   const action = selected.kind === 'intent' ? plannedAction
     : selected.kind === 'template' ? templateAction(selected) : structuredClone(selected.action);
   if (!action) return failure('AI_ACTION_TEMPLATE_UNSUPPORTED');
+  if (action.type === 'redeploy') redeployCounts.set(action.cardRef, (redeployCounts.get(action.cardRef) ?? 0) + 1);
   return { ok: true, value: {
     commandId, expectedRevision: revision, action
   } };

@@ -61,7 +61,7 @@ test('rendered execution selection uses cards, current board structure and resul
   assert.doesNotMatch(html, /data-runtime-rematch/);
   const finished = { ...read.model, match: { ...read.model.match, finished: true,
     lockedOutcome: { kind: 'win', winnerSeat: 'a' } } };
-  assert.match(runtimeGameHtml(finished), /VICTORY/);
+  assert.match(runtimeGameHtml(finished), /YOU WIN/);
   assert.match(runtimeGameHtml(finished), /data-runtime-rematch/);
   assert.equal(ui.toggleMenu().value.model.ui.menuOpen, true);
   assert.equal(ui.toggleMenu().value.model.ui.menuOpen, false);

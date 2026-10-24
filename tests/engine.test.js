@@ -21,6 +21,7 @@ import {
   canExecuteRegistryCard,
   canPlayCard,
   cardAtk,
+  cardCurrentStr,
   cardHasKeyword,
   cardMaxStr,
   cloneForHistory,
@@ -4040,6 +4041,7 @@ test("STD-169 Proxy and battle trigger add shared Load counters", () => {
   const proxySource = state.players.player.hand.find((card) => card.id === "STD-169");
   const target = createCardInstance("STD-020", "ai", 900081);
   target.sleep = true;
+  target.str = 10;
   state.players.ai.front.push(target);
   const proxy = getActivatableEffects(state, "player", proxySource).find((item) => item.kind === "proxy");
   assert.equal(activateCardEffect(state, "player", proxySource.uid, proxy.id, { targetUid: target.uid }), true);
@@ -4050,6 +4052,18 @@ test("STD-169 Proxy and battle trigger add shared Load counters", () => {
   state.players.player.front.push(fighter);
   assert.equal(attack(state, "player", fighter.uid, target.uid), true);
   assert.equal(target.load, 5);
+});
+test("Load that drops STR to 0 or less destroys the Ob by rule", () => {
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  addSandboxCardToHand(state, "player", "STD-169");
+  const proxySource = state.players.player.hand.find((card) => card.id === "STD-169");
+  const target = createCardInstance("STD-020", "ai", 900083);
+  state.players.ai.front.push(target);
+  const proxy = getActivatableEffects(state, "player", proxySource).find((item) => item.kind === "proxy");
+  assert.equal(activateCardEffect(state, "player", proxySource.uid, proxy.id, { targetUid: target.uid }), true);
+  assert.equal(state.players.ai.front.some((card) => card.uid === target.uid), false);
+  assert.equal(state.players.ai.trash.some((card) => card.uid === target.uid), true);
+  assert.equal(cardAtk(state, "ai", target) >= 0 && cardCurrentStr(state, "ai", target) >= 0, true);
 });
 test("Q3 STD-121/140/141/143 compile through explicit shared runtime operations", () => {
   for (const id of ["STD-121", "STD-140", "STD-141", "STD-143"]) {
@@ -5359,8 +5373,12 @@ test("STD-130 gains battle-only STR from own NOM Ob", () => {
   attacker.summoningSick = false; isaac.sleep = true; player.front = [attacker]; ai.front = [isaac]; ai.back = [nom1, nom2, nom3];
   assert.equal(cardMaxStr(state, "ai", isaac), 1);
   assert.equal(attack(state, "player", attacker.uid, isaac.uid), true);
-  assert.ok(ai.trash.every((card) => card.uid !== isaac.uid));
-  assert.equal(cardMaxStr(state, "ai", isaac), 1);
+  const logText = state.log.map((entry) => entry.text ?? entry).join("\n");
+  assert.match(logText, /イサクへ3ダメージ、STR 5→2/);
+  assert.doesNotMatch(logText, /戦闘: [^\n]*イサクを破壊/);
+  // The battle-only STR ends after battle, so the remaining damage destroys it by rule.
+  assert.match(logText, /STR0以下の状態判定: [^\n]*イサクを破壊/);
+  assert.ok(ai.trash.some((card) => card.uid === isaac.uid));
 });
 
 test("STD-131 logout drags one Hanamori from hand for free", () => {

@@ -1,4 +1,5 @@
 import { CARD_LIBRARY, LAB_CARD_IDS, NEUTRON_DECK, RED_DECK, USER_CARDS, USERS, VENGEANCE_DECK, YELLOW_DECK } from "../data/cards.js";
+import { START_DECKS } from "../data/start-decks.js";
 import { createRuntimeCard, createRuntimeToken, expandRuntimeDeck, RuntimeError } from "./runtime/factory.js";
 import { nextRng } from "./runtime/rng.js";
 import { compileEffectText, hasKeyword, keywordValue } from "./effect-compiler.js";
@@ -276,6 +277,8 @@ function moveCardToTrash(state, ownerId, card, source = "移動", { suppressScri
     if (ruleDestruction) finalizeRuleDestruction(state, ownerId, card, { ...ruleDestruction, to: "ban" });
     return "ban";
   }
+  // ゴミ箱は公開領域: 裏向きで設置されていたScriptも表向きにする(裏のままだと選択肢の名前と参照が消える)
+  card.faceDown = false;
   owner.trash.push(card);
   distributeLayeredFollowers(state, card, "trash", source);
   if (fromArea) executeCardRuntimeSpec(state, "area_to_trash", ownerId, card);
@@ -569,11 +572,15 @@ export function openingMulligan(state, playerId) {
   return true;
 }
 
+// 選べるのは7色のスタートデッキ。旧固定デッキ(hidden)はチュートリアルと過去の対戦記録の再生用に残す。
 export const DECK_OPTIONS = Object.freeze({
-  red: { label: "レッドパンクス・赤", color: "赤", recipe: RED_DECK },
-  yellow: { label: "NOM・黄", color: "黄", recipe: YELLOW_DECK },
-  vengeance: { label: "ヴェンジェンス・紫", color: "紫", recipe: VENGEANCE_DECK },
-  neutron: { label: "ニュートロン・セキュリティ・青", color: "青", recipe: NEUTRON_DECK }
+  ...Object.fromEntries(START_DECKS.map((deck) => [deck.id, {
+    label: deck.name, color: deck.color, recipe: Object.freeze(Object.entries(deck.cards).map(([id, count]) => Object.freeze([id, count])))
+  }])),
+  red: { label: "レッドパンクス・赤", color: "赤", recipe: RED_DECK, hidden: true },
+  yellow: { label: "NOM・黄", color: "黄", recipe: YELLOW_DECK, hidden: true },
+  vengeance: { label: "ヴェンジェンス・紫", color: "紫", recipe: VENGEANCE_DECK, hidden: true },
+  neutron: { label: "ニュートロン・セキュリティ・青", color: "青", recipe: NEUTRON_DECK, hidden: true }
 });
 
 export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = "red", aiDeckId = "yellow", playerDeckRecipe = null, aiDeckRecipe = null, playerUserId = "doors_zx", aiUserId = "doors_zx", sandboxDeckSetup = false, rng = Math.random, runtimeContext = null } = {}) {
@@ -1759,10 +1766,13 @@ function executeRuntimeActions(state, playerId, source, actions, { targetUid = n
       if (action.shuffleAfter) target.deck = shuffle(target.deck, state.rng);
     } else if (action.type === "move" && action.target === "selected_cards") {
       let moved = 0;
+      let blockedByFullArea = 0;
       for (const uid of targetUids.length ? targetUids : [targetUid].filter(Boolean)) {
         const location = findCard(state, uid);
         if (!location || location.playerId !== playerId || location.zoneName !== action.source) continue;
         if (["front", "back"].includes(action.source) && ["front", "back"].includes(action.destination)) {
+          // 移動先が埋まっている時は移動だけ不発にして、後続の処理(生成など)は続ける
+          if (!placementResult(player, action.destination).ok) { blockedByFullArea += 1; continue; }
           if (moveCardByEffect(state, playerId, uid, action.destination, source.name)) moved += 1;
           continue;
         }
@@ -1776,6 +1786,8 @@ function executeRuntimeActions(state, playerId, source, actions, { targetUid = n
             onPlaced: (card) => { card.summoningSick = zone === "front"; card.faceDown = Boolean(action.asScript); }
           });
           if (placed.status === "placed") moved += 1;
+          // 強制配置が上限で入らなかった時はルール破壊で処理済み(ゴミ箱へ)。巻き戻さずに先へ進める
+          else if (placed.status === "failed-placement") blockedByFullArea += 1;
           continue;
         }
         if (action.destination === "drag") {
@@ -1816,8 +1828,9 @@ function executeRuntimeActions(state, playerId, source, actions, { targetUid = n
           moved += 1;
         }
       }
-      if (!moved) return false;
-      addLog(state, `${source.name}: 選択した${moved}枚を${action.destination === "registry" ? "レジストリ" : "エリア"}へ移動。`, "effect");
+      if (!moved && blockedByFullArea) addLog(state, `${source.name}: 移動先エリアが埋まっているため移動できない。`, "effect");
+      else if (!moved) return false;
+      else addLog(state, `${source.name}: 選択した${moved}枚を${action.destination === "registry" ? "レジストリ" : "エリア"}へ移動。`, "effect");
     } else if (action.type === "move" && action.target === "source") {
       const destination = runtimeSpecValue(state, playerId, source, action.destination, runtime);
       if (!moveCardByEffect(state, playerId, source.uid, destination, source.name)) return false;
@@ -2100,7 +2113,15 @@ function advanceTriggerThread(state) {
   advanceTriggerThread(state);
 }
 
+// 処理順の回答も1つの効果解決として扱う(直前の選択で開いたままの効果解決を閉じるため)
 export function resolveTriggerChoice(state, itemId) {
+  const thread = state.triggerThread;
+  if (!thread || thread.status !== "resolving" || thread.currentControllerId !== "player") return false;
+  if (!thread.items.some((entry) => entry.id === itemId && entry.status === "pending" && entry.controllerId === "player")) return false;
+  return runEffectEntry(state, "trigger-order", "player", () => resolveTriggerChoiceCore(state, itemId));
+}
+
+function resolveTriggerChoiceCore(state, itemId) {
   const thread = state.triggerThread;
   if (!thread || thread.status !== "resolving" || thread.currentControllerId !== "player") return false;
   const item = thread.items.find((entry) => entry.id === itemId && entry.status === "pending" && entry.controllerId === "player");
@@ -2117,6 +2138,14 @@ export function resolveTriggerChoice(state, itemId) {
   thread.currentControllerId = "ai";
   advanceTriggerThread(state);
   return true;
+}
+
+// 選択が連鎖して誘発元の再開が飛ばされた場合の保険: 選択待ちのまま残った項目を再開する
+function resumeStalledTriggerThread(state) {
+  const thread = state.triggerThread;
+  if (thread?.status !== "resolving") return;
+  const item = thread.items.find((entry) => entry.status === "awaiting-selection");
+  if (item) resumeTriggerThreadAfterSelection(state, item.id);
 }
 
 function resumeTriggerThreadAfterSelection(state, itemId) {
@@ -2142,6 +2171,19 @@ function triggerRequiresChoice(trigger) {
 }
 
 function drainTriggerQueue(state) {
+  drainTriggerQueueCore(state);
+  settleVictoryFactsOutsideResolution(state);
+}
+
+// 効果解決の外(誘発の処理など)で勝利条件が成立した時、誰も確定させずに止まるのを防ぐ
+function settleVictoryFactsOutsideResolution(state) {
+  if (state.effectDepth > 0 || state.processingTriggers || state.effectResolution || state.pending || state.prompt) return;
+  if (state.winner || state.victory?.lockedOutcome || !state.victoryFacts?.length) return;
+  state.effectResolution = { id: `EFFECT-${++state.effectSerial}`, kind: "trigger", source: null, playerId: null, status: "resolving" };
+  finalizeEffectResolution(state);
+}
+
+function drainTriggerQueueCore(state) {
   if (state.processingTriggers || state.effectDepth > 0) return;
   if ((state.interactive || state.runtimeContext) && state.triggerQueue.length > 1 && !state.triggerThread?.status?.includes("resolving")) {
     const triggers = state.triggerQueue.splice(0);
@@ -2198,6 +2240,8 @@ export function emitGameEvent(state, event) {
   state.triggerQueue.push(...windows.filter((window) => !window.optional));
   for (const window of windows.filter((item) => item.optional)) queueDeclaredScriptActivationWindow(state, window);
   if (state.effectDepth === 0) drainTriggerQueue(state);
+  // 効果解決の外で積まれた独立効果(STD-217等)はここで流さないと残り続けて盤面が止まる
+  if (state.effectDepth === 0 && state.independentEffects?.length && !state.winner) drainIndependentEffects(state);
   return normalized;
 }
 
@@ -2815,6 +2859,14 @@ function applyDamageModifiers(state, sourcePlayerId, sourceCard, victimPlayerId,
 }
 
 function resolveMandatoryStateChecks(state) {
+  // 戦闘以外(負荷やSTR-補正)でSTRが0以下になったObも、効果解決の終わりにルールで破壊する
+  for (const [playerId, player] of Object.entries(state.players)) {
+    for (const card of [...player.front, ...player.back]) {
+      if (isObCard(card) && !card.faceDown && cardCurrentStr(state, playerId, card) <= 0) {
+        destroyCard(state, playerId, card.uid, { source: "STR0以下の状態判定" });
+      }
+    }
+  }
   for (const [playerId, player] of Object.entries(state.players)) {
     for (const card of [...player.front, ...player.back]) {
       for (const spec of mandatoryStateCheckSpecsFor(card.id)) {
@@ -4164,7 +4216,12 @@ function declinePromptCore(state) {
 }
 
 export function declinePrompt(state) {
-  return runEffectEntry(state, "prompt-decline", state.prompt?.playerId ?? null, () => declinePromptCore(state));
+  return runEffectEntry(state, "prompt-decline", state.prompt?.playerId ?? null, () => {
+    const declined = declinePromptCore(state);
+    // 起動確認を断った後も、保留中の宣言済みScriptの後片付けを進める(選択の解決後と同じ)
+    if (declined && !state.pending && !state.prompt) continueDeferredDeclaredScriptCleanup(state);
+    return declined;
+  });
 }
 
 function resumeDeferredAttack(state) {
@@ -4193,6 +4250,14 @@ function matchesModuleFilter(card, filter = {}) {
   if (filter.className && !hasClass(card, filter.className)) return false;
   if (filter.originalMemoryMaximum !== undefined && Number(card.cost ?? Infinity) > filter.originalMemoryMaximum) return false;
   return true;
+}
+
+function takeViewedFromDeck(player, uids) {
+  const viewed = uids.map((uid) => player.deck.find((card) => card.uid === uid)).filter(Boolean);
+  for (let index = player.deck.length - 1; index >= 0; index -= 1) {
+    if (uids.includes(player.deck[index].uid)) player.deck.splice(index, 1);
+  }
+  return viewed;
 }
 
 function moveRemainderToDeck(player, cards, position) {
@@ -4334,16 +4399,17 @@ function resolveLogin(state, playerId, card) {
   if (card.id === "SZTB-094") beginSztb094Access(state, playerId, card.name);
   const selectionModule = card.compiled?.selectionModules?.find((module) => module.module === "look_select_remainder");
   if (selectionModule) {
-    const viewed = player.deck.splice(Math.max(0, player.deck.length - selectionModule.lookCount));
+    // 見ている間も山札に置いたまま(山札外に出すとランタイムのID台帳と枚数が合わなくなる)
+    const viewed = player.deck.slice(Math.max(0, player.deck.length - selectionModule.lookCount));
     const eligible = viewed.filter((candidate) => matchesModuleFilter(candidate, selectionModule.selection.filter));
     if (!eligible.length) {
-      moveRemainderToDeck(player, viewed, selectionModule.remainder.position);
+      moveRemainderToDeck(player, takeViewedFromDeck(player, viewed.map((viewedCard) => viewedCard.uid)), selectionModule.remainder.position);
       addLog(state, `${card.name}: 見たカードに条件適合なし。残りを山札${selectionModule.remainder.position === "bottom" ? "下" : "上"}へ。`, "effect");
       return;
     }
     const request = selectionRequestFromSpec(createSelectionSpec({ candidates: eligible.map((candidate) => candidate.uid), minimum: 1, maximum: Math.min(selectionModule.selection.maximum, eligible.length) }), {
       candidateLabels: Object.fromEntries(eligible.map((candidate) => [candidate.uid, candidate.name])), label: `見た${viewed.length}枚から選択`, message: card.text,
-      continuation: { type: "selection-module-look", playerId, sourceName: card.name, module: selectionModule, viewed }
+      continuation: { type: "selection-module-look", playerId, sourceName: card.name, module: selectionModule, viewedUids: viewed.map((viewedCard) => viewedCard.uid) }
     });
     state.pending = { type: "selection", validTargets: request.candidates, request };
     return;
@@ -4814,10 +4880,11 @@ function resolveCardSelectionCore(state, continuation, result) {
   if (continuation.type === "std157-place") {
     state.pending = null;
     const zone = player.front.length < player.user.frontLimit ? "front" : "back";
-    return placeCardByEffect(state, {
+    // エリアが埋まっていて置けなかった時はルール破壊で処理済み。効果全体は巻き戻さない
+    return ["placed", "failed-placement"].includes(placeCardByEffect(state, {
       sourceOwnerId: playerId, controllerId: playerId, sourceZone: "hand", targetZone: zone, cardUid: result.selected[0], sourceName: continuation.sourceName,
       onPlaced: (card) => { card.summoningSick = zone === "front"; }
-    }).status === "placed";
+    }).status);
   }
   if (continuation.type === "std162-salvage") {
     for (const uid of result.selected) {
@@ -5387,7 +5454,7 @@ function resolveCardSelectionCore(state, continuation, result) {
     return endTurn(state);
   }
   if (continuation.type === "selection-module-look") {
-    const viewed = continuation.viewed;
+    const viewed = takeViewedFromDeck(player, continuation.viewedUids);
     const chosenUid = result.selected[0];
     const chosenIndex = viewed.findIndex((card) => card.uid === chosenUid);
     if (chosenIndex >= 0) {
@@ -5866,7 +5933,11 @@ function resumeCardSelection(state, continuation, result) {
 }
 
 export function resolveCardSelection(state, continuation, result) {
-  const resolved = runEffectEntry(state, "selection", continuation?.playerId ?? null, () => resumeCardSelection(state, continuation, result));
+  const resolved = runEffectEntry(state, "selection", continuation?.playerId ?? null, () => {
+    const resumed = resumeCardSelection(state, continuation, result);
+    if (resumed && !state.pending && !state.prompt) resumeStalledTriggerThread(state);
+    return resumed;
+  });
   const activeId = state.resumeTurnEndAfterSelection;
   if (resolved && activeId && !state.pending && !state.prompt) {
     delete state.resumeTurnEndAfterSelection;
@@ -5906,7 +5977,17 @@ export function getActivatableEffects(state, playerId, card) {
       enabled: state.active === playerId
         && state.players[playerId].memory >= Number(keyword.value ?? 0)
         && (!cardRuntimeSpec(card.id, "update")?.requiresResidentActive || card.residentActive === true)
+        && (keyword.name !== "UPDATE" || updateDecodeFeasible(state, playerId, card))
     }));
+}
+
+// デコード先(ゴミ箱の候補)が無いアップデートは起動可能として出さない
+function updateDecodeFeasible(state, playerId, card) {
+  const updateRuntime = cardRuntimeSpec(card.id, "update");
+  if (!updateRuntime) return true;
+  const runtime = { records: Object.create(null) };
+  return updateRuntime.actions.filter((action) => action.type === "decode")
+    .every((action) => runtimeActionFeasible(state, playerId, card, action, runtime));
 }
 
 function getEffectActivationTargets(state, playerId, card, effectId) {
@@ -6223,7 +6304,8 @@ export function cardAtk(state, playerId, card) {
   value += continuousStatModifierValue(state, playerId, card, "atk");
   const player = state.players[playerId];
   if (player.user.abilityKey === "mono_color" && isObCard(card) && enabledSymbols(player).length === 1) value += 1;
-  return value;
+  // スタッツに0未満は存在しない
+  return Math.max(0, value);
 }
 
 export function cardMaxStr(_state, _playerId, card) {
@@ -6235,7 +6317,7 @@ export function cardMaxStr(_state, _playerId, card) {
 }
 
 export function cardCurrentStr(state, playerId, card) {
-  return cardMaxStr(state, playerId, card) - card.damage;
+  return Math.max(0, cardMaxStr(state, playerId, card) - card.damage);
 }
 
 function cardHasPrintedOrGrantedKeyword(card, name) {

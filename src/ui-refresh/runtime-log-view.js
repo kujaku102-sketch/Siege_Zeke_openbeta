@@ -258,7 +258,7 @@ export function runtimeLogHtml(events, viewerSeat) {
 export function runtimeResultHtml(match) {
   if (!match.finished) return '';
   const outcome = match.lockedOutcome;
-  const result = outcome?.kind === 'draw' ? 'DRAW'
-    : outcome?.winnerSeat === match.viewerSeat ? 'VICTORY' : 'DEFEAT';
-  return `<aside class="r2-result is-${result.toLowerCase()}" role="dialog" aria-label="対局結果" data-outcome="${result.toLowerCase()}"><canvas class="r2-result-fx" aria-hidden="true"></canvas><h2>${result}</h2><button data-runtime-result-close>閉じる</button><button data-runtime-rematch>再戦</button><button data-runtime-title>タイトルに戻る</button></aside>`;
+  const kind = outcome?.kind === 'draw' ? 'draw' : outcome?.winnerSeat === match.viewerSeat ? 'win' : 'defeat';
+  const result = { win:'YOU WIN', defeat:'DEFEAT', draw:'DRAW' }[kind];
+  return `<aside class="r2-result is-${kind}" role="dialog" aria-label="対局結果" data-outcome="${kind}"><canvas class="r2-result-fx" aria-hidden="true"></canvas><h2 data-text="${result}">${result}</h2><button data-runtime-result-close>閉じる</button><button data-runtime-rematch>再戦</button><button data-runtime-title>タイトルに戻る</button></aside>`;
 }

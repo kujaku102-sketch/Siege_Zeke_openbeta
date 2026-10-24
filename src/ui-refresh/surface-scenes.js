@@ -1,5 +1,5 @@
 import { attachBoardCamera } from './wireframe/camera.js';
-import { wireframePreviewHtml } from './wireframe/board-view.js';
+import { wireframePreviewHtml, fitPixelLines } from './wireframe/board-view.js';
 import { createBoardScene } from './wireframe/board-scene.js';
 import { attachLifeView } from './wireframe/life-view.js';
 import { createHudScene } from './wireframe/hud-scene.js';
@@ -11,6 +11,7 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest })
   let boardCamera = null, cameraNode = null, boardHover = null;
   let boardScene = null, lifeView = null;
   let hudScene = null, hudNode = null;
+  const fitLines = event => fitPixelLines(event.currentTarget);
   const updateWirePreview = () => {
     const overlay = root.querySelector('.wf-preview');
     if (overlay && latest()) overlay.innerHTML = wireframePreviewHtml(latest(),boardHover);
@@ -21,7 +22,9 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest })
         const svg = root.querySelector('.wire-board');
         if (svg !== cameraNode) {
           boardScene?.dispose();boardScene=null;
+          cameraNode?.removeEventListener('board-camera-change',fitLines);
           boardCamera?.dispose(); cameraNode = svg;
+          svg?.addEventListener('board-camera-change',fitLines);
           boardCamera = svg ? attachBoardCamera(svg) : null;
           if(svg){
             try { boardScene=createBoardScene(root.querySelector('.wf-board-model'),svg,renderQuality); }
@@ -30,7 +33,7 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest })
         }
         root.querySelector('.wire-board-host')?.classList.toggle('wf-has-model',Boolean(boardScene));
         boardScene?.sync(next.model);
-        boardCamera?.refresh(); updateWirePreview();
+        boardCamera?.refresh(); fitPixelLines(svg); updateWirePreview();
       }
       // Everything around the board is the same kit on both boards.
       const hudCanvas=root.querySelector('.wf-hud-model');
@@ -53,6 +56,7 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest })
       updateWirePreview();
     },
     dispose() {
+      cameraNode?.removeEventListener('board-camera-change',fitLines);
       boardCamera?.dispose(); boardScene?.dispose();lifeView?.dispose();boardCamera = null; boardScene=null;lifeView=null;cameraNode = null;
       hudScene?.dispose();hudScene=null;hudNode=null;
     }

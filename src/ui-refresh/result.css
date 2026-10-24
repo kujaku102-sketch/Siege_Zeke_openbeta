@@ -1,2 +1,15 @@
 .r2-result { position:fixed; inset:0; z-index:90; display:grid; place-items:center; isolation:isolate; overflow:hidden; padding:20px; color:#f6f8fc; background:rgba(4,8,17,.92); }
 .r2-result-fx { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.r2-result-fx.is-dots { image-rendering:pixelated; }
+/* PS1 tone: the dot font with hard stepped shadows, no blur. */
+.r2-result h2 { position:relative; margin:0; font-family:SZDotGothic,"Yu Gothic UI",sans-serif; font-weight:400; font-synthesis:none; font-size:clamp(52px,11vw,168px); line-height:1; letter-spacing:.06em; color:var(--result-ink,#f6f8fc); text-shadow:.04em .04em 0 var(--result-shade,#123), .08em .08em 0 #050a14; }
+.r2-result.is-win { --result-ink:#ffd23f; --result-shade:#1c8fb0; }
+.r2-result.is-defeat { --result-ink:#ff3d5a; --result-shade:#4a0c1c; }
+.r2-result.is-draw { --result-ink:#ffbf45; --result-shade:#5a3a08; }
+[data-effects="on"] .r2-result h2 { animation:r2-result-pop .42s steps(5,end) both; }
+[data-effects="on"] .r2-result.is-win h2 { animation:r2-result-pop .42s steps(5,end) both, r2-result-bob 1.2s steps(2,jump-none) .42s infinite; }
+[data-effects="on"] .r2-result.is-defeat h2::after { content:attr(data-text); position:absolute; inset:0; color:#29dbff; text-shadow:none; mix-blend-mode:screen; opacity:0; animation:r2-result-glitch 2.4s steps(1,end) .42s infinite; }
+@keyframes r2-result-pop { from { transform:scale(2.4); opacity:0; } 60% { transform:scale(.92); opacity:1; } to { transform:scale(1); opacity:1; } }
+@keyframes r2-result-bob { from { translate:0 0; } to { translate:0 -.04em; } }
+@keyframes r2-result-glitch { 0%,86%,100% { opacity:0; transform:none; } 88% { opacity:.7; transform:translate(-.04em,.02em); clip-path:inset(20% 0 55% 0); } 92% { opacity:.7; transform:translate(.05em,-.02em); clip-path:inset(60% 0 12% 0); } 95% { opacity:0; } }
+@media (prefers-reduced-motion: reduce) { .r2-result h2, .r2-result h2::after { animation:none !important; } }

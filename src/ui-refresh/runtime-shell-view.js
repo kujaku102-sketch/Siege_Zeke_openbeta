@@ -1,5 +1,6 @@
 import { CARD_LIBRARY, LAB_CARD_IDS, USER_CARDS } from '../data/cards.js';
 import { validateDeck } from '../game/deck-builder.js';
+import { START_DECKS } from '../data/start-decks.js';
 import { deckPresentation } from '../ui/deck-presentation.js';
 import { panelHeadHtml, controlsHelpHtml } from './cyber-panel.js';
 const entryLogo = new URL("../assets/siege-zeke-logo-layers.svg", import.meta.url).href;
@@ -22,7 +23,7 @@ function entryHtml(view, effectsEnabled = true) {
 }
 
 export function deckOptionsHtml(state, selectedId) {
-  const fixed = [["red","赤・固定"],["yellow","黄・固定"],["vengeance","紫・固定"],["neutron","青・固定"]];
+  const fixed = START_DECKS.map((deck) => [deck.id, deck.name]);
   return [...fixed.map(([id, label]) => `<option value="${id}" ${selectedId === id ? "selected" : ""}>${label}</option>`),
     ...(state.savedDecks ?? []).map((deck) => `<option value="custom:${esc(deck.id)}" ${selectedId === `custom:${deck.id}` ? "selected" : ""} ${validateDeck(deck).valid ? "" : "disabled"}>保存: ${esc(deck.name)}${validateDeck(deck).valid ? "" : "（要修正）"}</option>`)].join("");
 }

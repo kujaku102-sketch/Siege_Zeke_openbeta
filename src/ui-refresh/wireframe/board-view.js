@@ -42,6 +42,27 @@ function securityShield(card, cx, cy) {
   const plate = state === 'guard' ? `<path class="wf-shield-plate" d="${SHIELD_PATH}"/><g clip-path="url(#wf-shield-clip)"><rect class="wf-shield-sheen" x="-60" y="-10" width="26" height="120" transform="skewX(-18)"/></g>` : '';
   return `<g class="wf-shield is-${state}" pointer-events="none">${beam}<ellipse class="wf-shield-emitter" cx="${base.x}" cy="${base.y}" rx="${width * .2}" ry="${width * .06}"/><g class="wf-shield-body" transform="translate(${top.x} ${top.y}) scale(${scale})">${plate}<path class="wf-shield-edge" d="${SHIELD_PATH}"/><path class="wf-shield-inner" d="M40 12 64 22v25c0 16-9 27-24 36C25 74 16 63 16 47V22Z"/><path class="wf-shield-cross" d="M40 17v61M22 47h36"/></g></g>`;
 }
+// Board lines (slots, zones, piles) drawn as chunky low-res pixels; cards and text stay sharp.
+// Thicken first so a thin line cannot slip between samples, keep one sample per block,
+// grow each sample back to a full block. Blocks are board units (2px on a 1600x900 PC
+// board) and shrink with the board; fitPixelLines only keeps a sample from falling
+// below one device pixel, where lines would vanish, and faint antialiased
+// edges count as line. The patch keeps what it set.
+const LINE_PIXEL = 2;
+const LINE_PIXEL_DEFS = `<filter id="wf-pixel-line" filterUnits="userSpaceOnUse" x="-400" y="-400" width="2400" height="1700" color-interpolation-filters="sRGB"><feMorphology in="SourceGraphic" operator="dilate" radius="${Math.max(.5, LINE_PIXEL / 2 - .5)}" data-line-px="pre" data-patch-keep="radius" result="fat"/><feFlood width="1" height="1" data-line-px="flood" data-patch-keep="width height" flood-color="#fff"/><feComposite width="${LINE_PIXEL}" height="${LINE_PIXEL}" data-line-px="tile" data-patch-keep="width height"/><feTile result="grid"/><feComposite in="fat" in2="grid" operator="in"/><feMorphology operator="dilate" radius="${LINE_PIXEL / 2}" data-line-px="grow" data-patch-keep="radius"/><feComponentTransfer><feFuncA type="discrete" tableValues="0 1 1 1"/></feComponentTransfer></filter>`;
+export function fitPixelLines(svg) {
+  const scale = svg?.getScreenCTM?.()?.a;
+  if (!(scale > 0)) return;
+  const device = 1 / (scale * (svg.ownerDocument.defaultView?.devicePixelRatio || 1));
+  // Under two device pixels a block cannot show and the filter only loses the lines.
+  svg.classList.toggle('wf-pixel-off', LINE_PIXEL < device * 2);
+  const flood = Math.max(1, device), tile = Math.max(LINE_PIXEL, flood);
+  const sizes = { pre: Math.max(.5, device, tile / 2 - .5), flood, tile, grow: tile / 2 };
+  for (const node of svg.querySelectorAll('#wf-pixel-line [data-line-px]')) {
+    const value = String(+sizes[node.dataset.linePx].toFixed(3));
+    for (const name of node.dataset.patchKeep.split(' ')) if (node.getAttribute(name) !== value) node.setAttribute(name, value);
+  }
+}
 // Registry symbols: one lamp per color, lit while a card of that color sits in the registry.
 // Unlit lamps are only drawn, as empty rings, while the count button is held (board.css).
 const SYMBOLS = [['赤','red'],['黄','yellow'],['緑','green'],['青','blue'],['紫','purple'],['黒','black'],['橙','orange']];
@@ -104,7 +125,7 @@ export function wireframeStatusHtml(seat, mine, uniqueButton = '') {
 }
 export function wireframeBoardHtml(model, uniqueButton = '') {
   const {self,enemy,slots,cards} = geometry(model);
-  const board = `<defs><pattern id="back-pattern" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#11202c"/><path d="M0 0L10 10M10 0L0 10" stroke="#496071" stroke-width=".6"/></pattern>${SHIELD_DEFS}<marker id="wf-arrow-tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#c2ed95"/></marker></defs>
+  const board = `<defs>${LINE_PIXEL_DEFS}<pattern id="back-pattern" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#11202c"/><path d="M0 0L10 10M10 0L0 10" stroke="#496071" stroke-width=".6"/></pattern>${SHIELD_DEFS}<marker id="wf-arrow-tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#c2ed95"/></marker></defs>
     <polygon class="board-plane" points="${points([project(-100,-90),project(1150,-90),project(1150,990),project(-100,990)])}"/>
     ${[enemy,self].map(seat=>`<g data-wire-hit data-fortress="${esc(seat.seatId)}" data-runtime-profile="${esc(seat.seatId)}" role="button" tabindex="0" aria-label="${seat===self?'自分':'相手'}ユーザー領域">${poly(525,seat===enemy?-55:955,820,35,'class="user-target"')}</g>`).join('')}
     ${slots.map(slot=>{
@@ -131,7 +152,7 @@ export function wireframeBoardHtml(model, uniqueButton = '') {
       const trash=project(side,mine?630:270,lift);
       return countTagsHtml(seat,mine,{deck:project(side,mine?850:50,lift),trash,registry:project(x,y,lift),ban:{x:trash.x,y:trash.y+54}});
     }).join('')}<g class="wf-preview" pointer-events="none"></g>`;
-  return `<div class="r2-board wire-board-host" data-patch-keep="class:wf-has-model"><canvas class="wf-board-model" aria-hidden="true" data-patch-keep="width height data-engine"></canvas><svg class="wire-board" viewBox="0 0 1600 900" aria-label="対局盤面">${board}</svg>${wireframeStatusHtml(self,true,uniqueButton)}${wireframeStatusHtml(enemy,false)}</div>`;
+  return `<div class="r2-board wire-board-host" data-patch-keep="class:wf-has-model"><canvas class="wf-board-model" aria-hidden="true" data-patch-keep="width height data-engine"></canvas><svg class="wire-board" viewBox="0 0 1600 900" aria-label="対局盤面" data-patch-keep="class:wf-pixel-off">${board}</svg>${wireframeStatusHtml(self,true,uniqueButton)}${wireframeStatusHtml(enemy,false)}</div>`;
 }
 export function wireframePreviewHtml(value, hover = null) {
   const {model,preview,interactionRequest,selection} = value;

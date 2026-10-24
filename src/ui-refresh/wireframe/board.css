@@ -39,6 +39,9 @@ body[data-view] .r2-content .r2-wireframe-view .wire-board-host { position:absol
 .r2-wireframe-view .solid-seam { fill:none; stroke:#7993a2; stroke-width:.8; opacity:.8; pointer-events:none; }
 .r2-wireframe-view .empty-pile { stroke-dasharray:4 4; fill:transparent; }
 .r2-wireframe-view .solid-ghost { opacity:.6; }
+/* Board lines in low-res pixels (filter in board-view.js). Cards, art and text stay sharp. */
+.r2-wireframe-view .wire-board:not(.wf-pixel-off) :is(.slot,.registry,.pile,.trash-pile,.user-target,.empty-pile),
+.r2-wireframe-view .wire-board:not(.wf-pixel-off) :is([data-fx-zone="deck"],[data-runtime-zone="trash"]) :is(.solid-side,.solid-seam) { filter:url(#wf-pixel-line); shape-rendering:crispEdges; }
 .r2-wireframe-view .ghost { fill:#c2ed9533; stroke:#c2ed95; stroke-width:2; }
 .r2-wireframe-view .arrow { stroke:#c2ed95; stroke-width:3; fill:none; }
 .r2-wireframe-view .wf-status { position:absolute; width:18%; border:1px solid #65727a; background:#152027ed; color:#dbe4e8; padding:1cqh; z-index:2; font:2cqh system-ui; }

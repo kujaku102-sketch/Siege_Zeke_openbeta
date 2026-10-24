@@ -33,7 +33,7 @@ const lifecycle = createMatchLifecycleController({onRetire:retired => {
   if (archiveRetiredMatch(retired,{storage:localStorage,sendEnabled:host.sendMatchLogs,send:sendMatchLog}).kept) host.storedCounts = storedCounts();}});
 const host = {screen:'entry',mode:'sandbox',tutorialId:'basics',
   view:resolveView({pathname:location.pathname,saved:readSavedView(localStorage),mobile:navigator.userAgentData?.mobile,userAgent:navigator.userAgent,maxTouchPoints:navigator.maxTouchPoints}).view,
-  playerDeckId:'red',aiDeckId:'yellow',playerUserId:'doors_zx',aiUserId:'doors_zx',savedDecks:loadSavedDecks(),
+  playerDeckId:'start-red',aiDeckId:'start-yellow',playerUserId:'doors_zx',aiUserId:'doors_zx',savedDecks:loadSavedDecks(),
   deckBuilder:{open:false,query:'',color:'all',recommendColor:'赤',strategy:'balanced',recommendationNote:'',autoBuildOpen:false,draft:normalizeSavedDeck({id:'',name:'新規デッキ',userId:'doors_zx',cards:{}},'')},
   options:false,notice:'',storedCounts:storedCounts(),sendMatchLogs:localStorage.getItem(SEND_LOGS_STORAGE_KEY) === 'on',tapDetails:true,effectsEnabled:localStorage.getItem(EFFECTS_STORAGE_KEY) === "on",
   masterVolume:Math.max(0,Math.min(10,Number.parseInt(localStorage.getItem('sz-master-volume') ?? '7',10) || 0)),
