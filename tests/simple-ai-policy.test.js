@@ -18,6 +18,17 @@ test('the CPU re-executes the same card at most once per turn and ends the turn 
   assert.equal(pick(mk(7), 'c3').type, 'redeploy', 'the allowance returns on the next turn');
 });
 
+test('the CPU activates the same card effect at most once per turn (cost-neutral effects must not loop)', () => {
+  // STD-196 swapped with a memory-recovering card made the CPU activate it for ever (start-purple mirror, seed 31).
+  const effect = ref => ({ actionId: `action:eff:${ref}`, kind: 'fixed', actionType: 'activateCardEffect', action: { type: 'activateCardEffect', cardRef: ref, effectKey: 'effect:x', targets: [] } });
+  const legalActions = [effect('r:a'), effect('r:b'), endTurn];
+  const mk = turn => query({ matchId: 'ai-limit-effect', turn, legalActions });
+  assert.equal(pick(mk(9), 'c1').cardRef, 'r:a');
+  assert.equal(pick(mk(9), 'c2').cardRef, 'r:b');
+  assert.equal(pick(mk(9), 'c3').type, 'endTurn');
+  assert.equal(pick(mk(11), 'c4').cardRef, 'r:a', 'the allowance returns on the next turn');
+});
+
 test('the CPU re-execution allowance is tracked per card, match and seat', () => {
   const both = [redeploy('r:a'), redeploy('r:b'), endTurn];
   const first = pick(query({ matchId: 'ai-limit-2', turn: 3, legalActions: both }), 'c1');

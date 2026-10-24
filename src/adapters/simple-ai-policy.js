@@ -7,9 +7,10 @@ const PRIORITY = Object.freeze([
   'activateScript', 'attack', 'redeploy', 'recoverRegistry', 'endTurn'
 ]);
 
-// 同じカードの再実行は1ターン1回まで。淫魔像のように移動でメモリが戻ると、
-// 前後へ動かし続けて手番が終わらなくなるのを防ぐ。
-const REDEPLOY_LIMIT_PER_TURN = 1;
+// 同じカードの再実行と能力起動は、それぞれ1ターン1回まで。淫魔像のように移動でメモリが戻ると、
+// 前後へ動かし続けたり同じ能力を起動し続けたりして手番が終わらなくなるのを防ぐ。
+const REPEAT_LIMITED_ACTIONS = Object.freeze(['redeploy', 'activateCardEffect']);
+const REPEAT_LIMIT_PER_TURN = 1;
 const redeployLog = new Map();
 
 function redeployTurnCounts(query) {
@@ -211,8 +212,12 @@ export function chooseSimpleAiIntent(query, commandId, queryAction = null) {
   let selected = null;
   let plannedAction = null;
   const redeployCounts = redeployTurnCounts(query);
-  const overRedeployLimit = entry => (entry?.actionType === 'redeploy' || entry?.action?.type === 'redeploy')
-    && (redeployCounts.get(entry.base?.cardRef ?? entry.action?.cardRef) ?? 0) >= REDEPLOY_LIMIT_PER_TURN;
+  const repeatKey = (type, cardRef) => `${type}:${cardRef}`;
+  const overRedeployLimit = entry => {
+    const type = entry?.kind === 'fixed' ? entry.action?.type : entry?.actionType;
+    return REPEAT_LIMITED_ACTIONS.includes(type)
+      && (redeployCounts.get(repeatKey(type, entry.base?.cardRef ?? entry.action?.cardRef)) ?? 0) >= REPEAT_LIMIT_PER_TURN;
+  };
   for (const type of PRIORITY) {
     for (const entry of query.legalActions.filter(entry => (entry?.kind === 'fixed' ? entry.action?.type : entry?.actionType) === type && !overRedeployLimit(entry))) {
       if (entry.kind !== 'intent') { selected = entry; break; }
@@ -236,7 +241,10 @@ export function chooseSimpleAiIntent(query, commandId, queryAction = null) {
   const action = selected.kind === 'intent' ? plannedAction
     : selected.kind === 'template' ? templateAction(selected) : structuredClone(selected.action);
   if (!action) return failure('AI_ACTION_TEMPLATE_UNSUPPORTED');
-  if (action.type === 'redeploy') redeployCounts.set(action.cardRef, (redeployCounts.get(action.cardRef) ?? 0) + 1);
+  if (REPEAT_LIMITED_ACTIONS.includes(action.type)) {
+    const key = repeatKey(action.type, action.cardRef);
+    redeployCounts.set(key, (redeployCounts.get(key) ?? 0) + 1);
+  }
   return { ok: true, value: {
     commandId, expectedRevision: revision, action
   } };
