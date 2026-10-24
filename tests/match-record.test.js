@@ -166,3 +166,16 @@ test('a log over the beacon cap in bytes skips the beacon and goes by a plain fe
   assert.equal(sendMatchLog({ text: 'ロ'.repeat(25000) }, { beacon, post }), true);
   assert.deepEqual(calls, [['fetch', false]]);
 });
+
+import { readFileSync } from 'node:fs';
+import { MATCH_LOG_ENDPOINT } from '../src/adapters/match-log-sender.js';
+
+test('the page CSP lets the log sender reach its endpoint and a picked logo video play', () => {
+  const headers = readFileSync(new URL('../public/_headers', import.meta.url), 'utf8');
+  const csp = headers.split('\n').find(line => line.trim().startsWith('Content-Security-Policy:'));
+  const directive = name => csp.split(':').slice(1).join(':').split(';').map(part => part.trim().split(/\s+/)).find(part => part[0] === name) ?? [];
+  assert.ok(csp, 'a Content-Security-Policy header is set');
+  assert.ok(directive('connect-src').includes(new URL(MATCH_LOG_ENDPOINT).origin), 'beacon and fetch go to the log host');
+  assert.ok(directive('media-src').includes('blob:'), 'a <video> on an object URL falls to media-src, not connect-src');
+  assert.equal(directive('connect-src').includes('*'), false);
+});

@@ -1,5 +1,5 @@
 // Where finished match logs go when sending is on (the Cloudflare Worker in cloudflare/match-log).
-const MATCH_LOG_ENDPOINT = 'https://log.siegezeke.online/match-logs';
+export const MATCH_LOG_ENDPOINT = 'https://log.siegezeke.online/match-logs';
 // Browsers cap a beacon, and a keepalive fetch, at 64 KiB of body bytes; leave room for headers.
 const BEACON_LIMIT = 60000;
 
