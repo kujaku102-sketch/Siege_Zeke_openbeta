@@ -122,8 +122,8 @@ test('S02-PROJ-01: output uses the exact public envelope and seat shapes', () =>
   const { referenceState } = frameAndRefs(state);
   const result = successful(view(state, referenceState));
   assert.deepEqual(Object.keys(result), ['matchId', 'revision', 'viewerSeat', 'activeSeat', 'turnNumber', 'seats']);
-  assert.deepEqual(Object.keys(result.seats[0]), ['seatId', 'user', 'fortressStr', 'memory', 'enabledSymbols', 'deck', 'hand', 'front', 'back', 'registry', 'trash', 'ban','incidents','turboActive','abilityStatus']);
-  assert.deepEqual(Object.keys(result.seats[0].user), ['definitionId', 'name', 'abilityKey', 'abilityName', 'abilityText', 'maxFortressStr', 'frontLimit', 'backLimit','incidents']);
+  assert.deepEqual(Object.keys(result.seats[0]), ['seatId', 'user', 'fortressStr', 'memory', 'enabledSymbols', 'deck', 'hand', 'front', 'back', 'registry', 'trash', 'ban','incidents','turboActive','abilityStatus','turnsTaken']);
+  assert.deepEqual(Object.keys(result.seats[0].user), ['definitionId', 'name', 'abilityKey', 'abilityName', 'abilityText', 'maxFortressStr', 'frontLimit', 'backLimit','initialHand','memory','deckRule','incidents']);
   assert.deepEqual(Object.keys(result.seats[0].memory), ['current', 'max']);
   assert.deepEqual(Object.keys(result.seats[0].deck), ['count']);
   assert.deepEqual(Object.keys(result.seats[1].hand), ['count']);

@@ -181,6 +181,7 @@ export const CARD_RUNTIME_SPECS = Object.freeze({
     op("deal_damage", { target: "selected_enemy_ob", amount: 3 }),
     op("select", {
       selector: { owner: "self", zones: ["area"] }, mode: "up_to", minimum: 0, maximum: 1,
+      label: "追加効果：自分エリアのカード1枚を破壊すると、相手ユーザーに2ダメージ",
       skipAfterActionsWhenEmpty: true,
       afterActions: [
         op("destroy", { target: "selected_own_area_card", recordAs: "destroyed_count" }),

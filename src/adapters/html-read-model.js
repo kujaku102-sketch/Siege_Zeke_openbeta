@@ -153,15 +153,18 @@ function decorateCard(card, interactions, ui, visibleRefs) {
       materialActionIds: [...relation.material], attackReady,
       attackStyle: attackReady ? card.status?.summoningSick && contact ? 'contact' : 'normal' : null,
       securityGuard: !card.faceDown && card.status?.sleep === true
-        && badges.some(item => item?.name === 'SECURITY')
+        && badges.some(item => item?.name === 'SECURITY'),
+      // Front Security Obs carry a hologram shield: faint on standby, solid while asleep (the forced target).
+      securityShield: card.faceDown || card.location?.kind !== 'board' || card.location?.zone !== 'front'
+        || !badges.some(item => item?.name === 'SECURITY') ? null : card.status?.sleep === true ? 'guard' : 'standby'
     }
   };
 }
 
-export function buildHtmlReadModel(queryInput, localUiInput) {
+function buildModel(queryInput, localUiInput) {
   try {
     const query = exact(copyData(queryInput, 'HTML_READ_MODEL_INVALID_QUERY'), [
-      'status', 'observation', 'legalActions', 'requiredInput'
+      'status', 'observation', 'legalActions', 'actionBlocks', 'requiredInput'
     ], 'HTML_READ_MODEL_INVALID_QUERY');
     const ui = localState(copyData(localUiInput, 'HTML_READ_MODEL_INVALID_UI'));
     const status = query.status;
@@ -201,6 +204,7 @@ export function buildHtmlReadModel(queryInput, localUiInput) {
       },
       seats,
       legalActions: actions,
+      actionBlocks: copyData(query.actionBlocks, 'HTML_READ_MODEL_INVALID_QUERY'),
       requiredInput: copyData(query.requiredInput, 'HTML_READ_MODEL_INVALID_QUERY'),
       globalActionIds: [...interactions.globals],
       ui: {
@@ -213,4 +217,61 @@ export function buildHtmlReadModel(queryInput, localUiInput) {
     if (error instanceof ReadModelError) return failure(error.code);
     throw error;
   }
+}
+
+function readOnly(value) {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const item of Object.values(value)) readOnly(item);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+export function createHtmlReadModelProjection(queryInput) {
+  const built = buildModel(queryInput, { selectedCardRef: null, detailCardRef: null,
+    menuOpen: false, logOpen: false, handOpen: true, draft: null });
+  if (!built.ok) return built;
+  const base = readOnly(built.value);
+  const paths = new Map();
+  const index = (cards, path) => cards.forEach((card, i) => {
+    const here = [...path, i];
+    paths.set(card.cardRef, here);
+    if (!card.faceDown) index(card.mounted, [...here, 'mounted']);
+  });
+  base.seats.forEach((seat, i) => {
+    for (const zone of ['hand', 'front', 'back', 'registry', 'trash', 'ban']) {
+      if (Array.isArray(seat[zone].cards)) index(seat[zone].cards, ['seats', i, zone, 'cards']);
+    }
+  });
+  const replace = (value, path, decorate) => {
+    if (!path.length) return decorate(value);
+    const [key, ...rest] = path;
+    const result = Array.isArray(value) ? [...value] : { ...value };
+    result[key] = replace(value[key], rest, decorate);
+    return result;
+  };
+  return { ok: true, value: Object.freeze({
+    project(localUiInput) {
+      try {
+        const ui = localState(copyData(localUiInput, 'HTML_READ_MODEL_INVALID_UI'));
+        ui.selectedCardRef = paths.has(ui.selectedCardRef) ? ui.selectedCardRef : null;
+        ui.detailCardRef = paths.has(ui.detailCardRef) ? ui.detailCardRef : null;
+        ui.draft = currentDraft(ui.draft, base.legalActions, base.requiredInput);
+        let model = base;
+        for (const cardRef of new Set([ui.selectedCardRef, ui.detailCardRef].filter(Boolean))) {
+          model = replace(model, paths.get(cardRef), card => ({ ...card, interaction: {
+            ...card.interaction, selected: cardRef === ui.selectedCardRef, detailed: cardRef === ui.detailCardRef
+          } }));
+        }
+        return { ok: true, value: readOnly({ ...model, ui }) };
+      } catch (error) {
+        if (error instanceof ReadModelError) return failure(error.code);
+        throw error;
+      }
+    }
+  }) };
+}
+
+export function buildHtmlReadModel(queryInput, localUiInput) {
+  return buildModel(queryInput, localUiInput);
 }

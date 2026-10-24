@@ -10,6 +10,11 @@
 .r2-title-options .r2-title-setting span { color:#00ff00; font:1.5em/1 monospace; }
 .r2-title-options .r2-title-setting:focus-visible { outline:2px solid #00ff00; }
 .r2-title-options .r2-title-volume { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.r2-title-records { display:flex; align-items:center; gap:10px; }
+.r2-title-records output { margin-left:auto; color:#00ff00; }
+.r2-title-records button:disabled { opacity:.45; }
+.runtime-host-options .r2-match-archive { display:grid; gap:8px; margin-top:12px; padding-top:10px; border-top:1px solid #ffffff22; }
+.runtime-host-options .r2-match-archive p { margin:0; font-size:11px; }
 .r2-title-options .r2-title-volume>div { display:flex; gap:3px; flex:1; min-width:180px; }
 .r2-title-options .r2-title-volume button { flex:1; height:24px; min-width:9px; padding:0; border:0 !important; border-radius:0; background:#17402e !important; }
 .r2-title-options .r2-title-volume button[aria-pressed="true"] { background:#00ff00 !important; }
@@ -60,4 +65,3 @@
 @media (prefers-reduced-motion:reduce) { .r2-content .r2-mode-grid>button:is(:hover:not(:disabled),:focus-visible)::after, .r2-content .r2-mode-grid>button:is(:hover:not(:disabled),:focus-visible) strong { animation:none; } }
 .r2-content .r2-mode-grid>.r2-deck-entry { grid-column:auto; min-height:0; padding:7px 12px; display:flex; }
 .r2-content .r2-mode-grid>.r2-deck-entry .r2-entry-icon { width:clamp(20px,4dvh,32px); height:clamp(20px,4dvh,32px); }
-.r2-content .r2-entry-note { margin:14px 0 0; color:#64747d; font:11px/1.4 monospace; letter-spacing:.04em; }

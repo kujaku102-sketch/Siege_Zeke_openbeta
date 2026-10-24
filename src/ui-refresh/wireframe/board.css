@@ -1,0 +1,292 @@
+/* Default view. All selectors are scoped so the classic board (?board=classic) stays unchanged. */
+body[data-view] .r2-content .r2-runtime-view.r2-wireframe-view {
+  position:absolute; inset:0; width:100%; height:100%; container-type:size; overflow:clip;
+  --wf-space:clamp(.5rem,1.5cqh,1.25rem);
+  --wf-hit:2.75rem;
+  --wf-font:clamp(.875rem,3.4cqh,1.125rem);
+  --wf-control-font:SZDotGothic,"Yu Gothic UI",sans-serif;
+  --wf-display-font:Georgia,serif;
+  --wf-top:max(var(--wf-space),env(safe-area-inset-top,0px));
+  --wf-bottom:max(var(--wf-space),env(safe-area-inset-bottom,0px));
+  --wf-left:max(var(--wf-space),env(safe-area-inset-left,0px));
+  --wf-right:max(var(--wf-space),env(safe-area-inset-right,0px));
+}
+body[data-view] .r2-content .r2-wireframe-view .r2-stage { position:absolute; inset:0; width:100%; height:100%; padding:0; }
+/* Classic board inside the same HUD: kept clear of the turn controls and the user windows. */
+body[data-view] .r2-content .r2-classic-board .r2-stage { inset:0 19cqw 0 4cqw; width:auto; border:0; background:none; box-shadow:none; }
+body[data-view] .r2-content .r2-classic-board .r2-board { border:0; background:none; box-shadow:none; }
+.r2-classic-board .wf-status { pointer-events:auto; }
+body[data-view] .r2-content .r2-wireframe-view .wire-board-host { position:absolute; inset:0; width:100%; height:100%; max-width:none; max-height:none; aspect-ratio:auto; transform:none; border:0; background:radial-gradient(ellipse at 50% 53%,#0e1b23,#06090c 70%); overflow:clip; }
+.r2-wireframe-view .wire-board { position:absolute; inset:0; width:100%; height:100%; touch-action:none; user-select:none; cursor:grab; }
+.r2-wireframe-view .wire-board.camera-dragging, .r2-wireframe-view .wire-board.camera-dragging * { cursor:grabbing; }
+.r2-wireframe-view .wf-slot { transform:none; width:auto; height:auto; min-height:0; border:0; padding:0; background:none; }
+.r2-content .r2-wireframe-view [data-wire-hit] { cursor:pointer; outline:none; pointer-events:auto; }
+.r2-wireframe-view .board-plane { fill:#0a141c; stroke:#314b5a; stroke-width:1.5; }
+.r2-wireframe-view .slot { fill:#12233055; stroke:#607f8e; stroke-width:1.2; }
+.r2-wireframe-view .card-line { stroke:#b7cbd5; stroke-width:1.5; fill:#263c49; }
+.r2-wireframe-view .card-line.face-down { fill:url(#back-pattern); }
+.r2-wireframe-view .card-line.attack-ready { stroke:#8ee4a1; stroke-width:3; }
+.r2-wireframe-view .selected .card-line { stroke:#e6dd8c; stroke-width:3; }
+.r2-wireframe-view .request-target .slot,.r2-wireframe-view .request-target .user-target { stroke:#ecc987; stroke-width:3; fill:#e9b33b33; }
+.r2-wireframe-view [data-wire-hit]:focus-visible .slot,.r2-wireframe-view [data-wire-hit]:focus-visible .user-target { stroke:white; stroke-width:4; }
+.r2-wireframe-view .board-label { fill:#91a9b8; font:12px system-ui; letter-spacing:1px; pointer-events:none; }
+.r2-wireframe-view .card-caption { fill:#dae5ec; font:11px system-ui; pointer-events:none; }
+.r2-wireframe-view .registry { fill:#d79b3822; stroke:#b49155; stroke-width:1.2; }
+.r2-wireframe-view .pile { fill:#151e25; stroke:#aaa; }
+.r2-wireframe-view .trash-pile { fill:#39243b; stroke:#d392c6; stroke-width:1.2; }
+.r2-wireframe-view .user-target { fill:#6783970b; stroke:#4c6470; stroke-dasharray:6 5; }
+.r2-wireframe-view .solid-side { fill:#15232c; stroke:#8babbc; stroke-width:1.1; }
+.r2-wireframe-view .solid-seam { fill:none; stroke:#7993a2; stroke-width:.8; opacity:.8; pointer-events:none; }
+.r2-wireframe-view .empty-pile { stroke-dasharray:4 4; fill:transparent; }
+.r2-wireframe-view .solid-ghost { opacity:.6; }
+.r2-wireframe-view .ghost { fill:#c2ed9533; stroke:#c2ed95; stroke-width:2; }
+.r2-wireframe-view .arrow { stroke:#c2ed95; stroke-width:3; fill:none; }
+.r2-wireframe-view .wf-status { position:absolute; width:18%; border:1px solid #65727a; background:#152027ed; color:#dbe4e8; padding:1cqh; z-index:2; font:2cqh system-ui; }
+.r2-wireframe-view .wf-self { left:2%; bottom:6%; }
+.r2-wireframe-view .wf-enemy { right:2%; top:8%; }
+.r2-wireframe-view .wf-status button { display:block; width:100%; padding:.5cqh; font:inherit; background:#30373c; border:0; }
+.r2-wireframe-view .wf-status i { display:inline-block; width:2cqh; height:2cqh; border-radius:50%; background:#95d4af; margin-right:.5em; }
+.r2-wireframe-view .wf-enemy i { background:#eb888e; }
+.r2-wireframe-view .wf-status strong { display:inline-block; font-size:5cqh; margin:1cqh 1cqh 0 0; }
+.r2-wireframe-view .wf-status small { font-size:1.6cqh; color:#c9ad6f; }
+.r2-wireframe-view .wf-status .used { opacity:.4; text-decoration:line-through; }
+body[data-view] .r2-content .r2-wireframe-view .r2-tools-host { position:absolute; inset:31% 2% auto auto; width:15%; transform:none; }
+body[data-view] .r2-content .r2-wireframe-view .r2-hand-host { left:50%; right:auto; bottom:0; width:55%; transform:translateX(-50%); }
+.r2-content .r2-wireframe-view .r2-hand-scroll { justify-content:center; }
+.r2-content .r2-wireframe-view .r2-console { width:100%; height:auto; min-height:0; max-height:64cqh; padding:1cqh; gap:1cqh; font-size:2cqh; }
+.r2-content .r2-wireframe-view .r2-console button { min-height:5.8cqh; height:auto; padding:.6cqh; font-size:2.3cqh; }
+.r2-content .r2-wireframe-view .r2-console>span { font-size:1.8cqh; }
+.r2-content .r2-wireframe-view .r2-console .unique-effect-name { font-size:2.6cqh; }
+.r2-wireframe-view .wf-reference-body { display:grid; grid-template-columns:6.5em minmax(0,1fr); gap:var(--wf-space); min-height:0; overflow:hidden; }
+.r2-wireframe-view .wf-zone-tabs { display:flex; flex-direction:column; gap:.25em; }
+.r2-wireframe-view .wf-owner-tabs { display:flex; gap:.5em; }
+.r2-wireframe-view .wf-owner-tabs button { flex:1; }
+.r2-wireframe-view .wf-drawer [aria-pressed=true] { background:#3b565c; border-color:#a2e3df; }
+.r2-content .r2-wireframe-view .effect-modal { pointer-events:none; }
+.r2-content .r2-wireframe-view .effect-modal :is(section,nav,button,input) { pointer-events:auto; }
+.r2-content .r2-wireframe-view .effect-modal { display:block; inset:15cqh auto auto 1cqw; width:35cqw; padding:0; background:none; backdrop-filter:none; }
+.r2-content .r2-wireframe-view .effect-modal>nav { position:static; display:flex; justify-content:flex-end; gap:.5em; padding:.5em; background:#14212be8; }
+.r2-content .r2-wireframe-view .effect-dialog { max-width:35cqw; max-height:58cqh; overflow:auto; }
+/* Override legacy PC/mobile fixed-size console rules, only in this view. */
+body[data-view] .r2-content .r2-wireframe-view .r2-console { width:100%; height:auto; min-height:0; max-height:64cqh; padding:1cqh; gap:1cqh; }
+body[data-view] .r2-content .r2-wireframe-view .r2-console button { min-height:5.8cqh; padding:.6cqh; font-size:2.3cqh; flex-shrink:0; }
+body[data-view] .r2-content .r2-wireframe-view .r2-console button.unique-effect { width:100%; margin:0; min-height:7.2cqh; padding:.8cqh; }
+body[data-view] .r2-content .r2-wireframe-view .r2-console .unique-effect-name { font-size:2.3cqh; }
+body[data-view] .r2-content .r2-wireframe-view .r2-console .unique-effect-eyebrow { font-size:1.3cqh; }
+body[data-view] .r2-content .r2-wireframe-view .r2-console>span { font-size:1.8cqh; padding-bottom:.7cqh; }
+
+/* Wireframe control kit: screen-space controls, independent of board camera. */
+.r2-content:has(.r2-wireframe-view)>.r2-utilities { display:none; }
+body[data-view] .r2-content .r2-wireframe-view .r2-tools-host { inset:0; width:100%; height:100%; pointer-events:none; z-index:20; }
+.r2-wireframe-view .wf-hud { position:absolute; inset:0; pointer-events:none; }
+.r2-wireframe-view .wf-hud button { pointer-events:auto; font-family:var(--wf-control-font); }
+.r2-wireframe-view .wf-hud svg { width:3.8cqh; height:3.8cqh; fill:none; stroke:currentColor; stroke-width:1.8; }
+.r2-wireframe-view .wf-gear { position:absolute; top:var(--wf-top); left:var(--wf-left); width:max(var(--wf-hit),7cqh); height:max(var(--wf-hit),7cqh); padding:.6rem; background:#30373c; border:1px solid #a3adb2; color:#e6e9e9; }
+.r2-wireframe-view .wf-opp-hand { position:absolute; top:var(--wf-top); left:calc(var(--wf-left) + max(var(--wf-hit),7cqh) + 2.5cqh); display:flex; align-items:flex-end; gap:1.2cqh; pointer-events:none; }
+.r2-wireframe-view .wf-opp-hand-fan { position:relative; width:12cqh; height:8cqh; }
+.r2-wireframe-view .wf-opp-hand-fan i { position:absolute; left:calc(50% - 2.3cqh); bottom:0; width:4.6cqh; height:6.4cqh; box-sizing:border-box; border:1px solid #7f97a8; border-radius:.4cqh; background:repeating-linear-gradient(45deg,#11202c 0 .5cqh,#2a3d4b .5cqh .7cqh); box-shadow:0 0 .6cqh #0009; transform-origin:50% 140%; transform:rotate(var(--a)); }
+.r2-wireframe-view .wf-opp-hand output { color:#ff3fa8; font:700 3.4cqh/1 var(--wf-control-font); text-shadow:0 0 .8cqh #ff3fa880; }
+.r2-wireframe-view .wf-turn-controls { position:absolute; right:3cqw; top:32cqh; display:grid; justify-items:center; gap:1cqh; }
+.r2-wireframe-view button.wf-hex { clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); border:0; border-radius:0; background:#a8d8b0; color:#101d16; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.4cqh; width:11cqh; height:10cqh; padding:1cqh; font-size:1.8cqh; }
+.r2-wireframe-view button.wf-hex:hover:not(:disabled),.r2-wireframe-view button.wf-hex:focus-visible { background:#e5f2e7; outline:0; }
+.r2-wireframe-view button.wf-hex:disabled { background:#34413b; color:#9aa7a0; opacity:1; cursor:default; }
+.r2-wireframe-view button.wf-turn { width:22cqh; height:20cqh; font-size:2.2cqh; }
+.r2-wireframe-view .wf-turn small { font-size:1.8cqh; }
+.r2-wireframe-view .wf-turn strong { font-size:6cqh; line-height:1; }
+.r2-wireframe-view .wf-extra-action { font-size:2.4cqh; padding:1cqh; background:#30373c; color:#eee; }
+.r2-wireframe-view .wf-hex-tools { position:absolute; right:3cqw; bottom:8cqh; display:grid; grid-template-columns:repeat(2,11cqh); gap:1cqh; }
+body[data-view] .r2-content .r2-wireframe-view .wf-unique.r2-console { position:absolute; inset:auto 0 calc(100% + 1cqh); width:100%; padding:0; border:0; background:none; box-shadow:none; overflow:visible; }
+body[data-view] .r2-content .r2-wireframe-view .wf-unique .unique-effect-name { margin:0; font-size:2.3cqh; }
+.r2-content .r2-wireframe-view .r2-popup { background:#242c31f5; border:1px solid #adb8be; border-radius:0; }
+.r2-content .r2-wireframe-view .r2-popup button,.r2-content .r2-wireframe-view .effect-modal>nav button { background:#39434a; color:#f1f4f5; border:1px solid #a4b2bb; border-radius:0; font-size:clamp(12px,2.2cqh,22px); }
+.r2-content .r2-wireframe-view .r2-popup button::before,.r2-content .r2-wireframe-view .r2-popup button::after { content:none; }
+.r2-content .r2-wireframe-view .r2-popup button:hover:not(:disabled) { background:#52616a; }
+
+/* Integrated reference HUD. Crisp screen-space panels; only the board is faceted. */
+.r2-wireframe-view .wf-board-model { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.r2-wireframe-view .wf-has-model .board-plane { fill:transparent; stroke:none; }
+/* With the 3D board the slabs carry the card faces, art and sides; the SVG keeps
+   outlines, seams, captions and hit areas (transparent fills still take clicks). */
+.r2-wireframe-view .wf-has-model :is(.board-slot,[data-runtime-zone],[data-fx-zone]) :is(.card-art-face,.solid-side) { display:none; }
+.r2-wireframe-view .wf-has-model :is(.board-slot,[data-runtime-zone],[data-fx-zone]) .card-solid > polygon:not(.solid-side),.r2-wireframe-view .wf-has-model .board-slot[data-card-ref] .slot,.r2-wireframe-view .wf-has-model [data-runtime-zone="registry"] > polygon.registry { fill:transparent; }
+.r2-wireframe-view .slot { fill:#08121b44; stroke:#4e8297; stroke-width:1.5; }
+.r2-wireframe-view .wf-status { width:33cqh; height:15.4cqh; border:0; background:none; padding:0; isolation:isolate; }
+.r2-wireframe-view .wf-self { left:1.7cqw; bottom:2.3cqh; }
+.r2-wireframe-view .wf-enemy { right:2.6cqw; top:3cqh; }
+.r2-wireframe-view .wf-user-window { position:absolute; inset:auto 0 0; height:9.4cqh; background:#999; }
+.r2-wireframe-view .wf-enemy .wf-user-window { top:0; bottom:auto; }
+.r2-wireframe-view .wf-status .wf-user-title { height:3.2cqh; padding:0 .3cqh; border:.25cqh solid #333; display:flex; align-items:center; justify-content:flex-end; gap:1cqh; color:white; background:#0000ff; font:italic 2.2cqh Georgia,serif; }
+.r2-wireframe-view .wf-enemy .wf-user-title { background:#00633a; justify-content:flex-start; }
+.r2-wireframe-view .wf-user-title span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.r2-wireframe-view .wf-user-title b { font:2.5cqh/1 Arial; color:#ccc; }
+.r2-wireframe-view .wf-self .wf-user-title b { color:#b62d2d; background:#777; }
+.r2-wireframe-view .wf-life { display:block; width:100%; height:6.2cqh; }
+.r2-wireframe-view .wf-status .wf-avatar { position:absolute; z-index:3; left:0; top:0; width:15.4cqh; height:15.4cqh; border-radius:50%; background:#00ff00; padding:0; border:0; }
+.r2-wireframe-view .wf-enemy .wf-avatar { left:auto; right:0; background:#ff0000; }
+.r2-wireframe-view .wf-turn-controls { right:2.7cqw; top:30cqh; width:32.5cqh; height:60cqh; display:block; }
+/* The gauge sits a little left of TURN so its arms are not hidden behind it. */
+.r2-wireframe-view .wf-hud .wf-meter { position:absolute; left:-4cqh; top:0; width:28cqh; height:30cqh; stroke:none; pointer-events:none; overflow:visible; }
+/* A spent memory cell flashes white, then settles to its open grey (memory-meter.js). */
+@keyframes wf-mem-spent { 0% { fill:#ffffff; stroke:#ffffff; filter:drop-shadow(0 0 6px #b8ffb8); } 35% { fill:#eaffea; stroke:#eaffea; filter:drop-shadow(0 0 4px #00ff00); } 100% { fill:transparent; stroke:#5b625d; filter:none; } }
+.r2-wireframe-view .wf-turn { position:absolute; top:4.2cqh; right:-1.5cqh; width:29cqh; height:29cqh; clip-path:polygon(25% 4%,75% 4%,100% 50%,75% 96%,25% 96%,0 50%); border:0; padding:2.8cqh 0 1cqh; background:#7d7d7b; color:#111; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; font-family:Georgia,serif; border-radius:0; isolation:isolate; }
+.r2-wireframe-view .wf-turn-facet { position:absolute; inset:0; background:#b0b0ae; clip-path:polygon(0 0,69% 0,42% 100%,0 100%); z-index:-1; }
+.r2-wireframe-view .wf-turn small { font:bold 4.1cqh/1 Georgia,serif; }
+.r2-wireframe-view .wf-turn strong { font:9.2cqh/.95 Georgia,serif; color:white; -webkit-text-stroke:.1cqh #111; }
+.r2-wireframe-view .wf-turn .wf-turn-label { font:4.7cqh/1 Georgia,serif; color:white; }
+.r2-wireframe-view .wf-turn:disabled .wf-turn-label { font:2.8cqh/1.5 serif; }
+.r2-wireframe-view .wf-turn:disabled { opacity:1; cursor:default; }
+.r2-wireframe-view .wf-turn:active:not(:disabled) { transform:translateY(.5cqh); }
+.r2-wireframe-view .wf-turn:focus-visible { outline:0; filter:brightness(1.2); }
+.r2-wireframe-view .wf-memory { position:absolute; left:4.2cqh; right:0; top:29cqh; height:5.4cqh; border:1px solid #eee; border-radius:1.5cqh; background:#171717; color:#00ff00; box-shadow:inset 0 1.9cqh #303030; }
+.r2-wireframe-view .wf-memory>span { position:absolute; top:.3cqh; left:.8cqh; font:1.4cqh Arial; }
+.r2-wireframe-view .wf-memory output { display:block; text-align:center; font:5cqh/1 Georgia,serif; padding-left:2cqh; }
+.r2-wireframe-view .wf-hex-tools { right:0; bottom:0; width:26cqh; height:22cqh; display:block; }
+.r2-wireframe-view .wf-hex-tools .wf-hex { position:absolute; width:13cqh; height:11.3cqh; background:#00ff00; color:#000; padding:2.2cqh; }
+.r2-wireframe-view .wf-hex-tools svg { width:100%; height:100%; }
+.r2-wireframe-view .wf-information { right:0; top:0; }
+.r2-wireframe-view .wf-information i { font:bold italic 10cqh/.9 Georgia,serif; }
+.r2-wireframe-view .wf-zones { left:0; top:5.6cqh; }
+.r2-wireframe-view .wf-hex-tools .wf-log { right:0; top:11.3cqh; color:#00ff00; background:#00ff00; isolation:isolate; }
+.r2-wireframe-view .wf-log::before { content:''; position:absolute; inset:.6cqh; background:#050505; clip-path:inherit; z-index:-1; }
+.r2-wireframe-view .wf-extra-actions { position:absolute; right:0; top:35cqh; }
+@media(prefers-reduced-motion:reduce) { .r2-wireframe-view .wf-turn:active:not(:disabled) { transform:none; } }
+body[data-view] .r2-content .r2-wireframe-view .wf-turn small { font:bold 4.1cqh/1 Georgia,serif; color:#111; }
+body[data-view] .r2-content .r2-wireframe-view .wf-turn strong { font:9.2cqh/.95 Georgia,serif; color:white; }
+
+/* Screen-space layout. Lower bounds protect input, not the decorative shape. */
+.r2-wireframe-view .wf-gear svg { width:100%; height:100%; }
+.r2-wireframe-view .wf-self { left:var(--wf-left); bottom:var(--wf-bottom); }
+.r2-wireframe-view .wf-enemy { right:var(--wf-right); top:var(--wf-top); }
+.r2-wireframe-view .wf-status { width:max(9rem,33cqh); height:max(3.5rem,15.4cqh); }
+.r2-wireframe-view .wf-status .wf-avatar { width:max(3.5rem,15.4cqh); height:max(3.5rem,15.4cqh); }
+.r2-wireframe-view .wf-user-window { height:max(2.5rem,9.4cqh); }
+.r2-wireframe-view .wf-status .wf-user-title { height:max(.875rem,3.2cqh); font-size:max(.75rem,2.2cqh); }
+.r2-wireframe-view .wf-life { height:max(1.625rem,6.2cqh); }
+.r2-wireframe-view .wf-turn-controls {
+  right:var(--wf-right); top:max(24cqh,calc(var(--wf-top) + max(3.5rem,15.4cqh) + var(--wf-space)));
+  bottom:var(--wf-bottom); width:max(6rem,32.5cqh); height:auto;
+  display:grid; grid-template-rows:max(3.75rem,24cqh) max(2.25rem,7cqh) minmax(0,1fr); gap:.25rem;
+}
+.r2-wireframe-view .wf-hud .wf-meter { height:max(5.5rem,31cqh); width:100%; }
+.r2-wireframe-view button.wf-turn { position:relative; inset:auto; grid-row:1; justify-self:end; width:max(3.75rem,24cqh); height:100%; padding:.25rem 0; }
+.r2-wireframe-view .wf-memory { position:relative; inset:auto; grid-row:2; width:100%; height:100%; box-sizing:border-box; }
+.r2-wireframe-view .wf-memory>span { font: max(.625rem,1.4cqh)/1 var(--wf-control-font); }
+.r2-wireframe-view .wf-memory output { font:max(1.5rem,5cqh)/1 var(--wf-display-font); padding:.55rem 0 0; }
+/* The three hexes are one group: their centres are fixed relative to each other
+   (info top-right, log below it, zones to the left half a row down) and only the
+   group itself is placed. --hex-gap is the space between neighbours. */
+.r2-wireframe-view .wf-hex-tools {
+  --hex-w:max(var(--wf-hit),13cqh); --hex-h:max(var(--wf-hit),11.3cqh); --hex-gap:max(.25rem,.8cqh);
+  position:relative; inset:auto; align-self:end; justify-self:end; grid-row:3; display:block;
+  width:calc(var(--hex-w) * 2 + var(--hex-gap)); height:calc(var(--hex-h) * 2 + var(--hex-gap));
+}
+.r2-wireframe-view .wf-hex-tools .wf-hex { position:absolute; inset:auto; width:var(--hex-w); height:var(--hex-h); min-width:0; min-height:0; clip-path:none; background:transparent; padding:.65rem; isolation:isolate; }
+.r2-wireframe-view .wf-hex::before { content:""; position:absolute; inset:0; clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); background:#00ff00; z-index:-2; }
+.r2-wireframe-view .wf-hex-tools .wf-log::before { inset:0; background:#00ff00; clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); }
+.r2-wireframe-view .wf-log::after { content:""; position:absolute; inset:.2rem; background:#050505; clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); z-index:-1; }
+.r2-wireframe-view .wf-hex:focus-visible { outline:2px solid white; outline-offset:1px; }
+.r2-wireframe-view .wf-hex-tools .wf-information { right:0; top:0; }
+.r2-wireframe-view .wf-hex-tools .wf-log { right:0; top:calc(var(--hex-h) + var(--hex-gap)); }
+.r2-wireframe-view .wf-hex-tools .wf-zones { left:0; top:calc((var(--hex-h) + var(--hex-gap)) / 2); }
+.r2-wireframe-view .wf-hex-tools button.wf-hex:disabled { background:transparent; }
+.r2-wireframe-view .wf-hex-tools button.wf-hex:disabled::before { background:#34413b; }
+/* PS1 drawing (hud-scene.js) of TURN and the hexes sits behind the turn controls with
+   room for tilt and hover. Once it renders, the CSS shapes, icons and TURN text step
+   aside; the buttons still take input and keep their labels. */
+.r2-wireframe-view .wf-hud-model { position:absolute; left:-32%; top:-9%; width:144%; height:115%; pointer-events:none; }
+.r2-wireframe-view .wf-hud-rendered .wf-hex::before,.r2-wireframe-view .wf-hud-rendered .wf-hex::after,.r2-wireframe-view .wf-hud-rendered .wf-hex>* { visibility:hidden; }
+.r2-wireframe-view .wf-hud-rendered .wf-turn { background:transparent; }
+.r2-wireframe-view .wf-hud-rendered .wf-turn>* { visibility:hidden; }
+.r2-wireframe-view .wf-hud-rendered .wf-meter { visibility:hidden; }
+.r2-wireframe-view .wf-information i { font-size:max(1.75rem,8cqh); }
+.r2-wireframe-view .wf-extra-actions { top:auto; bottom:calc(100% + .25rem); }
+body[data-view] .r2-content .r2-wireframe-view .r2-hand-host {
+  bottom:0; transform:translate(-50%,calc(100% - max(var(--wf-hit),12cqh)));
+  transition:transform .2s ease-out;
+}
+body[data-view] .r2-content .r2-wireframe-view.wf-hand-raised .r2-hand-host { transform:translate(-50%,0); }
+.r2-content .r2-wireframe-view .r2-hand-scroll { padding:.75cqh 1.5cqw 0; }
+@media (prefers-reduced-motion:reduce) {
+  body[data-view] .r2-content .r2-wireframe-view .r2-hand-host { transition:none; }
+}
+body[data-view] .r2-content .r2-wireframe-view .wf-unique.r2-console button { min-height:var(--wf-hit); }
+body[data-view] .r2-content .r2-wireframe-view .wf-unique .unique-effect-name { font:var(--wf-font)/1.25 var(--wf-control-font); }
+
+/* No dependency on the classic admin drawer's fixed offsets or scroll box. */
+.r2-content .r2-wireframe-view .wf-drawer {
+  position:absolute; z-index:25; inset:var(--wf-top) var(--wf-right) var(--wf-bottom) var(--wf-left); margin:auto;
+  width:min(36rem,calc(100% - var(--wf-left) - var(--wf-right))); height:min(88%,calc(100% - var(--wf-top) - var(--wf-bottom)));
+  display:grid; grid-template-rows:auto minmax(0,1fr); gap:var(--wf-space); padding:var(--wf-space); box-sizing:border-box;
+  overflow:hidden; border:1px solid #88969e; background:#181a1ef5; color:#f4f4f5;
+  font:var(--wf-font)/1.35 var(--wf-control-font); box-shadow:0 1rem 3rem #0008;
+}
+.r2-wireframe-view .wf-drawer header { display:flex; align-items:center; justify-content:space-between; gap:var(--wf-space); }
+.r2-wireframe-view .wf-drawer h2 { margin:0; font:inherit; font-size:1.15em; }
+.r2-wireframe-view .wf-drawer button:not(.card) { min-height:var(--wf-hit); min-width:var(--wf-hit); padding:.25em .5em; font:inherit; white-space:nowrap; background:#30373c; border:1px solid #81939f; color:inherit; }
+.r2-wireframe-view .wf-reference-body>section { display:grid; grid-template-rows:auto minmax(0,1fr); gap:.25em; min-height:0; min-width:0; }
+.r2-wireframe-view .wf-owner-tabs { min-width:0; }
+.r2-wireframe-view .wf-drawer .admin-card-list { display:flex; flex-wrap:wrap; align-content:start; gap:.5rem; min-height:0; min-width:0; max-height:none; overflow:auto; overscroll-behavior:contain; padding:.25rem; }
+.r2-wireframe-view .wf-drawer .admin-card-list>.card { flex:none; width:clamp(4.5rem,12cqh,7rem); height:auto; aspect-ratio:5/8; }
+.r2-wireframe-view .wf-drawer [aria-pressed=true] { background:#3b565c !important; border-color:#a2e3df !important; }
+
+/* Content scrolls, while exit/confirmation controls stay available. */
+body[data-view] .r2-content .r2-wireframe-view .r2-detail {
+  --detail-width:min(22rem,42cqw); --detail-info-font:var(--wf-font); --detail-body-font:var(--wf-font); --detail-title-font:calc(var(--wf-font) * 1.15);
+  --component-name-font:var(--wf-font); --component-note-font:var(--wf-font); z-index:26;
+  position:absolute; top:var(--wf-top); left:var(--wf-left); width:min(22rem,42cqw); max-width:calc(100% - var(--wf-left) - var(--wf-right));
+  max-height:calc(100% - var(--wf-top) - var(--wf-bottom)); overflow:auto; padding:0 var(--wf-space) var(--wf-space); box-sizing:border-box;
+}
+.r2-content .r2-wireframe-view .r2-detail>header { position:sticky; top:0; z-index:2; background:#18181b; margin:0; min-height:var(--wf-hit); }
+.r2-content .r2-wireframe-view .r2-detail header button { min-width:var(--wf-hit); min-height:var(--wf-hit); }
+.r2-content .r2-wireframe-view .r2-detail .card-inspector { font-size:var(--wf-font); overflow:visible; padding-top:min(25cqh,8rem); }
+.r2-content .r2-wireframe-view .r2-detail .card-effect-copy { font-size:var(--wf-font); line-height:1.4; }
+body[data-view] .r2-content .r2-wireframe-view .effect-modal {
+  position:absolute; inset:var(--wf-top) auto var(--wf-bottom) var(--wf-left); width:min(32rem,60cqw); height:auto; max-height:none;
+  display:flex; flex-direction:column; justify-content:flex-start; gap:0; overflow:hidden;
+}
+body[data-view] .r2-content .r2-wireframe-view .effect-dialog { width:100%; max-width:none; max-height:none; min-height:0; flex:0 1 auto; display:grid; grid-template-rows:auto minmax(0,1fr) auto; overflow:hidden; box-sizing:border-box; padding:var(--wf-space); }
+.r2-content .r2-wireframe-view .effect-dialog>header { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.r2-content .r2-wireframe-view .effect-dialog h2 { font:var(--wf-font)/1.35 var(--wf-control-font); margin:0; overflow-wrap:anywhere; }
+.r2-content .r2-wireframe-view .effect-dialog>footer p { margin:.25rem 0; font-size:var(--wf-font); }
+.r2-content .r2-wireframe-view .effect-dialog>footer { display:block; padding:0; margin:0; min-height:0; }
+/* Choice cards share one layout with the classic board: see live.css. */
+.r2-content .r2-wireframe-view .effect-modal>nav { flex:none; flex-wrap:wrap; }
+body[data-view] .r2-content .r2-wireframe-view :is(.effect-modal>nav button,.effect-dialog>header button,.runtime-selection-reopen,.r2-popup button) { min-height:var(--wf-hit); min-width:var(--wf-hit); font:var(--wf-font)/1.35 var(--wf-control-font); }
+body[data-view] .r2-content .r2-wireframe-view .r2-popup { position:fixed; z-index:28; overflow:auto; box-sizing:border-box; padding:.5rem; }
+.r2-content .r2-wireframe-view .r2-popup>strong { font:var(--wf-font)/1.35 var(--wf-control-font); }
+.r2-wireframe-view .card-line.art-frame { fill:none; }
+.r2-wireframe-view .card-caption.on-art { font-weight:700; stroke:#0b141c; stroke-width:3px; paint-order:stroke fill; }
+.r2-wireframe-view .symbol-lamps { pointer-events:none; }
+.r2-wireframe-view .symbol-lamp circle { fill:none; stroke:var(--lamp); stroke-width:1.2; opacity:.55; }
+.r2-wireframe-view .symbol-lamp:not(.lit) { visibility:hidden; }
+[data-count-peek] .r2-wireframe-view .symbol-lamp:not(.lit) { visibility:visible; }
+.r2-wireframe-view .symbol-lamp.lit circle { fill:var(--lamp); opacity:1; filter:drop-shadow(0 0 5px var(--lamp)); }
+.r2-wireframe-view .symbol-red { --lamp:#ff4d5e; } .r2-wireframe-view .symbol-yellow { --lamp:#ffd84a; }
+.r2-wireframe-view .symbol-green { --lamp:#4fe08a; } .r2-wireframe-view .symbol-blue { --lamp:#4fa8ff; }
+.r2-wireframe-view .symbol-purple { --lamp:#b77cff; } .r2-wireframe-view .symbol-black { --lamp:#c9ced6; }
+.r2-wireframe-view .symbol-orange { --lamp:#ff9a3c; }
+/* A missing symbol still points at its lamp when you try to play without it. */
+.r2-wireframe-view .symbol-lamp.blink { visibility:visible; }
+.r2-wireframe-view .symbol-lamp.blink circle { animation:symbol-blink .3s ease-in-out 4 alternate; }
+@keyframes symbol-blink { from { opacity:.55; } to { opacity:1; fill:var(--lamp); stroke-width:3; } }
+/* Security hologram above front Security Obs (see board-view securityShield). */
+.r2-wireframe-view .wf-shield .wf-shield-beam { fill:url(#wf-holo-beam); }
+.r2-wireframe-view .wf-shield .wf-shield-emitter { fill:#63eaff55; stroke:#b8f7ff; stroke-width:.8; }
+.r2-wireframe-view .wf-shield .wf-shield-body path { stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+.r2-wireframe-view .wf-shield .wf-shield-edge { fill:#4bdcf41a; stroke:#b8f7ff; stroke-width:2; }
+.r2-wireframe-view .wf-shield .wf-shield-inner { fill:none; stroke:#4bdcf4; stroke-width:1.1; }
+.r2-wireframe-view .wf-shield .wf-shield-cross { fill:none; stroke:#ffffffad; stroke-width:1; }
+.r2-wireframe-view .wf-shield.is-standby { opacity:.34; filter:drop-shadow(0 0 4px #63eaff99); }
+.r2-wireframe-view .wf-shield.is-standby .wf-shield-beam { opacity:.5; }
+.r2-wireframe-view .wf-shield.is-guard { opacity:.97; filter:drop-shadow(0 0 6px #63eaff) drop-shadow(0 2px 3px #000c); }
+.r2-wireframe-view .wf-shield.is-guard .wf-shield-plate { fill:url(#wf-shield-metal); }
+.r2-wireframe-view .wf-shield.is-guard .wf-shield-edge { fill:none; stroke:#d9fbff; stroke-width:2.4; }
+.r2-wireframe-view .wf-shield.is-guard .wf-shield-inner { stroke:#2fb9d6; stroke-width:1.4; }
+.r2-wireframe-view .wf-shield.is-guard .wf-shield-cross { stroke:#1d3e4ccc; stroke-width:1.6; }
+.r2-wireframe-view .wf-shield .wf-shield-sheen { fill:#ffffffb0; transform-box:fill-box; }
+.r2-content[data-effects="on"] .r2-wireframe-view .wf-shield.is-standby { animation:wf-shield-holo 2.6s ease-in-out infinite; }
+.r2-content[data-effects="on"] .r2-wireframe-view .wf-shield.is-guard .wf-shield-sheen { animation:wf-shield-sheen 3.2s ease-in-out infinite; }
+.r2-content:not([data-effects="on"]) .r2-wireframe-view .wf-shield .wf-shield-sheen { display:none; }
+@keyframes wf-shield-holo { 0%,100% { opacity:.26; } 48% { opacity:.4; } 52% { opacity:.22; } }
+@keyframes wf-shield-sheen { 0%,55% { translate:0 0; } 100% { translate:160px 0; } }
+@media (prefers-reduced-motion:reduce) { .r2-content[data-effects="on"] .r2-wireframe-view .wf-shield.is-standby,.r2-content[data-effects="on"] .r2-wireframe-view .wf-shield.is-guard .wf-shield-sheen { animation:none; } }

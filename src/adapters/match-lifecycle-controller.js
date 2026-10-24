@@ -4,17 +4,22 @@ const failure = code => ({ ok: false, error: { code } });
 
 // Host-level lifecycle, separate from a player's command port. Replacement
 // validates the new match first, then revokes every old controller and handle.
-export function createMatchLifecycleController({ nextMatchId = () => crypto.randomUUID() } = {}) {
+// onRetire sees each session just before it is disposed, while it can still be read.
+export function createMatchLifecycleController({ nextMatchId = () => crypto.randomUUID(), onRetire = null } = {}) {
   let current = null;
   let config = null;
   let generation = 0;
   let disposed = false;
+  const retire = session => {
+    try { onRetire?.(session); } catch { /* keeping a record never blocks leaving a match */ }
+    session.dispose();
+  };
   const start = runtimeConfig => {
     if (disposed) return failure('MATCH_LIFECYCLE_DISPOSED');
     const created = createNewMatchSessionController({ runtimeConfig, sessionGeneration: generation + 1 });
     if (!created.ok) return created;
     const next = created.value;
-    try { current?.dispose(); }
+    try { if (current) retire(current); }
     catch (error) { next.dispose(); throw error; }
     current = next;
     config = structuredClone(runtimeConfig);
@@ -44,14 +49,14 @@ export function createMatchLifecycleController({ nextMatchId = () => crypto.rand
     leave() {
       if (disposed) return failure('MATCH_LIFECYCLE_DISPOSED');
       const previous = current; current = null; config = null;
-      previous?.dispose();
+      if (previous) retire(previous);
       return { ok: true, value: null };
     },
     dispose() {
       if (!disposed) {
         disposed = true;
         const previous = current; current = null; config = null;
-        previous?.dispose();
+        if (previous) retire(previous);
       }
       return { ok: true, value: null };
     }

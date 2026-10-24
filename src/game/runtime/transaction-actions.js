@@ -109,8 +109,11 @@ const HANDLERS = Object.freeze({
   },
   relogCard: {
     keys: ['engineFunction', 'playerId', 'uid', 'targetZone', 'options'],
-    validate: adapter => ['front', 'back'].includes(adapter.targetZone) && exactObject(adapter.options,['requestedSlot'])
-      && (adapter.options.requestedSlot === null || slot(adapter.options.requestedSlot)),
+    validate: adapter => ['front', 'back'].includes(adapter.targetZone)
+      && (exactObject(adapter.options,['requestedSlot'])
+        && (adapter.options.requestedSlot === null || slot(adapter.options.requestedSlot))
+        || exactObject(adapter.options,['requestedSlot','baseUid']) && adapter.options.requestedSlot === null
+          && typeof adapter.options.baseUid === 'string' && adapter.options.baseUid.length > 0),
     apply: (state, adapter) => relogCard(state, adapter.playerId, adapter.uid, adapter.targetZone, adapter.options),
     progress: normalProgress
   },

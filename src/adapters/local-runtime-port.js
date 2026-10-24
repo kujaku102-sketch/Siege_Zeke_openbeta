@@ -2,11 +2,13 @@ import { projectRuntimeView, inspectRuntimeCard } from '../game/runtime/projecti
 import { buildRequiredInput } from '../game/runtime/required-input.js';
 import { runtimeProgress } from '../game/runtime/public-result.js';
 import { buildRuntimeLegalActions } from '../game/runtime/legal-actions.js';
+import { buildRuntimeActionBlocks } from '../game/runtime/action-blocks.js';
 import { queryRuntimeAction } from '../game/runtime/action-planning.js';
 import { createRuntimeReadContext } from '../game/runtime/read-context.js';
 import { submitRuntimeCommand } from '../game/runtime/transaction.js';
 import { projectRuntimeEventBatch } from '../game/runtime/event-feed.js';
 import { makeBoundCommand, validatePortBinding, validateStatusView } from './port-contract.js';
+import { createMatchRecord, encodeRecordedAction, recordedCardDefinition, summarizeMatchRecord } from '../game/runtime/match-record.js';
 
 const failure = code => ({ ok: false, error: { code } });
 const nonempty = value => typeof value === 'string' && value.length > 0;
@@ -44,6 +46,8 @@ function portQuery(authority, binding, modePolicy = null, input = undefined) {
   if (!requiredInput.ok) return failure(`PORT_QUERY_${requiredInput.error.code}`);
   const legalActions = buildRuntimeLegalActions(authority, binding.seatId, observation.value, requiredInput.value, readContext, modePolicy !== null);
   if (!legalActions.ok) return failure(`PORT_QUERY_${legalActions.error.code}`);
+  const actionBlocks = buildRuntimeActionBlocks(authority, binding.seatId, requiredInput.value, legalActions.value, readContext, modePolicy !== null);
+  if (!actionBlocks.ok) return failure(`PORT_QUERY_${actionBlocks.error.code}`);
   const progress = runtimeProgress(authority.engineState);
   if (progress === 'awaitingInput' && requiredInput.value === null) return failure('PORT_QUERY_REQUIRED_INPUT_UNAVAILABLE');
   const status = {
@@ -65,7 +69,7 @@ function portQuery(authority, binding, modePolicy = null, input = undefined) {
   }
   return { ok: true, value: {
     status: validated.value, observation: observation.value,
-    legalActions: legalActions.value, requiredInput: requiredInput.value,
+    legalActions: legalActions.value, actionBlocks: actionBlocks.value, requiredInput: requiredInput.value,
     ...(inspection ? {inspection} : {})
   } };
 }
@@ -107,12 +111,16 @@ export function createLocalRuntimeCoordinator(input) {
   const seatIds = seatsDescriptor?.enumerable && Object.hasOwn(seatsDescriptor, 'value') ? seatsDescriptor.value : null;
   if (!nonempty(matchId) || !Array.isArray(seatIds) || seatIds.length !== 2) return failure('INVALID_LOCAL_RUNTIME');
   let active = true;
+  let modeEpoch = 0;
   const ports = new Set();
   // Authority is replaced atomically by submit. Catalogs never survive that replacement.
   const catalogs = new Map();
   const eventFeeds = new Map(seatIds.map(id => [id, []]));
   const eventFaults = new Set();
   const sandboxActions = new Set(['sandboxAddCard', 'sandboxSelectActiveSeat']);
+  // Only a match watched from its first command can be played again.
+  const started = createMatchRecord(authority);
+  let record = started.ok ? started.value : null;
   const commit = (binding, intent, capability = false) => {
     if (!active) return failure('PORT_COORDINATOR_DISPOSED');
     const command = makeBoundCommand(binding, intent);
@@ -130,6 +138,13 @@ export function createLocalRuntimeCoordinator(input) {
       matchId: binding.matchId, actorSeat: binding.seatId
     }, command.value, { tutorialAuthorized: modePolicy !== null });
     if (!result.ok) return result;
+    if (result.value.kind === 'accepted' && record) {
+      const encoded = encodeRecordedAction(authority, binding.seatId, command.value.action);
+      const card = encoded.ok ? recordedCardDefinition(authority.engineState, encoded.value) : null;
+      if (encoded.ok) record.commands.push({ seat: binding.seatId, ...(capability ? { control: true } : {}),
+        action: encoded.value, ...(card ? { card } : {}) });
+      else record = null;
+    }
     if (result.value.kind === 'accepted') {
       for (const viewer of seatIds) {
         try {
@@ -209,6 +224,23 @@ export function createLocalRuntimeCoordinator(input) {
   };
   return { ok: true, value: Object.freeze({
     bind,
+    readStamp() {
+      return active ? { ok: true, value: { matchId, sessionGeneration: generation,
+        currentRevision: authority.revision, modeEpoch } } : failure('PORT_COORDINATOR_DISPOSED');
+    },
+    // The match so far as a replayable record, with a summary of the current state.
+    matchRecord() {
+      if (!active) return failure('PORT_COORDINATOR_DISPOSED');
+      if (!record) return failure('MATCH_RECORD_UNAVAILABLE');
+      const copy = structuredClone(record);
+      return { ok: true, value: { ...copy, summary: summarizeMatchRecord(copy, authority, lockedOutcome(authority)) } };
+    },
+    invalidateMode() {
+      if (!active) return failure('PORT_COORDINATOR_DISPOSED');
+      modeEpoch += 1;
+      catalogs.clear();
+      return { ok: true, value: null };
+    },
     // The trusted factory receives this handle; bound seat ports do not.
     sandboxControl(seatId) {
       if (!active) return failure('PORT_COORDINATOR_DISPOSED');

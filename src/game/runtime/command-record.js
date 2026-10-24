@@ -98,6 +98,13 @@ function reference(value) {
 function destination(value, registry = false) {
   ordinary(value, 'INVALID_COMMAND');
   if (registry && own(value, 'zone', 'INVALID_COMMAND') === 'registry') return exact(value, ['zone'], 'INVALID_COMMAND');
+  // Re-execution may name a Code in the target area instead of a slot.
+  if (registry && Object.hasOwn(value, 'hostRef')) {
+    const result = exact(value, ['zone', 'hostRef'], 'INVALID_COMMAND');
+    if (!['front', 'back'].includes(result.zone)) reject('INVALID_COMMAND');
+    reference(result.hostRef);
+    return result;
+  }
   const result = exact(value, ['zone', 'slot'], 'INVALID_COMMAND');
   if (!['front', 'back'].includes(result.zone) || !Number.isSafeInteger(result.slot)
     || result.slot < 1 || Object.is(result.slot, -0)) reject('INVALID_COMMAND');

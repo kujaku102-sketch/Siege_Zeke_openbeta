@@ -1,4 +1,4 @@
-export const VIEW_STORAGE_KEY = "sz-r2-view";
+const VIEW_STORAGE_KEY = "sz-r2-view";
 const isView = value => value === "pc" || value === "mobile";
 
 // Entry routing only. A resize or input-device change never changes the chosen UI.
@@ -48,14 +48,6 @@ export function cardSelection(selection, uid, { inspect = false, blocked = false
     : { selectedUid: uid, detailUid: uid };
 }
 export const clearSelection = () => ({ selectedUid: null, detailUid: null });
-
-// UI-only cancellation. Never consume game history or drop an engine pending.
-export function canCancelSelection(selection, { blocked = false } = {}) {
-  return !blocked && Boolean(selection.selectedUid || selection.detailUid);
-}
-export function cancelSelection(selection, options = {}) {
-  return canCancelSelection(selection, options) ? clearSelection() : selection;
-}
 
 // Pure gesture classifier; movement thresholds are provisional, not rule values.
 export function gestureMoved(start, current, threshold = 10) {

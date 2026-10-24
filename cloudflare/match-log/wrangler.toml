@@ -1,0 +1,15 @@
+# Match log receiver. Deploy from this folder: npx wrangler@4 deploy
+name = "siege-zeke-match-log"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# Filled in after `npx wrangler@4 kv namespace create MATCH_LOGS`.
+[[kv_namespaces]]
+binding = "MATCH_LOGS"
+id = "5f07a61c1c394d94806955c10dbf6bc6"
+
+# The game posts here; the domain is already on this Cloudflare account.
+[[routes]]
+pattern = "log.siegezeke.online"
+custom_domain = true

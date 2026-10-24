@@ -3,39 +3,68 @@ import assert from "node:assert/strict";
 import { USER_CARDS } from "../src/data/cards.js";
 import { createGame } from "../src/game/engine.js";
 import { BUILDABLE_CARDS, DECK_STORAGE_KEY, DECK_STRATEGIES, loadSavedDecks, recommendDeck, saveDeckCollection, validateDeck } from "../src/game/deck-builder.js";
-import { renderApp } from "../src/ui/render.js";
 import { captureDeckViewport, restoreDeckViewport } from "../src/ui/deck-viewport.js";
-import { deckBuilderHtml } from "../src/ui/render.js";
+import { deckBuilderHtml, deckOptionsHtml } from "../src/ui-refresh/runtime-shell-view.js";
 import { CARD_LIBRARY } from "../src/data/cards.js";
 import { DECK_EVALUATION_AXES, evaluateCardForDeck } from "../src/game/card-deck-evaluation.js";
 
-test("integrated deck design keeps PC controls and separates mobile cards from management", () => {
+test("PC and mobile share one deck builder: same cards, filters and controls", () => {
  const state={savedDecks:[],deckBuilder:{open:true,color:'all',query:'',draft:{name:'<deck>',userId:'doors_zx',cards:{'STD-075':1}}}};
  const pc=deckBuilderHtml(state,{view:'pc',effectsEnabled:true});
  assert.match(pc,/data-deck-view="pc"/);assert.match(pc,/data-deck-fx="on"/);
- for(const attr of ['data-deck-save','data-deck-import','data-deck-export','data-deck-recommend','data-deck-query'])assert.ok(pc.includes(attr));
- assert.ok(pc.includes('deck-catalog-card'));assert.ok(!pc.includes('deck-mobile-card'));
+ for(const attr of ['data-deck-save','data-deck-query','data-deck-color','data-deck-category','data-deck-management','data-deck-auto-build','data-deck-plus','data-deck-minus'])assert.ok(pc.includes(attr),attr);
+ assert.ok(pc.includes('deck-tile'));assert.ok(!pc.includes('deck-catalog-card'));
  const before=JSON.stringify(state);
  const mobile=deckBuilderHtml(state,{view:'mobile',effectsEnabled:false});
  assert.match(mobile,/data-deck-panel="closed"/);assert.match(mobile,/data-deck-fx="off"/);
  assert.match(mobile,/data-deck-auto="closed"/);
- assert.ok(mobile.includes('deck-mobile-card'));assert.ok(mobile.includes('&lt;deck&gt;'));
+ assert.ok(mobile.includes('deck-tile'));assert.ok(mobile.includes('&lt;deck&gt;'));
  assert.ok(mobile.indexOf('data-deck-auto-build')<mobile.indexOf('data-deck-management'));
  assert.ok(mobile.includes('data-deck-name'));assert.ok(mobile.includes('aria-label="ユーザーカード"'));
  assert.ok(mobile.includes('deck-builder-tools')&&mobile.includes('deck-category-filter'));
  assert.ok(mobile.indexOf('deck-summary')<mobile.indexOf('deck-builder-tools'));
- assert.ok(mobile.indexOf('deck-builder-tools')<mobile.indexOf('deck-mobile-catalog'));
- assert.equal((mobile.match(/deck-mobile-placeholder/g)??[]).length,10);
- assert.match(mobile,/deck-mobile-copies">×1<\/span>/);
- assert.match(mobile,/deck-mobile-copies">1\/3<\/span>/);
+ assert.ok(mobile.indexOf('deck-builder-tools')<mobile.indexOf('deck-catalog'));
+ assert.equal((mobile.match(/deck-tile-placeholder/g)??[]).length,10);
+ assert.match(mobile,/deck-tile-copies">×1<\/span>/);
+ assert.match(mobile,/deck-tile-copies">1\/3<\/span>/);
  assert.ok(!mobile.includes('data-toggle-effects'));
- assert.ok(mobile.indexOf('deck-mobile-selected')<mobile.indexOf('deck-mobile-catalog'));
+ assert.ok(mobile.indexOf('deck-selected')<mobile.indexOf('deck-catalog'));
  assert.ok(!mobile.includes('data-deck-detail="STD-075"'));
  assert.ok(mobile.includes('長押しで詳細'));
  const complete=deckBuilderHtml({savedDecks:[],deckBuilder:{open:true,color:'all',query:'',draft:{name:'complete',userId:'doors_zx',cards:recommendDeck({userId:'doors_zx'}).cards}}},{view:'mobile',effectsEnabled:false});
  assert.match(complete,/deck-validation valid/);
  assert.match(complete,/構築OK/);
  assert.equal(JSON.stringify(state),before);
+});
+
+test("PC deck builder filters by category, removes from a deck tile and enforces the same-name limit", () => {
+ const code=BUILDABLE_CARDS.find(card=>card.category==='Code'), script=BUILDABLE_CARDS.find(card=>card.category==='Script');
+ const state={savedDecks:[],deckBuilder:{open:true,color:'all',query:'',category:'Code',draft:{name:'pc',userId:'doors_zx',cards:{[code.id]:3}}}};
+ const pc=deckBuilderHtml(state,{view:'pc'});
+ assert.match(pc,/data-deck-category="Code" aria-pressed="true"/);
+ const catalog=pc.slice(pc.indexOf('class="deck-catalog"'));
+ assert.ok(catalog.includes(`data-deck-card-id="${code.id}"`));
+ assert.ok(!catalog.includes(`data-deck-card-id="${script.id}"`));
+ const selected=pc.slice(pc.indexOf('class="deck-selected"'),pc.indexOf('deck-builder-tools'));
+ assert.match(selected,new RegExp(`data-deck-summary-id="${code.id}"[\\s\\S]*?data-deck-minus="${code.id}"`));
+ assert.match(catalog,new RegExp(`deck-tile-copies">3/3</span><button class="deck-tile-hit" data-deck-plus="${code.id}"[^>]*disabled`));
+ const full=deckBuilderHtml({...state,deckBuilder:{...state.deckBuilder,category:'すべて',draft:{...state.deckBuilder.draft,cards:recommendDeck({userId:'doors_zx'}).cards}}},{view:'pc'});
+ const plus=full.slice(full.indexOf('class="deck-catalog"')).match(/<button class="deck-tile-hit" data-deck-plus="[^"]+"[^>]*>/g);
+ assert.ok(plus.length>0&&plus.every(button=>button.includes('disabled')));
+});
+
+test("management and auto-build panels keep every control without duplicating draft fields on PC and mobile", () => {
+ for (const view of ["pc","mobile"]) {
+ const state={savedDecks:[],deckBuilder:{open:true,color:'all',query:'',draft:{name:'panel test',userId:'doors_zx',cards:{}},managementOpen:true}};
+ const manage=deckBuilderHtml(state,{view});
+ for(const attr of ['data-deck-load','data-deck-new','data-deck-delete','data-deck-export','data-deck-import']) assert.ok(manage.includes(attr),attr);
+ for(const attr of ['data-deck-name','data-deck-user','data-deck-save']) assert.equal((manage.match(new RegExp(attr,'g'))??[]).length,1,attr);
+ assert.match(manage,/保存デッキ 0\/20/);
+ const auto=deckBuilderHtml({...state,deckBuilder:{...state.deckBuilder,managementOpen:false,autoBuildOpen:true}},{view});
+ for(const attr of ['data-deck-recommend-color','data-deck-strategy','data-deck-recommend']) assert.ok(auto.includes(attr),attr);
+ assert.match(auto,/aria-label="自動構築を閉じる"/);
+ assert.ok(!auto.includes('class="deck-management"'));
+ }
 });
 
 test("deck viewport restores nested scroll, anchors a card after summary growth, and keeps button focus", () => {
@@ -158,16 +187,17 @@ test("saving or importing a collection never drops another deck made invalid by 
 test("the builder exposes invalid saved decks for repair but disables their play and save choices", () => {
   const state = createGame({ mode: "ai", rng: () => .5 });
   state.savedDecks = [oldDeck()];
-  state.deckBuilder = { open: true, color: "all", query: "", draft: oldDeck() };
+  state.deckBuilder = { open: true, color: "all", query: "", draft: oldDeck(), managementOpen: true };
   const root = { innerHTML: "" };
-  renderApp(root, state, null);
-  assert.match(root.innerHTML, /構築枚数 30\/40枚・同名3枚まで/);
+  const renderApp = () => { root.innerHTML = deckOptionsHtml(state, "") + deckBuilderHtml(state, { view: "pc" }); };
+  renderApp();
+  assert.match(root.innerHTML, /30\/40 · 同名3枚まで/);
   assert.match(root.innerHTML, /<option value="custom:old-zx"[^>]*disabled[^>]*>保存: 以前の30枚（要修正）<\/option>/);
   assert.match(root.innerHTML, /<option value="old-zx"[^>]*>以前の30枚（要修正）<\/option>/);
   assert.doesNotMatch(root.innerHTML, /<option value="old-zx"[^>]*disabled/);
   assert.match(root.innerHTML, /<button data-deck-save[^>]*disabled/);
   state.deckBuilder.draft = { ...oldDeck(), cards: cardsFor(40) };
-  renderApp(root, state, null);
-  assert.match(root.innerHTML, /構築枚数 40\/40枚・同名3枚まで/);
+  renderApp();
+  assert.match(root.innerHTML, /40\/40 · 同名3枚まで/);
   assert.doesNotMatch(root.innerHTML, /<button data-deck-save[^>]*disabled/);
 });

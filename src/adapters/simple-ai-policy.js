@@ -111,8 +111,19 @@ function allocationAnswer(input) {
   return allocation ? { optionIds: allocation.map(entry => entry.optionId), allocation } : null;
 }
 
-function requiredInputAction(input) {
+// At turn end the CPU keeps one Security Ob asleep as the forced target: it rests the
+// first ready one while none of its front Security Obs sleeps, then lets the turn end.
+function securityRestAction(input, query) {
+  const seat = query.observation?.seats?.find(item => item?.seatId === input.actorSeat);
+  const guarding = (seat?.front?.cards ?? []).some(card => !card.faceDown && card.status?.sleep === true
+    && (card.computed?.badges ?? []).some(badge => badge?.name === 'SECURITY'));
+  return guarding || !input.options?.length ? { type: 'declineChoice', choiceId: input.choiceId }
+    : { type: 'answerChoice', choiceId: input.choiceId, optionIds: [input.options[0].optionId], allocation: [] };
+}
+
+function requiredInputAction(input, query) {
   if (!input.canAnswer) return null;
+  if (input.presentationKey === 'security-rest') return securityRestAction(input, query);
   if (input.constraints?.kind === 'random') return {
     type: 'answerChoice', choiceId: input.choiceId, optionIds: [], allocation: []
   };
@@ -157,7 +168,7 @@ export function chooseSimpleAiIntent(query, commandId, queryAction = null) {
   const revision = query.status?.revision;
   if (!Number.isSafeInteger(revision) || revision < 0 || !Array.isArray(query.legalActions)) return failure('INVALID_AI_INPUT');
   if (query.requiredInput !== null) {
-    const action = requiredInputAction(query.requiredInput);
+    const action = requiredInputAction(query.requiredInput, query);
     if (!action) return failure(query.requiredInput.canAnswer ? 'AI_REQUIRED_INPUT_UNSUPPORTED' : 'AI_NOT_ACTIVE');
     return { ok: true, value: { commandId, expectedRevision: revision, action } };
   }

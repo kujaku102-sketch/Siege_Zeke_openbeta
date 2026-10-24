@@ -31,7 +31,7 @@ const ZONE_WORDS = [
   ["front", "フロント"], ["back", "バック"], ["area", "エリア"], ["ban", "BAN"]
 ];
 
-export function normalizeEffectText(sourceText = "") {
+function normalizeEffectText(sourceText = "") {
   return String(sourceText)
     .replaceAll("**", "")
     .replaceAll("ｰ", "-")

@@ -32,7 +32,9 @@ export function selectionRequest(requestId, presentationKey, options, constraint
 }
 
 export function requiredSelectionRequest(input) {
-  return selectionRequest(input.choiceId, input.presentationKey, input.options, input.constraints);
+  const request = selectionRequest(input.choiceId, input.presentationKey, input.options, input.constraints);
+  return { ...request, ...(typeof input.title === 'string' ? { title: input.title } : {}),
+    ...(input.source ? { source: { ...input.source } } : {}) };
 }
 
 export function validSelectionAnswer(request, answer) {

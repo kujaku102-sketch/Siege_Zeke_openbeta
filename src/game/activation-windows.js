@@ -40,7 +40,7 @@ export function createTriggerSpec({ id, cardId, event, conditions = [], actions 
   return Object.freeze({ id, cardId, event, conditions: Object.freeze([...conditions]), actions: Object.freeze([...actions]), limit, activation });
 }
 
-export function triggerConditionMatches(state, window, condition) {
+function triggerConditionMatches(state, window, condition) {
   const { source, context } = window;
   if (condition.type === "source_zone") return source.zoneName === condition.zone;
   if (condition.type === "source_face_up") return source.card.faceDown !== true;
@@ -82,7 +82,7 @@ export function triggerConditionMatches(state, window, condition) {
   return false;
 }
 
-export function createActivationWindow({ context, spec, source, optional = spec.activation === "optional" }) {
+function createActivationWindow({ context, spec, source, optional = spec.activation === "optional" }) {
   return {
     id: `${context.id}:${spec.id}:${source.card.uid}`,
     context,

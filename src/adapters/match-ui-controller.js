@@ -1,5 +1,7 @@
-import { buildHtmlReadModel } from './html-read-model.js';
+import { createHtmlReadModelProjection } from './html-read-model.js';
 import { requiredSelectionRequest, validSelectionAnswer } from '../game/runtime/selection-contract.js';
+import { buildInteractionRequest, resolveInteractionTarget } from './interaction-targets.js';
+import { selectionStage, stageGroupIds, stagedInteraction } from './selection-stage.js';
 
 const failure = code => ({ ok: false, error: { code } });
 const copy = value => structuredClone(value);
@@ -16,65 +18,138 @@ export function createMatchUiController({ session, viewerSeat }) {
   let serial = 0;
   let revision = -1;
   let query = null;
+  let projection = null;
+  let syncKey = null;
   let ui = emptyUi();
   let draft = null;
   let collapsed = false;
   let zoneView = null;
-  let inspection = null, uniqueSeat = null, artRef = null, resultDismissed = false;
+  let inspection = null, uniqueSeat = null, profileSeat = null, artRef = null, resultDismissed = false;
   const logs = new Map();
-  const refresh = () => {
-    if (!active) return failure('MATCH_UI_DISPOSED');
-    const read = port.query();
-    if (!read.ok) return read;
-    if (revision !== read.value.status.revision) {
-      inspection = null; artRef = null; ui.detailCardRef = null;
-      draft = null;
-      collapsed = false;
-      ui.draft = null;
-    }
-    revision = read.value.status.revision;
-    query = read.value;
-    const model = buildHtmlReadModel(query, ui);
-    if (!model.ok) return model;
-    ui = model.value.ui;
-    const events = session.takeEvents(viewerSeat);
+  const pendingEvents = new Map();
+  let eventCursor = null;
+  let eventReadError = null;
+  const sameSync = (a, b) => a && b && ['matchId', 'sessionGeneration', 'viewerSeat', 'currentRevision',
+    'modeEpoch', 'adoptedRevision', 'adoptedModeEpoch', 'available'].every(key => a[key] === b[key]);
+  const invalidateProjection = () => { projection = null; syncKey = null; query = null; revision = -1; };
+  const collectEvents = () => {
+    const events = port.events({ afterEventId: eventCursor });
+    if (!events.ok) { eventReadError = events.error.code; return; }
+    eventReadError = null;
     const log = logs.get(viewerSeat) ?? [];
-    if (events.ok) log.push(...events.value);
+    const known = new Set(log.map(event => event.eventId));
+    for (const event of events.value.events) {
+      if (!pendingEvents.has(event.eventId)) pendingEvents.set(event.eventId, copy(event));
+      if (!known.has(event.eventId)) { log.push(copy(event)); known.add(event.eventId); }
+    }
     logs.set(viewerSeat, log);
+  };
+  const synchronize = () => {
+    if (!active) return failure('MATCH_UI_DISPOSED');
+    const stamped = session.readStamp(viewerSeat);
+    if (!stamped.ok) return stamped;
+    if (!sameSync(syncKey, stamped.value)) {
+      const read = stamped.value.available ? port.latest() : port.query();
+      if (!read.ok) return read;
+      const built = createHtmlReadModelProjection(read.value);
+      if (!built.ok) return built;
+      if (revision !== read.value.status.revision) {
+        inspection = null; artRef = null; ui.detailCardRef = null;
+        draft = null; collapsed = false; ui.draft = null;
+      }
+      revision = read.value.status.revision;
+      query = read.value;
+      projection = built.value;
+      const adopted = session.readStamp(viewerSeat);
+      if (!adopted.ok) return adopted;
+      syncKey = adopted.value;
+    }
+    const model = projection.project(ui);
+    if (!model.ok) return model;
+    ui = copy(model.value.ui);
+    collectEvents();
+    const log = logs.get(viewerSeat) ?? [];
+    const request = currentRequest();
+    const stage = selectionStage(request, draft?.answer);
     return { ok: true, value: {
-      model: model.value, plan: copy(draft?.plan ?? null),
-      request: copy(currentRequest()), selection: copy(draft?.answer ?? null),
-      collapsed, events: copy(events.ok ? events.value : []), log: copy(log),
-      zoneView: copy(zoneView),
-      inspection:copy(inspection),uniqueSeat,artRef,resultDismissed,
-      eventReadError: events.ok ? null : events.error.code
+      model: model.value, plan: copy(draft?.plan ?? null), request: copy(request), sync: copy(syncKey), stage: copy(stage),
+      interactionRequest: copy(stagedInteraction(buildInteractionRequest(request, model.value), stage)),
+      selection: copy(draft?.answer ?? null), preview: copy(buildPreview(request, model.value)),
+      collapsed, events: copy([...pendingEvents.values()]), log: copy(log), zoneView: copy(zoneView),
+      inspection: copy(inspection), uniqueSeat, profileSeat, artRef, resultDismissed, eventReadError
     } };
   };
+  const refresh = () => synchronize();
   const currentRequest = () => draft?.kind === 'action' ? draft.plan.selectionRequests[0] ?? null
     : query?.requiredInput?.canAnswer ? requiredSelectionRequest(query.requiredInput) : null;
+  const selectedOptions = request => request?.options?.filter(option => draft?.answer?.optionIds.includes(option.optionId)) ?? [];
+  const buildPreview = (request, model) => {
+    const history = copy(draft?.history ?? []);
+    const chosen = selectedOptions(request);
+    const role = request?.presentationKey ?? null;
+    const interaction = buildInteractionRequest(request, model);
+    const currentTargets = interaction?.options
+      .filter(option => draft?.answer?.optionIds.includes(option.optionId)).flatMap(option => option.targets) ?? [];
+    const latestRole = roles => role && roles.includes(role)
+      ? { selectedOptions: chosen, targets: currentTargets }
+      : [...history].reverse().find(entry => roles.includes(entry.presentationKey)) ?? null;
+    const destinationRole = latestRole(['execution-destination', 'execution-placement']);
+    const targetRole = latestRole(['attack-target', 'execution-targets']);
+    const roleOptions = presentationKey => copy(latestRole([presentationKey])?.selectedOptions ?? []);
+    const target = copy((targetRole?.targets ?? []).filter(item => ['card', 'user'].includes(item?.kind)));
+    const destination = copy(destinationRole?.selectedOptions?.[0] ?? null);
+    return draft?.kind === 'action' ? {
+      scope: { matchId: query.status.matchId, revision, viewerSeat }, actionId: draft.actionId,
+      sourceRef: draft.sourceRef, request: copy(request), selection: copy(draft.answer), destination,
+      target, history, roles: {
+        materials: roleOptions('layered-materials'),
+        placement: roleOptions('execution-placement'),
+        effect: roleOptions('card-effect'),
+        selectionScope: roleOptions('execution-scope'),
+        targetZone: roleOptions('effect-destination')
+      }, completion: copy(draft.plan?.completion ?? null), hoverTarget: null
+    } : null;
+  };
+  const acceptedReceipt = result => result?.receipt?.status === 'accepted'
+    && result.receipt.reasonCode === 'ACCEPTED';
   const submit = action => {
-    const result = port.submit({ commandId: `gui:${++serial}`, expectedRevision: revision, action });
-    if (!result.ok) return result;
+    const commandId = `gui:${++serial}`;
+    let result = port.submit({ commandId, expectedRevision: revision, action });
+    if (!result.ok) {
+      const receipt = port.receipt(commandId);
+      if (!receipt.ok) return result;
+      result = { ok: true, value: { kind: 'recovered', receipt: receipt.value } };
+    }
+    if (!acceptedReceipt(result.value)) return failure(result.value?.receipt?.reasonCode ?? 'ACTION_NOT_ALLOWED');
     draft = null;
     ui.draft = null;
-    const read = refresh();
-    return read.ok ? { ok: true, value: { submitted: result.value, ...read.value } } : read;
+    invalidateProjection();
+    const read = synchronize();
+    return read.ok ? { ok: true, value: { submitted: copy(result.value), ...read.value } }
+      : { ok: false, error: { code: 'MATCH_UI_READ_AFTER_ACCEPT_FAILED', cause: read.error.code,
+        commandId, receipt: copy(result.value.receipt) } };
   };
   const ensureAnswer = () => {
     const request = currentRequest();
     if (!request) return null;
     if (!draft || draft.answer.requestId !== request.requestId) {
-      draft = { kind: 'choice', answer: { requestId: request.requestId, optionIds: [], allocation: [] } };
+      draft = { kind: 'choice', answer: { requestId: request.requestId, optionIds: [], allocation: [] }, history: [] };
     }
     return request;
   };
-  const readPlan = () => {
-    const plan = port.queryAction({ expectedRevision: revision,
-      actionId: draft.actionId, selections: draft.selections });
-    if (!plan.ok) return plan;
-    draft.plan = plan.value;
-    const request = currentRequest();
+  const planFor = selections => port.queryAction({ expectedRevision: revision,
+    actionId: draft.actionId, selections });
+  const adoptPlan = (plan, selections = draft.selections, history = draft.history) => {
+    draft.plan = plan;
+    draft.selections = selections;
+    draft.history = history;
+    const request = plan.selectionRequests[0] ?? null;
     draft.answer = { requestId: request?.requestId ?? '', optionIds: [], allocation: [] };
+  };
+  const readPlan = () => {
+    const plan = planFor(draft.selections);
+    if (!plan.ok) return plan;
+    adoptPlan(plan.value);
     return plan;
   };
   return { ok: true, value: Object.freeze({
@@ -106,6 +181,8 @@ export function createMatchUiController({ session, viewerSeat }) {
     closeArt() { artRef = null; return refresh(); },
     openUnique(seatId) { uniqueSeat = seatId; return refresh(); },
     closeUnique() { uniqueSeat = null; return refresh(); },
+    openProfile(seatId) { profileSeat = seatId; return refresh(); },
+    closeProfile() { profileSeat = null; return refresh(); },
     dismissResult() { resultDismissed = true; return refresh(); },
     chooseAction(actionId) {
       const read = refresh();
@@ -113,11 +190,20 @@ export function createMatchUiController({ session, viewerSeat }) {
       const entry = query.legalActions.find(action => action.actionId === actionId);
       if (!entry) return failure('ACTION_NOT_ALLOWED');
       if (entry.kind === 'fixed') return submit(entry.action);
-      draft = { kind: 'action', actionId, selections: [], plan: null, answer: null };
+      draft = { kind: 'action', actionId, sourceRef: entry.base?.cardRef ?? entry.base?.attackerRef ?? null,
+        selections: [], history: [], plan: null, answer: null };
       const planned = readPlan();
       if (!planned.ok) { draft = null; return planned; }
       // A ready plan is still a draft. One explicit confirm submits once.
       return refresh();
+    },
+    hitTarget(hit) {
+      const read = refresh();
+      if (!read.ok) return read;
+      const resolved = resolveInteractionTarget(read.value.interactionRequest, hit);
+      if (resolved.kind !== 'one') return failure(resolved.kind === 'ambiguous'
+        ? 'AMBIGUOUS_INTERACTION_TARGET' : 'INTERACTION_TARGET_NOT_AVAILABLE');
+      return this.toggleOption(resolved.optionId);
     },
     toggleOption(optionId) {
       const read = refresh();
@@ -131,6 +217,8 @@ export function createMatchUiController({ session, viewerSeat }) {
         answer.allocation = answer.allocation.filter(row => row.optionId !== optionId);
       } else {
         if (request.constraints.maximum === 1) answer.optionIds = [];
+        const group = stageGroupIds(request, optionId);
+        if (group) answer.optionIds = answer.optionIds.filter(id => !group.includes(id));
         answer.optionIds.push(optionId);
       }
       return refresh();
@@ -158,9 +246,15 @@ export function createMatchUiController({ session, viewerSeat }) {
       if (!request || !validSelectionAnswer(request, draft.answer)) return failure('INVALID_SELECTION');
       if (draft.kind === 'choice') return submit({ type: 'answerChoice', choiceId: request.requestId,
         optionIds: draft.answer.optionIds, allocation: draft.answer.allocation });
-      draft.selections.push(copy(draft.answer));
-      const planned = readPlan();
+      const nextSelections = [...draft.selections, copy(draft.answer)];
+      const selected = selectedOptions(request).map(option => copy(option));
+      const nextHistory = [...draft.history, { requestId: request.requestId,
+        presentationKey: request.presentationKey, answer: copy(draft.answer), selectedOptions: selected,
+        targets: copy(buildInteractionRequest(request, read.value.model)?.options
+          .filter(option => draft.answer.optionIds.includes(option.optionId)).flatMap(option => option.targets) ?? []) }];
+      const planned = planFor(nextSelections);
       if (!planned.ok) return planned;
+      adoptPlan(planned.value, nextSelections, nextHistory);
       return refresh();
     },
     decline() {
@@ -173,11 +267,19 @@ export function createMatchUiController({ session, viewerSeat }) {
     back() {
       const read = refresh();
       if (!read.ok) return read;
+      // Inside a staged pick, back steps to the previous group before leaving the request.
+      const request = currentRequest();
+      if (request && draft?.answer?.requestId === request.requestId && draft.answer.optionIds.length && selectionStage(request, draft.answer)) {
+        draft.answer.optionIds = draft.answer.optionIds.slice(0, -1);
+        return refresh();
+      }
       if (query.requiredInput !== null && draft?.kind !== 'action') { collapsed = true; return refresh(); }
       if (draft?.kind === 'action' && draft.selections.length) {
-        draft.selections.pop();
-        const planned = readPlan();
+        const nextSelections = draft.selections.slice(0, -1);
+        const nextHistory = draft.history.slice(0, -1);
+        const planned = planFor(nextSelections);
         if (!planned.ok) return planned;
+        adoptPlan(planned.value, nextSelections, nextHistory);
       } else {
         draft = null;
         ui.selectedCardRef = null;
@@ -203,9 +305,18 @@ export function createMatchUiController({ session, viewerSeat }) {
       if (!next.ok) return next;
       viewerSeat = seatId;
       port = next.value;
-      revision = -1; ui = emptyUi(); draft = null; zoneView = null; inspection = null; uniqueSeat = null; artRef = null; resultDismissed = false; logs.clear();
+      invalidateProjection(); ui = emptyUi(); draft = null; zoneView = null; inspection = null; uniqueSeat = null; profileSeat = null; artRef = null; resultDismissed = false; logs.clear(); pendingEvents.clear(); eventCursor = null; eventReadError = null;
       return refresh();
     },
-    dispose() { active = false; draft = null; query = null; inspection = null; uniqueSeat = null; artRef = null; logs.clear(); return { ok: true, value: null }; }
+    ackEvents(eventIds) {
+      if (!active || !Array.isArray(eventIds)) return failure('INVALID_EVENT_ACK');
+      const pending = [...pendingEvents.values()];
+      if (eventIds.length > pending.length || eventIds.some((id, index) => id !== pending[index]?.eventId)) {
+        return failure('INVALID_EVENT_ACK');
+      }
+      for (const id of eventIds) { eventCursor = id; pendingEvents.delete(id); }
+      return { ok: true, value: null };
+    },
+    dispose() { active = false; draft = null; query = null; projection = null; inspection = null; uniqueSeat = null; profileSeat = null; artRef = null; logs.clear(); pendingEvents.clear(); return { ok: true, value: null }; }
   }) };
 }

@@ -58,6 +58,15 @@ test("boundary scanner enforces package contract and exact E2E exception", async
   await rejects("second E2E dynamic import", { "scripts/e2e-public-build.mjs": "async function loadPlaywright(){}; import(specifier); import(specifier);" }, "dynamic_import_expression");
 });
 
+test("boundary scanner allows pinned Three.js only with a matching lock importer", async () => {
+  const pkg={...packageJson,dependencies:{three:"0.180.0"}};
+  const pinnedLock=lock.replace('    devDependencies:', '    dependencies:\n      three:\n        specifier: 0.180.0\n        version: 0.180.0\n    devDependencies:');
+  const directory=await fixture({"src/main.js":"import * as THREE from 'three';", "pnpm-lock.yaml":pinnedLock},pkg);
+  try{const result=scan(directory);assert.equal(result.status,0,result.stderr);}finally{await rm(directory,{recursive:true,force:true});}
+  await rejects("Three.js lock missing",{"src/main.js":""},"lockfile_importer_mismatch",pkg);
+  await rejects("Three.js floating version",{"src/main.js":""},"package_dependencies",{...pkg,dependencies:{three:"^0.180.0"}});
+});
+
 test("boundary scanner handles template interpolation, aliases, URLs, and all filesystem API spellings", async () => {
   const allowed = await fixture({ "src/main.js": "const plain=`import('./missing.js')`; export{value}from'./value.js'", "src/value.js": "export const value=1" });
   try { const result = scan(allowed); assert.equal(result.status, 0, result.stderr); } finally { await rm(allowed, { recursive: true, force: true }); }

@@ -127,3 +127,16 @@ test('S04-ASN-01: a supported plugin input roundtrips and remains answerable aft
   assert.equal(answered.value.kind, 'accepted');
   assert.equal(answered.value.authority.engineState.players.player.registry.find(card => card.id === 'STD-224')?.pluginValue, 3);
 });
+
+test('authority snapshot keeps the field entry table and rejects a malformed one', () => {
+  const source = authority();
+  const uid = source.engineState.players.player.hand[0].uid;
+  source.engineState.fieldEntryTurns = { [uid]: 1 };
+  const snapshot = createRuntimeAuthoritySnapshot(source);
+  assert.equal(snapshot.ok, true, JSON.stringify(snapshot));
+  const restored = restoreRuntimeAuthoritySnapshot(structuredClone(snapshot.value), expected);
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.engineState.fieldEntryTurns, { [uid]: 1 });
+  source.engineState.fieldEntryTurns = { [uid]: 'turn-1' };
+  assert.equal(createRuntimeAuthoritySnapshot(source).ok, false);
+});

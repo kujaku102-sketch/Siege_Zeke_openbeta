@@ -811,16 +811,26 @@ function redeployTarget(engineState, referenceInput, action, metadata, actorSeat
     || action.destination.zone === entry.location.zone) reject('ACTION_NOT_ALLOWED');
   const cardView = executionCardView(card);
   const layerCount = selectedLayerCount(card, 'INVALID_AUTHORITY');
-  const stateView = executionPlanningView(engineState);
+  // Re-executing onto a Code names that Code; the host is checked in the uid-bearing planning view.
+  const hostRef = action.destination.hostRef ?? null;
+  let baseUid = null;
+  if (hostRef !== null) {
+    const host = currentReferencedCard(engineState, referenceInput, hostRef, metadata, actorSeat);
+    if (host.entry.location.kind !== 'board' || host.entry.location.seatId !== actorSeat || host.entry.controllerSeat !== actorSeat
+      || host.entry.location.zone !== action.destination.zone) reject('ACTION_NOT_ALLOWED');
+    baseUid = host.uid;
+  }
+  const stateView = baseUid === null ? executionPlanningView(engineState) : normalPlanningView(engineState);
   const options = {
     sourceZone: entry.location.zone,
     zone: action.destination.zone === 'registry' ? entry.location.zone === 'front' ? 'back' : 'front' : action.destination.zone,
-    requestedSlot: action.destination.zone === 'registry' ? null : action.destination.slot,
-    layerCount
+    requestedSlot: action.destination.zone === 'registry' || baseUid !== null ? null : action.destination.slot,
+    layerCount, baseUid
   };
   if ((relogPreparationKind(cardView, layerCount) === 'registry') !== (action.destination.zone === 'registry')) reject('ACTION_NOT_ALLOWED');
   if (!canDirectRelogAtSlot(stateView, playerId, cardView, options).ok) reject('ACTION_NOT_ALLOWED');
-  return { uid: target.uid, targetZone: options.zone, options: { requestedSlot: options.requestedSlot } };
+  return { uid: target.uid, targetZone: options.zone,
+    options: baseUid === null ? { requestedSlot: options.requestedSlot } : { requestedSlot: null, baseUid } };
 }
 
 function attackCardView(card) {

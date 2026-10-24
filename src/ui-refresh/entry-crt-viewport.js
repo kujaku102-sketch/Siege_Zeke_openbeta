@@ -186,6 +186,9 @@ function mount(entry, initialOptions = {}) {
   let ready = false;
   let pressed = null;
   let menuTargets = [];
+  let menuScroll = 0;
+  let menuScrollMax = 0;
+  let lastFocusedItem = null;
   const glitchStart = new Map();
   const listeners = [];
   const listen = (node, type, handler) => { node.addEventListener(type, handler); listeners.push([node, type, handler]); };
@@ -294,6 +297,7 @@ function mount(entry, initialOptions = {}) {
       ctx.imageSmoothingEnabled = true;
     }
     menuTargets = [];
+    if (!options.menuOpen) menuScroll = 0, menuScrollMax = 0;
     if (options.menuOpen) {
       const panel = { x: frame.width * .26, y: frame.height * .145, width: frame.width * .48, height: frame.height * .71 };
       const unit = frame.height;
@@ -313,49 +317,108 @@ function mount(entry, initialOptions = {}) {
       menuTargets.push({ box: closeBox, selector: '[data-live="close-options"]' });
       ctx.strokeStyle = "rgba(0,255,0,.6)";
       ctx.beginPath(); ctx.moveTo(panel.x + panel.width * .06, panel.y + panel.height * .18); ctx.lineTo(panel.x + panel.width * .94, panel.y + panel.height * .18); ctx.stroke();
-      const rows = [
+      // Rows sit in a list that scrolls under the header when it outgrows the panel.
+      const view = { top: panel.y + panel.height * .2, bottom: panel.y + panel.height * .97 };
+      const rowGap = panel.height * .084;
+      const rowHeight = panel.height * .07;
+      const counts = options.storedCounts ?? { logs: 0, replays: 0 };
+      const toggles = [
         ["全画面", Boolean(options.fullscreen), '[data-live="fullscreen"]'],
         ["PC版", options.view === "pc", '[data-view="pc"]'],
         ["モバイル版", options.view === "mobile", '[data-view="mobile"]'],
         ["通常タップで詳細", Boolean(options.tapDetails), '[data-title-tap-details]'],
         ["演出", Boolean(options.effectsEnabled), '[data-toggle-effects]']
       ];
-      const rowTop = panel.y + panel.height * .24;
-      const rowGap = panel.height * .084;
-      const rowHeight = panel.height * .07;
-      ctx.font = `400 ${Math.max(14, unit * .041)}px ${MENU_FONT}`;
-      for (const [index, [label, checked, selector]] of rows.entries()) {
-        const y = rowTop + index * rowGap;
-        const box = { x: panel.x + panel.width * .07, y, width: panel.width * .86, height: rowHeight };
-        const focused = entry.parentElement?.querySelector(selector) === document.activeElement;
-        if (focused) { ctx.fillStyle = "rgba(0,255,0,.14)"; ctx.fillRect(box.x, box.y, box.width, box.height); }
-        ctx.fillStyle = "#e8ffe8";
-        ctx.textAlign = "left";
-        ctx.fillText(label, box.x, y + rowHeight / 2);
+      const items = [];
+      let cursor = panel.height * .04;
+      for (const [label, checked, selector] of toggles) { items.push({ kind: "toggle", label, checked, selector, y: cursor }); cursor += rowGap; }
+      items.push({ kind: "volume", y: cursor + panel.height * .03 }); cursor += panel.height * .2;
+      for (const [label, kind] of [["対戦ログ", "logs"], ["対戦リプレイ", "replays"]]) {
+        items.push({ kind: "record", label, count: counts[kind] ?? 0, selector: `[data-stored-export="${kind}"]`, y: cursor }); cursor += rowGap;
+      }
+      items.push({ kind: "toggle", label: "対戦後に対戦ログを送信", checked: Boolean(options.sendMatchLogs), selector: "[data-toggle-send-logs]", y: cursor }); cursor += rowGap;
+      const maxScroll = Math.max(0, cursor + panel.height * .02 - (view.bottom - view.top));
+      const focusedItem = items.find(item => item.selector && entry.parentElement?.querySelector(`.r2-title-options ${item.selector}`) === document.activeElement);
+      if (focusedItem && focusedItem.selector !== lastFocusedItem) {
+        if (focusedItem.y < menuScroll) menuScroll = focusedItem.y;
+        else if (focusedItem.y + rowHeight > menuScroll + view.bottom - view.top) menuScroll = focusedItem.y + rowHeight - (view.bottom - view.top);
+      }
+      lastFocusedItem = focusedItem?.selector ?? null;
+      menuScroll = Math.max(0, Math.min(maxScroll, menuScroll));
+      menuScrollMax = maxScroll;
+      const visible = box => box.y >= view.top - 1 && box.y + box.height <= view.bottom + 1;
+      const target = (box, selector) => { if (visible(box)) menuTargets.push({ box, selector }); };
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(panel.x, view.top, panel.width, view.bottom - view.top);
+      ctx.clip();
+      const left = panel.x + panel.width * .07;
+      const width = panel.width * .86;
+      const checkbox = (box, checked) => {
         const size = Math.min(rowHeight * .75, unit * .044);
         const cx = box.x + box.width - size;
-        const cy = y + (rowHeight - size) / 2;
+        const cy = box.y + (rowHeight - size) / 2;
         ctx.strokeStyle = "#00ff00";
         ctx.lineWidth = Math.max(1.5, unit * .003);
         ctx.strokeRect(cx, cy, size, size);
         if (checked) { ctx.beginPath(); ctx.moveTo(cx + size * .18, cy + size * .51); ctx.lineTo(cx + size * .43, cy + size * .75); ctx.lineTo(cx + size * .85, cy + size * .18); ctx.stroke(); }
-        menuTargets.push({ box, selector });
+      };
+      for (const item of items) {
+        const y = view.top + item.y - menuScroll;
+        if (item.kind === "volume") {
+          ctx.fillStyle = "#e8ffe8";
+          ctx.textAlign = "left";
+          ctx.font = `400 ${Math.max(13, unit * .037)}px ${MENU_FONT}`;
+          ctx.fillText(`音量  ${options.masterVolume ?? 7}/10`, left, y);
+          const barsY = y + panel.height * .055;
+          const barGap = Math.max(2, unit * .005);
+          const barWidth = (width - barGap * 9) / 10;
+          const barHeight = panel.height * .074;
+          for (let index = 0; index < 10; index += 1) {
+            const box = { x: left + index * (barWidth + barGap), y: barsY, width: barWidth, height: barHeight };
+            ctx.fillStyle = index < (options.masterVolume ?? 7) ? "#00ff00" : "#183b2e";
+            ctx.fillRect(box.x, box.y, box.width, box.height);
+            target(box, `[data-volume="${index + 1}"]`);
+          }
+          continue;
+        }
+        ctx.font = `400 ${Math.max(14, unit * .041)}px ${MENU_FONT}`;
+        const row = { x: left, y, width, height: rowHeight };
+        const focused = item === focusedItem;
+        if (item.kind === "record") {
+          const button = { x: left + width * .68, y, width: width * .32, height: rowHeight };
+          if (focused) { ctx.fillStyle = "rgba(0,255,0,.14)"; ctx.fillRect(button.x, button.y, button.width, button.height); }
+          ctx.fillStyle = "#e8ffe8";
+          ctx.textAlign = "left";
+          ctx.fillText(item.label, left, y + rowHeight / 2, width * .4);
+          ctx.fillStyle = "#00ff00";
+          ctx.textAlign = "right";
+          ctx.fillText(`${item.count}件`, left + width * .64, y + rowHeight / 2);
+          ctx.strokeStyle = item.count ? "#00ff00" : "#2f6b46";
+          ctx.lineWidth = Math.max(1, unit * .002);
+          ctx.strokeRect(button.x, button.y, button.width, button.height);
+          ctx.fillStyle = item.count ? "#e8ffe8" : "#5d7f68";
+          ctx.textAlign = "center";
+          ctx.font = `400 ${Math.max(12, unit * .033)}px ${MENU_FONT}`;
+          ctx.fillText("書き出す", button.x + button.width / 2, y + rowHeight / 2, button.width - 4);
+          if (item.count) target(button, item.selector);
+          continue;
+        }
+        if (focused) { ctx.fillStyle = "rgba(0,255,0,.14)"; ctx.fillRect(row.x, row.y, row.width, row.height); }
+        ctx.fillStyle = "#e8ffe8";
+        ctx.textAlign = "left";
+        ctx.fillText(item.label, left, y + rowHeight / 2, width * .84);
+        checkbox(row, item.checked);
+        target(row, item.selector);
       }
-      const volumeY = panel.y + panel.height * .71;
-      ctx.fillStyle = "#e8ffe8";
-      ctx.font = `400 ${Math.max(13, unit * .037)}px ${MENU_FONT}`;
-      ctx.fillText(`音量  ${options.masterVolume ?? 7}/10`, panel.x + panel.width * .07, volumeY);
-      const barsX = panel.x + panel.width * .07;
-      const barsY = volumeY + panel.height * .055;
-      const barsWidth = panel.width * .86;
-      const barGap = Math.max(2, unit * .005);
-      const barWidth = (barsWidth - barGap * 9) / 10;
-      const barHeight = panel.height * .074;
-      for (let index = 0; index < 10; index += 1) {
-        const box = { x: barsX + index * (barWidth + barGap), y: barsY, width: barWidth, height: barHeight };
-        ctx.fillStyle = index < (options.masterVolume ?? 7) ? "#00ff00" : "#183b2e";
-        ctx.fillRect(box.x, box.y, box.width, box.height);
-        menuTargets.push({ box, selector: `[data-volume="${index + 1}"]` });
+      ctx.restore();
+      if (maxScroll > 0) {
+        const track = { x: panel.x + panel.width * .975, y: view.top, height: view.bottom - view.top };
+        const thumb = track.height * (track.height / (track.height + maxScroll));
+        ctx.fillStyle = "rgba(0,255,0,.18)";
+        ctx.fillRect(track.x, track.y, Math.max(2, unit * .004), track.height);
+        ctx.fillStyle = "#00ff00";
+        ctx.fillRect(track.x, track.y + (track.height - thumb) * (menuScroll / maxScroll), Math.max(2, unit * .004), thumb);
       }
     }
     gl.activeTexture(gl.TEXTURE0);
@@ -398,6 +461,20 @@ function mount(entry, initialOptions = {}) {
     }) ?? null;
   }
 
+  listen(canvas, "wheel", event => {
+    if (!options.menuOpen || !menuScrollMax) return;
+    event.preventDefault();
+    menuScroll = Math.max(0, Math.min(menuScrollMax, menuScroll + event.deltaY * .5));
+    redraw();
+  });
+  listen(canvas, "pointermove", event => {
+    if (!pressed || !options.menuOpen || !menuScrollMax || pressed.pointerId !== event.pointerId) return;
+    const box = canvas.getBoundingClientRect();
+    const scale = entry.getBoundingClientRect().height / Math.max(1, box.height);
+    menuScroll = Math.max(0, Math.min(menuScrollMax, menuScroll - (event.clientY - (pressed.lastY ?? pressed.clientY)) * scale));
+    pressed.lastY = event.clientY;
+    redraw();
+  });
   listen(canvas, "pointermove", event => { const next = targetAt(event); if (next !== hovered) { hovered = next; if (next) glitchStart.set(next, performance.now()); canvas.style.cursor = next ? "pointer" : "default"; redraw(); } });
   listen(canvas, "pointerdown", event => {
     if (event.button !== 0) return;
@@ -424,7 +501,7 @@ function mount(entry, initialOptions = {}) {
   listen(canvas, "webglcontextlost", event => { event.preventDefault(); dispose(); });
   observer.observe(entry);
   entry.append(canvas);
-  document.fonts.load('24px SZDotGothic', 'オプション全画面モバイル版通常タップで詳細演出音量閉じる').then(redraw, redraw);
+  document.fonts.load('24px SZDotGothic', 'オプション全画面モバイル版通常タップで詳細演出音量閉じる対戦ログリプレイ件書き出す後に送信0123456789').then(redraw, redraw);
   document.fonts.ready.then(redraw);
   function tick(now) {
     if (disposed) return;
@@ -444,6 +521,7 @@ function mount(entry, initialOptions = {}) {
     for (const [node, type, handler] of listeners) node.removeEventListener(type, handler);
     publishReady(false);
     options = {};
+    menuScroll = 0;
     canvas.remove();
     gl.deleteTexture(texture); gl.deleteBuffer(buffer); gl.deleteProgram(program);
     gl.deleteShader(vertex); gl.deleteShader(fragment);

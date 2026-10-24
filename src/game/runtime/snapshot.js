@@ -28,7 +28,8 @@ const OPTIONAL_ROOT = {
   array: ['deferredTrashMoves', 'destroyLkiFollowUps', 'independentEffects'],
   object: ['runtimeDestructionContinuations', 'std142DestructionContinuations', 'std211DestructionContinuations'],
   boolean: ['drainingIndependentEffects', 'resolvingStd165', 'skipSavageTurnEnd'],
-  player: ['std094TurnEndDone', 'std141TurnEndDone', 'std142TurnEndDone', 'resumeTurnEndAfterSelection']
+  player: ['std094TurnEndDone', 'std141TurnEndDone', 'std142TurnEndDone', 'resumeTurnEndAfterSelection'],
+  turnTable: ['fieldEntryTurns']
 };
 const CONTEXT_KEYS = ['matchId', 'seatIds', 'identityState', 'rngState', 'uidAliases'];
 const INVALID = 'SNAPSHOT_INVALID_INPUT';
@@ -227,6 +228,17 @@ function validateOptionalRoot(state) {
     const value = own(state, name, STATE);
     if (value !== 'player' && value !== 'ai') reject(STATE);
     reject(UNSUPPORTED);
+  }
+  // Card uid -> turn number the card entered the field.
+  for (const name of OPTIONAL_ROOT.turnTable) {
+    if (!Object.hasOwn(state, name)) continue;
+    const table = own(state, name, STATE);
+    ordinary(table, STATE);
+    copyJson(table, STATE);
+    for (const key of Reflect.ownKeys(table)) {
+      const turn = own(table, key, STATE);
+      if (!nonempty(key) || !Number.isSafeInteger(turn) || turn < 0 || Object.is(turn, -0)) reject(STATE);
+    }
   }
 }
 

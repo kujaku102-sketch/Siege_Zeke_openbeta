@@ -1,13 +1,11 @@
 import { CARD_LIBRARY, LAB_CARD_IDS, USER_CARDS } from '../data/cards.js';
-import { BUILDABLE_CARDS, DECK_COLOR_OPTIONS, DECK_STRATEGIES, MAX_SAVED_DECKS, validateDeck } from '../game/deck-builder.js';
-import { CARD_ART } from '../data/card-art.generated.js';
-import { cardArtProfile } from '../data/card-art-profiles.js';
+import { validateDeck } from '../game/deck-builder.js';
 import { deckPresentation } from '../ui/deck-presentation.js';
-const colorClass = color => ({赤:'red',黄:'yellow',紫:'purple',青:'blue',橙:'orange',黒:'black',緑:'green'})[color] ?? 'neutral';
+import { panelHeadHtml, controlsHelpHtml } from './cyber-panel.js';
 const entryLogo = new URL("../assets/siege-zeke-logo-layers.svg", import.meta.url).href;
 const entryStaticLogo = new URL("../assets/siege-zeke-logo-static.png", import.meta.url).href;
 
-export const esc = value => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+const esc = value => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 const entryIcon = (kind) => {
   const paths = {
     tutorial: '<path d="M4 7.5 11 5l6 2.5L24 5l7 2.5v19L24 24l-7 2.5-6-2.5-7 2.5zM17 7.5v19M8 11.5l4-1.5M22 11.5l5-1.5"/><path d="M3 3h5m-2-2v5M29 28h4m-2-2v4"/>',
@@ -17,19 +15,10 @@ const entryIcon = (kind) => {
   };
   return `<svg class="r2-entry-icon" viewBox="0 0 34 34" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">${paths[kind]}</svg>`;
 };
-export const modes = { tutorial: "チュートリアル", ai: "AI対戦", sandbox: "実験場" };
-export function entryHtml(view, effectsEnabled = true) {
+function entryHtml(view, effectsEnabled = true) {
   return `<section class="r2-entry" aria-label="モード選択"><div class="r2-entry-inner"><div class="r2-intro"><h1><img src="${effectsEnabled ? entryLogo : entryStaticLogo}" alt="Siege÷Zeke" data-logo-static="${!effectsEnabled}"><canvas class="r2-logo-canvas" aria-hidden="true"></canvas></h1></div>
     <nav class="r2-mode-grid" aria-label="始めるモード"><button data-mode="tutorial">${entryIcon("tutorial")}<strong>チュートリアル</strong></button><button data-mode="ai">${entryIcon("ai")}<strong>AI対戦</strong></button><button data-mode="sandbox">${entryIcon("sandbox")}<strong>実験場</strong></button><button data-deck class="r2-deck-entry">${entryIcon("deck")}<strong>デッキ構築</strong></button></nav>
     </div></section>`;
-}
-
-function cardArtHtml(card, className, { full = false } = {}) {
-  const src = CARD_ART[card.id];
-  if (!src) return "";
-  const profile = cardArtProfile(card);
-  const style = full ? "" : ` style="--art-focus-x:${profile.focusX}%;--art-focus-y:${profile.focusY}%;--art-zoom:${profile.zoom}"`;
-  return `<img class="${className}" src="${esc(src)}" alt="" loading="lazy" decoding="async"${style}>`;
 }
 
 export function deckOptionsHtml(state, selectedId) {
@@ -38,51 +27,16 @@ export function deckOptionsHtml(state, selectedId) {
     ...(state.savedDecks ?? []).map((deck) => `<option value="custom:${esc(deck.id)}" ${selectedId === `custom:${deck.id}` ? "selected" : ""} ${validateDeck(deck).valid ? "" : "disabled"}>保存: ${esc(deck.name)}${validateDeck(deck).valid ? "" : "（要修正）"}</option>`)].join("");
 }
 
-function deckThumbnailHtml(card, className = "deck-card-thumbnail") {
-  const hasArt = Boolean(CARD_ART[card.id]);
-  return `<span class="${className} color-${colorClass(card.color)} ${hasArt ? "has-art" : ""}">
-    ${cardArtHtml(card, "deck-card-art")}
-    ${hasArt ? "" : `<span class="deck-card-art-placeholder">${esc(card.name.slice(0, 1))}</span>`}
-    <b class="deck-card-cost" aria-label="メモリ ${esc(card.cost)}">${esc(card.cost)}</b>
-    <strong class="deck-card-thumbnail-name">${esc(card.name)}</strong>
-  </span>`;
-}
-
 export function deckBuilderHtml(state, options = {}) {
-  const ui = state.deckBuilder;
-  if (!ui?.open) return "";
-  const draft = ui.draft;
-  const check = validateDeck(draft);
-  const query = String(ui.query ?? "").toLowerCase();
-  const cards = BUILDABLE_CARDS.filter((card) => (ui.color === "all" || String(card.color ?? "無色") === ui.color)
-    && (!query || `${card.id} ${card.name}`.toLowerCase().includes(query)));
-  const html = `<div class="effect-modal deck-builder-modal"><section class="deck-builder">
-    <header><div><span>DECK BUILDER</span><h2>保存デッキ ${state.savedDecks.length}/${MAX_SAVED_DECKS}</h2></div><button data-deck-close>閉じる</button></header>
-    <div class="deck-builder-toolbar">
-      <select data-deck-load><option value="">新規デッキ</option>${state.savedDecks.map((deck) => `<option value="${esc(deck.id)}" ${draft.id === deck.id ? "selected" : ""}>${esc(deck.name)}${validateDeck(deck).valid ? "" : "（要修正）"}</option>`).join("")}</select>
-      <input data-deck-name value="${esc(draft.name)}" maxlength="40" aria-label="デッキ名">
-      <select data-deck-user aria-label="ユーザーカード">${Object.entries(USER_CARDS).map(([id,user]) => `<option value="${id}" ${draft.userId === id ? "selected" : ""}>${esc(user.name)}</option>`).join("")}</select>
-      <button data-deck-new>新規</button><button data-deck-save class="primary" ${check.valid ? "" : 'disabled title="構築規定を満たしてから保存できます"'}>保存</button><button data-deck-delete ${state.savedDecks.some((deck) => deck.id === draft.id) ? "" : "disabled"}>削除</button>
-      <button data-deck-export>JSON出力</button><label class="deck-import">JSON読込<input type="file" accept="application/json" data-deck-import></label>
-    </div>
-    <div class="deck-validation ${check.valid ? "valid" : "invalid"}" role="status"><b>${check.valid ? "構築OK" : "構築未完了"}</b><span>構築枚数 ${check.count}/${check.rule.size}枚・同名${check.rule.sameName}枚まで${check.errors.length ? ` / ${esc(check.errors.join(" / "))}` : ""}</span></div>
-    <section class="deck-recommender"><b>AUTO BUILD</b><select data-deck-recommend-color>${DECK_COLOR_OPTIONS.filter((color) => color !== "無色").map((color) => `<option value="${color}" ${ui.recommendColor === color ? "selected" : ""}>${color}</option>`).join("")}</select><select data-deck-strategy>${Object.entries(DECK_STRATEGIES).map(([id,label]) => `<option value="${id}" ${ui.strategy === id ? "selected" : ""}>${label}</option>`).join("")}</select><button data-deck-recommend class="primary">推奨構築を生成</button><span>${esc(ui.recommendationNote ?? "色と戦術から完成デッキを生成する。")}</span></section>
-    <div class="deck-builder-tools"><input data-deck-query value="${esc(ui.query ?? "")}" placeholder="カード名 / ID"><select data-deck-color>${["all", ...DECK_COLOR_OPTIONS].map((color) => `<option value="${color}" ${ui.color === color ? "selected" : ""}>${color === "all" ? "全色" : color}</option>`).join("")}</select></div>
-    <div class="deck-builder-body"><div class="deck-card-list">${cards.map((card) => { const count = Number(draft.cards[card.id] ?? 0); return `<article class="deck-catalog-card" data-deck-card-id="${esc(card.id)}">
-        ${deckThumbnailHtml(card)}
-        <span class="deck-card-meta"><b>${esc(card.id)}</b><small>${esc(card.color ?? "無色")} / ${esc(card.category)}</small></span>
-        <div class="deck-count-stepper" aria-label="${esc(card.name)}の投入枚数"><button data-deck-minus="${esc(card.id)}" ${count ? "" : "disabled"} aria-label="${esc(card.name)}を1枚減らす">−</button><b>${count}</b><button data-deck-plus="${esc(card.id)}" aria-label="${esc(card.name)}を1枚増やす">＋</button></div>
-      </article>`; }).join("")}</div>
-      <aside class="deck-summary"><h3>デッキ内容</h3><div class="deck-summary-list">${Object.entries(draft.cards).filter(([,count]) => count > 0).sort(([a],[b]) => a.localeCompare(b, undefined, {numeric:true})).map(([id,count]) => { const card = CARD_LIBRARY[id]; return card ? `<article class="deck-summary-card" data-deck-summary-id="${esc(id)}">${deckThumbnailHtml(card, "deck-summary-thumbnail")}<span><b>${count}枚</b><small>${esc(id)}</small></span></article>` : `<article class="deck-summary-card"><span class="deck-summary-missing">${esc(id)}</span><span><b>${count}枚</b><small>${esc(id)}</small></span></article>`; }).join("") || "<p class=\"deck-empty\">カードなし</p>"}</div></aside></div>
-  </section></div>`;
-  return deckPresentation(html, state, options);
+  if (!state.deckBuilder?.open) return "";
+  return deckPresentation(state, options);
 }
 
 function expansionOf(cardId) {
   return String(cardId).split("-")[0].toUpperCase();
 }
 
-export function sandboxCatalogHtml(state) {
+function sandboxCatalogHtml(state) {
   if (!["lab", "sandbox"].includes(state.mode)) return "";
   const ui = state.sandboxUi ?? { query: "", expansion: "all", catalogOwner: "player" };
   const query = ui.query.trim().toLowerCase();
@@ -99,11 +53,19 @@ export function sandboxCatalogHtml(state) {
   return `<section class="card-catalog"><header><div><span>SANDBOX SUPPLY</span><h2>ALL CARD LIST <small>${cards.length}</small></h2></div><div class="catalog-tools"><input data-catalog-query value="${esc(ui.query)}" placeholder="カード名またはIDで検索"><select data-catalog-expansion><option value="all">全ID分類</option>${expansionOptions}</select><select data-catalog-owner><option value="player">自分の手札へ</option><option value="ai" ${ui.catalogOwner === "ai" ? "selected" : ""}>相手の手札へ</option></select></div></header><div class="catalog-scroll">${rows || '<span class="empty">一致するカードなし</span>'}</div></section>`;
 }
 
+// Replays and logs stay in this browser; each button hands them over as one JSON file.
+// Sending a finished match's log is the player's choice and starts switched off.
+function matchArchiveHtml(ui, toggle) {
+  const counts = ui.storedCounts ?? { replays: 0, logs: 0 };
+  const row = (label, kind, count) => `<div class="r2-title-records"><span>${label}</span><output>${count}件</output><button data-stored-export="${kind}" ${count ? "" : "disabled"}>書き出す</button></div>`;
+  return `${row("対戦ログ", "logs", counts.logs)}${row("対戦リプレイ", "replays", counts.replays)}<p>対戦ログとリプレイはこのブラウザに新しい順で最大20件ずつ保存されます。</p>${toggle("対戦後に対戦ログを送信", "data-toggle-send-logs", Boolean(ui.sendMatchLogs))}<p>オンにすると、決着した対戦のログ(盤面の記録と両者のデッキ・ユーザー)を開発用サーバーへ送ります。</p>`;
+}
+
 function settingsHtml(state, ui) {
   if (ui.screen === "entry") {
     const volume = Math.max(0, Math.min(10, Number(ui.masterVolume ?? 7)));
     const toggle = (label, selector, checked) => `<button class="r2-title-setting" ${selector} role="checkbox" aria-checked="${checked}">${label}<span aria-hidden="true">${checked ? "☑" : "□"}</span></button>`;
-    const contents = `<header><h2>オプション</h2><button data-live="close-options">閉じる</button></header><div class="r2-title-settings-list">${toggle("全画面", 'data-live="fullscreen"', Boolean(ui.fullscreen))}${toggle("PC版", 'data-view="pc"', ui.view === "pc")}${toggle("モバイル版", 'data-view="mobile"', ui.view === "mobile")}${toggle("通常タップで詳細", 'data-title-tap-details', Boolean(ui.tapDetails))}${toggle("演出", 'data-toggle-effects', Boolean(ui.effectsEnabled))}<div class="r2-title-volume"><span>音量</span><div role="group" aria-label="音量 0～10">${Array.from({ length: 10 }, (_, index) => `<button data-volume="${index + 1}" aria-label="音量 ${index + 1}" aria-pressed="${index < volume}"></button>`).join("")}</div><output>${volume}/10</output></div><p>音量設定は今後のサウンド向けに保存されます。</p></div>`;
+    const contents = `<header><h2>オプション</h2><button data-live="close-options">閉じる</button></header><div class="r2-title-settings-list">${toggle("全画面", 'data-live="fullscreen"', Boolean(ui.fullscreen))}${toggle("PC版", 'data-view="pc"', ui.view === "pc")}${toggle("モバイル版", 'data-view="mobile"', ui.view === "mobile")}${toggle("通常タップで詳細", 'data-title-tap-details', Boolean(ui.tapDetails))}${toggle("演出", 'data-toggle-effects', Boolean(ui.effectsEnabled))}<div class="r2-title-volume"><span>音量</span><div role="group" aria-label="音量 0～10">${Array.from({ length: 10 }, (_, index) => `<button data-volume="${index + 1}" aria-label="音量 ${index + 1}" aria-pressed="${index < volume}"></button>`).join("")}</div><output>${volume}/10</output></div><p>音量設定は今後のサウンド向けに保存されます。</p>${matchArchiveHtml(ui, toggle)}</div>`;
     return `<div class="r2-modal r2-title-options${ui.entryCrtMenu ? " r2-title-options-crt" : ""}" role="dialog" aria-modal="true" aria-label="オプション"><section>${contents}</section></div>`;
   }
   const users = selected => Object.entries(USER_CARDS).map(([id, user]) => `<option value="${id}" ${selected === id ? "selected" : ""}>${esc(user.name)}</option>`).join("");
@@ -111,7 +73,7 @@ function settingsHtml(state, ui) {
   const setupOnly = ui.screen === "entry";
   const viewer = state.mode === "sandbox" ? `<label>操作表示側<select data-sandbox-actor ${state.sandboxUi?.opponentControl === "ai" ? "disabled" : ""}><option value="player" ${(ui.actor ?? "player") === "player" ? "selected" : ""}>YOU</option><option value="ai" ${ui.actor === "ai" ? "selected" : ""}>OPPONENT</option></select></label>` : "";
   const navigation = `<nav class="live-menu-nav"><button data-live="home" ${busy ? "disabled" : ""}>入口へ戻る</button><button data-deck-open>デッキ構築</button>${state.mode === "sandbox" ? '<button data-catalog-open>カード追加</button>' : ""}<button data-live="fullscreen">${ui.fullscreen ? "全画面を解除" : "全画面"}</button></nav><p>全画面はタップで開始します。通知バー・カメラ穴周辺の表示可否は端末とブラウザによります。</p>`;
-  return `<div class="r2-modal runtime-host-options${ui.entryCrtMenu ? " r2-entry-crt-menu" : ""}" role="dialog" aria-modal="true" aria-label="オプション">${ui.entryCrtMenu ? '<svg class="r2-entry-crt-filter" aria-hidden="true" width="0" height="0"><filter id="r2-entry-menu-warp" x="-3%" y="-3%" width="106%" height="106%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.002 0.005" numOctaves="1" seed="7" result="grain"/><feDisplacementMap in="SourceGraphic" in2="grain" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter></svg>' : ""}<section><header><h2>オプション</h2><button data-live="close-options">閉じる</button></header>${navigation}<div class="r2-view-options"><button data-view="pc" aria-pressed="${ui.view === "pc"}">PC版</button><button data-view="mobile" aria-pressed="${ui.view === "mobile"}">モバイル版</button></div><p>${setupOnly ? "デッキ・ユーザーを選んでからモードを選択できます。" : "表示版の切替では対戦を保持します。デッキ・ユーザーの変更は新しい対戦を開始します。"}</p><label><input data-tap-details type="checkbox" ${ui.tapDetails ? "checked" : ""}>通常タップで詳細を表示（長押しは常に使用可）</label><button data-toggle-effects aria-pressed="${Boolean(ui.effectsEnabled)}">演出 ${ui.effectsEnabled ? "ON" : "OFF"}</button><label>ロゴのノイズ<select data-logo-profile>${[["random","ランダム切替"],["distress","劣化のみ"],["mosaic","モザイクのみ"]].map(([value,label])=>`<option value="${value}" ${(ui.logoNoiseProfile??"random")===value?"selected":""}>${label}</option>`).join("")}</select></label><label>ロゴのノイズ動画（任意）<input data-logo-video type="file" accept="video/*"></label><p>${ui.logoVideoName ? esc(ui.logoVideoName)+"（このタブのみ）" : "動画未選択：生成ノイズを使用"}</p>${ui.logoVideoName ? '<button data-logo-video-clear>生成ノイズに戻す</button>' : ""}<fieldset ${busy ? "disabled" : ""}><legend>対戦設定</legend>
+  return `<div class="r2-modal runtime-host-options${ui.entryCrtMenu ? " r2-entry-crt-menu" : ""}" role="dialog" aria-modal="true" aria-label="オプション">${ui.entryCrtMenu ? '<svg class="r2-entry-crt-filter" aria-hidden="true" width="0" height="0"><filter id="r2-entry-menu-warp" x="-3%" y="-3%" width="106%" height="106%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.002 0.005" numOctaves="1" seed="7" result="grain"/><feDisplacementMap in="SourceGraphic" in2="grain" scale="2" xChannelSelector="R" yChannelSelector="G"/></filter></svg>' : ""}${setupOnly ? '<section><header><h2>オプション</h2><button data-live="close-options">閉じる</button></header>' : `<section class="cp-panel">${panelHeadHtml({ eyebrow: 'SYSTEM CONFIG', sub: 'OPTION.SYS', title: 'オプション', close: 'data-live="close-options"', closeLabel: 'オプションを閉じる' })}`}${navigation}${setupOnly ? '' : controlsHelpHtml()}<div class="r2-view-options"><button data-view="pc" aria-pressed="${ui.view === "pc"}">PC版</button><button data-view="mobile" aria-pressed="${ui.view === "mobile"}">モバイル版</button></div><p>${setupOnly ? "デッキ・ユーザーを選んでからモードを選択できます。" : "表示版の切替では対戦を保持します。デッキ・ユーザーの変更は新しい対戦を開始します。"}</p><label><input data-tap-details type="checkbox" ${ui.tapDetails ? "checked" : ""}>通常タップで詳細を表示（長押しは常に使用可）</label><button data-toggle-effects aria-pressed="${Boolean(ui.effectsEnabled)}">演出 ${ui.effectsEnabled ? "ON" : "OFF"}</button><div class="r2-match-archive">${matchArchiveHtml(ui, (label, selector, checked) => `<button ${selector} aria-pressed="${checked}">${label} ${checked ? "ON" : "OFF"}</button>`)}</div><label>ロゴのノイズ<select data-logo-profile>${[["random","ランダム切替"],["distress","劣化のみ"],["mosaic","モザイクのみ"]].map(([value,label])=>`<option value="${value}" ${(ui.logoNoiseProfile??"random")===value?"selected":""}>${label}</option>`).join("")}</select></label><label>ロゴのノイズ動画（任意）<input data-logo-video type="file" accept="video/*"></label><p>${ui.logoVideoName ? esc(ui.logoVideoName)+"（このタブのみ）" : "動画未選択：生成ノイズを使用"}</p>${ui.logoVideoName ? '<button data-logo-video-clear>生成ノイズに戻す</button>' : ""}<fieldset ${busy ? "disabled" : ""}><legend>対戦設定</legend>
     <label>学ぶ内容<select data-tutorial-select ${state.mode !== "tutorial" ? "disabled" : ""}><option value="basics" ${state.tutorialId === "basics" ? "selected" : ""}>基本操作・赤</option><option value="vengeance" ${state.tutorialId === "vengeance" ? "selected" : ""}>ヴェンジェンス・紫</option></select></label>
     ${["player", "ai"].map(id => `<label>${id === "player" ? "自分" : "相手"}デッキ<select data-${id}-deck ${!setupOnly && state.mode === "tutorial" ? "disabled" : ""}>${deckOptionsHtml(state, ui[`${id}DeckId`] ?? state[`${id}DeckId`])}</select></label><label>${id === "player" ? "自分" : "相手"}ユーザー<select data-${id}-user ${!setupOnly && state.mode === "tutorial" ? "disabled" : ""}>${users(ui[`${id}UserId`] ?? state[`${id}UserId`])}</select></label>`).join("")}
     ${state.mode === "sandbox" ? `<label>相手操作<select data-opponent-control><option value="manual">手動</option><option value="ai" ${state.sandboxUi?.opponentControl === "ai" ? "selected" : ""}>AI</option></select></label><label>アクティブ側<select data-sandbox-active ${state.sandboxUi?.opponentControl === "ai" ? "disabled" : ""}><option value="player" ${ui.activeSeat === "player" ? "selected" : ""}>YOU</option><option value="ai" ${ui.activeSeat === "ai" ? "selected" : ""}>OPPONENT</option></select></label>` : ""}</fieldset>${viewer}</section></div>`;

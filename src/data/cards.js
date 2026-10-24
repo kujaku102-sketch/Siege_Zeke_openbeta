@@ -541,7 +541,9 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 1,
     "atk": 1,
     "str": 1,
-    "classes": [],
+    "classes": [
+      "レッドパンクス"
+    ],
     "text": "[QA]ターン終了時、このObが攻撃していたら破壊する。"
   },
   "STD-076": {
@@ -553,7 +555,9 @@ export const CARD_LIBRARY = Object.freeze({
     "atk": 2,
     "str": 1,
     "text": "[バックアップ]",
-    "classes": []
+    "classes": [
+      "レッドパンクス"
+    ]
   },
   "STD-077": {
     "id": "STD-077",
@@ -627,7 +631,9 @@ export const CARD_LIBRARY = Object.freeze({
     "atk": 3,
     "str": 2,
     "text": "[ログイン]山札の上から1枚をゴミ箱に送る。その後、ゴミ箱からメモリ3以下のCode1枚を配置する。",
-    "classes": []
+    "classes": [
+      "レッドパンクス"
+    ]
   },
   "STD-083": {
     "id": "STD-083",
@@ -639,7 +645,9 @@ export const CARD_LIBRARY = Object.freeze({
     "str": 2,
     "text": "[ログイン]マウントしているならクラス:レッドパンクスかつカテゴリ:Lyd-Obを1枚以上2枚まで可能な限りアクセスする。1枚を手札に加え、もう1枚をゴミ箱へ送る。",
     "rulingOverride": "STD-083-R67: 1枚以上2枚まで可能な限り",
-    "classes": []
+    "classes": [
+      "レッドパンクス"
+    ]
   },
   "STD-084": {
     "id": "STD-084",
@@ -650,7 +658,9 @@ export const CARD_LIBRARY = Object.freeze({
     "atk": 3,
     "str": 4,
     "text": "[セキュリティ]このカードがマウントしていない時、破壊される。",
-    "classes": []
+    "classes": [
+      "レッドパンクス"
+    ]
   },
   "STD-085": {
     "id": "STD-085",
@@ -662,7 +672,9 @@ export const CARD_LIBRARY = Object.freeze({
     "str": 4,
     "text": "[レイヤード:レッドパンクスCode1枚以上とノイド1体][QA]攻撃時、レイヤー1枚をゴミ箱へ送り①を起動する。①+2/+0する。解決後、積層全体が1枚以下なら破壊される。",
     "rulingOverride": "STD-085-R72: 効果解決後に積層全体を判定",
-    "classes": []
+    "classes": [
+      "レッドパンクス"
+    ]
   },
   "STD-086": {
     "id": "STD-086",
@@ -683,7 +695,9 @@ export const CARD_LIBRARY = Object.freeze({
     "str": 4,
     "text": "[ログイン]メモリ1以下のObまたはCode1枚にアクセスし、それをドラッグする。自分の赤のカードによるダメージを+1する。",
     "rulingOverride": "STD-087-R73: 対象はObまたはCodeのみ",
-    "classes": []
+    "classes": [
+      "レッドパンクス"
+    ]
   },
   "STD-088": {
     "id": "STD-088",
@@ -694,7 +708,9 @@ export const CARD_LIBRARY = Object.freeze({
     "atk": 2,
     "str": 2,
     "text": "[QA]このカードは実行できない。",
-    "classes": []
+    "classes": [
+      "レッドパンクス"
+    ]
   },
   "STD-089": {
     "id": "STD-089",
@@ -704,7 +720,9 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 3,
     "atk": 1,
     "str": 1,
-    "classes": [],
+    "classes": [
+      "レッドパンクス"
+    ],
     "text": "[ログイン]自分のレイヤーを持つObすべてはこのターン、レイヤー1枚につき+1/0する。"
   },
   "STD-090": {
@@ -715,7 +733,9 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 2,
     "atk": 1,
     "str": 1,
-    "classes": [],
+    "classes": [
+      "レッドパンクス"
+    ],
     "text": "[ログイン]「ジャンクパーツ」1枚にアクセスし、それをドラッグする。"
   },
   "STD-091": {
@@ -727,7 +747,9 @@ export const CARD_LIBRARY = Object.freeze({
     "atk": 3,
     "str": 1,
     "text": "[QA]これは可能であればObを攻撃する。",
-    "classes": []
+    "classes": [
+      "レッドパンクス"
+    ]
   },
   "STD-092": {
     "id": "STD-092",
@@ -940,7 +962,10 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 1,
     "atk": 1,
     "str": 1,
-    "classes": [],
+    "classes": [
+      "ニュートロン・セキュリティ",
+      "エレクトロン・フェアリー"
+    ],
     "text": "[ログイン]「/」から始まり「/*」で終わる名称を持つSp1枚にアクセスし、それを手札に加える。",
     "sourceId": "STD-107",
     "printedCategory": "Ob",
@@ -969,13 +994,12 @@ export const CARD_LIBRARY = Object.freeze({
     "atk": 2,
     "str": 2,
     "classes": [
-      "レッドパンクス",
-      "ギークス"
+      "ニュートロン・セキュリティ",
+      "エレクトロン・フェアリー"
     ],
     "text": "このObが[ハッキング]または[暗号化]を持っている間、+1/+1する。",
     "sourceId": "STD-109",
-    "printedCategory": "Ob",
-    "cardClass": "レッドパンクス/ギークス"
+    "printedCategory": "Ob"
   },
   "STD-110": {
     "id": "STD-110",
@@ -983,15 +1007,12 @@ export const CARD_LIBRARY = Object.freeze({
     "category": "Sp",
     "color": "青",
     "cost": 1,
-    "classes": [
-      "レッドパンクス"
-    ],
+    "classes": [],
     "text": "次のターン終了時まで、自分のObすべては[暗号化]を持つ。",
     "sourceId": "STD-110",
     "printedCategory": "Sp",
     "atk": null,
-    "str": null,
-    "cardClass": "レッドパンクス"
+    "str": null
   },
   "STD-111": {
     "id": "STD-111",
@@ -999,15 +1020,12 @@ export const CARD_LIBRARY = Object.freeze({
     "category": "Sp",
     "color": "青",
     "cost": 2,
-    "classes": [
-      "レッドパンクス"
-    ],
+    "classes": [],
     "text": "自分のOb1体はこのターン+1/+0され[ハッキング]を持つ。",
     "sourceId": "STD-111",
     "printedCategory": "Sp",
     "atk": null,
-    "str": null,
-    "cardClass": "レッドパンクス"
+    "str": null
   },
   "STD-112": {
     "id": "STD-112",
@@ -1018,12 +1036,12 @@ export const CARD_LIBRARY = Object.freeze({
     "atk": 2,
     "str": 3,
     "classes": [
-      "レッドパンクス"
+      "ニュートロン・セキュリティ",
+      "エレクトロン・フェアリー"
     ],
     "text": "[暗号化]自分の[ハッキング]を持つObがユーザーに攻撃する時、カードを1枚引く。",
     "sourceId": "STD-112",
-    "printedCategory": "Ob",
-    "cardClass": "レッドパンクス"
+    "printedCategory": "Ob"
   },
   "STD-113": {
     "id": "STD-113",
@@ -1050,7 +1068,10 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 3,
     "atk": 2,
     "str": 4,
-    "classes": [],
+    "classes": [
+      "ニュートロン・セキュリティ",
+      "エレクトロン・フェアリー"
+    ],
     "text": "[ハッキング]攻撃時、他の自分のOb1体に[ハッキング]を与える。",
     "sourceId": "STD-114",
     "printedCategory": "Ob",
@@ -1092,7 +1113,10 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 6,
     "atk": 5,
     "str": 3,
-    "classes": [],
+    "classes": [
+      "ニュートロン・セキュリティ",
+      "エレクトロン・フェアリー"
+    ],
     "text": "[バックアップ]攻撃時、ゴミ箱からSpまたはクラス:エレクトロンフェアリー1枚をサルベージする。フロントにある時①を、バックにある時②をそれぞれ適用する。①[ハッキング]②自分の青のOb全ては[暗号化]。",
     "sourceId": "STD-117",
     "printedCategory": "Ob",
@@ -1792,10 +1816,7 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 3,
     "atk": 2,
     "str": 3,
-    "classes": [
-      "レッドパンクス",
-      "ギークス"
-    ],
+    "classes": [],
     "text": "[セキュリティ]インセクトが破壊された時、ゴミ箱からScriptをサルベージする。",
     "traits": [
       "インセクト"
@@ -1810,9 +1831,7 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 0,
     "setupCost": 1,
     "activationCost": 0,
-    "classes": [
-      "レッドパンクス"
-    ],
+    "classes": [],
     "text": "相手ターン開始時に起動する。次のターン終了時まで、自分のObすべては[切断]を持つ。",
     "traits": [
       "インセクト"
@@ -1825,9 +1844,7 @@ export const CARD_LIBRARY = Object.freeze({
     "printedCategory": "Sc",
     "color": "緑",
     "cost": 44197,
-    "classes": [
-      "レッドパンクス"
-    ],
+    "classes": [],
     "text": "自分のObが戦闘する時、そのObを次のターン終了時まで+2/+2する。",
     "setupCost": 1,
     "activationCost": 1,
@@ -1843,9 +1860,7 @@ export const CARD_LIBRARY = Object.freeze({
     "printedCategory": "Sc",
     "color": "緑",
     "cost": 44199,
-    "classes": [
-      "レッドパンクス"
-    ],
+    "classes": [],
     "text": "1ターンに1度①を起動できる。①Obが攻撃する時、次のターン終了時まで自分のObすべてを+2/+2して[セキュリティ]を与える。",
     "setupCost": 1,
     "activationCost": 3,
@@ -1862,10 +1877,7 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 2,
     "atk": 1,
     "str": 3,
-    "classes": [
-      "ニュートロン・セキュリティ",
-      "ビルダー"
-    ],
+    "classes": [],
     "text": "自分のScriptが起動した時、手札からこのObを配置できる。",
     "traits": [
       "インセクト"
@@ -2469,9 +2481,7 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 7,
     "atk": 5,
     "str": 3,
-    "classes": [
-      "マスターピース"
-    ],
+    "classes": [],
     "text": "[ログイン]カード1枚にアクセスし、それをレジストリにインストールする。①これの攻撃時、レジストリからX以下のカードを選びそれをメモリを支払わず実行できる。(Xは自分のレジストリの枚数である。)"
   },
   "STD-220": {
@@ -2482,9 +2492,7 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 3,
     "atk": 5,
     "str": 3,
-    "classes": [
-      "マスターピース"
-    ],
+    "classes": [],
     "text": "[コンタクト][ログアウト]ゴミ箱に送るかわりにレジストリにインストールする。①レジストリからこれを実行できる。この効果で配置した場合これはユーザーを攻撃できない。"
   },
   "STD-221": {
@@ -2495,9 +2503,7 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 2,
     "atk": 2,
     "str": 2,
-    "classes": [
-      "マスターピース"
-    ],
+    "classes": [],
     "text": "[ログイン]相手ユーザーに1ダメージ。これがレジストリから実行されていた場合、3ダメージ。"
   },
   "STD-222": {
@@ -2506,9 +2512,7 @@ export const CARD_LIBRARY = Object.freeze({
     "category": "Sp",
     "color": "橙",
     "cost": 2,
-    "classes": [
-      "マスターピース"
-    ],
+    "classes": [],
     "text": "手札を全てレジストリにインストールし、その枚数分カードを引く。"
   },
   "STD-223": {
@@ -2517,10 +2521,7 @@ export const CARD_LIBRARY = Object.freeze({
     "category": "Sp",
     "color": "橙",
     "cost": 3,
-    "classes": [
-      "ヴェンジェンス",
-      "アーティスト"
-    ],
+    "classes": [],
     "text": "[アンブッシュ:2]（これがレジストリにありこれのメモリ以上のカードがレジストリにある場合、相手Obの攻撃宣言時に指定のメモリを消費し実行できる。[インシデント]による効果起動はその攻撃宣言につき1回しかできない。）①Ob1体に3ダメージ。この効果によるダメージでObを破壊したならカードを1枚引く。"
   },
   "STD-224": {
@@ -2529,10 +2530,7 @@ export const CARD_LIBRARY = Object.freeze({
     "category": "P-in",
     "color": "橙",
     "cost": 2,
-    "classes": [
-      "ヴェンジェンス",
-      "アーティスト"
-    ],
+    "classes": [],
     "text": "これのインストール時、任意の数字を指定する。相手が実行し配置したカードに記載されたメモリが指定した数字だった場合、これとそのカードの両方を破壊する。"
   },
   "STD-225": {
@@ -2543,10 +2541,7 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 6,
     "atk": 6,
     "str": 6,
-    "classes": [
-      "ヴェンジェンス",
-      "イモータルス"
-    ],
+    "classes": [],
     "text": "[QA][ログイン]レジストリのカードを好きな枚数破壊し、破壊した数だけメモリを1回復する。"
   },
   "STD-226": {
@@ -2557,10 +2552,7 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 4,
     "atk": 3,
     "str": 1,
-    "classes": [
-      "ヴェンジェンス",
-      "アーティスト"
-    ],
+    "classes": [],
     "text": "このObがスタンバイ状態の時、相手がレジストリにカードをインストールした場合に①を起動できる。①このObをスリープし、レジストリのカード1枚を裏向きにする。"
   },
   "STD-227": {
@@ -2622,10 +2614,7 @@ export const CARD_LIBRARY = Object.freeze({
     "cost": 3,
     "atk": 5,
     "str": 1,
-    "classes": [
-      "ヴェンジェンス",
-      "アーティファクト"
-    ],
+    "classes": [],
     "text": "[レイヤード:自分エリアとレジストリのカード2枚以上]各ターン開始時、お互いの山札の上から1枚をこれのレイヤーに加える。[ログアウト]相手エリアのObを好きな数選び、Xを割り振ってダメージを与える。その後、これのレイヤーを全て所有ユーザーのレジストリにインストールする。Xはこれのレイヤーが持つメモリの合計である。"
   },
   "STD-233": {

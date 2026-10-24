@@ -39,7 +39,7 @@ export function createRuntimeClientController(input) {
       if (fired) return;
       fired = true;
       scheduled = null;
-      if (!disposed) step();
+      return !disposed ? step() : failure('RUNTIME_CLIENT_CONTROLLER_DISPOSED');
     };
     const token = scheduler.schedule(task);
     if (token === undefined || token === null) return false;
@@ -66,10 +66,13 @@ export function createRuntimeClientController(input) {
       if (disposed) return failure('RUNTIME_CLIENT_CONTROLLER_DISPOSED');
       const submitted = port.submit(intent.value);
       if (!submitted.ok) return submitted;
-      if (!['accepted', 'retry'].includes(submitted.value?.kind)) {
+      const receipt = submitted.value?.receipt;
+      const accepted = ['accepted', 'retry'].includes(submitted.value?.kind)
+        && receipt?.status === 'accepted' && receipt.reasonCode === 'ACCEPTED';
+      if (!accepted) {
         return { ok: true, value: { kind: 'stopped', receipt: submitted.value } };
       }
-      const after = port.query();
+      const after = typeof port.latest === 'function' ? port.latest() : port.query();
       if (!after.ok) return after;
       const queued = actionable(after.value) ? scheduleNext() : false;
       return { ok: true, value: {

@@ -1,5 +1,7 @@
 import './styles.css';
 import './ui/ability-help.css';
+import './ui-refresh/wireframe/board.css';
+import './ui-refresh/hud-skin.css';
 import { createMatchLifecycleController } from './adapters/match-lifecycle-controller.js';
 import { mountRuntimeMatch } from './ui-refresh/runtime-match-surface.js';
 import { runtimeShellHtml } from './ui-refresh/runtime-shell-view.js';
@@ -9,22 +11,31 @@ import { isFullscreen, toggleFullscreen } from './ui-refresh/fullscreen.js';
 import { syncEntryLogoGlitch } from './ui-refresh/entry-logo-glitch.js';
 import { syncEntryCrtViewport } from './ui-refresh/entry-crt-viewport.js';
 import { syncLiveInputLocks } from './ui-refresh/input-lock.js';
+import { noticeText } from './ui-refresh/notice-text.js';
 import { installMobileViewport } from './ui-refresh/mobile-viewport.js';
 import { captureDeckViewport, restoreDeckViewport } from './ui/deck-viewport.js';
 import { installAbilityHelp } from './ui/ability-help.js';
 import { MAX_SAVED_DECKS, deckToRecipe, loadSavedDecks, normalizeSavedDeck, recommendDeck, saveDeckCollection, validateDeck } from './game/deck-builder.js';
 import { registerPwa } from './pwa.js';
+import { MATCH_LOGS, REPLAYS, loadStored, storedExport } from './adapters/match-record-store.js';
+import { archiveRetiredMatch } from './adapters/match-archive.js';
+import { sendMatchLog } from './adapters/match-log-sender.js';
 
 // Host preferences never hold an engine state. One lifecycle owns the single
 // Authority; all game actions go through the current bound seat ports.
 const root = document.querySelector('#app');
 const EFFECTS_STORAGE_KEY = 'sz-ui-effects';
-const lifecycle = createMatchLifecycleController();
+const SEND_LOGS_STORAGE_KEY = 'sz-send-match-logs';
+// As a match is replaced, left or the page closes, its replay and log are kept in this
+// browser, and a finished match's log is sent when the player switched sending on.
+const storedCounts = () => ({replays:loadStored(localStorage,REPLAYS).length,logs:loadStored(localStorage,MATCH_LOGS).length});
+const lifecycle = createMatchLifecycleController({onRetire:retired => {
+  if (archiveRetiredMatch(retired,{storage:localStorage,sendEnabled:host.sendMatchLogs,send:sendMatchLog}).kept) host.storedCounts = storedCounts();}});
 const host = {screen:'entry',mode:'sandbox',tutorialId:'basics',
   view:resolveView({pathname:location.pathname,saved:readSavedView(localStorage),mobile:navigator.userAgentData?.mobile,userAgent:navigator.userAgent,maxTouchPoints:navigator.maxTouchPoints}).view,
   playerDeckId:'red',aiDeckId:'yellow',playerUserId:'doors_zx',aiUserId:'doors_zx',savedDecks:loadSavedDecks(),
   deckBuilder:{open:false,query:'',color:'all',recommendColor:'赤',strategy:'balanced',recommendationNote:'',autoBuildOpen:false,draft:normalizeSavedDeck({id:'',name:'新規デッキ',userId:'doors_zx',cards:{}},'')},
-  options:false,notice:'',tapDetails:true,effectsEnabled:localStorage.getItem(EFFECTS_STORAGE_KEY) === "on",
+  options:false,notice:'',storedCounts:storedCounts(),sendMatchLogs:localStorage.getItem(SEND_LOGS_STORAGE_KEY) === 'on',tapDetails:true,effectsEnabled:localStorage.getItem(EFFECTS_STORAGE_KEY) === "on",
   masterVolume:Math.max(0,Math.min(10,Number.parseInt(localStorage.getItem('sz-master-volume') ?? '7',10) || 0)),
   logoNoiseProfile:localStorage.getItem('sz-logo-noise-profile') || 'random',logoVideoName:'',actor:'player',opponentControl:'manual',
   catalogOpen:false,catalog:{query:'',expansion:'all',catalogOwner:'player'}};
@@ -32,7 +43,8 @@ let surface = null, session = null, screenRendered = null, entryLogoVideoFile = 
 let shellGeneration = 0, adminSerial = 0, press = null, suppressDeckClickUntil = 0;
 installAbilityHelp(root);
 const mobileViewport = installMobileViewport(root);
-const notice = code => {host.notice = code;renderShell();};
+// The raw code goes to the console only; the player sees a sentence or nothing.
+const notice = code => {const text = noticeText(code);console.debug('[notice]',code);if (text === null) return;host.notice = text;renderShell();};
 const entryEffects = () => host.screen === 'entry' && host.effectsEnabled && !host.deckBuilder.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function renderShell(replace = false) {
   document.body.dataset.view = host.view;
@@ -52,7 +64,7 @@ function renderShell(replace = false) {
   }
   restoreDeckViewport(root,viewport);
   syncEntryLogoGlitch(root,entryEffects(),{profile:host.logoNoiseProfile,videoFile:entryLogoVideoFile});
-  syncEntryCrtViewport(root,entryEffects(),{menuOpen:host.options,view:host.view,fullscreen:host.fullscreen,tapDetails:host.tapDetails,effectsEnabled:host.effectsEnabled,masterVolume:host.masterVolume,
+  syncEntryCrtViewport(root,entryEffects(),{menuOpen:host.options,view:host.view,fullscreen:host.fullscreen,tapDetails:host.tapDetails,effectsEnabled:host.effectsEnabled,masterVolume:host.masterVolume,storedCounts:host.storedCounts,sendMatchLogs:host.sendMatchLogs,
     onReadyChange:() => syncLiveInputLocks(root,{optionsOpen:host.options,entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))})});
   syncLiveInputLocks(root,{optionsOpen:host.options,entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))});
   mobileViewport.sync(host.view);
@@ -61,6 +73,7 @@ function attachSession(next) {
   surface?.dispose();surface = null;session = next;shellGeneration += 1;
   host.screen = 'game';host.options = false;host.notice = '';host.actor = session.scope().seatIds[0];renderShell(true);
   const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,
+    boardStyle:new URLSearchParams(location.search).get('board') === 'classic' ? 'classic' : 'wireframe',
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
     effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;renderShell();},onTitle:leaveMatch,
     onRematch:() => {const result = lifecycle.rematch();if (result.ok) attachSession(result.value);else notice(result.error.code);},
@@ -122,6 +135,8 @@ root.addEventListener('click',event => {
     if (index < 0) host.savedDecks.push(draft);else host.savedDecks[index] = draft;host.savedDecks = saveDeckCollection(host.savedDecks);deck.draft = structuredClone(draft);}
   else if (button.hasAttribute('data-deck-delete')) {host.savedDecks = saveDeckCollection(host.savedDecks.filter(item => item.id !== deck.draft.id));newDeckDraft();}
   else if (button.hasAttribute('data-deck-export')) {const link = document.createElement('a');link.href = URL.createObjectURL(new Blob([JSON.stringify(host.savedDecks,null,2)],{type:'application/json'}));link.download = 'simple-zeke-decks.json';link.click();URL.revokeObjectURL(link.href);return;}
+  else if (d.storedExport) {const place = d.storedExport === 'logs' ? MATCH_LOGS : REPLAYS;const link = document.createElement('a');link.href = URL.createObjectURL(new Blob([storedExport(place,loadStored(localStorage,place))],{type:'application/json'}));link.download = `siege-zeke-${d.storedExport}-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);return;}
+  else if (button.hasAttribute('data-toggle-send-logs')) {host.sendMatchLogs = !host.sendMatchLogs;localStorage.setItem(SEND_LOGS_STORAGE_KEY,host.sendMatchLogs ? 'on' : 'off');}
   else if (button.hasAttribute('data-title-tap-details')) {host.tapDetails = !host.tapDetails;surface?.configure({tapDetails:host.tapDetails});}
   else if (button.hasAttribute('data-toggle-effects')) {host.effectsEnabled = !host.effectsEnabled;localStorage.setItem('sz-ui-effects',host.effectsEnabled ? 'on' : 'off');surface?.configure({effectsEnabled:host.effectsEnabled});}
   else if (d.volume) {host.masterVolume = Number(d.volume);localStorage.setItem('sz-master-volume',String(host.masterVolume));}
@@ -160,7 +175,7 @@ root.addEventListener('change',async event => {
   renderShell();
 });
 const clearPress = () => {if (press) clearTimeout(press.timer);press = null;};
-root.addEventListener('pointerdown',event => {const tile = event.target.closest('.deck-mobile-card,.deck-catalog-card,.deck-summary-card[data-deck-summary-id]');if (!tile || event.button !== 0) return;
+root.addEventListener('pointerdown',event => {const tile = event.target.closest('.deck-tile');if (!tile || event.button !== 0) return;
   clearPress();const generation = shellGeneration;press = {x:event.clientX,y:event.clientY,timer:setTimeout(() => {if (generation !== shellGeneration || !tile.isConnected) return;
     suppressDeckClickUntil = performance.now()+800;host.deckBuilder.detailId = tile.dataset.deckCardId ?? tile.dataset.deckSummaryId;renderShell();clearPress();},480)};});
 root.addEventListener('pointermove',event => {if (press && Math.hypot(event.clientX-press.x,event.clientY-press.y)>8) clearPress();});

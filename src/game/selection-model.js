@@ -1,5 +1,5 @@
-export const SELECTION_MODES = Object.freeze(["single", "exact", "up_to", "scope", "random"]);
-export const SELECTION_SPEC_KINDS = Object.freeze(["selection", "grouped_selection", "random_selection", "choice", "allocation"]);
+const SELECTION_MODES = Object.freeze(["single", "exact", "up_to", "scope", "random"]);
+const SELECTION_SPEC_KINDS = Object.freeze(["selection", "grouped_selection", "random_selection", "choice", "allocation"]);
 
 export function createSelectionSpec({ candidates = [], minimum = 1, maximum = 1, aggregateConstraint = null, relations = [], ...rest } = {}) {
   return Object.freeze({ kind: "selection", candidates: [...new Set(candidates)], minimum, maximum, aggregateConstraint, relations, ...rest });

@@ -7,7 +7,7 @@ export const DECK_EVALUATION_AXES = Object.freeze([
 
 // Manual corrections live here instead of contaminating the rules data.
 // Add only evidence-backed exceptions; every other card uses the common evaluator.
-export const CARD_EVALUATION_OVERRIDES = Object.freeze({
+const CARD_EVALUATION_OVERRIDES = Object.freeze({
   'STD-001': Object.freeze({ removal:1, disruption:.5, reliability:.75 }),
   'STD-002': Object.freeze({ removal:3, reliability:.45 })
 });

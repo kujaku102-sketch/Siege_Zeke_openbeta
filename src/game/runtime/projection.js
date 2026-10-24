@@ -242,6 +242,11 @@ function publicUser(player) {
   result.maxFortressStr = finite(own(user, 'maxStr'));
   result.frontLimit = integer(own(user, 'frontLimit'));
   result.backLimit = integer(own(user, 'backLimit'));
+  result.initialHand = integer(own(user, 'initialHand'));
+  result.memory = integer(own(user, 'memory'));
+  // No user card has a deck rule yet; one would be a short rule text.
+  const deckRule = own(user, 'deckRule', true);
+  result.deckRule = deckRule === MISSING || deckRule === null ? null : text(deckRule);
   result.incidents = dense(own(user,'incidents')).map(value => finite(value));
   return result;
 }
@@ -478,7 +483,8 @@ export function projectRuntimeView(engineState, referenceState, contextInput, re
         turboActive: own(player,'turboActive',true) === true,
         abilityStatus: {turboUsed:own(player,'turboUsed') === true,mulligansUsed:integer(own(player,'mulligansUsed')),
           backup:own(player,'backup',true) === MISSING ? 0 : integer(own(player,'backup')),
-          protect:own(player,'protect',true) === MISSING ? 0 : integer(own(player,'protect'))}
+          protect:own(player,'protect',true) === MISSING ? 0 : integer(own(player,'protect'))},
+        turnsTaken:own(player,'turnsTaken',true) === MISSING ? 0 : integer(own(player,'turnsTaken'))
       });
     }
     return {

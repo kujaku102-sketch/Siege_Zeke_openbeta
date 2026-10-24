@@ -26,9 +26,13 @@ export function executionDestinations(context, entry, materialRefs = []) {
     if (location.location.kind !== 'zone' || location.location.zone !== 'hand'
       || !cardView || cardView.dragFree || entry.actionType === 'setScript' && !supportsAlternateScriptSetup(cardView)
       || entry.actionType === 'executeCard' && !(isObCard(cardView) || ['Code','Script'].includes(cardView.category))) return [];
-    return slots(context, entry.actionType === 'setScript' || cardView.category === 'Script' ? ['back'] : ['front','back'])
+    const open = slots(context, entry.actionType === 'setScript' || cardView.category === 'Script' ? ['back'] : ['front','back'])
       .filter(destination => normalExecutionCheck(view,context.playerId,cardView,
         {zone:destination.zone,requestedSlot:destination.slot,...(entry.actionType === 'setScript' ? {asScript:true} : {})}).ok);
+    // Mounting is a state, not a separate route: executing from hand also lists the Code (or Ob) to stack on.
+    if (entry.actionType !== 'executeCard') return open;
+    return [...open, ...executionPlacements(context,{...entry,actionType:'mountCard'})
+      .filter(place => ['aboveCode','belowOb'].includes(place.kind))];
   }
   if (entry.actionType === 'redeploy') {
     if (location.location.kind !== 'board') return [];
@@ -36,8 +40,15 @@ export function executionDestinations(context, entry, materialRefs = []) {
     const layerCount = runtimePlanningReads.selectedLayerCount(card, 'INVALID_AUTHORITY');
     if (relogPreparationKind(cardView,layerCount) === 'registry') return canDirectRelogAtSlot(view,context.playerId,cardView,
       {sourceZone,zone:sourceZone === 'front' ? 'back' : 'front',requestedSlot:null,layerCount}).ok ? [{zone:'registry'}] : [];
-    return slots(context, [sourceZone === 'front' ? 'back' : 'front']).filter(destination => canDirectRelogAtSlot(view,
+    const targetZone = sourceZone === 'front' ? 'back' : 'front';
+    const open = slots(context, [targetZone]).filter(destination => canDirectRelogAtSlot(view,
       context.playerId, cardView, { sourceZone, zone: destination.zone, requestedSlot: destination.slot, layerCount }).ok);
+    // An Ob can also be re-executed onto a Code already in the target area.
+    const codes = isObCard(cardView) ? view.players[context.playerId][targetZone].filter(host => !host.faceDown && host.category === 'Code')
+      .map(host => ({ host, hostRef: context.refFor(host) })).filter(({ host, hostRef }) => hostRef && canDirectRelogAtSlot(view,
+        context.playerId, cardView, { sourceZone, zone: targetZone, requestedSlot: null, layerCount, baseUid: host.uid }).ok)
+      .map(({ hostRef }) => ({ zone: targetZone, hostRef })) : [];
+    return [...open, ...codes];
   }
   return [];
 }
@@ -126,8 +137,6 @@ export function executionIntents(context) {
       const plan = executionTargetPlan(context,spell);
       if (executionPlacements(context,spell).length && plan && targetOptions(context,plan).length >= plan.minimum) intents.push(spell);
     }
-    const mount = {kind:'intent',actionType:'mountCard',base:{cardRef},readiness:'requiresSelection'};
-    if (executionPlacements(context,mount).length) intents.push(mount);
     const script = {kind:'intent',actionType:'setScript',base:{cardRef},readiness:'requiresSelection'};
     if (executionDestinations(context,script).length) intents.push(script);
     const layered = { kind: 'intent', actionType: 'executeLayered', base: { cardRef }, readiness: 'requiresSelection' };
@@ -155,6 +164,8 @@ export function executionIntents(context) {
 }
 
 export function completeExecution(entry, destination, materialRefs = []) {
+  if (entry.actionType === 'executeCard' && destination.hostRef) return { type: 'mountCard', cardRef: entry.base.cardRef,
+    hostRef: destination.hostRef, mountKind: destination.kind };
   return { type: entry.actionType, cardRef: entry.base.cardRef,
     ...(entry.actionType === 'executeLayered' ? { materialRefs } : {}), destination };
 }

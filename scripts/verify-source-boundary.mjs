@@ -8,7 +8,7 @@ const rootRealpath = await realpath(root);
 const forbiddenDirectories = new Set(["inputs", "outputs", "artifacts", "audit", "tusk"]);
 const ignoredGeneratedDirectories = new Set(["node_modules", "dist"]);
 const restrictedDirectories = new Set([...forbiddenDirectories, ...ignoredGeneratedDirectories]);
-const exactAllowedPackages = new Set(["vite"]);
+const exactAllowedPackages = new Set(["vite", "three"]);
 const filesystemApis = new Set(["read", "readFile", "readFileSync", "readdir", "readdirSync", "open", "openSync", "stat", "statSync", "lstat", "lstatSync", "realpath", "realpathSync", "createReadStream"]);
 const dynamicExpressionCounts = new Map();
 const issues = [];
@@ -145,11 +145,13 @@ function verifyPackage() {
   return Promise.all([readFile(packagePath, "utf8"), readFile(lockPath, "utf8")]).then(([packageText, lockText]) => {
     const pkg = JSON.parse(packageText);
     const dependencies = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}), ...(pkg.optionalDependencies ?? {}) };
-    if (Object.keys(dependencies).length !== 1 || dependencies.vite !== "^7.1.3") addIssue("package_dependencies", "package.json", "vite-only exact dependency contract");
+    const hasThree = Object.hasOwn(dependencies,"three");
+    if (Object.keys(dependencies).length !== (hasThree ? 2 : 1) || dependencies.vite !== "^7.1.3" || (hasThree && dependencies.three !== "0.180.0")) addIssue("package_dependencies", "package.json", "exact Vite and optional Three.js dependency contract");
     for (const [name, value] of Object.entries(dependencies)) if (/^(?:file:|link:|workspace:|[A-Za-z]:|[\\/])/.test(String(value))) addIssue("package_local_dependency", "package.json", name);
     for (const name of Object.keys(pkg.scripts ?? {})) if (/^(?:pre|post)?(?:install|prepare|publish|pack)$/i.test(name)) addIssue("lifecycle_script", "package.json", name);
     const importer = lockText.match(/^\s{2}\.:(.*?)(?=^\S|\Z)/ms)?.[1] ?? "";
-    if (!/^\s{4}devDependencies:\s*\r?\n\s{6}vite:\s*\r?\n\s{8}specifier: \^7\.1\.3\s*\r?\n\s{8}version: 7\.3\.6\s*$/m.test(importer) || /^\s{4}(?:dependencies|optionalDependencies):/m.test(importer)) addIssue("lockfile_importer_mismatch", "pnpm-lock.yaml", "vite importer");
+    const expected = (hasThree ? "dependencies: three: specifier: 0.180.0 version: 0.180.0 " : "") + "devDependencies: vite: specifier: ^7.1.3 version: 7.3.6";
+    if (importer.trim().replace(/\s+/g," ") !== expected) addIssue("lockfile_importer_mismatch", "pnpm-lock.yaml", "exact Vite/Three.js importer");
   }).catch(() => addIssue("package_or_lock_missing", "package.json", "package/lock"));
 }
 

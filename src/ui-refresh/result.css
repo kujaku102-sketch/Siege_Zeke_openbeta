@@ -1,14 +1,2 @@
 .r2-result { position:fixed; inset:0; z-index:90; display:grid; place-items:center; isolation:isolate; overflow:hidden; padding:20px; color:#f6f8fc; background:rgba(4,8,17,.92); }
 .r2-result-fx { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-.r2-result-panel { position:relative; z-index:1; width:min(520px,100%); padding:clamp(24px,5vw,52px); border:1px solid #65dce2; background:linear-gradient(135deg,#122d39ea,#100f20ed 72%); box-shadow:0 0 55px #2dd5e038,inset 0 0 36px #2dd5e018; text-align:center; clip-path:polygon(0 18px,18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%); }
-.r2-result[data-outcome="ai"] .r2-result-panel { border-color:#f26da1; box-shadow:0 0 55px #e44c8740,inset 0 0 36px #e44c871a; }
-.r2-result[data-outcome="draw"] .r2-result-panel { border-color:#f2d276; }
-.r2-result-panel small { display:block; margin-bottom:10px; color:#a8cbd4; font:700 11px/1.2 SZMakinas,monospace; letter-spacing:.24em; }
-.r2-result-panel h2 { color:#fff; font:400 clamp(44px,9vw,90px)/1 SZKaiso,"Yu Gothic UI",sans-serif; letter-spacing:.04em; text-shadow:3px 0 #19c7dc,-3px 0 #e4459a,0 0 28px #fff5; }
-.r2-result-panel p { margin:8px 0 32px; color:#d7e9ee; font:400 clamp(17px,3vw,23px) SZKaiso,"Yu Gothic UI",sans-serif; }
-.r2-result-panel nav { display:flex; justify-content:center; flex-wrap:wrap; gap:10px; }
-.r2-result-panel button { min-width:170px; min-height:52px; padding:9px 22px; border:1px solid #65dce2; border-radius:2px; background:#123b4c; color:#f8fdff; font:400 18px SZKaiso,"Yu Gothic UI",sans-serif; }
-.r2-result-panel button:hover,.r2-result-panel button:focus-visible { background:#236378; box-shadow:0 0 18px #44ddea88; }
-.r2-result-panel button:last-child { border-color:#bd84a5; background:#302337; }
-.r2-result-panel button:last-child:hover,.r2-result-panel button:last-child:focus-visible { background:#563b58; }
-@media (prefers-reduced-motion:reduce) { .r2-result-panel h2 { text-shadow:none; } }

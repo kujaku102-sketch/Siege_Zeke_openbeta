@@ -70,7 +70,6 @@ body[data-view="mobile"] .r2-content .r2-detail { padding:0; }
 .r2-content .r2-detail .detail-location dt,.r2-content .r2-detail .detail-state dt {
   position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%);
 }
-.r2-content .r2-detail dl.detail-grid>.detail-class[data-empty="true"] { display:none; }
 .r2-content .r2-detail dl.detail-grid>.detail-class { flex-basis:100%; align-items:baseline; padding:0; background:none; color:#fff; text-shadow:none; }
 .r2-content .r2-detail .detail-class dt,.r2-content .r2-detail .detail-class dd { color:#fff; }
 .r2-content .r2-detail .detail-class dd { display:flex; flex-wrap:wrap; gap:3px; min-width:0; }

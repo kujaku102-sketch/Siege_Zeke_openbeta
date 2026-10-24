@@ -1,11 +1,4 @@
 const BOUNDED_ZONES = new Set(["front", "back"]);
-const TRIAL_SLOT_EXECUTION_IDS = new Set(["STD-020", "STD-021", "STD-022", "STD-023", "STD-024"]);
-
-// First direct-slot execution packet. This is shared by the current UI and the
-// runtime command bridge so the temporary capability boundary cannot drift.
-export function supportsTrialSlotExecution(card) {
-  return Boolean(card && card.category === "Ob" && TRIAL_SLOT_EXECUTION_IDS.has(card.id));
-}
 
 // This intentionally has no state or event dependencies: callers decide when a
 // rejected normal placement is observable, and when a failed forced placement

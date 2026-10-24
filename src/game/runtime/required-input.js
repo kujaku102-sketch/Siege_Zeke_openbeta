@@ -102,11 +102,24 @@ function cardOptions(engineState, referenceState, metadata, actorSeat, candidate
   });
 }
 
+const CARD_IDS_BY_NAME = new Map(Object.values(CARD_LIBRARY).map(definition => [definition.name, definition.id]));
+// Continuations name their card in several ways: by id, by the card on the board, by name, or by a card-specific type.
+function effectSource(engineState, continuation) {
+  const uid = continuation?.sourceUid ?? continuation?.scriptUid;
+  const typed = /^(std|sztb)(\d{3})/i.exec(continuation?.type ?? '');
+  const id = [continuation?.sourceId, uid ? findCard(engineState, uid)?.card?.id : null,
+    CARD_IDS_BY_NAME.get(continuation?.sourceName), typed ? `${typed[1].toUpperCase()}-${typed[2]}` : null]
+    .find(candidate => typeof candidate === 'string' && Object.hasOwn(CARD_LIBRARY, candidate));
+  const definition = id ? CARD_LIBRARY[id] : null;
+  return definition ? { definitionId: definition.id, name: definition.name, text: definition.text ?? '' } : null;
+}
+
 function selectionInput(engineState, referenceState, metadata, revision, pending) {
   const request = pending.request;
   const playerId = request?.continuation?.playerId;
   if (!['player', 'ai'].includes(playerId) || !request || typeof request.mode !== 'string') return null;
   const actorSeat = seatForPlayer(metadata, playerId);
+  const source = effectSource(engineState, request.continuation);
   const scope = request.mode === 'scope';
   const candidates = scope ? request.scopeOptions : request.candidates;
   if (!Array.isArray(candidates)) return null;
@@ -119,6 +132,10 @@ function selectionInput(engineState, referenceState, metadata, revision, pending
     dto: {
       choiceId: choiceId(revision, 'selection'), kind: request.spec?.kind === 'allocation' ? 'allocation' : 'selection',
       presentationKey: selectionPresentationKey(request), actorSeat,
+      // The engine's prompt line names what the pick is for; the actor already knows its own source.
+      ...(typeof request.label === 'string' && request.label ? { title: request.label } : {}),
+      // The card whose effect is asking, so the chooser can see which clause is resolving.
+      ...(source ? { source } : {}),
       optional: request.mode !== 'random' && Number(request.minimum ?? 1) === 0,
       minimum: request.mode === 'random' ? 0 : Number(request.minimum ?? 0),
       maximum: request.mode === 'random' ? 0 : Number(request.maximum ?? request.count ?? 1), options,
@@ -323,7 +340,9 @@ export function applyRequiredInputAction(engineState, metadata, referenceState, 
     if (!input.dto.optional) return false;
     if (input.source === 'script-activation') return declinePrompt(engineState);
     if (input.source === 'response-window') return declineResponse(engineState, input.playerId);
-    if (input.source === 'security-rest') return endTurn(engineState) || engineState.securityRestWindow === null;
+    // endTurn deletes this window before opening a later end-of-turn choice.
+    // A consumed window is accepted even when the turn is not complete yet.
+    if (input.source === 'security-rest') return endTurn(engineState) || engineState.securityRestWindow == null;
     if (input.source === 'selection' && engineState.pending.request.mode !== 'scope') {
       return resolveCardSelection(engineState, engineState.pending.request.continuation, { selected: [] });
     }
@@ -338,6 +357,13 @@ export function applyRequiredInputAction(engineState, metadata, referenceState, 
   if (input.source === 'response-target') return activateResponse(engineState, input.playerId, engineState.pending.cardUid, selected);
   if (input.source === 'trigger-order') return resolveTriggerChoice(engineState, selected);
   if (input.source === 'placement') return resolveAccessDragPlacement(engineState, input.playerId, selected.zone, selected.underUid ?? null);
-  if (input.source === 'security-rest') return restSecurity(engineState, input.playerId, selected);
+  if (input.source === 'security-rest') {
+    if (!restSecurity(engineState, input.playerId, selected)) return false;
+    // With nothing left to rest, the turn end carries on instead of asking again with no options.
+    const remaining = engineState.players[input.playerId].front
+      .some(card => !card.faceDown && !card.sleep && cardHasKeyword(card, 'SECURITY'));
+    if (!remaining) endTurn(engineState);
+    return true;
+  }
   return false;
 }

@@ -2,11 +2,14 @@
 // Keys identify UI instances. Only visible board/hand cards may move across parents.
 export function nodeKey(node) {
   if (node.nodeType !== 1) return null;
+  if (node.classList.contains('board-slot') && node.hasAttribute('data-slot')) {
+    return `slot:${node.dataset.seat}:${node.dataset.zone}:${node.dataset.slot}`;
+  }
   if (node.classList.contains("hand-card")) {
     const card = node.querySelector('[data-card-ref], [data-card-uid]');
     return `hand:${card?.dataset.cardRef ?? card?.dataset.cardUid ?? "empty"}`;
   }
-  for (const name of ['data-card-ref', 'data-action-id', 'data-option-id', 'data-request-id', 'data-user-seat', 'data-slot']) {
+  for (const name of ['data-event-id', 'data-card-ref', 'data-action-id', 'data-option-id', 'data-request-id', 'data-user-seat', 'data-slot']) {
     if (node.hasAttribute(name)) return `${node.tagName}:${name}:${node.getAttribute(name)}`;
   }
   if (node.hasAttribute('data-runtime-zone')) return `admin:${node.dataset.seat}:${node.dataset.runtimeZone}`;
@@ -25,6 +28,22 @@ const movableKey = node => node.nodeType === 1 && node.matches('.card[data-card-
   ? node.dataset.cardRef ?? node.dataset.cardUid ?? null : null;
 const compatible = (a, b) => a.nodeType === b.nodeType && (a.nodeType !== 1 || a.tagName === b.tagName && nodeKey(a) === nodeKey(b));
 
+// A scene marks its own node after drawing (canvas size, WebGL tag, a "drawn" class).
+// The node lists those in data-patch-keep ("width", "class:wf-hud-rendered") so a
+// re-render leaves them as the scene set them.
+export function syncAttributes(old, next) {
+  const keep = (next.getAttribute('data-patch-keep') ?? '').split(/\s+/).filter(Boolean);
+  const keepClasses = keep.filter(token => token.startsWith('class:')).map(token => token.slice(6));
+  for (const attr of [...old.attributes]) if (!next.hasAttribute(attr.name) && !keep.includes(attr.name)) old.removeAttribute(attr.name);
+  for (const attr of next.attributes) {
+    if (keep.includes(attr.name)) continue;
+    const value = attr.name === 'class' && keepClasses.length
+      ? [attr.value, ...keepClasses.filter(name => old.classList.contains(name) && !next.classList.contains(name))].join(' ')
+      : attr.value;
+    if (old.getAttribute(attr.name) !== value) old.setAttribute(attr.name, value);
+  }
+}
+
 export function patchHtml(root, html) {
   const template = root.ownerDocument.createElement("template");
   template.innerHTML = html;
@@ -36,8 +55,7 @@ export function patchHtml(root, html) {
       if (old.nodeValue !== next.nodeValue) old.nodeValue = next.nodeValue;
       return;
     }
-    for (const attr of [...old.attributes]) if (!next.hasAttribute(attr.name)) old.removeAttribute(attr.name);
-    for (const attr of next.attributes) if (old.getAttribute(attr.name) !== attr.value) old.setAttribute(attr.name, attr.value);
+    syncAttributes(old, next);
     children(old, next);
     // Live form properties can differ from attributes after typing/toggling.
     if (old.tagName === "INPUT") {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createNewMatchSessionController } from '../src/adapters/match-session-controller.js';
 import { createMatchUiController } from '../src/adapters/match-ui-controller.js';
 import { runtimeGameHtml } from '../src/ui-refresh/runtime-read-view.js';
+import { buildInteractionRequest, resolveInteractionTarget } from '../src/adapters/interaction-targets.js';
 
 function setup() {
   const session = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: {
@@ -55,7 +56,8 @@ test('rendered execution selection uses cards, current board structure and resul
   const html = runtimeGameHtml(planned.model, planned);
   assert.match(html, /zone-cards/);
   assert.match(html, /admin-row/);
-  assert.match(html, /data-runtime-confirm/);
+  assert.match(html, /board-pick-guide/);
+  assert.doesNotMatch(html, /data-runtime-confirm/);
   assert.doesNotMatch(html, /data-runtime-rematch/);
   const finished = { ...read.model, match: { ...read.model.match, finished: true,
     lockedOutcome: { kind: 'win', winnerSeat: 'a' } } };
@@ -89,4 +91,140 @@ test('menu/log/back/collapse cannot consume a mandatory choice; confirm answers 
   assert.equal(confirmed.ok, true, JSON.stringify(confirmed));
   assert.equal(confirmed.value.request, null);
   assert.equal(confirmed.value.model.match.revision, 3);
+});
+
+function countedSession(real, hooks = {}) {
+  const counts = { query: 0, queryAction: 0, submit: 0 };
+  const ports = new Map();
+  return { counts, session: {
+    readStamp(seatId) { return hooks.readStamp?.(seatId) ?? real.readStamp(seatId); },
+    port(seatId) {
+      if (ports.has(seatId)) return { ok: true, value: ports.get(seatId) };
+      const bound = real.port(seatId);
+      if (!bound.ok) return bound;
+      const source = bound.value;
+      const port = {
+        query(input) { counts.query += 1; return source.query(input); },
+        latest() { return source.latest(); },
+        queryAction(input) { counts.queryAction += 1; return hooks.queryAction?.(input, source) ?? source.queryAction(input); },
+        submit(input) { counts.submit += 1; const result = source.submit(input); hooks.afterSubmit?.(result); return result; },
+        receipt(id) { return source.receipt(id); },
+        events(input) { return source.events(input); },
+        dispose() { return { ok: true, value: null }; }
+      };
+      ports.set(seatId, port);
+      return { ok: true, value: port };
+    }
+  } };
+}
+
+test('redesign: local UI changes reuse one projection and do not requery or replan', () => {
+  const base = setup();
+  const wrapped = countedSession(base.session);
+  const ui = createMatchUiController({ session: wrapped.session, viewerSeat: 'a' }).value;
+  const first = ui.read().value;
+  const initialQueries = wrapped.counts.query;
+  assert.equal(initialQueries, 1);
+  ui.toggleMenu(); ui.toggleMenu(); ui.toggleLog(); ui.toggleLog(); ui.toggleHand(); ui.toggleHand();
+  assert.equal(wrapped.counts.query, initialQueries);
+  assert.equal(wrapped.counts.queryAction, 0);
+  const execute = first.model.legalActions.find(entry => entry.actionType === 'executeCard');
+  const draft = ui.chooseAction(execute.actionId).value;
+  assert.equal(wrapped.counts.queryAction, 1);
+  ui.toggleOption(draft.request.options[0].optionId);
+  assert.equal(wrapped.counts.queryAction, 1);
+});
+
+test('redesign: failed staged replan leaves answer and history untouched', () => {
+  const base = setup();
+  let calls = 0;
+  const wrapped = countedSession(base.session, { queryAction(input, source) {
+    calls += 1;
+    return calls === 2 ? { ok: false, error: { code: 'PLANNED_FAILURE' } } : source.queryAction(input);
+  } });
+  const ui = createMatchUiController({ session: wrapped.session, viewerSeat: 'a' }).value;
+  const execute = ui.read().value.model.legalActions.find(entry => entry.actionType === 'executeCard');
+  const planned = ui.chooseAction(execute.actionId).value;
+  const optionId = planned.request.options[0].optionId;
+  ui.toggleOption(optionId);
+  assert.deepEqual(ui.confirm(), { ok: false, error: { code: 'PLANNED_FAILURE' } });
+  const retained = ui.read().value;
+  assert.equal(retained.request.requestId, planned.request.requestId);
+  assert.deepEqual(retained.selection.optionIds, [optionId]);
+  assert.deepEqual(retained.preview.history, []);
+});
+
+test('redesign: completed destination remains typed in preview after the plan advances', () => {
+  const { ui } = setup();
+  const execute = ui.read().value.model.legalActions.find(entry => entry.actionType === 'executeCard');
+  const planned = ui.chooseAction(execute.actionId).value;
+  const destination = planned.request.options.find(option => option.zone === 'front' && option.slot === 2);
+  assert.ok(destination);
+  ui.toggleOption(destination.optionId);
+  const ready = ui.confirm().value;
+  assert.ok(ready.plan.completion);
+  assert.deepEqual(ready.preview.destination, destination);
+  assert.deepEqual(ready.preview.target, []);
+  assert.equal(ready.preview.history[0].presentationKey, 'execution-destination');
+  assert.deepEqual(ready.preview.history[0].targets,
+    [{ kind: 'slot', seatId: 'a', zone: 'front', slot: 2 }]);
+});
+
+test('redesign: accepted command plus read failure never resubmits', () => {
+  const base = setup();
+  let failRead = false;
+  const wrapped = countedSession(base.session, {
+    readStamp(seatId) { return failRead ? { ok: false, error: { code: 'READ_FAULT' } } : base.session.readStamp(seatId); },
+    afterSubmit(result) { if (result.ok) failRead = true; }
+  });
+  const ui = createMatchUiController({ session: wrapped.session, viewerSeat: 'a' }).value;
+  const endTurn = ui.read().value.model.legalActions.find(entry => entry.action?.type === 'endTurn');
+  const result = ui.chooseAction(endTurn.actionId);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, 'MATCH_UI_READ_AFTER_ACCEPT_FAILED');
+  assert.equal(wrapped.counts.submit, 1);
+  failRead = false;
+  assert.equal(ui.read().value.model.match.revision, 1);
+  assert.equal(wrapped.counts.submit, 1);
+});
+
+test('redesign: event acknowledgement removes only the exact rendered prefix', () => {
+  const { session, ui } = setup();
+  const first = ui.read().value;
+  const endTurn = first.model.legalActions.find(entry => entry.action?.type === 'endTurn');
+  const afterFirst = ui.chooseAction(endTurn.actionId).value;
+  const firstBatch = afterFirst.events.map(event => event.eventId);
+  assert.ok(firstBatch.length > 0);
+  const other = session.port('b').value;
+  const otherRead = other.query().value;
+  const otherEnd = otherRead.legalActions.find(entry => entry.action?.type === 'endTurn');
+  const submitted = other.submit({ commandId: 'event-prefix-next', expectedRevision: otherRead.status.revision,
+    action: otherEnd.action });
+  assert.equal(submitted.ok, true, JSON.stringify(submitted));
+  const withNewEvents = ui.read().value.events.map(event => event.eventId);
+  assert.ok(withNewEvents.length > firstBatch.length);
+  assert.deepEqual(ui.ackEvents(firstBatch), { ok: true, value: null });
+  assert.deepEqual(ui.read().value.events.map(event => event.eventId), withNewEvents.slice(firstBatch.length));
+  assert.deepEqual(ui.ackEvents(firstBatch.slice(1)), { ok: false, error: { code: 'INVALID_EVENT_ACK' } });
+});
+
+test('redesign: public board positions are exact and ambiguous hits never pick the first option', () => {
+  const faceDown = 'r:11111111111111111111111111111111';
+  const faceUp = 'r:22222222222222222222222222222222';
+  const mismatch = 'r:33333333333333333333333333333333';
+  const model = { match: { viewerSeat: 'a' }, seats: [{ seatId: 'a', user: { frontLimit: 5, backLimit: 5 },
+    front: { cards: [{ cardRef: faceDown, faceDown: true, area: 'front', slot: 2 },
+      { cardRef: faceUp, faceDown: false, location: { kind: 'board', seatId: 'a', zone: 'front', position: 3 } },
+      { cardRef: mismatch, faceDown: false, location: { kind: 'board', seatId: 'b', zone: 'front', position: 4 } }] },
+    back: { cards: [] } }] };
+  const request = { requestId: 'request', constraints: { kind: 'pick', minimum: 1, maximum: 1 }, options: [
+    { optionId: 'one', cardRef: faceDown }, { optionId: 'two', cardRef: faceUp },
+    { optionId: 'three', cardRef: mismatch }, { optionId: 'four', zone: 'front', slot: 3 }
+  ] };
+  const interaction = buildInteractionRequest(request, model);
+  assert.ok(interaction.options[0].targets.some(target => target.kind === 'slot' && target.slot === 2));
+  assert.ok(interaction.options[1].targets.some(target => target.kind === 'slot' && target.slot === 3));
+  assert.equal(interaction.options[2].targets.some(target => target.kind === 'slot'), false);
+  assert.deepEqual(resolveInteractionTarget(interaction, { kind: 'slot', seatId: 'a', zone: 'front', slot: 3 }),
+    { kind: 'ambiguous', optionIds: ['two', 'four'] });
 });

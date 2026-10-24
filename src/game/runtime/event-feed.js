@@ -52,19 +52,61 @@ export function projectRuntimeEventBatch(before, after, command, receipt, viewer
     ? runtimePlanningReads.physicalCardMap(before.engineState).get(sourceIdentity)?.uid : null;
   const actionSource = sourceUid ? known(sourceUid) : null;
   const events = [];
-  const emit = (type, fields = {}) => events.push({
-    eventId: `event:${receipt.revision}:${receipt.commandId}:${events.length}`,
-    type, revision: receipt.revision, commandId: receipt.commandId,
-    turnNumber: last.view.turnNumber, actorSeat: command.actorSeat, ...fields
-  });
+  let threadTag = {};
+  // A new thread opens right before its first own row, after whatever set it off.
+  let announceThread = null;
+  const openThread = () => {
+    const announce = announceThread;
+    announceThread = null;
+    announce?.();
+  };
+  const emit = (type, fields = {}) => {
+    if (threadTag.threadItemId) openThread();
+    events.push({
+      eventId: `event:${receipt.revision}:${receipt.commandId}:${events.length}`,
+      type, revision: receipt.revision, commandId: receipt.commandId,
+      turnNumber: last.view.turnNumber, actorSeat: command.actorSeat, ...threadTag, ...fields
+    });
+  };
+  // A trigger thread resolves simultaneous triggers one by one. Engine trigger ids stay
+  // inside; readers get the item's place in its thread.
+  const threadBefore = before.engineState.triggerThread, threadAfter = after.engineState.triggerThread;
+  const threadOpenBefore = threadBefore?.status === 'resolving';
+  const threadItemRef = (threadId, itemId) => {
+    const thread = [threadAfter, threadBefore].find(value => value?.id === threadId);
+    const index = thread?.items?.findIndex(item => item.id === itemId) ?? -1;
+    return index < 0 ? null : `${threadId}:${index}`;
+  };
+  // Rows a command derives by diffing belong to the one item it moved along; when it also
+  // started the next item, the one that was already open owns them.
+  const sameThread = Boolean(threadAfter?.items) && threadBefore?.id === threadAfter.id;
+  const statusBefore = item => sameThread ? threadBefore.items.find(entry => entry.id === item.id)?.status : 'pending';
+  const open = status => ['resolving', 'awaiting-selection'].includes(status);
+  const touched = (threadAfter?.items ?? []).filter(item => open(item.status) || item.status !== statusBefore(item));
+  const carried = touched.filter(item => open(statusBefore(item)));
+  const owner = touched.length === 1 ? touched[0] : carried.length === 1 ? carried[0] : null;
+  const commandItem = owner ? { threadId: threadAfter.id, threadItemId: threadItemRef(threadAfter.id, owner.id) } : {};
   // Opponent installing a private hand card does not disclose its identity.
+  threadTag = sameThread && threadOpenBefore ? commandItem : {};
   emit('action_committed', { actionType: command.action.type,
     source: cardSummary(actionSource) });
+  threadTag = {};
+  if (threadAfter?.items && (threadAfter.id !== threadBefore?.id || !threadBefore?.items)) announceThread = () => {
+    const tag = threadTag;
+    threadTag = {};
+    if (threadOpenBefore) emit('thread_resolved', { threadId: threadBefore.id });
+    emit('thread_started', { threadId: threadAfter.id, items: threadAfter.items.map(item => ({
+      threadItemId: threadItemRef(threadAfter.id, item.id), controllerSeat: seat(item.controllerId),
+      card: subject(item.trigger?.source?.card?.uid), timing: item.eventType ?? null })) });
+    threadTag = tag;
+  };
   const fresh = (after.engineState.events ?? []).filter(event => {
     const serial = Number(String(event.id).replace(/^EV-/, ''));
     return Number.isSafeInteger(serial) && serial > (before.engineState.triggerSerial ?? 0);
   });
   for (const event of fresh) {
+    const itemRef = event.threadItemId ? threadItemRef(event.threadId, event.threadItemId) : null;
+    threadTag = itemRef ? { threadId: event.threadId, threadItemId: itemRef } : {};
     const actorSeat = seat(event.playerId) ?? command.actorSeat;
     const turnNumber = event.turnNumber ?? last.view.turnNumber;
     const card = subject(event.cardUid);
@@ -118,11 +160,22 @@ export function projectRuntimeEventBatch(before, after, command, receipt, viewer
       });
     }
   }
+  threadTag = commandItem;
+  // A card that comes into view from a hidden hand is still known to come from that hand:
+  // the hand's public count drops by one. Only the counts are read, never the hand itself.
+  const handLeft = new Map(first.view.seats.map(item => [item.seatId,
+    item.hand.count - (last.view.seats.find(other => other.seatId === item.seatId)?.hand.count ?? item.hand.count)]));
+  const hiddenOrigin = card => {
+    const seatId = card.location?.seatId;
+    if (!(handLeft.get(seatId) > 0)) return { kind: 'unobserved' };
+    handLeft.set(seatId, handLeft.get(seatId) - 1);
+    return { kind: 'zone', seatId, zone: 'hand' };
+  };
   for (const [uid, card] of last.byUid) {
     const previous = first.byUid.get(uid);
     if (!previous) {
       emit('card_moved', { source: null, target: cardSummary(card),
-        from: { kind: 'unobserved' }, to: card.location });
+        from: card.location?.zone === 'hand' ? { kind: 'unobserved' } : hiddenOrigin(card), to: card.location });
       continue;
     }
     if (JSON.stringify(previous.location) !== JSON.stringify(card.location)) {
@@ -140,6 +193,7 @@ export function projectRuntimeEventBatch(before, after, command, receipt, viewer
     if (!last.byUid.has(uid)) emit('card_moved', { source: cardSummary(previous), target: null,
       from: previous.location, to: { kind: 'unobserved' } });
   }
+  openThread();
   const oldChoice = buildRequiredInput(before, viewerSeat);
   const newChoice = buildRequiredInput(after, viewerSeat);
   if (!oldChoice.ok || !newChoice.ok) throw new Error('EVENT_REQUIRED_INPUT_UNAVAILABLE');
@@ -148,6 +202,11 @@ export function projectRuntimeEventBatch(before, after, command, receipt, viewer
       choiceId: oldChoice.value.choiceId });
     if (newChoice.value) emit('choice_required', { actorSeat: newChoice.value.actorSeat,
       choiceId: newChoice.value.choiceId });
+  }
+  threadTag = {};
+  if (threadAfter?.items && threadAfter.status === 'resolved'
+    && (threadAfter.id !== threadBefore?.id || threadBefore?.status !== 'resolved')) {
+    emit('thread_resolved', { threadId: threadAfter.id });
   }
   const outcome = () => after.engineState.victory.lockedOutcome === 'draw' ? { kind: 'draw' }
     : { kind: 'win', winnerSeat: seat(after.engineState.victory.lockedOutcome) };

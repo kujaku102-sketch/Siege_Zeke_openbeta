@@ -46,16 +46,6 @@ export const EFFECT_OPERATION_TYPES = Object.freeze({
   SCHEDULE_DELAYED: "schedule_delayed"
 });
 
-export const TARGET_SCOPES = Object.freeze({
-  SOURCE: "source",
-  SELECTED: "selected",
-  SELF_USER: "self_user",
-  ENEMY_USER: "enemy_user",
-  SELF_OB_ALL: "self_ob_all",
-  ENEMY_OB_ALL: "enemy_ob_all",
-  ENEMY_FRONT_ALL: "enemy_front_all"
-});
-
 // 対象ユーザーが明記されていない効果は、敵味方を問わずエリア全体を既定範囲とする。
 export function selector({ owner = "both", zones = ["area"], category = null, count = 1, ...filters } = {}) {
   return { owner, zones, category, count, visibility: "public", ...filters };

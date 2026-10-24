@@ -1,4 +1,4 @@
-const CONSOLE_WIDTH = 210;
+const CONSOLE_WIDTH = 252; // Mobile turn controls: 120% of the original 210px rail.
 const CONSOLE_HEIGHT = 660;
 const CHROME_HEIGHT = 68;
 

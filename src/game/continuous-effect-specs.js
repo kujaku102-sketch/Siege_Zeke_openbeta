@@ -177,18 +177,3 @@ export const auraKeywordSpecsFor = (cardId) => specsFor(CARD_AURA_KEYWORD_SPECS,
 export const attackPermissionSpecsFor = (cardId) => specsFor(CARD_ATTACK_PERMISSION_SPECS, cardId);
 export const destructionPermissionSpecsFor = (cardId) => specsFor(CARD_DESTRUCTION_PERMISSION_SPECS, cardId);
 export const placementPermissionSpecsFor = (cardId) => specsFor(CARD_PLACEMENT_PERMISSION_SPECS, cardId);
-
-export const continuousEffectCardIds = () => [...new Set([
-  ...Object.keys(CARD_CONTINUOUS_STAT_MODIFIER_SPECS),
-  ...Object.keys(CARD_CONDITIONAL_KEYWORD_SPECS),
-  ...Object.keys(CARD_MANDATORY_STATE_CHECK_SPECS),
-  ...Object.keys(CARD_PLAYER_VALUE_MODIFIER_SPECS),
-  ...Object.keys(CARD_EXECUTION_COST_MODIFIER_SPECS),
-  ...Object.keys(CARD_MOUNTED_STAT_MODIFIER_SPECS),
-  ...Object.keys(CARD_MOUNTED_KEYWORD_SPECS),
-  ...Object.keys(CARD_MOUNT_EVENT_SPECS),
-  ...Object.keys(CARD_AURA_KEYWORD_SPECS),
-  ...Object.keys(CARD_ATTACK_PERMISSION_SPECS),
-  ...Object.keys(CARD_DESTRUCTION_PERMISSION_SPECS),
-  ...Object.keys(CARD_PLACEMENT_PERMISSION_SPECS)
-])];

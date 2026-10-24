@@ -77,6 +77,7 @@ export function createMatchSessionController(input) {
   const tracked = new Set();
   const clients = new Map();
   const controls = new Map();
+  const readStates = new Map();
 
   const usable = () => active;
 
@@ -90,6 +91,7 @@ export function createMatchSessionController(input) {
     let disposed = false;
     let latestQuery = null;
     let latestRevision = -1;
+    let adoptedModeEpoch = -1;
     let uncertain = null;
     const operations = new Map();
     const semanticOperations = new Map();
@@ -107,6 +109,7 @@ export function createMatchSessionController(input) {
       latestAdoptedRevision = status.revision;
       const {inspection,...base} = result.value;
       latestQuery = clone(base);
+      adoptedModeEpoch = coordinator.value.readStamp().value.modeEpoch;
       return { ok: true, value: { ...clone(latestQuery), ...(inspection ? {inspection:clone(inspection)} : {}) } };
     };
 
@@ -163,8 +166,9 @@ export function createMatchSessionController(input) {
             uncertain = operation;
           }
         }
+        let result;
         try {
-          const result = (controlPort ?? port).submit({
+          result = (controlPort ?? port).submit({
             commandId: operation.runtimeCommandId,
             expectedRevision: canonical.value.command.expectedRevision,
             action: canonical.value.command.action
@@ -179,13 +183,14 @@ export function createMatchSessionController(input) {
           }
           operation.result = clone(result);
           uncertain = null;
-          const refreshed = adoptQuery(port.query());
-          if (!refreshed.ok) return refreshed;
-          return clone(operation.result);
         } catch (error) {
           uncertain = operation;
           throw error;
         }
+        latestQuery = null;
+        const refreshed = adoptQuery(port.query());
+        if (!refreshed.ok) return refreshed;
+        return clone(operation.result);
       },
       receipt(clientCommandId) {
         if (!clientUsable()) return failure('MATCH_SESSION_DISPOSED');
@@ -197,8 +202,10 @@ export function createMatchSessionController(input) {
       },
       latest() {
         if (!clientUsable()) return failure('MATCH_SESSION_DISPOSED');
+        const stamp = coordinator.value.readStamp();
         return latestQuery === null ? failure('MATCH_SESSION_QUERY_UNAVAILABLE')
-          : latestRevision < latestAdoptedRevision ? failure('MATCH_SESSION_STALE_RESULT')
+          : !stamp.ok || latestRevision !== stamp.value.currentRevision || adoptedModeEpoch !== stamp.value.modeEpoch
+            || latestRevision < latestAdoptedRevision ? failure('MATCH_SESSION_STALE_RESULT')
           : { ok: true, value: clone(latestQuery) };
       },
       dispose() {
@@ -208,6 +215,8 @@ export function createMatchSessionController(input) {
     };
     const sessionPort = Object.freeze({ ...implementation, submit: intent => implementation.submit(intent) });
     clients.set(seatId, sessionPort);
+    readStates.set(seatId, () => ({ adoptedRevision: latestRevision, adoptedModeEpoch,
+      available: clientUsable() && latestQuery !== null }));
     const control = coordinator.value.sandboxControl(seatId);
     if (control.ok) controls.set(seatId, Object.freeze({
       submit: intent => implementation.submit(intent, control.value)
@@ -224,7 +233,24 @@ export function createMatchSessionController(input) {
     },
     advanceTutorial() {
       if (!usable()) return failure('MATCH_SESSION_DISPOSED');
-      return modePolicy ? modePolicy.advance() : failure('UNAVAILABLE_MODE');
+      if (!modePolicy) return failure('UNAVAILABLE_MODE');
+      const result = modePolicy.advance();
+      if (result.ok) coordinator.value.invalidateMode();
+      return result;
+    },
+    readStamp(viewerSeat) {
+      if (!usable()) return failure('MATCH_SESSION_DISPOSED');
+      const read = readStates.get(viewerSeat);
+      if (!read) return failure('MATCH_SESSION_UNKNOWN_SEAT');
+      const current = coordinator.value.readStamp();
+      if (!current.ok) return current;
+      const adopted = read();
+      return { ok: true, value: { ...current.value, viewerSeat, ...adopted,
+        available: adopted.available && adopted.adoptedRevision === current.value.currentRevision
+          && adopted.adoptedModeEpoch === current.value.modeEpoch } };
+    },
+    matchRecord() {
+      return usable() ? coordinator.value.matchRecord() : failure('MATCH_SESSION_DISPOSED');
     },
     port(seatId) {
       if (!usable()) return failure('MATCH_SESSION_DISPOSED');
@@ -294,7 +320,14 @@ export function createNewMatchSessionController(input) {
     || !Number.isSafeInteger(generation.value) || generation.value < 1 || Object.is(generation.value, -0)) {
     return failure('INVALID_NEW_MATCH_SESSION');
   }
-  const session = createRuntimeSession(runtime.value);
+  const authority = createMatchAuthority(runtime.value);
+  if (!authority.ok) return authority;
+  return createMatchSessionController({ authority: authority.value, sessionGeneration: generation.value });
+}
+
+// A fresh match's whole authority: engine, card references and an empty journal.
+export function createMatchAuthority(runtimeConfig) {
+  const session = createRuntimeSession(runtimeConfig);
   if (!session.ok) return session;
   const frame = buildRuntimeReferenceFrame(session.value.engineState);
   if (!frame.ok) return frame;
@@ -308,8 +341,5 @@ export function createNewMatchSessionController(input) {
     matchId: session.value.metadata.matchId, seatIds: session.value.metadata.seatIds
   });
   if (!journal.ok) return journal;
-  return createMatchSessionController({
-    authority: { ...session.value, referenceState: references.value, journal: journal.value },
-    sessionGeneration: generation.value
-  });
+  return { ok: true, value: { ...session.value, referenceState: references.value, journal: journal.value } };
 }

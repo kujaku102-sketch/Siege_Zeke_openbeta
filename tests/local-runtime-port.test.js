@@ -8,7 +8,8 @@ import { createLocalRuntimeCoordinator } from '../src/adapters/local-runtime-por
 import { chooseSimpleAiIntent, runSimpleAiPortStep } from '../src/adapters/simple-ai-policy.js';
 import { createRuntimeCui } from '../src/adapters/runtime-cui.js';
 import { createRuntimeClientController } from '../src/adapters/runtime-client-controller.js';
-import { normalizeBoardSlots } from '../src/game/board-slots.js';
+import { normalizeBoardSlots, placeCardInBoardSlot } from '../src/game/board-slots.js';
+import { createRuntimeCard } from '../src/game/runtime/factory.js';
 import { prepareRuntimeCommand } from '../src/game/runtime/command-bridge.js';
 import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
 import { actionPlanHtml } from '../src/ui-refresh/choice-read-view.js';
@@ -74,7 +75,7 @@ test('S05-LPORT-01: both bound seats query one shared authority without raw stat
   const b = second.query();
   assert.equal(a.ok, true, JSON.stringify(a));
   assert.equal(b.ok, true, JSON.stringify(b));
-  assert.deepEqual(Object.keys(a.value), ['status', 'observation', 'legalActions', 'requiredInput']);
+  assert.deepEqual(Object.keys(a.value), ['status', 'observation', 'legalActions', 'actionBlocks', 'requiredInput']);
   assert.equal(Object.hasOwn(a.value, 'authority'), false);
   assert.equal(Object.hasOwn(a.value, 'engineState'), false);
   assert.ok(Array.isArray(a.value.observation.seats[0].hand.cards));
@@ -563,4 +564,54 @@ test('S05-PLAN-06: draft request scope cannot be replayed into a different match
   assert.equal(other.queryAction({ expectedRevision: 0, actionId: nextEntry.actionId, selections: [{
     requestId: request.requestId, optionIds: [request.options[0].optionId], allocation: []
   }] }).ok, false);
+});
+
+test('S05-LPORT-THREAD: simultaneous triggers reach the event feed as one ordered thread', () => {
+  const current = authority(state => {
+    const put = (owner, zone, changes = {}) => {
+      const card = Object.assign(createRuntimeCard(state.runtimeContext, 'STD-131', owner), changes);
+      if (zone === 'hand') state.players[owner].hand.push(card);
+      else assert.equal(placeCardInBoardSlot(state.players[owner][zone], card, { controllerId: owner, zoneName: zone, limit: 5 }), true);
+    };
+    put('player', 'front', { damage: 2, summoningSick: false });
+    put('ai', 'front', { damage: 2, sleep: true });
+    put('player', 'hand');
+    put('ai', 'hand');
+  });
+  const { first, second } = ports(current);
+  const query = first.query().value;
+  const attack = query.legalActions.find(item => item.actionType === 'attack');
+  let revision = 0, serial = 0;
+  const send = (port, action) => {
+    const result = port.submit({ commandId: `thread-${++serial}`, expectedRevision: revision, action });
+    assert.equal(result.ok, true, JSON.stringify(result));
+    revision += 1;
+  };
+  send(first, { type: 'attack', attackerRef: attack.base.attackerRef,
+    target: { kind: 'card', cardRef: query.observation.seats[1].front.cards[0].cardRef } });
+  for (let step = 0; step < 8; step += 1) {
+    const port = [first, second].find(item => item.query().value.requiredInput?.canAnswer);
+    if (!port) break;
+    const input = port.query().value.requiredInput;
+    send(port, { type: 'answerChoice', choiceId: input.choiceId,
+      optionIds: input.options.slice(0, Math.max(1, input.minimum)).map(option => option.optionId), allocation: [] });
+  }
+  const events = first.events().value.events;
+  const started = events.find(event => event.type === 'thread_started');
+  assert.ok(started);
+  // The thread opens after the battle that set both logouts off.
+  assert.ok(events.indexOf(started) > events.findLastIndex(event => event.type === 'card_destroyed'));
+  assert.deepEqual(started.items.map(item => [item.threadItemId, item.controllerSeat, item.card.definitionId, item.timing]),
+    [[`${started.threadId}:0`, 'seat-b', 'STD-131', 'logout'], [`${started.threadId}:1`, 'seat-a', 'STD-131', 'logout']]);
+  // Each queued trigger's own rows carry its place in the thread, including the card it moved.
+  for (const item of started.items) {
+    assert.ok(events.some(event => event.type === 'card_moved' && event.threadItemId === item.threadItemId), item.threadItemId);
+  }
+  // The opponent's hand is hidden, but its count drop still says the dragged card came from it.
+  assert.ok(events.some(event => event.type === 'card_moved' && event.threadItemId === started.items[0].threadItemId
+    && event.from.kind === 'zone' && event.from.seatId === 'seat-b' && event.from.zone === 'hand'));
+  const resolved = events.findIndex(event => event.type === 'thread_resolved' && event.threadId === started.threadId);
+  assert.ok(resolved > events.indexOf(started));
+  assert.ok(events.slice(resolved + 1).every(event => !event.threadItemId));
+  assert.doesNotMatch(JSON.stringify(events), /"(?:uid|trigger|controllerId|playerId)"/);
 });

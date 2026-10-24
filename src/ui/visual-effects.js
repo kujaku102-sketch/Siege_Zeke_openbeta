@@ -166,7 +166,7 @@ function cardElement(root, uid) {
 
 // Production receives only viewer-safe events and read models. Legacy snapshot
 // helpers above remain available to isolated historical unit tests.
-export function applyRuntimeVisualEvents(root, events, model) {
+export function applyRuntimeVisualEvents(root, events, model, priorAnchors = new Map()) {
   const owners = new Map();
   const visit = card => { owners.set(card.cardRef,card.controllerSeat); if (!card.faceDown) card.mounted.forEach(visit); };
   for (const seat of model.seats) {
@@ -183,7 +183,9 @@ export function applyRuntimeVisualEvents(root, events, model) {
     if (event.type === 'card_moved' && event.target?.cardRef) effects.push({type:event.to.kind === 'board' ? 'deploy' : 'move',uid:event.target.cardRef});
     if (event.type === 'user_ability_feedback') effects.push({type:'user-ability',profile:event.abilityKey,abilityKey:event.abilityKey,
       ownerPlayerId:event.actorSeat,affectedPlayerId:event.affectedSeat,sourceEventId:event.eventId,label:USER_ABILITY_LABELS[event.abilityKey],
-      steps:event.steps.map(step => step.kind === 'transfer' ? {...step,from:target(step.from),to:target(step.to)} : {...step,target:target(step.target)})});
+      steps:(event.steps ?? []).map(step => step.kind === 'transfer' ? {...step,from:target(step.from),to:target(step.to)} : {...step,target:target(step.target)})});
+    if (event.type === 'card_destroyed' && event.target?.cardRef) effects.push({type:'destroy',uid:event.target.cardRef,
+      name:event.target.name ?? 'CARD',rect:priorAnchors.get(event.target.cardRef) ?? null});
   }
   applyVisualEffects(root,{effects,next:{visibleCardOwners:owners}});
 }

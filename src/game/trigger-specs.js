@@ -4,7 +4,7 @@ import { operation } from "./effect-operation-library.js";
 import { createTriggerSpec } from "./activation-windows.js";
 
 const op = (type, options) => operation(type, options);
-export const TRIGGER_SPECS = Object.freeze([
+const TRIGGER_SPECS = Object.freeze([
   createTriggerSpec({
     id: "STD-001:enemy-card-placed", cardId: "STD-001", event: "card_placed", activation: "optional",
     conditions: [{ type: "source_zone", zone: "back" }, { type: "source_face_down" }, { type: "event_player_is_enemy" }],

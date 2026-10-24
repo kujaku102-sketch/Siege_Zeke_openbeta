@@ -1,5 +1,5 @@
 // Display-only crop metadata. Add overrides only when the shared default crops a card badly.
-export const CARD_ART_PROFILES = Object.freeze({});
+const CARD_ART_PROFILES = Object.freeze({});
 
 const clamp = (value, minimum, maximum, fallback) => {
   const number = Number(value);

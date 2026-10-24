@@ -1,17 +1,35 @@
 /* Persistent state cues remain legible when effects are OFF. */
 .r2-board .board-slot>.card.attack-ready { border-color:#82ffc0; box-shadow:0 0 0 2px #54ed99,0 0 15px 3px #22e897b8,inset 0 0 9px #22e89766; }
-.r2-board .board-slot>.card.attack-ready-contact { border-color:#ffe27a; box-shadow:0 0 0 2px #eec348,0 0 15px 3px #f2c127ad,inset 0 0 9px #f2c12766; }
-.r2-board .board-slot>.card.attack-ready:is(.selected,.targetable),.r2-board .board-slot>.card.attack-ready-contact:is(.selected,.targetable) { outline-offset:3px; }
+.r2-board .board-slot>.card.attack-ready:is(.selected,.targetable) { outline-offset:3px; }
 .r2-board .board-slot>.card .ability-badges { max-width:calc(100% - 23px); gap:1px; overflow:visible; flex-wrap:wrap; height:auto; max-height:40px; }
 .r2-board .board-slot>.card .ability-badge { flex:0 0 auto; height:11px; filter:drop-shadow(0 1px 2px #000a); }
 .r2-board .board-slot>.card .ability-badge-image { height:10px; }
 .r2-content .card .stat-up b { color:#b6ffc1; -webkit-text-stroke:.35px #12331f; text-shadow:0 0 5px #24e371,0 1px 2px #000; }
 .r2-content .card .stat-down b { color:#ff9d9d; -webkit-text-stroke:.35px #47171c; text-shadow:0 0 5px #ff3856,0 1px 2px #000; }
 .r2-board .board-slot>.card .stat-up,.r2-board .board-slot>.card .stat-down { position:relative; }
-.r2-board .board-slot>.card .card-security-shield { position:absolute; z-index:7; inset:15% 9% 19%; display:grid; place-items:center; pointer-events:none; transform:perspective(180px) rotateY(-17deg) rotateX(9deg) translateZ(6px); filter:drop-shadow(0 0 7px #63eaff) drop-shadow(0 0 2px #fff); }
-.r2-board .board-slot>.card .card-security-shield svg { width:100%; height:100%; overflow:visible; fill:#4bdcf420; stroke:#b8f7ff; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+.r2-board .board-slot>.card .card-security-shield { position:absolute; z-index:7; inset:15% 9% 19%; display:grid; place-items:center; pointer-events:none; transform:perspective(180px) rotateY(-17deg) rotateX(9deg) translateZ(6px); transition:opacity .25s ease,filter .25s ease; }
+.r2-board .board-slot>.card .card-security-shield svg { position:relative; width:100%; height:100%; overflow:visible; fill:#4bdcf420; stroke:#b8f7ff; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
 .r2-board .board-slot>.card .card-security-shield svg path:nth-child(2) { fill:#5df0fb16; stroke:#4bdcf4; stroke-width:1.1; }
 .r2-board .board-slot>.card .card-security-shield svg path:nth-child(3) { fill:none; stroke:#ffffffad; stroke-width:1; }
+/* A sleeping card lies on its side; its shield stays upright. */
+.r2-board .human .board-slot>.card.sleep .card-security-shield { rotate:-90deg; scale:1.15; }
+.r2-board .opponent .board-slot>.card.sleep .card-security-shield { rotate:90deg; scale:1.15; }
+/* Standby: a faint hologram, present but out of the way. */
+.r2-board .board-slot>.card .card-security-shield.is-standby { opacity:.34; filter:drop-shadow(0 0 4px #63eaff99); }
+.r2-board .board-slot>.card .card-security-shield.is-standby svg { fill:#4bdcf40d; stroke-width:1.6; }
+/* Asleep (the forced target): solid, with a brushed-metal plate behind the hologram lines. */
+.r2-board .board-slot>.card .card-security-shield.is-guard { opacity:.96; filter:drop-shadow(0 0 7px #63eaff) drop-shadow(0 0 2px #fff) drop-shadow(0 2px 3px #000c); }
+.r2-board .board-slot>.card .card-security-shield.is-guard::before { content:""; position:absolute; inset:0; -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 96'%3E%3Cpath d='M40 4 72 17v30c0 21-13 35-32 45C21 82 8 68 8 47V17Z'/%3E%3C/svg%3E") center/100% 100% no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 96'%3E%3Cpath d='M40 4 72 17v30c0 21-13 35-32 45C21 82 8 68 8 47V17Z'/%3E%3C/svg%3E") center/100% 100% no-repeat;
+  background:linear-gradient(115deg,#ffffff00 30%,#ffffffb0 44%,#ffffff00 56%) -160% 0/250% 100% no-repeat,
+    repeating-linear-gradient(90deg,#ffffff14 0 1px,#00000010 1px 3px),
+    linear-gradient(160deg,#f4fbff 0%,#9fb4c0 22%,#e3eef4 38%,#61798a 58%,#c9d8e1 76%,#53697a 100%); }
+.r2-board .board-slot>.card .card-security-shield.is-guard svg { fill:#4bdcf412; stroke:#d9fbff; stroke-width:2.6; }
+.r2-board .board-slot>.card .card-security-shield.is-guard svg path:nth-child(2) { fill:none; stroke:#2fb9d6; stroke-width:1.4; }
+.r2-board .board-slot>.card .card-security-shield.is-guard svg path:nth-child(3) { stroke:#1d3e4ccc; stroke-width:1.6; }
+.r2-content[data-effects="on"] .r2-board .board-slot>.card .card-security-shield.is-standby { animation:sz-shield-holo 2.6s ease-in-out infinite; }
+.r2-content[data-effects="on"] .r2-board .board-slot>.card .card-security-shield.is-guard::before { animation:sz-shield-sheen 3.2s ease-in-out infinite; }
+@keyframes sz-shield-holo { 0%,100% { opacity:.26; } 48% { opacity:.4; } 52% { opacity:.22; } }
+@keyframes sz-shield-sheen { 0%,55% { background-position:-160% 0,0 0,0 0; } 100% { background-position:260% 0,0 0,0 0; } }
 /* The quoted appearance/exit and stat particles run only under effects ON. */
 .r2-content[data-effects="on"] .card-security-shield.vfx-shield-enter { animation:sz-shield-enter .52s cubic-bezier(.16,1,.3,1) both; }
 .vfx-shield-exit { position:fixed; z-index:141; display:grid; place-items:center; pointer-events:none; transform:perspective(180px) rotateY(-17deg) rotateX(9deg); filter:drop-shadow(0 0 7px #63eaff); animation:sz-shield-exit .4s ease-in forwards; }
@@ -23,4 +41,4 @@
 .r2-content[data-effects="on"] .r2-board .board-slot>.card .stat-down::after { background:radial-gradient(ellipse at 25% 70%,#5b546aaa,transparent 45%),radial-gradient(ellipse at 75% 28%,#7c4a68aa,transparent 42%); filter:blur(3px); animation:sz-stat-haze 1.8s ease-in-out infinite alternate; }
 @keyframes sz-stat-sparks { from { opacity:.3; transform:translateY(3px) scale(.8); } to { opacity:1; transform:translateY(-5px) scale(1.2); } }
 @keyframes sz-stat-haze { from { opacity:.45; transform:translateY(2px) scale(.9); } to { opacity:.85; transform:translateY(-3px) scale(1.15); } }
-@media (prefers-reduced-motion:reduce) { .r2-content[data-effects="on"] .card-security-shield.vfx-shield-enter,.vfx-shield-exit,.r2-content[data-effects="on"] .r2-board .board-slot>.card .stat-up::after,.r2-content[data-effects="on"] .r2-board .board-slot>.card .stat-down::after { animation:none; } }
+@media (prefers-reduced-motion:reduce) { .r2-content[data-effects="on"] .r2-board .board-slot>.card .card-security-shield.is-standby,.r2-content[data-effects="on"] .r2-board .board-slot>.card .card-security-shield.is-guard::before,.r2-content[data-effects="on"] .card-security-shield.vfx-shield-enter,.vfx-shield-exit,.r2-content[data-effects="on"] .r2-board .board-slot>.card .stat-up::after,.r2-content[data-effects="on"] .r2-board .board-slot>.card .stat-down::after { animation:none; } }

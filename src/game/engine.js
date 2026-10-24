@@ -74,7 +74,15 @@ export function relogPreparationKind(card, layerCount = flattenedLayerCount(card
   return "normal";
 }
 
-export function canDirectRelogAtSlot(state, playerId, card, { sourceZone, zone, requestedSlot, layerCount = null } = {}) {
+// A Code that an Ob can be re-executed onto: face-up, in the target area, not forbidding mounts.
+function relogBaseCode(player, zone, baseUid) {
+  const host = player?.[zone]?.find((item) => item.uid === baseUid) ?? null;
+  if (!host || host.category !== "Code" || host.faceDown
+    || placementPermissionSpecsFor(host.id).some((spec) => spec.type === "forbid_mount_on_source")) return null;
+  return host;
+}
+
+export function canDirectRelogAtSlot(state, playerId, card, { sourceZone, zone, requestedSlot, layerCount = null, baseUid = null } = {}) {
   const player = state?.players?.[playerId];
   if (!player || state.active !== playerId || !isObCard(card)) return { ok: false };
   const effectiveLayerCount = layerCount === null ? flattenedLayerCount(card) : layerCount;
@@ -82,7 +90,11 @@ export function canDirectRelogAtSlot(state, playerId, card, { sourceZone, zone, 
   if (!["front", "back"].includes(sourceZone) || !["front", "back"].includes(zone)
     || sourceZone === zone || sourceZone !== (zone === "front" ? "back" : "front")) return { ok: false };
   const preparationKind = relogPreparationKind(card, effectiveLayerCount);
-  if (preparationKind === "registry") return requestedSlot === null && player.memory >= Number(card.cost ?? 0) ? { ok: true } : { ok: false };
+  if (preparationKind === "registry") return requestedSlot === null && baseUid === null && player.memory >= Number(card.cost ?? 0) ? { ok: true } : { ok: false };
+  if (baseUid !== null) {
+    if (requestedSlot !== null || !relogBaseCode(player, zone, baseUid)) return { ok: false };
+    return player.memory >= (preparationKind === "payment-choice" ? 1 : Number(card.cost ?? 0)) ? { ok: true } : { ok: false };
+  }
   const slot = requestedExecutionSlot(state, playerId, card, { zone, requestedSlot });
   if (!slot.ok) return slot;
   if (!placementResult(player, zone).ok) return { ok: false };
@@ -188,7 +200,7 @@ export function commitProjection(state, { channel, spec, expected } = {}) {
   return { ok: true, projection, identity };
 }
 
-export function validateProjection(state, expectedIdentity, { allowedScopes = null, actorId = expectedIdentity?.actorId } = {}) {
+function validateProjection(state, expectedIdentity, { allowedScopes = null, actorId = expectedIdentity?.actorId } = {}) {
   if (!validIdentity(expectedIdentity) || !["player", "ai"].includes(actorId) || (allowedScopes !== null && (!Array.isArray(allowedScopes) || allowedScopes.some((scope) => !PROJECTION_SCOPES.has(scope))))) return { ok: false, reason: "invalid-identity" };
   const projection = state?.[expectedIdentity.channel]; const identity = projectionIdentity(projection);
   if (!sameProjectionIdentity(identity, expectedIdentity) || identity.actorId !== actorId || (allowedScopes && !allowedScopes.includes(identity.scope))) return { ok: false, reason: "stale" };
@@ -564,8 +576,6 @@ export const DECK_OPTIONS = Object.freeze({
   neutron: { label: "ニュートロン・セキュリティ・青", color: "青", recipe: NEUTRON_DECK }
 });
 
-export const USER_OPTIONS = USER_CARDS;
-
 export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = "red", aiDeckId = "yellow", playerDeckRecipe = null, aiDeckRecipe = null, playerUserId = "doors_zx", aiUserId = "doors_zx", sandboxDeckSetup = false, rng = Math.random, runtimeContext = null } = {}) {
   if (runtimeContext !== null) rng = runtimeRng(runtimeContext);
   const isVengeanceTutorial = mode === "tutorial" && tutorialId === "vengeance";
@@ -693,7 +703,7 @@ function logSource(state, text, tone) {
   return { cardId: source.id, actor: owners.length === 1 ? owners[0] : tone === "action" ? state.active : null };
 }
 
-export function addLog(state, text, tone = "info", details = {}) {
+function addLog(state, text, tone = "info", details = {}) {
   const source = logSource(state, text, tone);
   state.log.push({ id: `${Date.now()}-${state.log.length}`, text, tone, turn: state.turnNumber, ...source, ...details });
   if (state.log.length > 120) state.log.shift();
@@ -2109,11 +2119,6 @@ export function resolveTriggerChoice(state, itemId) {
   return true;
 }
 
-export function dismissThreadNotice(state) {
-  state.threadNotice = null;
-  if (state.triggerThread?.status === "resolved") state.triggerThread = null;
-}
-
 function resumeTriggerThreadAfterSelection(state, itemId) {
   const thread = state.triggerThread;
   const item = thread?.items.find((entry) => entry.id === itemId && entry.status === "awaiting-selection");
@@ -2172,7 +2177,10 @@ function drainTriggerQueue(state) {
 }
 
 export function emitGameEvent(state, event) {
-  const normalized = { id: `EV-${++state.triggerSerial}`, turnNumber: state.turnNumber, ...event };
+  // Inside a trigger thread, mark which queued trigger produced the event so readers can group it.
+  const threadItem = state.triggerThread?.items?.find((item) => ["resolving", "awaiting-selection"].includes(item.status));
+  const normalized = { id: `EV-${++state.triggerSerial}`, turnNumber: state.turnNumber,
+    ...(threadItem ? { threadId: state.triggerThread.id, threadItemId: threadItem.id } : {}), ...event };
   state.events.push(normalized);
   if (state.winner) {
     if (state.events.length > 200) state.events.shift();
@@ -2616,7 +2624,41 @@ function placeByMode(state, ownerId, card, { zone, mode = "forced-effect", from 
     if (placement.mode === "forced-effect") return failForcedPlacement(state, card.owner ?? ownerId, card, { from, zone, source, suppressScriptWindow });
     return "normal-rejected";
   }
+  if (!["front", "back"].includes(from)) markFieldEntry(state, card);
   return "placed";
+}
+
+// Field entry table: the turn each card on the field arrived there. Moving
+// between front and back keeps the entry; leaving the field drops it.
+function markFieldEntry(state, card) {
+  if (!card?.uid) return;
+  if (!state.fieldEntryTurns) state.fieldEntryTurns = {};
+  state.fieldEntryTurns[card.uid] = state.turnNumber;
+}
+
+function syncFieldEntryTurns(state) {
+  const onField = new Set();
+  const visit = (card) => {
+    if (!card?.uid || onField.has(card.uid)) return;
+    onField.add(card.uid);
+    for (const layer of card.mounted ?? []) visit(layer);
+  };
+  for (const player of Object.values(state.players)) for (const card of [...player.front, ...player.back]) visit(card);
+  const table = state.fieldEntryTurns ?? {};
+  const next = {};
+  for (const uid of onField) next[uid] = Object.hasOwn(table, uid) ? table[uid] : state.turnNumber;
+  state.fieldEntryTurns = next;
+}
+
+function enteredFieldThisTurn(state, card) {
+  syncFieldEntryTurns(state);
+  return state.fieldEntryTurns[card.uid] === state.turnNumber;
+}
+
+// Summoning sickness after a front/back move: only a card that entered the
+// field this turn (or is already sick) cannot attack from the front.
+function movedSummoningSick(state, card, targetZone) {
+  return targetZone === "front" && !hasKeyword(card, "QA") && (Boolean(card.summoningSick) || enteredFieldThisTurn(state, card));
 }
 
 function emitRegistryInstalled(state, playerId, card, source = "インストール") {
@@ -3066,12 +3108,20 @@ export function startTurn(state, playerId) {
   runPostDrawTurnStart(state, playerId);
 }
 
+// Read-only: the same conditions installCard enforces, with a stable code.
+export function installCheck(state, playerId, uid) {
+  const player = state.players[playerId];
+  if (!player.hand.some((card) => card.uid === uid)) return { ok: false, code: "CARD_NOT_IN_HAND", reason: "そのカードは手札にない。" };
+  if (state.active !== playerId) return { ok: false, code: "NOT_YOUR_TURN", reason: "今は自分のターンじゃない。" };
+  if (player.registryActionUsed) return { ok: false, code: "REGISTRY_ACTION_USED", reason: "このターンのレジストリ操作権は使用済み。" };
+  return { ok: true };
+}
+
 export function installCard(state, playerId, uid, { force = false } = {}) {
   const player = state.players[playerId];
   const index = player.hand.findIndex((card) => card.uid === uid);
   if (index < 0) return fail(state, "そのカードは手札にない。", force);
-  if (!force && state.active !== playerId) return fail(state, "今は自分のターンじゃない。", force);
-  if (!force && player.registryActionUsed) return fail(state, "このターンのレジストリ操作権は使用済み。", force);
+  if (!force) { const check = installCheck(state, playerId, uid); if (!check.ok) return fail(state, check.reason, force); }
   const [card] = player.hand.splice(index, 1);
   player.registry.push(card);
   player.installedThisTurn = true;
@@ -3176,7 +3226,7 @@ export function canExecuteAtSlot(state, playerId, card, options = {}) {
   if (!slot.ok) return slot;
   if (card.category !== "Script" && !options.asScript) return canPlayCard(state, playerId, card, options);
   const player = state.players[playerId];
-  if (state.active !== playerId || !placementResult(player, "back").ok && !cardPlacementCostSpec(card.id)) return { ok: false, reason: "設置するターンまたはバック上限を確認してください。" };
+  if (state.active !== playerId || !placementResult(player, "back").ok && !cardPlacementCostSpec(card.id)) return { ok: false, code: state.active !== playerId ? "NOT_YOUR_TURN" : "ZONE_FULL", reason: "設置するターンまたはバック上限を確認してください。" };
   if (cardPlacementCostSpec(card.id)) return canPlayCard(state, playerId, card, {...options,ignoreColor:true});
   if (options.asScript && (!supportsAlternateScriptSetup(card) || player.memory < Number(card.setupCost ?? 3) || state.mode !== "lab" && card.color && !enabledSymbols(player).includes(card.color))) return { ok: false, reason: "Script設置条件を満たしていません。" };
   return { ok: true };
@@ -3191,29 +3241,29 @@ export function canPlayCard(state, playerId, card, { ignoreColor = false, free =
     if (!host || baseUid && underUid || baseUid && (host.category !== "Code" || !isObCard(card)) || underUid && (!isObCard(host) || card.category !== "Code") || host.faceDown || placementPermissionSpecsFor(host.id).some(spec => spec.type === "forbid_mount_on_source")) return { ok: false, reason: "このカードにはマウントできません。" };
   }
   const placementCostSpec = cardPlacementCostSpec(card.id);
-  if (placementPermissionSpecsFor(card.id).some((spec) => spec.type === "forbid_execution")) return { ok: false, reason: "このカードは実行できない。" };
-  if (!force && !allowOffTurn && state.active !== playerId) return { ok: false, reason: "今は自分のターンじゃない。" };
-  if (card.category === "Plugin") return { ok: false, reason: "Pluginはレジストリへインストールして。" };
-  if (!free && !placementCostSpec && player.memory < Math.max(0, executionCost(card, state, playerId) - Number(executionCostReduction ?? 0))) return { ok: false, reason: "メモリ不足。" };
+  if (placementPermissionSpecsFor(card.id).some((spec) => spec.type === "forbid_execution")) return { ok: false, code: "EXECUTION_FORBIDDEN", reason: "このカードは実行できない。" };
+  if (!force && !allowOffTurn && state.active !== playerId) return { ok: false, code: "NOT_YOUR_TURN", reason: "今は自分のターンじゃない。" };
+  if (card.category === "Plugin") return { ok: false, code: "PLUGIN_INSTALL_ONLY", reason: "Pluginはレジストリへインストールして。" };
+  if (!free && !placementCostSpec && player.memory < Math.max(0, executionCost(card, state, playerId) - Number(executionCostReduction ?? 0))) return { ok: false, code: "MEMORY_SHORT", reason: "メモリ不足。" };
   const accessFailure = runtimeSpellAccessFailure(state, playerId, card);
-  if (accessFailure) return { ok: false, reason: accessFailure };
+  if (accessFailure) return { ok: false, code: "SPELL_ACCESS_DENIED", reason: accessFailure };
   const requiredZone = placementPermissionSpecsFor(card.id).find((spec) => spec.type === "require_execution_zone")?.zone;
-  if (requiredZone && zone !== requiredZone) return { ok: false, reason: `このカードは実行時${requiredZone === "back" ? "バック" : "フロント"}にのみ配置できる。` };
-  if (state.mode !== "lab" && !ignoreColor && card.color && !enabledSymbols(player).includes(card.color)) return { ok: false, reason: `${card.color}シンボルがない。先にインストールして。` };
+  if (requiredZone && zone !== requiredZone) return { ok: false, code: "ZONE_RESTRICTED", reason: `このカードは実行時${requiredZone === "back" ? "バック" : "フロント"}にのみ配置できる。` };
+  if (state.mode !== "lab" && !ignoreColor && card.color && !enabledSymbols(player).includes(card.color)) return { ok: false, code: "SYMBOL_MISSING", symbol: card.color, reason: `${card.color}シンボルがない。先にインストールして。` };
   if (card.category !== "Sp" && !["front", "back"].includes(zone)) return { ok: false, reason: "実行先が不正。" };
   let effectiveFreedSlots = freedSlots;
   if (placementCostSpec) {
     const candidates = placementCostCandidates(state, placementCostSpec);
     const requiredCount = Number(placementCostSpec.selection.count ?? 0);
     if (new Set(candidates.map(({ card: candidate }) => candidate.name)).size < requiredCount) {
-      return { ok: false, reason: `名前の異なる情報管理端末が${requiredCount}枚必要。` };
+      return { ok: false, code: "PLACEMENT_COST_UNMET", reason: `名前の異なる情報管理端末が${requiredCount}枚必要。` };
     }
     if (zone === "back" && candidates.some(({ ownerId, zoneName }) => ownerId === playerId && zoneName === "back")) {
       effectiveFreedSlots = Math.max(Number(effectiveFreedSlots ?? 0), 1);
     }
   }
   const placement = placementResult(player, zone, { addedSlots: baseUid || underUid ? 0 : 1, freedSlots: effectiveFreedSlots, mode: placementMode });
-  if (card.category !== "Sp" && !placement.ok && placement.mode === "normal") return { ok: false, reason: `${zone === "front" ? "フロント" : "バック"}上限。` };
+  if (card.category !== "Sp" && !placement.ok && placement.mode === "normal") return { ok: false, code: "ZONE_FULL", reason: `${zone === "front" ? "フロント" : "バック"}上限。` };
   return { ok: true };
 }
 
@@ -3237,9 +3287,9 @@ export function normalSpellSelection(state, playerId, card) {
   return { candidates, minimum: count, maximum: count, scopes: [], groups: [] };
 }
 export function normalExecutionCheck(state, playerId, card, options = {}, registry = false) {
-  if (card.dragFree || card.category === "Plugin") return { ok: false };
+  if (card.dragFree || card.category === "Plugin") return { ok: false, code: card.category === "Plugin" ? "PLUGIN_INSTALL_ONLY" : "EXECUTION_FORBIDDEN" };
   if (registry) return canExecuteRegistryCard(state, playerId, card, options);
-  if (layeredSpecFor(card)) return {ok:false};
+  if (layeredSpecFor(card)) return {ok:false,code:"LAYERED_ONLY"};
   const amount = Number(String(card.text ?? "").match(/\[弾倉[:：]\s*(\d+)\]/)?.[1] ?? 0);
   const normal = { ...options, executionCostReduction: amount > 0 && ownLayerEntries(state.players[playerId]).length >= amount ? amount : 0 };
   return card.category === "Script" || options.asScript ? canExecuteAtSlot(state, playerId, card, normal) : canPlayCard(state, playerId, card, normal);
@@ -3643,6 +3693,7 @@ function playCardCore(state, playerId, uid, { targetUid = null, targetUids = [],
   card.sleep = false;
   card.damage = 0;
   card.summoningSick = !hasKeyword(card, "QA");
+  markFieldEntry(state, card);
   if (upperCard) {
     upperCard.mounted.push(card);
     card.layerRole = "mount";
@@ -5055,10 +5106,11 @@ function resolveCardSelectionCore(state, continuation, result) {
   if (continuation.type === "relog-layer-discount") {
     const useLayerDiscount = result.scope === "レイヤー1枚を破棄して1メモリ";
     state.pending = null;
-    if (!useLayerDiscount) return relogCard(state, playerId, continuation.sourceUid, continuation.targetZone, { useLayerDiscount: false, requestedSlot: continuation.requestedSlot ?? null });
+    if (!useLayerDiscount) return relogCard(state, playerId, continuation.sourceUid, continuation.targetZone, { useLayerDiscount: false, requestedSlot: continuation.requestedSlot ?? null, baseUid: continuation.baseUid ?? null });
     const source = findCard(state, continuation.sourceUid)?.card;
     return source ? beginSourceLayerSelection(state, playerId, source, 1, {
-      type: "relog-layer-select", playerId, sourceUid: source.uid, targetZone: continuation.targetZone, requestedSlot: continuation.requestedSlot ?? null
+      type: "relog-layer-select", playerId, sourceUid: source.uid, targetZone: continuation.targetZone, requestedSlot: continuation.requestedSlot ?? null,
+      baseUid: continuation.baseUid ?? null
     }) : false;
   }
   if (continuation.type === "relog-layer-select") {
@@ -5066,7 +5118,8 @@ function resolveCardSelectionCore(state, continuation, result) {
     return relogCard(state, playerId, continuation.sourceUid, continuation.targetZone, {
       useLayerDiscount: true,
       layerUid: result.selected[0],
-      requestedSlot: continuation.requestedSlot ?? null
+      requestedSlot: continuation.requestedSlot ?? null,
+      baseUid: continuation.baseUid ?? null
     });
   }
   if (continuation.type === "q3-layer-attack-choice") {
@@ -5837,19 +5890,6 @@ export function getEffectTargets(state, targetPlayerId, sourceCard) {
   return ["STD-033", "STD-209"].includes(sourceCard.id) ? cards : cards.filter(isObCard);
 }
 
-export function getPublicCards(state) {
-  const entries = [];
-  for (const [playerId, player] of Object.entries(state.players)) {
-    for (const zoneName of ["front", "back", "registry", "trash"]) {
-      for (const card of player[zoneName]) {
-        if (card.category === "Script" && card.faceDown) continue;
-        entries.push({ playerId, zoneName, card });
-      }
-    }
-  }
-  return entries;
-}
-
 export function getActivatableEffects(state, playerId, card) {
   const location = findCard(state, card.uid);
   if (!location || location.playerId !== playerId || !["hand", "front", "back"].includes(location.zoneName)) return [];
@@ -5869,7 +5909,7 @@ export function getActivatableEffects(state, playerId, card) {
     }));
 }
 
-export function getEffectActivationTargets(state, playerId, card, effectId) {
+function getEffectActivationTargets(state, playerId, card, effectId) {
   if (card.id === "STD-169" && effectId?.startsWith(`${card.id}:proxy:`)) {
     const opponent = state.players[otherPlayer(playerId)];
     return [...opponent.front, ...opponent.back].filter(isObCard);
@@ -5896,7 +5936,7 @@ function moveCardByEffect(state, playerId, uid, targetZone, sourceName) {
   const revealed = revealMountedCode(player[sourceZone], index, card, playerId, sourceZone);
   if (placeByMode(state, playerId, card, { zone: targetZone, mode: "normal", from: sourceZone, source: sourceName }) !== "placed") return false;
   card.sleep = false;
-  card.summoningSick = targetZone === "front" && !hasKeyword(card, "QA");
+  card.summoningSick = movedSummoningSick(state, card, targetZone);
   addLog(state, `${sourceName}: 「${card.name}」を${targetZone === "front" ? "フロント" : "バック"}へ効果で移動。`, "effect");
   if (revealed) addLog(state, `${card.name}の下にあった${revealed.name}は移動前のエリアに残る。`, "effect");
   triggerMoved(state, playerId, card, sourceZone, targetZone);
@@ -6357,7 +6397,7 @@ function resolveTrinityEffect(state, activePlayerId, sourceName) {
   addLog(state, `${sourceName}: アクティブユーザーが手札3枚を捨てるか3ダメージ、その後2枚ドロー。`, "effect");
 }
 
-export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount = null, layerUid = null, requestedSlot = null } = {}) {
+export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount = null, layerUid = null, requestedSlot = null, baseUid = null } = {}) {
   normalizeBoardSlots(state);
   const player = state.players[playerId];
   if (state.active !== playerId) return fail(state, "再実行は自分ターン中だけ。", false);
@@ -6368,6 +6408,9 @@ export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount =
   const card = player[sourceZone][index];
   const preparationKind = relogPreparationKind(card);
   if (requestedSlot !== null && !requestedExecutionSlot(state, playerId, card, { zone: targetZone, requestedSlot }).ok) return false;
+  if (baseUid !== null && (requestedSlot !== null || preparationKind === "registry" || !isObCard(card) || !relogBaseCode(player, targetZone, baseUid))) {
+    return fail(state, "上に再実行するCodeを選んで。", false);
+  }
   if (preparationKind === "registry") {
     const moveCost = Number(card.cost ?? 0);
     if (player.memory < moveCost) return fail(state, "再実行するメモリが足りない。", false);
@@ -6383,7 +6426,7 @@ export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount =
     if (revealed) addLog(state, `${card.name}の下にあった${revealed.name}は場に残る。`, "effect");
     return true;
   }
-  if (player[targetZone].length >= player.user[`${targetZone}Limit`]) return fail(state, `${targetZone === "front" ? "フロント" : "バック"}上限。`, false);
+  if (baseUid === null && player[targetZone].length >= player.user[`${targetZone}Limit`]) return fail(state, `${targetZone === "front" ? "フロント" : "バック"}上限。`, false);
   if (preparationKind === "payment-choice" && useLayerDiscount === null) {
     const regularCost = Number(card.cost ?? 0);
     const options = player.memory >= regularCost
@@ -6392,7 +6435,7 @@ export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount =
     const request = createSelectionRequest({
       mode: "scope", scopeField: "moveCost", scopeOptions: options,
       label: "移動コストの支払い方を選択", message: card.text,
-      continuation: { type: "relog-layer-discount", playerId, sourceUid: uid, targetZone, requestedSlot }
+      continuation: { type: "relog-layer-discount", playerId, sourceUid: uid, targetZone, requestedSlot, baseUid }
     });
     state.pending = { type: "selection", validTargets: [], request };
     return true;
@@ -6417,12 +6460,23 @@ export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount =
   }
   player[sourceZone].splice(index, 1);
   const revealed = revealMountedCode(player[sourceZone], index, card, playerId, sourceZone);
-  if (placeByMode(state, playerId, card, { zone: targetZone, mode: "normal", from: sourceZone, source: "再実行", requestedSlot }) !== "placed") return false;
+  const baseCode = baseUid === null ? null : relogBaseCode(player, targetZone, baseUid);
+  if (baseCode) {
+    const baseIndex = player[targetZone].indexOf(baseCode);
+    inheritBoardSlot(card, baseCode, { controllerId: playerId, zoneName: targetZone });
+    player[targetZone].splice(baseIndex, 1, card);
+    baseCode.layerRole = "mount";
+    card.mounted = [...(card.mounted ?? []), baseCode, ...baseCode.mounted.splice(0)];
+  } else if (placeByMode(state, playerId, card, { zone: targetZone, mode: "normal", from: sourceZone, source: "再実行", requestedSlot }) !== "placed") return false;
   card.sleep = false;
   card.attackedThisTurn = false;
-  card.summoningSick = targetZone === "front" && !hasKeyword(card, "QA");
+  card.summoningSick = movedSummoningSick(state, card, targetZone);
   addLog(state, `${player.user.name}が「${card.name}」を${targetZone === "front" ? "フロント" : "バック"}へ再実行。メモリ${moveCost}支払い。`, "action");
   if (revealed) addLog(state, `${card.name}の下にあった${revealed.name}は${sourceZone === "front" ? "フロント" : "バック"}に残る。`, "effect");
+  if (baseCode) {
+    addLog(state, `${card.name}を${baseCode.name}の上へ再実行。レイヤー${card.mounted.length + 1}。`, "effect");
+    resolveMountedSourceTrigger(state, playerId, card, baseCode);
+  }
   if (hasKeyword(card, "LOGIN")) resolveEffect(state, () => resolveLogin(state, playerId, card));
   const hasLogout = hasKeyword(card, "LOGOUT") || /(?:\[|［)ログアウト(?:\]|］)/.test(String(card.text ?? ""));
   if (hasLogout) resolveEffect(state, () => resolveLogout(state, playerId, card));
@@ -6917,7 +6971,7 @@ function resolveDeclaredResponse(state, declared) {
   return true;
 }
 
-export function getResponseCandidates(state, playerId) {
+function getResponseCandidates(state, playerId) {
   const player = state.players[playerId];
   return player.hand.filter((card) => {
     const cost = Number(keywordValue(card, "RESPONSE") ?? -1);
@@ -7347,6 +7401,7 @@ function completeTurnAfterDelayedEffects(state, activeId) {
     }
   }
   player.forceAttack = false;
+  syncFieldEntryTurns(state);
   state.turnNumber += 1;
   if (state.extraTurnPlayerId === activeId) {
     state.extraTurnPlayerId = null;
@@ -7396,6 +7451,9 @@ export function endTurn(state) {
   const resumingTurnEnd = state.std142TurnEndQueue?.activeId === activeId || state.std142TurnEndDone === activeId
     || resumingStd094TurnEnd || resumingStd141TurnEnd;
   if (!resumingTurnEnd) {
+  // A Savage salvage choice resumes after Security and the first user effects.
+  // Do not reopen Security or apply those effects a second time on resume.
+  if (!state.skipSavageTurnEnd) {
   if (player.forceAttack && player.front.some((card) => !card.attackedThisTurn && canAttack(state, activeId, card))) {
     return fail(state, "攻撃可能なObすべてで攻撃してからターンを終了して。", false);
   }
@@ -7443,6 +7501,7 @@ export function endTurn(state) {
       addLog(state, "*ゴミ箱は空にならない*: 異なるシンボルのため1枚ドロー。", "effect");
       if (drawn) emitUserAbilityFeedback(state, "trash_never_empty", savageOwnerId, activeId, { branch: "milled-different-symbol", amount: drawn, outcome: "draw", steps: [{ kind: "transfer", from: { kind: "zone_count", playerId: activeId, zone: "deck" }, to: { kind: "zone_count", playerId: activeId, zone: "hand" }, count: drawn }] });
     }
+  }
   }
   delete state.skipSavageTurnEnd;
   for (const provider of player.registry.filter((card) => !card.faceDown && cardRuntimeSpec(card.id, "turn_end"))) {
@@ -7563,11 +7622,7 @@ export function findCard(state, uid) {
   return null;
 }
 
-export function legalPlayableCards(state, playerId) {
-  return state.players[playerId].hand.filter((card) => canPlayCard(state, playerId, card).ok);
-}
-
-export function provisional(state, text, card = null) {
+function provisional(state, text, card = null) {
   const key = `${card?.id ?? "RULE"}:${text}`;
   if (!state.provisional.some((item) => item.key === key)) state.provisional.push({ key, text, cardId: card?.id ?? null });
   addLog(state, `暫定処理: ${text}`, "warning");
@@ -7579,4 +7634,4 @@ function fail(state, message, silent) {
   return false;
 }
 
-export { CARD_LIBRARY, otherPlayer };
+export { CARD_LIBRARY };

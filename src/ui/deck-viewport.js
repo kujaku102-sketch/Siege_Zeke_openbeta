@@ -1,4 +1,4 @@
-const SCROLLERS = [".deck-builder-modal", ".deck-builder", ".deck-card-list", ".deck-summary", ".deck-summary-list", ".deck-mobile-selected"];
+const SCROLLERS = [".deck-builder-modal", ".deck-builder", ".deck-card-list", ".deck-summary", ".deck-selected"];
 
 export function captureDeckViewport(root) {
   if (!root.querySelector(".deck-builder")) return null;

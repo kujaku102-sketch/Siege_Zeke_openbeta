@@ -87,11 +87,12 @@ try {
 
   await page.locator('[data-runtime-menu]').click();
   await page.locator("[data-deck-open]").click();
-  const deckThumbnail = await page.locator('[data-deck-card-id="STD-075"] .deck-card-thumbnail').evaluate(node => {
+  const deckThumbnail = await page.locator('.deck-tile[data-deck-card-id="STD-075"]').evaluate(node => {
     const rect = node.getBoundingClientRect();
-    return { art: node.classList.contains("has-art") && Boolean(node.querySelector(".deck-card-art")), ratio: rect.width / rect.height, name: node.querySelector(".deck-card-thumbnail-name")?.textContent?.trim() };
+    return { art: Boolean(node.querySelector("img")), ratio: rect.width / rect.height, name: node.querySelector("strong")?.textContent?.trim() };
   });
-  if (!deckThumbnail.art || deckThumbnail.ratio < 1.8 || deckThumbnail.name !== "ジャンキー") throw new Error(`desktop deck thumbnail is invalid: ${JSON.stringify(deckThumbnail)}`);
+  // Deck tiles share the card's 5:8 portrait shape on every view.
+  if (!deckThumbnail.art || Math.abs(deckThumbnail.ratio - 5 / 8) > 0.03 || deckThumbnail.name !== "ジャンキー") throw new Error(`desktop deck thumbnail is invalid: ${JSON.stringify(deckThumbnail)}`);
   await page.locator("[data-deck-close]").click();
 
   await page.goto(base.toString(), { waitUntil: "networkidle" });

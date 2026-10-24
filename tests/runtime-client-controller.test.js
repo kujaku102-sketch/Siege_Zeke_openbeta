@@ -50,7 +50,10 @@ function scriptedPort(queries, submitKind = 'accepted') {
     query() { return { ok: true, value: queries[Math.min(queryIndex++, queries.length - 1)] }; },
     submit(intent) {
       submitted.push(structuredClone(intent));
-      return { ok: true, value: { kind: submitKind, receipt: { commandId: intent.commandId } } };
+      const rejected = submitKind === 'rejected' || submitKind === 'retry-rejected';
+      return { ok: true, value: { kind: submitKind === 'retry-rejected' ? 'retry' : submitKind,
+        receipt: { commandId: intent.commandId, status: rejected ? 'rejected' : 'accepted',
+          reasonCode: rejected ? 'ACTION_NOT_ALLOWED' : 'ACCEPTED' } } };
     }
   };
 }
@@ -123,6 +126,16 @@ test('S05-CLIENT-04: rejected commands stop without legacy fallback or reschedul
   controller.start();
   queue.runOne();
   assert.equal(port.submitted.length, 1);
+  assert.equal(queue.size, 0);
+});
+
+test('S05-CLIENT-04B: retry carrying a rejected receipt also stops', () => {
+  const queue = scheduler();
+  const port = scriptedPort([fixedQuery()], 'retry-rejected');
+  const controller = createRuntimeClientController({ port, policy: chooseSimpleAiIntent, scheduler: queue.api }).value;
+  const result = controller.step();
+  assert.equal(result.ok, true);
+  assert.equal(result.value.kind, 'stopped');
   assert.equal(queue.size, 0);
 });
 

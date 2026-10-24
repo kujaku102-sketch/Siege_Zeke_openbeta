@@ -65,8 +65,8 @@ function drain(port,predicate) {
 function fakeRoot() {
   const listeners={};
   return {listeners,childNodes:[],firstChild:null,querySelector:()=>null,querySelectorAll:()=>[],
-    ownerDocument:{createElement:()=>({content:{childNodes:[]},set innerHTML(value){this.html=value;}})},
-    addEventListener(type,handler){listeners[type]=handler;}};
+    ownerDocument:{defaultView:{setTimeout,clearTimeout},createElement:()=>({content:{childNodes:[]},set innerHTML(value){this.html=value;}})},
+    addEventListener(type,handler){listeners[type]=handler;},removeEventListener(){}};
 }
 
 test('main uses one lifecycle and bound surface, with no raw game/UID/undo fallback',()=>{
@@ -104,7 +104,7 @@ test('standalone Code and legal mounted Code use the same staged normal ports wi
   const {lifecycle,session,port}=setup(),ob=port.query().value.observation.seats[0].hand.cards[0].cardRef;
   submit(port,plan(port,'executeCard',ob,option=>option.zone==='front'));
   const code=add(session,port,'SZTB-091'),revision=port.query().value.status.revision;
-  const action=plan(port,'mountCard',code,option=>option.hostRef===ob);
+  const action=plan(port,'executeCard',code,option=>option.hostRef===ob);
   assert.equal(port.query().value.status.revision,revision);
   const query=submit(port,action),host=query.observation.seats[0].front.cards.find(card=>card.cardRef===ob);
   assert.equal(host.mounted[0].definition.id,'SZTB-091');
@@ -187,6 +187,23 @@ test('all users retain descriptive unique modal while only legal activated abili
   assert.doesNotMatch(html,/unique-effect-button is-available/);
   lifecycle.dispose();
 });
+test('user window and area open a read-only user detail; the ability window stays on UNIQUE EFFECT',()=>{
+  const {lifecycle,session}=setup(),ui=createMatchUiController({session,viewerSeat:'a'}).value;
+  const closed=ui.read().value,board=runtimeGameHtml(closed.model,{...closed,boardStyle:'wireframe'});
+  assert.match(board,/class="wf-user-title" data-runtime-profile="a"/);assert.match(board,/class="wf-avatar" data-runtime-profile="b"/);
+  assert.match(board,/data-fortress="b" data-runtime-profile="b"/);assert.match(board,/class="unique-effect[^"]*" data-runtime-unique="a"/);
+  assert.match(runtimeGameHtml(closed.model,closed),/compact-fortress" data-runtime-profile="a"/);
+  const read=ui.openProfile('b').value,html=runtimeGameHtml(read.model,read),user=read.model.seats[1].user;
+  assert.deepEqual([user.initialHand,user.deckRule],[4,null]);assert.equal(Number.isSafeInteger(user.memory),true);
+  assert.match(html,/ユーザー詳細/);assert.match(html,/<em>相手<\/em>/);assert.match(html,/UNIQUE EFFECT<\/small><strong>ターボ・ブースト！/);
+  for(const label of ['初期STR','メモリ','初期手札','フロント上限','バック上限','デッキ構築ルール'])assert.match(html,new RegExp(`<dt>${label}</dt>`));
+  assert.match(html,/<dd class="is-none">なし<\/dd>/);
+  assert.equal((html.match(/<li class="ud-str/g)??[]).length,21);assert.match(html,/ud-str is-now"><b>20<\/b>/);
+  assert.equal((html.match(/⚠/g)??[]).length,4);
+  assert.doesNotMatch(html.slice(html.indexOf('user-detail-modal')),/付与・残数|unique-effect-button|data-action-id/);
+  assert.equal(ui.closeProfile().value.profileSeat,null);
+  lifecycle.dispose();
+});
 test('tutorial opponent performs install/play/pass as individually scheduled normal commands; dispose cancels callbacks',()=>{
   const {lifecycle,session,port}=setup('tutorial');
   for(let index=0;index<8;index+=1)assert.equal(session.advanceTutorial().ok,true);
@@ -254,7 +271,8 @@ test('manual answering-viewer switch retains mandatory choice/revision/active se
   assert.ok(!denial.ok||denial.value.kind==='rejected');assert.equal(other.query().value.status.revision,current.status.revision);
   const button=attribute=>({dataset:attribute==='data-option-id'?{optionId:current.requiredInput.options[0].optionId}:{},
     hasAttribute:name=>name===attribute});
-  for(const attribute of ['data-option-id','data-runtime-confirm'])root.listeners.click({target:{closest:selector=>selector==='button'?button(attribute):null}});
+  // A single pick answers the required choice on the click itself.
+  root.listeners.click({target:{closest:selector=>selector==='button'?button('data-option-id'):null}});
   assert.equal(other.query().value.requiredInput,null);assert.equal(other.query().value.status.revision,current.status.revision+1);
   const html=runtimeShellHtml({screen:'game',mode:'sandbox',view:'pc',options:true,busy:true,actor:'b',activeSeat:'b',opponentControl:'manual',
     savedDecks:[],deckBuilder:{open:false},catalog:{},effectsEnabled:false});
@@ -270,7 +288,7 @@ test('manual answering-viewer switch retains mandatory choice/revision/active se
 test('public owner/opponent/mounted detail preserves location and complete layer rows without inspection substitution',()=>{
   const {lifecycle,session,port}=setup(),host=seatView(port.query().value).hand.cards[0].cardRef;
   submit(port,plan(port,'executeCard',host,option=>option.zone==='front'));
-  const code=add(session,port,'SZTB-091');submit(port,plan(port,'mountCard',code,option=>option.hostRef===host));
+  const code=add(session,port,'SZTB-091');submit(port,plan(port,'executeCard',code,option=>option.hostRef===host));
   const ui=createMatchUiController({session,viewerSeat:'a'}).value,read=ui.selectCard(host,true).value;
   assert.equal(read.inspection,null);
   const html=runtimeGameHtml(read.model,read);
@@ -311,8 +329,8 @@ test('magazine normal port confirmation and exact layer continuation retain unto
   for(const accept of [false,true]){
     const {lifecycle,session,port}=setup(),host=seatView(port.query().value).hand.cards[0].cardRef;
     submit(port,plan(port,'executeCard',host,option=>option.zone==='front'));
-    const first=add(session,port,'SZTB-091');submit(port,plan(port,'mountCard',first,option=>option.hostRef===host));
-    const second=add(session,port,'SZTB-091');submit(port,plan(port,'mountCard',second,option=>option.hostRef===host));
+    const first=add(session,port,'SZTB-091');submit(port,plan(port,'executeCard',first,option=>option.hostRef===host));
+    const second=add(session,port,'SZTB-091');submit(port,plan(port,'executeCard',second,option=>option.hostRef===host));
     const source=add(session,port,'SZTB-099'),before=port.query().value,memory=seatView(before).memory.current;
     const action=plan(port,'executeSpell',source);assert.deepEqual(port.query().value,before);submit(port,action);
     let query=port.query().value;assert.equal(seatView(query).memory.current,memory);

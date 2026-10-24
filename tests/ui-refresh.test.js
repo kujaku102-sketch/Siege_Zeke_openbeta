@@ -1,14 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { resolveView, readSavedView, saveView, fitBoard, placePopup, cardSelection, clearSelection, gestureMoved, canCancelSelection, cancelSelection } from "../src/ui-refresh/model.js";
-import { createPreviewFixture } from "../src/ui-refresh/fixture.js";
-import { boardHtml, handHtml, detailHtml, popupHtml, entryHtml, desktopHtml, mobileHtml, visibleCard } from "../src/ui-refresh/view.js";
-import { sideHtml, handCardsHtml } from "../src/ui/render.js";
-import { liveInteractionHtml, matchResultHtml } from "../src/ui-refresh/live-view.js";
+import { resolveView, readSavedView, saveView, fitBoard, placePopup, cardSelection, clearSelection, gestureMoved } from "../src/ui-refresh/model.js";
 import { planVisualEffects, snapshotVisualState } from "../src/ui/visual-effects.js";
 import { createGame } from "../src/game/engine.js";
-import { createSelectionRequest } from "../src/game/selection-model.js";
 import { createCardInstance } from "../src/data/cards.js";
 import { createEntryLogoController } from "../src/ui-refresh/entry-logo-glitch.js";
 import { LOGO_FIT, LOGO_EFFECT_SPEED, logoEffectDelta, createLogoAreas, updateLogoAreas, createLogoBands, updateLogoBands } from '../src/ui-refresh/logo-noise-model.js';
@@ -16,21 +11,6 @@ import { LOGO_FIT, LOGO_EFFECT_SPEED, logoEffectDelta, createLogoAreas, updateLo
 test("effects stay off when no preference has been stored", async () => {
   const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(source, /effectsEnabled:\s*localStorage\.getItem\(EFFECTS_STORAGE_KEY\) === "on"/);
-});
-
-test("result waits for declared effects to finish and exposes rematch and title actions", () => {
-  const state = createGame({ mode: "ai", rng: () => 0.5 });
-  assert.equal(matchResultHtml(state), "");
-  state.victory.lockedOutcome = "player";
-  assert.equal(matchResultHtml(state), "");
-  state.victory.finished = true;
-  assert.match(matchResultHtml(state), /VICTORY/);
-  assert.match(matchResultHtml(state), /data-live="rematch">再戦/);
-  assert.match(matchResultHtml(state), /data-live="home">タイトルに戻る/);
-  state.victory.lockedOutcome = "ai";
-  assert.match(matchResultHtml(state), /DEFEAT/);
-  state.victory.lockedOutcome = "draw";
-  assert.match(matchResultHtml(state), /DRAW/);
 });
 
 test("combat transition produces damage and user hit cues", () => {
@@ -56,20 +36,6 @@ test("security shield enter and exit follow front-zone sleep state", () => {
   card.sleep = false;
   const exit = planVisualEffects(root, enter.next, state);
   assert.ok(exit.effects.some(effect => effect.type === "security-shield-off" && effect.rect.width === 48));
-});
-
-test("entry uses the supplied logo and concise outlined mode buttons", () => {
-  const html = entryHtml("pc");
-  assert.match(html, /alt="Siege÷Zeke"/);
-  assert.match(html, /siege-zeke-logo-layers\.svg/);
-  assert.match(html, /<canvas class="r2-logo-canvas" aria-hidden="true"/);
-  assert.equal((html.match(/class="r2-entry-icon"/g) ?? []).length, 4);
-  assert.match(html, /data-mode="tutorial"/);
-  assert.match(html, /data-mode="ai"/);
-  assert.match(html, /data-mode="sandbox"/);
-  assert.match(html, /data-deck class="r2-deck-entry"/);
-  assert.doesNotMatch(html, /GUIプレビュー|案内と盤面の見え方を確認/);
-  assert.doesNotMatch(html, /<small>|基本操作を学ぶ|AIと対戦|自由に試す|デッキを組む/);
 });
 
 test("logo effect time runs at twice speed without changing the rendering interval", () => {
@@ -146,105 +112,6 @@ test("logo WebGL failures stay on static fallback instead of retrying every rend
   controller.dispose();
 });
 
-test("live target confirmation leaves the right turn rail for a board dock", () => {
-  const state = createGame({ mode: "sandbox", rng: () => 0.5 });
-  const candidate = createCardInstance("STD-075", "player", 95001);
-  state.players.player.hand.push(candidate);
-  state.pending = { type: "selection", request: createSelectionRequest({ mode: "single", candidates: [candidate.uid],
-    count: 1, label: "対象を選択", candidateLabels: { [candidate.uid]: candidate.name } }) };
-  const parts = liveInteractionHtml(state, null, { view: "mobile", detailUid: null, draft: null, effectsEnabled: false });
-  assert.match(parts.commands, /aria-label="ターン操作"/);
-  assert.match(parts.commands, /data-live="log"/);
-  assert.doesNotMatch(parts.commands, /data-action="confirm-selection"/);
-  assert.equal(parts.target, "");
-  assert.match(parts.extras, /selection-confirm/);
-  assert.match(parts.extras, /data-action="confirm-selection"/);
-  assert.match(parts.extras, /data-live="selection-fold"[^>]*aria-expanded="true"/);
-  assert.match(parts.extras, /class="selection-fold-cross"/);
-  const collapsed = liveInteractionHtml(state, null, { view: "pc", detailUid: null, draft: null, selectionCollapsedFor: state.pending.request });
-  assert.match(collapsed.extras, /data-live="selection-fold"[^>]*aria-expanded="false"/);
-  assert.match(collapsed.extras, /候補を開く/);
-  assert.match(collapsed.extras, /<svg[^>]*aria-hidden="true"/);
-  assert.doesNotMatch(collapsed.extras, /class="selection-fold-cross"/);
-  assert.doesNotMatch(collapsed.extras, /data-selection-option=/);
-  assert.match(collapsed.extras, /data-action="confirm-selection"/);
-  assert.equal(state.pending.request.selected.length, 0);
-  state.pending = { type: "layered-select", selectedTargets: [], requirement: { minimum: 1, label: "レイヤーを選択" } };
-  const layered = liveInteractionHtml(state, null, { view: "mobile", detailUid: null, draft: null, effectsEnabled: false });
-  assert.match(layered.target, /r2-target-dock/);
-  assert.match(layered.target, /data-action="confirm-layered"/);
-  assert.doesNotMatch(layered.commands, /data-action="confirm-layered"/);
-});
-
-test("R2 cancellation clears only current selection and detail, not game history", () => {
-  const game = createPreviewFixture();
-  game.history = [{ turnNumber: 99 }];
-  const before = JSON.stringify(game);
-  const selected = cardSelection(clearSelection(), game.players.player.hand[0].uid);
-  const inspected = cardSelection(selected, game.players.player.hand[1].uid, { inspect: true });
-  assert.equal(canCancelSelection(inspected), true);
-  assert.deepEqual(cancelSelection(inspected), clearSelection());
-  assert.equal(inspected.selectedUid, selected.selectedUid);
-  assert.equal(JSON.stringify(game), before);
-  const idle = clearSelection();
-  assert.equal(canCancelSelection(idle), false);
-  assert.equal(cancelSelection(idle), idle);
-  const detailOnly = { selectedUid: null, detailUid: "inspect-only" };
-  assert.equal(canCancelSelection(detailOnly), true);
-  assert.deepEqual(cancelSelection(detailOnly), clearSelection());
-});
-
-test("R2 blocked cancellation preserves selection and never discards a pending choice", () => {
-  const game = createPreviewFixture();
-  game.pending = { type: "selection", request: { minimum: 1, selected: [] } };
-  const before = JSON.stringify(game);
-  const selected = cardSelection(clearSelection(), game.players.player.hand[0].uid);
-  const options = { blocked: game.pending != null };
-  assert.equal(canCancelSelection(selected, options), false);
-  assert.equal(cancelSelection(selected, options), selected);
-  assert.equal(JSON.stringify(game), before);
-});
-
-test("R2 exposes one initially disabled cancel button and no back or undo command", () => {
-  const state = createPreviewFixture();
-  for (const html of [desktopHtml(state, "ai"), mobileHtml(state, "ai")]) {
-    assert.equal((html.match(/data-cancel/g) ?? []).length, 1);
-    assert.match(html, /<button data-cancel disabled[^>]*>中止<\/button>/);
-    assert.equal(html.includes(">戻る</button>"), false);
-    assert.equal(html.includes("UNDO"), false);
-    assert.equal(html.includes("r2-undo"), false);
-  }
-});
-
-test("R2 frameless hand reuses the original fan geometry and keeps every card", () => {
-  const state = createPreviewFixture();
-  const before = JSON.stringify(state);
-  const hand = handHtml(state);
-  assert.ok(hand.includes(handCardsHtml(state, "player")));
-  assert.equal(hand.includes("<header>"), false);
-  assert.equal((hand.match(/class="hand-card"/g) ?? []).length, 12);
-  assert.match(hand, /--hand-rotate:-8deg;--hand-sink:12px/);
-  assert.match(hand, /--hand-rotate:8deg;--hand-sink:12px/);
-  for (const card of state.players.player.hand) assert.ok(hand.includes(`data-card-uid="${card.uid}"`));
-  assert.equal(JSON.stringify(state), before);
-  state.players.player.hand = [];
-  assert.match(handHtml(state), /手札なし/);
-});
-
-test("R2 contains the original board composition without placing the hand inside its transform", () => {
-  const state = createPreviewFixture();
-  const original = sideHtml(state, "ai", true) + sideHtml(state, "player", false);
-  const board = boardHtml(state);
-  assert.ok(board.includes(`<div class="battle-board">${original}</div>`));
-  assert.equal(board.includes('r2-hand'), false);
-  assert.equal(board.includes('r2-admin'), false);
-  for (const html of [desktopHtml(state, "ai"), mobileHtml(state, "ai")]) {
-    const boardStart = html.indexOf(board);
-    assert.ok(boardStart >= 0);
-    assert.ok(html.indexOf('data-layer="hand"') > boardStart + board.length);
-  }
-});
-
 test("R2 explicit URL > saved preference > automatic browser detection", () => {
   assert.deepEqual(resolveView({ pathname: "/pc/", saved: "mobile", mobile: true }), { view: "pc", source: "url" });
   assert.equal(resolveView({ pathname: "/mobile/", saved: "pc", mobile: false }).view, "mobile");
@@ -295,32 +162,15 @@ test("R2 long-press changes detail only, normal taps switch, repeat keeps, blank
   assert.equal(gestureMoved({ x: 0, y: 0 }, { x: 11, y: 0 }), true);
   assert.equal(gestureMoved({ x: 0, y: 0 }, { x: 3, y: 0 }), false);
 });
-test("R2 view rendering is non-mutating and does not expose opponent face-down cards", () => {
-  const state = createPreviewFixture();
-  const before = JSON.stringify(state);
-  const board = boardHtml(state);
-  const hidden = state.players.ai.back[0];
-  assert.equal(board.includes(hidden.uid), false);
-  assert.equal(visibleCard(state, hidden.uid), null);
-  assert.equal(detailHtml(state, hidden.uid), "");
-  assert.equal(detailHtml(state, state.players.ai.hand[0].uid), "");
-  const own = state.players.player.hand[0];
-  assert.ok(detailHtml(state, own.uid).includes(own.name));
-  const spell = state.players.player.hand.find(card => card.category === "Sp");
-  assert.match(popupHtml(state, spell.uid), /起動する/);
-  assert.match(popupHtml(state, spell.uid), /disabled/);
-  assert.equal(JSON.stringify(state), before);
-});
-test("R2 uses separate screen trees and escapes card text", () => {
-  const state = createPreviewFixture();
-  assert.match(desktopHtml(state, "ai"), /data-layout="desktop"/);
-  assert.match(mobileHtml(state, "ai"), /data-layout="mobile"/);
-  assert.equal(desktopHtml(state, "ai").includes("r2-mobile-tools"), false);
-  for (const mode of ["tutorial","ai","sandbox"]) assert.ok(entryHtml("pc").includes(`data-mode="${mode}"`));
-  assert.match(entryHtml("pc"), /r2-deck-entry/);
-  assert.doesNotMatch(entryHtml("pc"), /01 \/ LEARN|02 \/ PLAY|03 \/ EXPLORE|INTERFACE STUDY/);
-  state.players.player.hand[0].text = '<script>alert("x")</script>';
-  const html = detailHtml(state, state.players.player.hand[0].uid);
-  assert.equal(html.includes("<script>"), false);
-  assert.ok(html.includes("&lt;script&gt;"));
+test("match notices show Japanese sentences, never raw codes, and ignore taps off valid targets", async () => {
+  const { noticeText, FALLBACK_NOTICE } = await import("../src/ui-refresh/notice-text.js");
+  const { BLOCK_MESSAGES } = await import("../src/ui-refresh/runtime-read-view.js");
+  assert.equal(noticeText("INTERACTION_TARGET_NOT_AVAILABLE"), null);
+  for (const [code, message] of Object.entries(BLOCK_MESSAGES)) assert.equal(noticeText(code), message, code);
+  assert.equal(noticeText("ACTION_NOT_ALLOWED"), FALLBACK_NOTICE);
+  assert.equal(noticeText("AMBIGUOUS_INTERACTION_TARGET"), "対象を絞り込めません。もう一度選んでください");
+  for (const code of ["SOME_UNKNOWN_CODE", "RUNTIME_RENDER_FAILED", "toString", "__proto__", undefined]) assert.equal(noticeText(code), FALLBACK_NOTICE, String(code));
+  for (const code of ["ACTION_NOT_ALLOWED", "AMBIGUOUS_INTERACTION_TARGET", "MEMORY_SHORT", "MATCH_SESSION_COMMAND_INFLIGHT"]) assert.doesNotMatch(noticeText(code), /[A-Z]{2,}_[A-Z]/);
+  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.match(source, /const notice = code => \{const text = noticeText\(code\);[^}]*if \(text === null\) return;host\.notice = text;/);
 });
