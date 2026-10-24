@@ -228,3 +228,91 @@ test('redesign: public board positions are exact and ambiguous hits never pick t
   assert.deepEqual(resolveInteractionTarget(interaction, { kind: 'slot', seatId: 'a', zone: 'front', slot: 3 }),
     { kind: 'ambiguous', optionIds: ['two', 'four'] });
 });
+
+test('R02: after a submit the UI adopts the read the session already took', () => {
+  const base = setup();
+  const wrapped = countedSession(base.session);
+  const ui = createMatchUiController({ session: wrapped.session, viewerSeat: 'a' }).value;
+  const endTurn = ui.read().value.model.legalActions.find(entry => entry.action?.type === 'endTurn');
+  const queries = wrapped.counts.query;
+  const after = ui.chooseAction(endTurn.actionId);
+  assert.equal(after.ok, true, JSON.stringify(after));
+  assert.equal(after.value.model.match.revision, 1);
+  assert.equal(wrapped.counts.submit, 1);
+  assert.equal(wrapped.counts.query, queries, 'the UI port was not asked for a second whole read');
+  assert.equal(wrapped.counts.queryAction, 0);
+});
+
+test('R03/R04: another seat or a same-revision tutorial advance makes the UI read again, never reuse a stale model', () => {
+  const base = setup();
+  const wrapped = countedSession(base.session);
+  const ui = createMatchUiController({ session: wrapped.session, viewerSeat: 'a' }).value;
+  ui.read();
+  const queries = wrapped.counts.query;
+  ui.read(); ui.toggleLog(); ui.toggleLog();
+  assert.equal(wrapped.counts.query, queries);
+  const endTurn = ui.read().value.model.legalActions.find(entry => entry.action?.type === 'endTurn');
+  base.port.submit({ commandId: 'a-end', expectedRevision: 0, action: endTurn.action });
+  assert.equal(ui.read().value.model.match.revision, 1);
+  assert.equal(wrapped.counts.query, queries, 'the own seat submit was adopted by the session');
+  const other = base.session.port('b').value;
+  const theirs = other.query().value;
+  const theirEnd = theirs.legalActions.find(entry => entry.action?.type === 'endTurn');
+  assert.equal(other.submit({ commandId: 'b-end', expectedRevision: theirs.status.revision, action: theirEnd.action }).ok, true);
+  const changed = ui.read();
+  assert.equal(changed.value.model.match.revision, 2);
+  assert.equal(wrapped.counts.query, queries + 1, 'another seat moved the game, so the read is fetched once');
+
+  const tutorial = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: {
+    matchId: 'ui-tutorial', seatIds: ['a', 'b'], seed: 71, ruleVersion: 'rules', cardVersion: 'cards',
+    gameOptions: { mode: 'tutorial' } } }).value;
+  const counted = countedSession(tutorial);
+  const tutorialUi = createMatchUiController({ session: counted.session, viewerSeat: 'a' }).value;
+  const first = tutorialUi.read().value;
+  const before = counted.counts.query;
+  tutorialUi.toggleMenu(); tutorialUi.toggleMenu();
+  assert.equal(counted.counts.query, before);
+  for (let step = 0; step < 8; step += 1) assert.equal(tutorial.advanceTutorial().ok, true);
+  const next = tutorialUi.read().value;
+  assert.equal(next.model.match.revision, first.model.match.revision, 'the game revision did not move');
+  assert.equal(counted.counts.query, before + 1, 'the new mode condition was read once');
+  assert.ok(next.sync.modeEpoch > first.sync.modeEpoch);
+});
+
+test('I06: a long-press detail leaves the selection, the draft and its answer alone', () => {
+  const { ui } = setup();
+  const start = ui.read().value;
+  const hand = start.model.seats[0].hand.cards;
+  const execute = start.model.legalActions.find(entry => entry.actionType === 'executeCard');
+  ui.selectCard(execute.base.cardRef);
+  const planned = ui.chooseAction(execute.actionId).value;
+  const optionId = planned.request.options[0].optionId;
+  ui.toggleOption(optionId);
+  const before = ui.read().value;
+  const other = hand.find(card => card.cardRef !== execute.base.cardRef);
+  const shown = ui.showDetail(other.cardRef);
+  assert.equal(shown.ok, true, JSON.stringify(shown));
+  assert.equal(shown.value.model.ui.detailCardRef, other.cardRef);
+  assert.equal(shown.value.model.ui.selectedCardRef, before.model.ui.selectedCardRef);
+  assert.deepEqual(shown.value.selection, before.selection);
+  assert.equal(shown.value.request.requestId, before.request.requestId);
+  assert.deepEqual(shown.value.plan, before.plan);
+  assert.equal(ui.showDetail('r:' + 'f'.repeat(32)).ok, false);
+});
+
+test('E01/IO-EVENT-02: the log history is copied only while it is open, and each event is logged once', () => {
+  const { ui } = setup();
+  const first = ui.read().value;
+  assert.deepEqual(first.log, []);
+  const endTurn = first.model.legalActions.find(entry => entry.action?.type === 'endTurn');
+  const accepted = ui.chooseAction(endTurn.actionId).value;
+  assert.ok(accepted.events.length > 0, 'events wait to be shown');
+  assert.deepEqual(accepted.log, [], 'closed log: no history copy');
+  ui.read(); ui.read();
+  const opened = ui.toggleLog().value;
+  const ids = opened.log.map(event => event.eventId);
+  assert.ok(ids.length >= accepted.events.length);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.deepEqual(ui.toggleLog().value.log, []);
+  assert.deepEqual(ui.toggleLog().value.log.map(event => event.eventId), ids);
+});

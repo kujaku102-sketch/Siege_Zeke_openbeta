@@ -9,6 +9,9 @@ export function attachSurfacePointer({ root, listener, ui, act, render, latest, 
   listener('board-camera-change', queueLayout);
   listener('pointerover', event => scenes.hover(event.target.closest('[data-wire-hit]')));
   listener('pointerdown', event => {
+    // A new gesture starts clean: a click suppression left by an earlier gesture that
+    // never produced its click (released elsewhere, cancelled) must not eat this tap.
+    suppress(null);
     if (event.button !== 0 || event.target.closest('[data-ability-help]')) return;
     stopPress();
     const choice = event.target.closest('.runtime-selection-option');
@@ -33,7 +36,7 @@ export function attachSurfacePointer({ root, listener, ui, act, render, latest, 
       if (!press) return;
       press.held = true;
       suppress(press.pointerId);
-      render(ui.selectCard(card.dataset.cardRef, true));
+      render(ui.showDetail(card.dataset.cardRef));
     }, 420);
   });
   listener('pointermove', event => {

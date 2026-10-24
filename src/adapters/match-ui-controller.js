@@ -68,7 +68,7 @@ export function createMatchUiController({ session, viewerSeat }) {
     if (!model.ok) return model;
     ui = copy(model.value.ui);
     collectEvents();
-    const log = logs.get(viewerSeat) ?? [];
+    const log = ui.logOpen ? logs.get(viewerSeat) ?? [] : [];
     const request = currentRequest();
     const stage = selectionStage(request, draft?.answer);
     return { ok: true, value: {
@@ -146,6 +146,23 @@ export function createMatchUiController({ session, viewerSeat }) {
     const request = plan.selectionRequests[0] ?? null;
     draft.answer = { requestId: request?.requestId ?? '', optionIds: [], allocation: [] };
   };
+  // Opens one card's detail. Returns a failure result, or null once it is open.
+  const openDetail = (read, cardRef) => {
+    inspection = null;
+    const find = cards => {for (const card of cards ?? []) {if (card.cardRef === cardRef) return card;
+      if (!card.faceDown) {const child = find(card.mounted);if (child) return child;}}return null;};
+    const card = read.model.seats.flatMap(seat => ['hand','front','back','registry','trash','ban']
+      .map(zone => find(seat[zone].cards))).find(Boolean);
+    if (!card) return failure('ACTION_NOT_ALLOWED');
+    if (card.faceDown) {
+      if (card.controllerSeat !== viewerSeat) return failure('ACTION_NOT_ALLOWED');
+      const detail = port.query({inspectRef:cardRef});
+      if (!detail.ok) return detail;
+      inspection = detail.value.inspection;
+    }
+    ui.detailCardRef = cardRef;
+    return null;
+  };
   const readPlan = () => {
     const plan = planFor(draft.selections);
     if (!plan.ok) return plan;
@@ -159,22 +176,18 @@ export function createMatchUiController({ session, viewerSeat }) {
       if (!read.ok) return read;
       if (inspect) {
         ui.selectedCardRef = cardRef;
-        inspection = null;
-        const find = cards => {for (const card of cards ?? []) {if (card.cardRef === cardRef) return card;
-          if (!card.faceDown) {const child = find(card.mounted);if (child) return child;}}return null;};
-        const card = read.value.model.seats.flatMap(seat => ['hand','front','back','registry','trash','ban']
-          .map(zone => find(seat[zone].cards))).find(Boolean);
-        if (!card) return failure('ACTION_NOT_ALLOWED');
-        if (card.faceDown) {
-          if (card.controllerSeat !== viewerSeat) return failure('ACTION_NOT_ALLOWED');
-          const detail = port.query({inspectRef:cardRef});
-          if (!detail.ok) return detail;
-          inspection = detail.value.inspection;
-        }
-        ui.detailCardRef = cardRef;
+        const opened = openDetail(read.value, cardRef);
+        if (opened) return opened;
       }
       else { ui.selectedCardRef = cardRef; draft = null; }
       return refresh();
+    },
+    // Detail only (long press): the selection, the draft and its answer stay as they are.
+    showDetail(cardRef) {
+      const read = refresh();
+      if (!read.ok) return read;
+      const opened = openDetail(read.value, cardRef);
+      return opened ?? refresh();
     },
     closeDetail() { ui.detailCardRef = null; inspection = null; artRef = null; return refresh(); },
     openArt(cardRef) { artRef = cardRef; return refresh(); },
