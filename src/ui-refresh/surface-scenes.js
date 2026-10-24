@@ -9,15 +9,17 @@ import { createHudScene } from './wireframe/hud-scene.js';
 // Each is re-attached when a re-render replaces its host node.
 export function createSurfaceScenes({ root, boardStyle, renderQuality, latest }) {
   let boardCamera = null, cameraNode = null, boardHover = null;
-  let boardScene = null, lifeView = null;
-  let hudScene = null, hudNode = null;
+  let boardScene = null, lifeView = null, sceneNode = null;
+  let hudScene = null, hudNode = null, hudSynced = null;
   const fitLines = event => fitPixelLines(event.currentTarget);
   const updateWirePreview = () => {
     const overlay = root.querySelector('.wf-preview');
     if (overlay && latest()) overlay.innerHTML = wireframePreviewHtml(latest(),boardHover);
   };
   return Object.freeze({
-    sync(next, effectsEnabled) {
+    // `redraw` is false for a UI-local render: the board, its camera and the HUD canvases
+    // then keep what they drew, since only the runtime state or the hosts change them.
+    sync(next, effectsEnabled, redraw = true) {
       if (boardStyle === 'wireframe') {
         const svg = root.querySelector('.wire-board');
         if (svg !== cameraNode) {
@@ -32,8 +34,10 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest })
           }
         }
         root.querySelector('.wire-board-host')?.classList.toggle('wf-has-model',Boolean(boardScene));
-        boardScene?.sync(next.model);
-        boardCamera?.refresh(); fitPixelLines(svg); updateWirePreview();
+        const fresh = redraw || svg !== sceneNode;
+        sceneNode = svg;
+        if (fresh) { boardScene?.sync(next.model); boardCamera?.refresh(); fitPixelLines(svg); }
+        updateWirePreview();
       }
       // Everything around the board is the same kit on both boards.
       const hudCanvas=root.querySelector('.wf-hud-model');
@@ -42,8 +46,12 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest })
         if(hudCanvas)try{hudScene=createHudScene(hudCanvas,renderQuality);}catch{/* The CSS buttons stay as they are. */}
       }
       hudCanvas?.parentElement.classList.toggle('wf-hud-rendered',Boolean(hudScene));
-      hudScene?.sync(root,effectsEnabled);
-      lifeView??=attachLifeView(root,renderQuality);lifeView.sync(next.model,effectsEnabled);
+      const hudFresh = redraw || !lifeView || hudCanvas !== hudSynced;
+      hudSynced = hudCanvas;
+      if (hudFresh) {
+        hudScene?.sync(root,effectsEnabled);
+        lifeView??=attachLifeView(root,renderQuality);lifeView.sync(next.model,effectsEnabled);
+      }
     },
     // Forgets the hovered board target without redrawing the preview.
     dropHover() { boardHover = null; },

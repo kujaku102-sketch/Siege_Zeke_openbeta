@@ -125,7 +125,9 @@ export function createSurfaceFx({ root, boardStyle }) {
   return Object.freeze({
     capture(next, effectsEnabled, flyOrigin) {
       const priorAnchors = new Map();
-      const priorBoardAnchors = boardStyle === 'wireframe' ? captureBattleAnchors(root) : null;
+      // Anchors are only read when there is an event to draw from them; a UI-local
+      // render has none, and reading every board rect would force a layout for nothing.
+      const priorBoardAnchors = boardStyle === 'wireframe' && effectsEnabled && next.events.length ? captureBattleAnchors(root) : null;
       const priorMotion = effectsEnabled && next.events.length ? captureMotionAnchors(root) : null;
       // A dropped card leaves from where it was let go, not from the hand.
       if (priorMotion && flyOrigin) priorMotion.cards.set(flyOrigin.cardRef, flyOrigin.rect);

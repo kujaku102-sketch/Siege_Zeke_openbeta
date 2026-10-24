@@ -218,7 +218,7 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
   const activation = includeRuntime ? model.legalActions.find(item => item.kind === 'fixed' && item.action.type === 'activateAbility') : null;
   const uniqueButton = includeRuntime ? `<button class="unique-effect${activation ? ' is-available' : ''}" data-runtime-unique="${esc(viewer.seatId)}">${activation && presentation.effectsEnabled ? `<span class="unique-particles">${'<i></i>'.repeat(13)}</span>` : ''}<span class="unique-effect-copy"><span class="unique-effect-eyebrow">UNIQUE EFFECT</span><strong class="unique-effect-name">${esc(viewer.user.abilityName)}</strong></span></button>` : '';
   const request = wants('selection') ? stagedRequest(presentation.request, presentation.stage, visibleCards(model), model.match.viewerSeat) : null;
-  const flow = presentation.collapsed ? '' : effectFlowHtml(model, presentation, request);
+  const flow = presentation.collapsed || !wants('selection') ? '' : effectFlowHtml(model, presentation, request);
   const selected = wants('selection') ? presentation.selection : null;
   // A single pick is decided by the pick itself, so it has no confirm button.
   const instant = request && isSinglePick(request) && !presentation.plan?.completion;
