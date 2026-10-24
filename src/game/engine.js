@@ -3173,6 +3173,7 @@ export function installCard(state, playerId, uid, { force = false } = {}) {
   const player = state.players[playerId];
   const index = player.hand.findIndex((card) => card.uid === uid);
   if (index < 0) return fail(state, "そのカードは手札にない。", force);
+  if (!force && resultLocked(state)) return fail(state, RESULT_LOCKED_MESSAGE, false);
   if (!force) { const check = installCheck(state, playerId, uid); if (!check.ok) return fail(state, check.reason, force); }
   const [card] = player.hand.splice(index, 1);
   player.registry.push(card);
@@ -6203,6 +6204,7 @@ function activateCardEffectCore(state, playerId, cardUid, effectId, { targetUid 
 }
 
 export function activateCardEffect(state, playerId, cardUid, effectId, options = {}) {
+  if (resultLocked(state)) return fail(state, RESULT_LOCKED_MESSAGE, false);
   normalizeBoardSlots(state);
   return resolveEffect(state, () => activateCardEffectCore(state, playerId, cardUid, effectId, options));
 }
@@ -6248,6 +6250,7 @@ export function canPlayLayeredCard(state, playerId, uid, materialUids, zone = "f
 }
 
 export function playLayeredCard(state, playerId, uid, materialUids, zone = "front", { requestedSlot = null } = {}) {
+  if (resultLocked(state)) return fail(state, RESULT_LOCKED_MESSAGE, false);
   const check = canPlayLayeredCard(state, playerId, uid, materialUids, zone, requestedSlot);
   if (!check.ok) return fail(state, check.reason, false);
   normalizeBoardSlots(state);
@@ -6480,6 +6483,7 @@ function resolveTrinityEffect(state, activePlayerId, sourceName) {
 }
 
 export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount = null, layerUid = null, requestedSlot = null, baseUid = null } = {}) {
+  if (resultLocked(state)) return fail(state, RESULT_LOCKED_MESSAGE, false);
   normalizeBoardSlots(state);
   const player = state.players[playerId];
   if (state.active !== playerId) return fail(state, "再実行は自分ターン中だけ。", false);
@@ -7396,6 +7400,7 @@ export function canActivateTurbo(state, playerId = "player") {
 
 export function activateTurbo(state, playerId = "player") {
   const player = state.players[playerId];
+  if (resultLocked(state)) return fail(state, RESULT_LOCKED_MESSAGE, false);
   if (!canActivateTurbo(state, playerId)) return fail(state, "ターボ・ブーストは今は使えない。", false);
   const beforeMaxMemory = getMaxMemory(player);
   player.turboUsed = true;
@@ -7708,6 +7713,12 @@ function provisional(state, text, card = null) {
   const key = `${card?.id ?? "RULE"}:${text}`;
   if (!state.provisional.some((item) => item.key === key)) state.provisional.push({ key, text, cardId: card?.id ?? null });
   addLog(state, `暫定処理: ${text}`, "warning");
+}
+
+// 勝敗固定後は新しいプレイ・発動宣言を受け付けない(宣言済み効果の解決だけが続く)。
+const RESULT_LOCKED_MESSAGE = "勝敗が固定されたため新しい行動はできない。";
+function resultLocked(state) {
+  return Boolean(state.winner || state.victory?.lockedOutcome);
 }
 
 function fail(state, message, silent) {

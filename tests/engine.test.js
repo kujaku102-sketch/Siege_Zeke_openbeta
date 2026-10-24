@@ -4065,6 +4065,51 @@ test("Load that drops STR to 0 or less destroys the Ob by rule", () => {
   assert.equal(state.players.ai.trash.some((card) => card.uid === target.uid), true);
   assert.equal(cardAtk(state, "ai", target) >= 0 && cardCurrentStr(state, "ai", target) >= 0, true);
 });
+test("Protect and indestructible Obs at STR 0 or less do not loop the state check", () => {
+  const state = createGame({ mode: "sandbox", rng: () => 0.5 });
+  const player = state.players.player;
+  const heavy = createCardInstance("STD-026", "player", 900086);
+  const filler = createCardInstance("STD-020", "player", 900087);
+  heavy.load = 4;
+  player.front = [heavy];
+  player.back = [];
+  player.hand = [filler];
+  player.memory = 10;
+  assert.equal(playCard(state, "player", filler.uid, {}), true);
+  assert.equal(heavy.protect, 0);
+  assert.equal(player.front.some((card) => card.uid === heavy.uid), true, "Protect negated only one destruction in this resolution");
+  assert.equal(state.pending, null);
+  assert.equal(state.effectDepth, 0);
+});
+test("result lock refuses new install, re-execution, ability, effect and layered actions at the engine boundary", () => {
+  const state = createGame({ mode: "ai", rng: () => 0.5 });
+  const player = state.players.player;
+  const attacker = createCardInstance("STD-020", "player", 900088);
+  const installable = createCardInstance("STD-091", "player", 900089);
+  attacker.summoningSick = false;
+  player.hand = [installable];
+  player.front = [attacker];
+  player.memory = 10;
+  player.registryActionUsed = false;
+  state.players.ai.front = [];
+  state.players.ai.fortressStr = 1;
+  assert.equal(attack(state, "player", attacker.uid, "ai-fortress"), true);
+  assert.equal(state.victory.lockedOutcome, "player");
+  const memoryBefore = player.memory;
+
+  assert.equal(installCard(state, "player", installable.uid), false);
+  assert.equal(relogCard(state, "player", attacker.uid, "back"), false);
+  assert.equal(activateTurbo(state, "player"), false);
+  assert.equal(activateCardEffect(state, "player", attacker.uid, "missing"), false);
+  assert.equal(playLayeredCard(state, "player", installable.uid, []), false);
+  assert.equal(player.registry.length, 0);
+  assert.equal(player.hand.some((card) => card.uid === installable.uid), true);
+  assert.equal(player.front.some((card) => card.uid === attacker.uid), true);
+  assert.equal(player.memory, memoryBefore);
+  assert.equal(player.turboUsed, false);
+  // Forced installs made by effects and tutorial setup are not player actions.
+  assert.equal(installCard(state, "player", installable.uid, { force: true }), true);
+});
 test("Q3 STD-121/140/141/143 compile through explicit shared runtime operations", () => {
   for (const id of ["STD-121", "STD-140", "STD-141", "STD-143"]) {
     const card = STD_SUPPORTED_CARDS[id];
