@@ -2149,6 +2149,10 @@ function resolveTriggerChoiceCore(state, itemId) {
 function resumeStalledTriggerThread(state) {
   const thread = state.triggerThread;
   if (thread?.status !== "resolving") return;
+  // 選択を終えた誘発の後で別の確認(Script起動確認など)が開き、その回答・解決で閉じた場合も、
+  // 他に待ち処理が残っていなければ再開する。残っている間は再開しない。
+  if (state.pending || state.prompt || state.processingTriggers || state.declaredEffects?.length || state.resolvingDeclaredEffect
+    || state.deferredAttack || state.deferredDestruction || state.deferredTrashMoves?.length || state.deferredDeclaredScriptCleanup) return;
   const item = thread.items.find((entry) => entry.status === "awaiting-selection");
   if (item) resumeTriggerThreadAfterSelection(state, item.id);
 }
@@ -2338,6 +2342,7 @@ function resolveEffect(state, resolver) {
         finalizeEffectResolution(state);
       }
       if (!state.winner) drainIndependentEffects(state);
+      if (!state.winner && !state.effectResolution) resumeStalledTriggerThread(state);
       if (!state.winner) drainTriggerQueue(state);
     }
   }

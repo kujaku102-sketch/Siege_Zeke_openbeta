@@ -2584,6 +2584,24 @@ test("a selection opened by a trigger thread item becomes the pending choice ins
   assert.equal(state.selectionQueue.length, 0);
 });
 
+test("a trigger thread resumes after a Script confirmation opened by its selected item is declined", () => {
+  const state = createGame({ mode: "lab" });
+  state.interactive = true;
+  const fakeTrigger = (id) => ({ id, status: "pending", source: { playerId: "ai", card: { name: `T-${id}` } }, event: { type: "test" }, spec: { actions: [] } });
+  const first = fakeTrigger("TRG-1"); const second = fakeTrigger("TRG-2");
+  state.triggerThread = { id: "THREAD-T", status: "resolving", currentControllerId: "ai", items: [
+    { id: "TRG-1", controllerId: "ai", cardName: "T-1", eventType: "test", status: "awaiting-selection", trigger: first },
+    { id: "TRG-2", controllerId: "ai", cardName: "T-2", eventType: "test", status: "pending", trigger: second }
+  ] };
+  state.processingTriggers = false;
+  state.prompt = { type: "script-activation", playerId: "player", message: "条件成立：確認", activationWindowId: "none" };
+  assert.equal(declinePrompt(state), true);
+  assert.equal(state.triggerThread.status, "resolved");
+  assert.deepEqual(state.triggerThread.items.map((item) => item.status), ["resolved", "resolved"]);
+  assert.equal(second.status, "resolved");
+  assert.equal(state.prompt, null);
+});
+
 test("lab Vengeance cards connect login and scope effects to the common selector", () => {
   const state = createGame({ mode: "lab" });
   const dolls = state.players.player.hand.find((card) => card.id === "STD-189");
