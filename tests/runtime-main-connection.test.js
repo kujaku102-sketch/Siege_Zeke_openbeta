@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { canonicalizeCommand } from '../src/game/runtime/command-record.js';
 import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
 import { createMatchLifecycleController } from '../src/adapters/match-lifecycle-controller.js';
@@ -406,4 +406,145 @@ test('registry Sp normal provider access executes in place once, rejecting same-
   assertRefused(foreign,{...action,cardRef:ref,targets:[{kind:'user',seatId:'a'}]});lifecycle.dispose();
   const fresh=setup(),noProvider=add(fresh.session,fresh.port,'STD-011');submit(fresh.port,{type:'install',cardRef:noProvider});
   assertRefused(fresh.port,{type:'executeRegistry',cardRef:noProvider,placement:{kind:'none'},targets:[{kind:'user',seatId:'b'}],selectionScope:null});fresh.lifecycle.dispose();
+});
+
+// Whole-script tutorial traversal through the real seat ports (no browser): the mode
+// controller gates every fresh command and the scripted opponent only sends normal commands.
+function visibleCard(query,id,zones) {
+  const found=[],visit=card=>{found.push(card);if(!card.faceDown)card.mounted.forEach(visit);};
+  for(const zone of zones)seatView(query)[zone].cards.forEach(visit);
+  return found.find(card=>!card.faceDown&&card.definition.id===id);
+}
+function settleTutorial(session,{decline=false}={}) {
+  for(let step=0;step<50;step+=1){
+    const ports=['a','b'].map(seat=>session.port(seat).value),answering=ports.find(port=>port.query().value.requiredInput?.canAnswer);
+    if(!answering){assert.equal(ports[0].query().value.requiredInput,null);return;}
+    const input=answering.query().value.requiredInput;
+    if(decline&&input.optional)submit(answering,{type:'declineChoice',choiceId:input.choiceId});
+    else answerCurrent(answering,option=>option.zone==='front'||option.label?.includes('レイヤー'));
+  }
+  assert.fail('tutorial required input failed to settle');
+}
+function runScriptedOpponent(session) {
+  const queue=[],created=createTutorialOpponentController({session,seatId:'b',scheduler:{schedule:task=>{queue.push(task);return task;},cancel:task=>{const index=queue.indexOf(task);if(index>=0)queue.splice(index,1);}}});
+  assert.equal(created.ok,true,JSON.stringify(created));
+  created.value.start();
+  for(let count=0;count<40&&queue.length;count+=1)queue.shift()();
+  assert.equal(queue.length,0);created.value.dispose();
+  assert.equal(session.tutorial().value.opponentScript,null);
+}
+test('tutorial basics runs start to finish through ports with scripted opponent and no undo',()=>{
+  const {lifecycle,session,port}=setup('tutorial');
+  for(let index=0;index<8;index+=1)assert.equal(session.advanceTutorial().ok,true);
+  assert.equal(session.advanceTutorial().ok,false);
+  const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;
+  const reached=expected=>assert.equal(index(),expected);
+  assert.equal(index(),1);
+  submit(port,plan(port,'install',hand('STD-076')));reached(2);
+  submit(port,plan(port,'executeCard',hand('STD-075'),option=>option.zone==='front'));reached(3);
+  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-075',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);reached(4);
+  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);reached(5);
+  submit(port,plan(port,'executeCard',hand('STD-090'),option=>option.zone==='front'));settleTutorial(session);reached(6);
+  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);reached(7);
+  const revision=port.query().value.status.revision;
+  assertRefused(port,{type:'endTurn'});assert.equal(port.query().value.status.revision,revision);
+  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-090',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);reached(8);
+  const target=session.port('b').value.query().value.observation.seats[1];
+  assert.ok(target.front.cards.some(card=>!card.faceDown&&card.definition.id==='STD-131'));
+  submit(port,plan(port,'executeSpell',hand('STD-086'),option=>option.cardRef&&visibleCard(port.query().value,'STD-131',['front']).cardRef===option.cardRef));
+  settleTutorial(session,{decline:true});reached(9);
+  assert.equal(session.tutorial().value.flow.complete,true);
+  lifecycle.dispose();
+});
+test('tutorial vengeance runs start to finish through ports including layered, relog and effect activation',()=>{
+  const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),runtime=config('tutorial');runtime.gameOptions.tutorialId='vengeance';
+  const created=lifecycle.start(runtime);assert.equal(created.ok,true,JSON.stringify(created));
+  const session=created.value,port=session.port('a').value;
+  for(let index=0;index<8;index+=1)assert.equal(session.advanceTutorial().ok,true);
+  const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;
+  submit(port,plan(port,'install',hand('STD-191')));assert.equal(index(),2);
+  submit(port,plan(port,'executeLayered',hand('STD-195'),option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),3);
+  submit(port,plan(port,'redeploy',visibleCard(port.query().value,'STD-195',['front']).cardRef,option=>option.zone==='back'));settleTutorial(session);assert.equal(index(),4);
+  submit(port,plan(port,'executeCard',hand('STD-194'),option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),5);
+  submit(port,plan(port,'executeCard',hand('STD-192'),option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),6);
+  const source=visibleCard(port.query().value,'STD-192',['front']).cardRef,moved=visibleCard(port.query().value,'STD-194',['front']).cardRef;
+  submit(port,plan(port,'activateCardEffect',source,option=>option.cardRef===moved||option.zone==='back'));settleTutorial(session);
+  assert.equal(session.tutorial().value.flow.complete,true);
+  lifecycle.dispose();
+});
+
+function userMatch(userId,mode='ai') {
+  const runtime=config(mode);Object.assign(runtime.gameOptions,{playerUserId:userId,aiUserId:'doors_zx'});
+  const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),created=lifecycle.start(runtime);
+  assert.equal(created.ok,true,JSON.stringify(created));
+  return {lifecycle,session:created.value,port:created.value.port('a').value};
+}
+const legalTypes=query=>query.legalActions.map(entry=>entry.action?.type??entry.actionType);
+test('opening mulligan is a normal fixed port action: redraws once per use, stops at the cap and after any other move',()=>{
+  const {lifecycle,port}=userMatch('bigboss');
+  for(let used=1;used<=3;used+=1){
+    const query=port.query().value,entry=query.legalActions.find(entry=>entry.action?.type==='openingMulligan');
+    assert.ok(entry,'mulligan '+used);
+    const before=seatView(query).hand.cards.map(card=>card.cardRef),after=submit(port,entry.action);
+    assert.equal(seatView(after).hand.cards.length,before.length);
+  }
+  assert.equal(legalTypes(port.query().value).includes('openingMulligan'),false);
+  lifecycle.dispose();
+  const second=userMatch('bigboss');
+  submit(second.port,{type:'endTurn'});
+  assertRefused(second.session.port('a').value,{type:'openingMulligan'});
+  second.lifecycle.dispose();
+  const other=userMatch('doors_zx');
+  assert.equal(legalTypes(other.port.query().value).includes('openingMulligan'),false);
+  assertRefused(other.port,{type:'openingMulligan'});other.lifecycle.dispose();
+});
+test('user ability activation is a fixed port action that is offered once and spent',()=>{
+  const {lifecycle,port}=userMatch('doors_zx');
+  const entry=port.query().value.legalActions.find(entry=>entry.action?.type==='activateAbility');
+  assert.ok(entry);assert.deepEqual(entry.action.ability,{kind:'user',key:'turbo'});
+  const memory=seatView(port.query().value).memory.current,after=submit(port,entry.action);
+  assert.ok(seatView(after).memory.current>=memory);
+  assert.equal(legalTypes(after).includes('activateAbility'),false);
+  assertRefused(port,entry.action);lifecycle.dispose();
+});
+test('registry recovery is a fixed port action tied to the once-per-turn registry action',()=>{
+  const {lifecycle,session,port}=setup(),card=add(session,port,'STD-020');
+  submit(port,{type:'install',cardRef:card});
+  assert.equal(legalTypes(port.query().value).some(type=>type==='install'||type==='recoverRegistry'),false);
+  submit(port,{type:'endTurn'});drain(port);const other=session.port('b').value;submit(other,{type:'endTurn'});drain(other);
+  const query=port.query().value,registry=seatView(query).registry.cards[0],entry=query.legalActions.find(entry=>entry.action?.type==='recoverRegistry'&&entry.action.cardRef===registry.cardRef);
+  assert.ok(entry);
+  const after=submit(port,entry.action);drain(port);
+  assert.equal(seatView(port.query().value).registry.cards.some(item=>item.cardRef===registry.cardRef),false);
+  assert.equal(legalTypes(port.query().value).includes('recoverRegistry'),false);
+  lifecycle.dispose();
+});
+
+// Stage05 12.1 source boundary: the player-facing layers (main, adapters, UI) never reach the
+// engine, the legacy AI or raw match state. Known exceptions are listed so a new one fails.
+const productionSources = dir => readdirSync(new URL(dir, import.meta.url), { withFileTypes: true }).flatMap(entry =>
+  entry.isDirectory() ? productionSources(dir + entry.name + '/') : /\.js$/.test(entry.name) ? [dir + entry.name] : []);
+const playerFacingSources = () => ['../src/main.js', ...productionSources('../src/adapters/'), ...productionSources('../src/ui-refresh/'), ...productionSources('../src/ui/')];
+const SOURCE_EXCEPTIONS = new Map([
+  ['../src/adapters/match-log.js', ['game/engine.js']], // static DECK_OPTIONS labels only
+  ['../src/ui/visual-effects.js', ['game/engine.js']]]); // card stat helpers; to move onto the read model
+test('player-facing sources import no engine, legacy AI or selection model beyond the pure public helpers', () => {
+  const allowed = new Set(['game/runtime/selection-contract.js', 'game/deck-builder.js', 'game/card-types.js']);
+  const found = [];
+  for (const file of playerFacingSources()) {
+    const base = new URL(file, import.meta.url), text = readFileSync(base, 'utf8');
+    for (const [, specifier] of text.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
+      if (!specifier.startsWith('.')) continue;
+      const target = new URL(specifier, base).href.split('/src/')[1];
+      const trustedRuntime = file.startsWith('../src/adapters/') && target.startsWith('game/runtime/'); // port/session factories bind the runtime
+      if (target.startsWith('game/') && !allowed.has(target) && !trustedRuntime && !SOURCE_EXCEPTIONS.get(file)?.includes(target)) found.push(file + ' -> ' + target);
+    }
+  }
+  assert.deepEqual(found, []);
+  for (const [file, targets] of SOURCE_EXCEPTIONS) for (const target of targets)
+    assert.ok(readFileSync(new URL(file, import.meta.url), 'utf8').includes(target), file + ' no longer needs its exception');
+});
+test('player-facing sources hold no raw match state, no undo and no legacy AI iterator', () => {
+  const forbidden = /state\.(pending|prompt)\b|state\.(active|mode)\s*=[^=]|\.sandboxUi\s*=[^=]|\bgetState\b|\bsetState\b|\bundo\(|runSimpleAiTurn|resolveAutomatedAiChoices|\bselectedUid\s*=[^=]/;
+  assert.deepEqual(playerFacingSources().filter(file => forbidden.test(readFileSync(new URL(file, import.meta.url), 'utf8'))), []);
 });
