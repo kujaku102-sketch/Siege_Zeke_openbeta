@@ -4560,6 +4560,24 @@ test("STD-223 Ambush resumes the attack after a Script window opened by the dest
   assert.equal(attacker.sleep, true);
 });
 
+test("STD-223 Ambush aimed at the attacker ends the declared attack when Backup moves it out of the front", () => {
+  const state = createGame({ mode: "lab" }); const player = state.players.player; const ai = state.players.ai;
+  state.active = "ai"; player.memory = 2;
+  const ambush = createCardInstance("STD-223", "player", 223021); const threshold = createCardInstance("STD-227", "player", 223022);
+  player.registry = [ambush, threshold]; player.front = [];
+  const attacker = createCardInstance("STD-129", "ai", 223023); attacker.summoningSick = false;
+  ai.front = [attacker]; ai.back = [];
+  const fortressBefore = player.fortressStr;
+  assert.equal(attack(state, "ai", attacker.uid, "player-fortress"), true);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "[アンブッシュ:2]を起動", selected: [] }), true);
+  // The answer is accepted; the attacker (STR 1) is replaced by Backup and can no longer attack.
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [attacker.uid] }), true);
+  assert.equal(state.pending, null);
+  assert.equal(ai.back.some((card) => card.uid === attacker.uid), true);
+  assert.equal(attacker.sleep, true);
+  assert.equal(player.fortressStr, fortressBefore);
+});
+
 test("STD-224 records its chosen number and destroys itself with a matching enemy placement", () => {
   const state = createGame({ mode: "lab" }); const player = state.players.player; const ai = state.players.ai;
   const tackle = createCardInstance("STD-224", "player", 224001); player.hand = [tackle];

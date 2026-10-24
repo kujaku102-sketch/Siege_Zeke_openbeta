@@ -5145,7 +5145,9 @@ function resolveCardSelectionCore(state, continuation, result) {
       state.deferredAttack = { stage: null, playerId: continuation.attackerPlayerId, attackerUid: attacker.uid, targetUid: continuation.attackTargetUid };
       return true;
     }
-    return attack(state, continuation.attackerPlayerId, attacker.uid, continuation.attackTargetUid);
+    // 3ダメージを受けた攻撃者自身が[バックアップ]や破壊で攻撃できなくなった場合は、宣言した攻撃がそこで終わる(回答は拒否しない)。
+    attack(state, continuation.attackerPlayerId, attacker.uid, continuation.attackTargetUid);
+    return true;
   }
   if (continuation.type === "std140-protect") {
     const target = findCard(state, result.selected[0])?.card;
