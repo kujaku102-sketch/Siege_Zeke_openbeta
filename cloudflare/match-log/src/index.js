@@ -3,7 +3,9 @@
 // and a page from an allowed origin. Nothing about the sender is stored.
 const KIND = 'siege-zeke.match-log';
 const MAX_BYTES = 256 * 1024;
-const ALLOWED_ORIGINS = [/^https:\/\/([a-z0-9-]+\.)*siegezeke\.online$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/];
+// The site, its Pages address and preview deployments (<hash>.siege-zeke-simple-public.pages.dev), and local dev.
+const ALLOWED_ORIGINS = [/^https:\/\/([a-z0-9-]+\.)*siegezeke\.online$/, /^https:\/\/([a-z0-9-]+\.)?siege-zeke-simple-public\.pages\.dev$/,
+  /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/];
 
 const cors = origin => ({ 'access-control-allow-origin': origin ?? '*', 'access-control-allow-methods': 'POST, OPTIONS',
   'access-control-allow-headers': 'content-type', vary: 'origin' });
@@ -27,7 +29,7 @@ export default {
     const size = Number(request.headers.get('content-length') ?? 0);
     if (size > MAX_BYTES) return reply(413, allowed);
     const text = await request.text();
-    if (text.length > MAX_BYTES) return reply(413, allowed);
+    if (new TextEncoder().encode(text).length > MAX_BYTES) return reply(413, allowed);
     let log;
     try { log = JSON.parse(text); } catch { return reply(400, allowed); }
     if (!validLog(log)) return reply(422, allowed);

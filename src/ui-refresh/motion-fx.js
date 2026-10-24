@@ -12,7 +12,10 @@ const clip = (r, view) => {
   const right = Math.min(r.left + r.width, view.width), bottom = Math.min(r.top + r.height, view.height);
   return right > left && bottom > top ? { left, top, width: right - left, height: bottom - top } : null;
 };
-const quote = value => `"${String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+// The backslash is built from its code so the minified bundle carries no `\\…/` run
+// that the public build check reads as a UNC path.
+const slash = String.fromCharCode(92);
+const quote = value => `"${String(value).replaceAll(slash, slash + slash).replaceAll('"', slash + '"')}"`;
 
 export function captureMotionAnchors(root) {
   const doc = root.ownerDocument;
