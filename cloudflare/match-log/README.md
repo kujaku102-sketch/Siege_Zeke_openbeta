@@ -6,7 +6,7 @@
 ## 初回の準備(PC のこのフォルダで)
 
 1. `npx wrangler@4 login`(ブラウザで承認)
-2. `npx wrangler@4 kv namespace create MATCH_LOGS` で出た id を wrangler.toml の `REPLACE_WITH_KV_NAMESPACE_ID` に入れる
+2. `npx wrangler@4 kv namespace create MATCH_LOGS` で出た id を wrangler.toml の `[[kv_namespaces]]` の `id` に入れる(今は作成済みの id が入っている。作り直す時だけ)
 3. `npx wrangler@4 deploy`
 
 受け付ける送り元は `*.siegezeke.online`、`siege-zeke-simple-public.pages.dev` とそのプレビュー、localhost。

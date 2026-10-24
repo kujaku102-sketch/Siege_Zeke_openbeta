@@ -34,3 +34,40 @@ test('anything else is turned away without storing', async () => {
   assert.equal((await worker.fetch(new Request('https://log.siegezeke.online/match-logs'), env)).status, 405);
   assert.equal(env.MATCH_LOGS.items.size, 0);
 });
+
+test('endedAt must start as an ISO day, so every stored key is one logs:pull can read', async () => {
+  const env = { MATCH_LOGS: store() };
+  for (const endedAt of ['Tue Oct 23 2026', 'Oct 23 2026 10:00', '2026-10-23', '2026-13-45T00:00:00Z', 12345])
+    assert.equal((await worker.fetch(post({ ...log, endedAt }), env)).status, 422, String(endedAt));
+  assert.equal(env.MATCH_LOGS.items.size, 0);
+  assert.equal((await worker.fetch(post(log), env)).status, 204);
+  assert.ok([...env.MATCH_LOGS.items.keys()].every(key => /^log\/\d{4}-\d{2}-\d{2}\/[\w-]{1,80}$/.test(key)));
+});
+
+test('metadata stays small and typed, and a KV failure answers 503 with CORS instead of crashing', async () => {
+  const env = { MATCH_LOGS: store() };
+  assert.equal((await worker.fetch(post({ ...log, mode: 'x'.repeat(5000), result: { a: 1 }, turns: 'many' }), env)).status, 204);
+  assert.deepEqual(env.MATCH_LOGS.items.get('log/2026-10-23/abc-123').options.metadata, { mode: null, result: null, turns: null });
+  const failing = { MATCH_LOGS: { put: async () => { throw new Error('KV put failed'); } } };
+  const response = await worker.fetch(post(log), failing);
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get('access-control-allow-origin'), 'https://siegezeke.online');
+});
+
+test('a body without content-length is cut off at the cap, and a refused origin gets no allow-origin header', async () => {
+  const env = { MATCH_LOGS: store() };
+  let pulled = 0;
+  const endless = new ReadableStream({ pull(controller) { pulled += 1; controller.enqueue(new Uint8Array(64 * 1024)); } });
+  const request = new Request('https://log.siegezeke.online/match-logs', { method: 'POST', body: endless, duplex: 'half',
+    headers: { 'content-type': 'text/plain', origin: 'https://siegezeke.online' } });
+  assert.equal(request.headers.get('content-length'), null);
+  assert.equal((await worker.fetch(request, env)).status, 413);
+  assert.ok(pulled < 10, 'the stream was abandoned, not read to the end');
+  const chunked = new Request('https://log.siegezeke.online/match-logs', { method: 'POST', duplex: 'half', headers: { origin: 'https://siegezeke.online' },
+    body: new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(JSON.stringify(log))); controller.close(); } }) });
+  assert.equal((await worker.fetch(chunked, env)).status, 204);
+  const refused = await worker.fetch(post(log, 'https://evil.example'), env);
+  assert.equal(refused.status, 403);
+  assert.equal(refused.headers.get('access-control-allow-origin'), null);
+  assert.equal((await worker.fetch(new Request('https://log.siegezeke.online/other'), env)).headers.get('access-control-allow-origin'), null);
+});
