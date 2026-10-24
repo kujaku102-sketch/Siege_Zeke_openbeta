@@ -2858,29 +2858,38 @@ function applyDamageModifiers(state, sourcePlayerId, sourceCard, victimPlayerId,
   return finalValue;
 }
 
+const MANDATORY_STATE_CHECK_PASSES = 8;
+
 function resolveMandatoryStateChecks(state) {
-  // 戦闘以外(負荷やSTR-補正)でSTRが0以下になったObも、効果解決の終わりにルールで破壊する
-  for (const [playerId, player] of Object.entries(state.players)) {
-    for (const card of [...player.front, ...player.back]) {
-      if (isObCard(card) && !card.faceDown && cardCurrentStr(state, playerId, card) <= 0) {
-        destroyCard(state, playerId, card.uid, { source: "STR0以下の状態判定" });
-      }
-    }
-  }
-  for (const [playerId, player] of Object.entries(state.players)) {
-    for (const card of [...player.front, ...player.back]) {
-      for (const spec of mandatoryStateCheckSpecsFor(card.id)) {
-        if (!continuousEffectConditionMatches(state, playerId, card, spec.condition)) continue;
-        if (spec.type === "destroy" && spec.target === "source") {
-          destroyCard(state, playerId, card.uid, {
-            source: `${card.name}の強制状態判定`,
-            suppressReplacement: Boolean(spec.suppressReplacement)
-          });
-          break;
+  // 状態判定は安定するまで繰り返す。[バックアップ]で破壊が置換されたObは、STRが0以下のまま
+  // バックへ残るため、次の効果解決まで放置せず同じ境界でもう一度判定する。
+  // 破壊が成立しない(破壊不可・プロテクト)場合や選択待ちが開いた場合は進展なしとして止める。
+  for (let pass = 0; pass < MANDATORY_STATE_CHECK_PASSES; pass += 1) {
+    let progressed = false;
+    // 戦闘以外(負荷やSTR-補正)でSTRが0以下になったObも、効果解決の終わりにルールで破壊する
+    for (const [playerId, player] of Object.entries(state.players)) {
+      for (const card of [...player.front, ...player.back]) {
+        if (isObCard(card) && !card.faceDown && cardCurrentStr(state, playerId, card) <= 0) {
+          if (destroyCard(state, playerId, card.uid, { source: "STR0以下の状態判定" })) progressed = true;
         }
-        throw new Error(`Unsupported mandatory state check: ${spec.type ?? "(missing)"}`);
       }
     }
+    for (const [playerId, player] of Object.entries(state.players)) {
+      for (const card of [...player.front, ...player.back]) {
+        for (const spec of mandatoryStateCheckSpecsFor(card.id)) {
+          if (!continuousEffectConditionMatches(state, playerId, card, spec.condition)) continue;
+          if (spec.type === "destroy" && spec.target === "source") {
+            if (destroyCard(state, playerId, card.uid, {
+              source: `${card.name}の強制状態判定`,
+              suppressReplacement: Boolean(spec.suppressReplacement)
+            })) progressed = true;
+            break;
+          }
+          throw new Error(`Unsupported mandatory state check: ${spec.type ?? "(missing)"}`);
+        }
+      }
+    }
+    if (!progressed || state.pending || state.prompt || state.deferredDestruction) return;
   }
 }
 

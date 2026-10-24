@@ -4065,6 +4065,23 @@ test("Load that drops STR to 0 or less destroys the Ob by rule", () => {
   assert.equal(state.players.ai.trash.some((card) => card.uid === target.uid), true);
   assert.equal(cardAtk(state, "ai", target) >= 0 && cardCurrentStr(state, "ai", target) >= 0, true);
 });
+test("a Backup replacement of STR 0 destruction does not leave the Ob at STR 0 or less in the back", () => {
+  const state = createGame({ mode: "sandbox", rng: () => 0.5 });
+  const player = state.players.player;
+  const thief = createCardInstance("STD-076", "player", 900084);
+  const filler = createCardInstance("STD-020", "player", 900085);
+  thief.load = 2;
+  player.front = [thief];
+  player.back = [];
+  player.hand = [filler];
+  player.memory = 10;
+  assert.equal(cardCurrentStr(state, "player", thief), 0);
+  assert.equal(playCard(state, "player", filler.uid, {}), true);
+  const logText = state.log.map((entry) => entry.text ?? entry).join("\n");
+  assert.match(logText, /こそ泥は\[バックアップ\]でスリープしてバックへ移動/);
+  assert.equal([...player.front, ...player.back].some((card) => card.uid === thief.uid), false);
+  assert.equal(player.trash.some((card) => card.uid === thief.uid), true);
+});
 test("Protect and indestructible Obs at STR 0 or less do not loop the state check", () => {
   const state = createGame({ mode: "sandbox", rng: () => 0.5 });
   const player = state.players.player;
