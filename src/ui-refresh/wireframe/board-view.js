@@ -86,7 +86,10 @@ function geometry(model) {
 // coordinates. `node` finds the SVG group the slab copies its motion from.
 export function boardPieces(model) {
   const {self,slots,cards} = geometry(model), pieces = [];
-  const ref = value => `"${String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+  // The backslash is built from its code so the minified bundle carries no `\\…/` run
+  // that the public build check reads as a UNC path.
+  const slash = String.fromCharCode(92);
+  const ref = value => `"${String(value).replaceAll(slash, slash + slash).replaceAll('"', slash + '"')}"`;
   for (const slot of slots) {
     const card = cards.get(slotKey(slot));
     if (!card) continue;

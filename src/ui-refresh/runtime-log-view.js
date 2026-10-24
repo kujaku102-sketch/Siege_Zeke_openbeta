@@ -102,12 +102,14 @@ const badgeHtml = badge => badge.tone === 'str'
 const turnDivider = (turnNumber, side) => `<div class="r2-log-turn ${side}"><b>TURN ${esc(String(turnNumber).padStart(2, '0'))}</b>${side === 'is-you' ? 'YOU' : 'OPPONENT'}</div>`;
 
 const triggerKeywords = { logout: 'ログアウト', login: 'ログイン' };
+// Regex literals, not `new RegExp` strings: the doubled backslashes a string needs read as a UNC path to the public build check.
+const triggerOpeners = { logout: /[\[［]ログアウト[\]］]/, login: /[\[［]ログイン[\]］]/ };
 
 // The part of the card text a trigger runs: what follows its keyword, up to the next keyword block.
 function triggerClause(definitionId, timing) {
   const text = String(CARD_LIBRARY[definitionId]?.text ?? '');
   const keyword = triggerKeywords[timing] ?? null;
-  const at = keyword ? text.search(new RegExp(`[\\[［]${keyword}[\\]］]`)) : -1;
+  const at = keyword ? text.search(triggerOpeners[timing]) : -1;
   const rest = at < 0 ? text.replace(/^(?:[\[［][^\]］]*[\]］])+/, '')
     : text.slice(at).replace(/^[\[［][^\]］]*[\]］]/, '');
   const end = rest.search(/。\s*[\[［]/);

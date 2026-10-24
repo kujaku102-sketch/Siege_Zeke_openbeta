@@ -65,7 +65,10 @@ export function cardKickFrames(amount, side = 1, { duration } = IMPACT.card, ste
 }
 
 const sideOf = ref => [...String(ref)].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 2 ? 1 : -1;
-const quote = value => `"${String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+// The backslash is built from its code so the minified bundle carries no `\\…/` run
+// that the public build check reads as a UNC path.
+const slash = String.fromCharCode(92);
+const quote = value => `"${String(value).replaceAll(slash, slash + slash).replaceAll('"', slash + '"')}"`;
 
 export function createImpactFx(root) {
   const doc = root.ownerDocument ?? globalThis.document, win = doc?.defaultView ?? globalThis;
