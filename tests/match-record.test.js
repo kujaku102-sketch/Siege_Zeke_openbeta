@@ -145,7 +145,7 @@ test('a finished match leaves a replay and a readable log, and the log is sent o
   assert.ok(log.log.some(row => row.tag === 'EXEC' && row.card && row.side === 'opponent'));
   assert.ok(log.log.every(row => Number.isInteger(row.turn) && ['you', 'opponent', 'system'].includes(row.side)));
   assert.equal(JSON.stringify(log).includes('r:'), false, 'session refs never leave the game');
-  assert.ok(JSON.stringify(log).length < 60000, 'a whole match fits one beacon');
+  assert.ok(new TextEncoder().encode(JSON.stringify(log)).length < 60000, 'a whole match fits one beacon');
 });
 
 test('a log goes by beacon when it can, and by fetch otherwise', () => {
@@ -156,4 +156,13 @@ test('a log goes by beacon when it can, and by fetch otherwise', () => {
   assert.deepEqual(calls.map(call => call[0]), ['beacon', 'fetch']);
   assert.ok(calls.every(call => call[2].toLowerCase() === 'text/plain;charset=utf-8'));
   assert.equal(sendMatchLog({ kind: 'x' }, { beacon: () => true, post: null }), true);
+});
+
+test('a log over the beacon cap in bytes skips the beacon and goes by a plain fetch', () => {
+  const calls = [];
+  const beacon = () => { calls.push('beacon'); return true; };
+  const post = (url, init) => { calls.push(['fetch', init.keepalive]); return Promise.resolve(); };
+  // 25,000 characters, but 75,000 bytes: under the character count, over the 64 KiB cap.
+  assert.equal(sendMatchLog({ text: 'ロ'.repeat(25000) }, { beacon, post }), true);
+  assert.deepEqual(calls, [['fetch', false]]);
 });

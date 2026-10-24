@@ -9,8 +9,11 @@
 2. `npx wrangler@4 kv namespace create MATCH_LOGS` で出た id を wrangler.toml の `REPLACE_WITH_KV_NAMESPACE_ID` に入れる
 3. `npx wrangler@4 deploy`
 
+受け付ける送り元は `*.siegezeke.online`、`siege-zeke-simple-public.pages.dev` とそのプレビュー、localhost。
+
 ## 見る
 
+- まとめて手元に: リポジトリのルートで `pnpm logs:pull`(`logs/match-logs/<終了日>/<matchId>.json` に落ちる。取り込み済みは飛ばす)
 - 一覧: `npx wrangler@4 kv key list --binding MATCH_LOGS --remote`
 - 1件: `npx wrangler@4 kv key get --binding MATCH_LOGS --remote "log/2026-10-23/<matchId>"`
 
