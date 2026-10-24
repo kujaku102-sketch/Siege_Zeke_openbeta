@@ -2126,6 +2126,9 @@ function resolveTriggerChoiceCore(state, itemId) {
   if (!thread || thread.status !== "resolving" || thread.currentControllerId !== "player") return false;
   const item = thread.items.find((entry) => entry.id === itemId && entry.status === "pending" && entry.controllerId === "player");
   if (!item) return false;
+  // 処理順の質問を閉じてから実行する。開いたままだと、この誘発が出す選択がpendingではなく待ち行列に積まれ、
+  // スレッド終了時に誰も開かないまま取り残されて盤面が止まる。
+  if (state.pending?.type === "trigger-order") state.pending = null;
   state.processingTriggers = true;
   item.status = "resolving";
   executeQueuedTrigger(state, item.trigger);

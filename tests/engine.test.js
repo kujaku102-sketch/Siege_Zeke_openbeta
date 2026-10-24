@@ -2555,6 +2555,35 @@ test("interactive simultaneous triggers form a selectable thread and dim resolve
   assert.equal(state.threadNotice, "スレッドが解決しました");
 });
 
+test("a selection opened by a trigger thread item becomes the pending choice instead of a stranded queue entry", () => {
+  const state = createGame({ mode: "lab" });
+  state.interactive = true;
+  const player = state.players.player;
+  const idol = createCardInstance("STD-191", "player", 193001);
+  const necria = createCardInstance("STD-193", "player", 193002);
+  const own = createCardInstance("STD-020", "player", 193003);
+  const enemy = createCardInstance("STD-020", "ai", 193004);
+  idol.summoningSick = false; necria.summoningSick = false; own.summoningSick = false;
+  player.front = [idol, own]; player.back = [necria]; player.memory = 10;
+  state.players.ai.front = [enemy];
+
+  assert.equal(relogCard(state, "player", necria.uid, "front"), true);
+  assert.equal(state.pending?.type, "trigger-order");
+  const necriaItem = state.triggerThread.items.find((item) => item.cardName === necria.name);
+  assert.ok(necriaItem && state.triggerThread.items.length === 2);
+  assert.equal(resolveTriggerChoice(state, necriaItem.id), true);
+  assert.equal(state.pending?.type, "selection");
+  assert.equal(state.pending.request.label, "自分と相手のObを1体ずつ選択");
+  assert.equal(state.selectionQueue.length, 0);
+
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [] }), true);
+  const rest = state.triggerThread.items.find((item) => item.status === "pending");
+  if (rest) assert.equal(resolveTriggerChoice(state, rest.id), true);
+  assert.equal(state.triggerThread.status, "resolved");
+  assert.equal(state.pending, null);
+  assert.equal(state.selectionQueue.length, 0);
+});
+
 test("lab Vengeance cards connect login and scope effects to the common selector", () => {
   const state = createGame({ mode: "lab" });
   const dolls = state.players.player.hand.find((card) => card.id === "STD-189");
