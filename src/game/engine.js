@@ -2067,6 +2067,8 @@ function executeQueuedTrigger(state, trigger) {
   });
   else for (const action of trigger.spec.actions) executeTriggerAction(state, trigger, action);
   if (!state.pending) trigger.status = "resolved";
+  // 同時に誘発した効果は別々の効果。1つ完了した時点で勝敗が決まったら、残りは未宣言のまま実行しない。
+  if (!state.pending && !state.prompt) lockVictoryIfDecided(state);
 }
 
 function finishTriggerThread(state) {
@@ -2176,6 +2178,8 @@ function triggerRequiresChoice(trigger) {
 function drainTriggerQueue(state) {
   drainTriggerQueueCore(state);
   settleVictoryFactsOutsideResolution(state);
+  // 誘発の処理中に結果が固定された場合、宣言済みの処理が残っていなければここでゲーム終了にする。
+  if (state.winner && !state.processingTriggers) finishGameIfSettled(state);
 }
 
 // 効果解決の外(誘発の処理など)で勝利条件が成立した時、誰も確定させずに止まるのを防ぐ
@@ -2378,30 +2382,34 @@ function drainIndependentEffects(state) {
   if (!state.winner) drainIndependentEffects(state);
 }
 
+// 効果1つの処理が完了した境界で、勝敗が決まっていれば結果を固定する(最初に成立した境界で固定)。
+// 同時に誘発した効果は別々の効果なので、それぞれの完了ごとにここを通す。
+function lockVictoryIfDecided(state) {
+  if (state.victory?.lockedOutcome) return false;
+  const candidates = new Set();
+  for (const [playerId, player] of Object.entries(state.players)) {
+    if (Number(player.fortressStr) <= 0 || player.userBanned || player.mandatoryDrawFailed) candidates.add(otherPlayer(playerId));
+  }
+  for (const fact of state.victoryFacts ?? []) if (fact.type === "special" && fact.playerId) candidates.add(fact.playerId);
+  if (candidates.size > 1) state.winner = "draw";
+  else if (candidates.size === 1) state.winner = [...candidates][0];
+  if (!state.winner) return false;
+  state.victory = {
+    lockedOutcome: state.winner,
+    lockedAtEffectId: state.effectResolution?.id ?? null,
+    finished: false
+  };
+  state.pending = null; state.prompt = null; state.triggerQueue = [];
+  state.scriptActivationQueue = []; state.activationWindows = [];
+  state.selectionQueue = []; state.deferredAttack = null;
+  state.responseEventQueue = []; state.mandatoryDrawContinuation = null;
+  addLog(state, state.winner === "draw" ? "両ユーザーが勝利条件を満たしたため引き分け。" : `${state.players[state.winner].user.name}の勝利。`, "win");
+  return true;
+}
+
 function finalizeEffectResolution(state) {
   const completedResolution = state.effectResolution;
-  const alreadyLocked = Boolean(state.victory?.lockedOutcome);
-  if (!alreadyLocked) {
-    const candidates = new Set();
-    for (const [playerId, player] of Object.entries(state.players)) {
-      if (Number(player.fortressStr) <= 0 || player.userBanned || player.mandatoryDrawFailed) candidates.add(otherPlayer(playerId));
-    }
-    for (const fact of state.victoryFacts ?? []) if (fact.type === "special" && fact.playerId) candidates.add(fact.playerId);
-    if (candidates.size > 1) state.winner = "draw";
-    else if (candidates.size === 1) state.winner = [...candidates][0];
-  }
-  if (state.winner && !alreadyLocked) {
-    state.victory = {
-      lockedOutcome: state.winner,
-      lockedAtEffectId: state.effectResolution?.id ?? null,
-      finished: false
-    };
-    state.pending = null; state.prompt = null; state.triggerQueue = [];
-    state.scriptActivationQueue = []; state.activationWindows = [];
-    state.selectionQueue = []; state.deferredAttack = null;
-    state.responseEventQueue = []; state.mandatoryDrawContinuation = null;
-    addLog(state, state.winner === "draw" ? "両ユーザーが勝利条件を満たしたため引き分け。" : `${state.players[state.winner].user.name}の勝利。`, "win");
-  }
+  lockVictoryIfDecided(state);
   if (completedResolution?.declaredEffectId && state.resolvingDeclaredEffect?.id === completedResolution.declaredEffectId) {
     state.resolvingDeclaredEffect.status = "resolved";
     state.resolvingDeclaredEffect = null;

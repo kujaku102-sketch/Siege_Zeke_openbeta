@@ -7009,6 +7009,44 @@ test("STD086 deferred cleanup never runs the Arms Band Jacket post-effect", () =
   assert.equal([...player.front, ...player.back].some((card) => card.id === "SZTB-091"), false);
 });
 
+function simultaneousBackHackerState({ interactive }) {
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  state.interactive = interactive;
+  const { player, ai } = state.players;
+  player.hand = []; ai.hand = []; player.front = []; ai.front = [];
+  player.deck = Array.from({ length: 6 }, (_, index) => createCardInstance("STD-020", "player", 71100 + index));
+  ai.deck = Array.from({ length: 6 }, (_, index) => createCardInstance("STD-020", "ai", 71200 + index));
+  player.back = [createCardInstance("STD-190", "player", 71001)];
+  ai.back = [createCardInstance("STD-190", "ai", 71002)];
+  player.fortressStr = 2; ai.fortressStr = 2;
+  player.incidentsTriggered = [999]; ai.incidentsTriggered = [999];
+  return state;
+}
+
+test("simultaneous turn-end triggers are separate effects: the first lethal one locks and the other never runs", () => {
+  const state = simultaneousBackHackerState({ interactive: false });
+  assert.equal(endTurn(state), true);
+  // The active user's trigger resolves first (4.7); its completion boundary decides the result.
+  assert.equal(state.winner, "player");
+  assert.equal(state.victory.lockedOutcome, "player");
+  assert.equal(state.victory.finished, true);
+  assert.equal(state.players.ai.fortressStr, 0);
+  assert.equal(state.players.player.fortressStr, 2, "the undeclared simultaneous trigger of the loser does not run");
+  assert.equal(state.log.filter((entry) => entry.text.includes("バックハッカー: Doors ZXへ2ダメージ")).length, 1);
+});
+
+test("a simultaneous trigger thread cancels the remaining items once an earlier item locks the result", () => {
+  const state = simultaneousBackHackerState({ interactive: true });
+  assert.equal(endTurn(state), true);
+  assert.equal(state.pending?.type, "trigger-order");
+  const own = state.triggerThread.items.find((item) => item.controllerId === "player");
+  assert.equal(resolveTriggerChoice(state, own.id), true);
+  assert.equal(state.winner, "player");
+  assert.equal(state.victory.finished, true);
+  assert.deepEqual(state.triggerThread.items.map((item) => `${item.controllerId}:${item.status}`), ["player:resolved", "ai:cancelled-after-victory-lock"]);
+  assert.equal(state.players.player.fortressStr, 2);
+});
+
 test("automatic triggers wait for the parent Spell boundary and do not run after its victory lock", () => {
   const state = createGame({ mode: "sandbox", rng: () => 0.5 }); const player = state.players.player; const ai = state.players.ai;
   const shot = createCardInstance("STD-086", "player", 975030); const dolls = createCardInstance("STD-189", "player", 975031);
