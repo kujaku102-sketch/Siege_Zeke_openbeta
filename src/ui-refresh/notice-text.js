@@ -5,7 +5,8 @@ import { BLOCK_MESSAGES } from './runtime-read-view.js';
 export const FALLBACK_NOTICE = 'その操作はできません';
 
 // A tap or drop on a spot that is not a valid target is simply ignored.
-const SILENT = new Set(['INTERACTION_TARGET_NOT_AVAILABLE']);
+// A failed effect or scene is logged to the console, not shown as a refused move.
+const SILENT = new Set(['INTERACTION_TARGET_NOT_AVAILABLE', 'RUNTIME_DECORATION_FAILED']);
 
 const MESSAGES = {
   ...BLOCK_MESSAGES,

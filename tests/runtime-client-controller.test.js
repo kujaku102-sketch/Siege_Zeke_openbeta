@@ -248,3 +248,31 @@ test('S05-CUI-02: formatter uses projected data and cannot invent hidden opponen
   control.observation.seats[1].hand.cards[0].definition.name = 'line\nbreak';
   assert.equal(formatRuntimeCui(control).value.includes('line\nbreak'), false);
 });
+
+test('C01: a scheduled task hands the step result to its scheduler, telling failure from idle', () => {
+  const returned = [];
+  const run = (port, queries) => {
+    let task = null;
+    const controller = createRuntimeClientController({ port, policy: chooseSimpleAiIntent,
+      scheduler: { schedule(next) { task = next; return 1; }, cancel() { task = null; } } }).value;
+    controller.start();
+    const result = task();
+    returned.push(result);
+    return { controller, result };
+  };
+  const stopped = run(scriptedPort([fixedQuery()], 'rejected')).result;
+  assert.equal(stopped.ok, true);
+  assert.equal(stopped.value.kind, 'stopped');
+  const idle = run(scriptedPort([fixedQuery({ status: { activeSeat: 'seat-a' } })])).result;
+  assert.deepEqual([idle.ok, idle.value.kind], [true, 'idle']);
+  const failing = { query() { return { ok: false, error: { code: 'PORT_DISPOSED' } }; }, submit() { assert.fail('no submit'); } };
+  assert.deepEqual(run(failing).result, { ok: false, error: { code: 'PORT_DISPOSED' } });
+  const { controller } = run(scriptedPort([fixedQuery()]));
+  controller.dispose();
+  let late = null;
+  const disposed = createRuntimeClientController({ port: scriptedPort([fixedQuery()]), policy: chooseSimpleAiIntent,
+    scheduler: { schedule(next) { late = next; return 1; }, cancel() {} } }).value;
+  disposed.start(); disposed.dispose();
+  assert.deepEqual(late(), { ok: false, error: { code: 'RUNTIME_CLIENT_CONTROLLER_DISPOSED' } });
+  assert.equal(returned.length, 4);
+});

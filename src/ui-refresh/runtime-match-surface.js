@@ -55,7 +55,15 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     const tutorial = session.tutorial();
     const presentation = { ...next, view, effectsEnabled, boardStyle, tutorial:tutorial.ok ? tutorial.value : null };
     const nextScope = `${next.model.match.matchId}:${next.sync?.sessionGeneration ?? scope.sessionGeneration}:${next.model.match.viewerSeat}:${next.model.match.revision}:${next.sync?.modeEpoch ?? 0}:${view}:${effectsEnabled ? 1 : 0}`;
-    const anchors = fx.capture(next, effectsEnabled, handDrag.flyOrigin());
+    // Decorative work (anchors, scenes, effects) may fail without stopping the match,
+    // and its failure must not keep the events from being handed over: they would be
+    // replayed and fail again on every later render.
+    const decorate = (work, fallback) => {
+      try { return work(); }
+      catch (error) { console.debug('[decoration]', error); onError('RUNTIME_DECORATION_FAILED'); return fallback; }
+    };
+    const anchors = decorate(() => fx.capture(next, effectsEnabled, handDrag.flyOrigin()),
+      { priorAnchors: new Map(), priorBoardAnchors: null, priorMotion: null });
     try {
       const shell = root.querySelector('.r2-runtime-view');
       const shellRebuilt = !shell || shell.dataset.layout !== (view === 'mobile' ? 'mobile' : 'desktop');
@@ -87,10 +95,10 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       renderScope = nextScope;
       regionKeys = nextKeys;
       syncInteractionClasses(root, next);
-      scenes.sync(next, effectsEnabled);
+      decorate(() => scenes.sync(next, effectsEnabled, shellRebuilt || runtimeChanged));
       if (geometryDirty) queueLayout();
-      syncResultFx(root,effectsEnabled);
-      fx.play(next, anchors, effectsEnabled);
+      decorate(() => syncResultFx(root,effectsEnabled));
+      decorate(() => fx.play(next, anchors, effectsEnabled));
       const ids = next.events.map(event => event.eventId);
       if (ids.length) {
         const acknowledged = ui.ackEvents(ids);
@@ -165,6 +173,13 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   });
   const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(queueLayout) : null;
   observer?.observe(root);
+  // Anchors move when a scrolled list, an image or a font settles; all of them share the one queued layout.
+  const inScroller = target => target?.matches?.('.admin-card-list,.r2-hand-scroll');
+  root.addEventListener('scroll', event => { if (latest?.model.ui.selectedCardRef && inScroller(event.target)) queueLayout(); },
+    { capture: true, passive: true, signal: lifetime.signal });
+  root.addEventListener('load', event => { if (event.target?.tagName === 'IMG') queueLayout(); },
+    { capture: true, signal: lifetime.signal });
+  root.ownerDocument?.fonts?.addEventListener?.('loadingdone', queueLayout, { signal: lifetime.signal });
   const sides = createSurfaceOpponents({ session, scope, aiSeat, ui, paced: timers.paced, cancelPaced: timers.cancelPaced,
     current, onError, render });
   if (!sides.ok) { lifetime.abort(); observer?.disconnect(); handDock?.dispose(); ui.dispose(); return sides; }

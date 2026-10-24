@@ -88,6 +88,19 @@ test('surface delegates an end-turn once, and session replacement revokes old ha
   assert.equal(next.value.port('a').value.query().value.status.revision,0);
   lifecycle.dispose();
 });
+test('a failing decorative step is reported once and does not keep shown events from being acknowledged',()=>{
+  const {lifecycle,session,port}=setup(),root=fakeRoot(),errors=[];
+  const mounted=mountRuntimeMatch({root,session,viewerSeat:'a',effectsEnabled:true,onError:code=>errors.push(code)});
+  assert.equal(mounted.ok,true,JSON.stringify(mounted));
+  errors.length=0;
+  const entry=port.query().value.legalActions.find(entry=>entry.action?.type==='endTurn');
+  const button={dataset:{actionId:entry.actionId},hasAttribute:name=>name==='data-action-id'};
+  root.listeners.click({target:{closest:selector=>selector==='button'?button:null}});
+  assert.equal(port.query().value.status.revision,1);
+  assert.ok(errors.includes('RUNTIME_DECORATION_FAILED'),'the decorative step ran and failed: '+errors.join());
+  assert.deepEqual(mounted.value.refresh().value.events,[]);
+  lifecycle.dispose();
+});
 test('normal schema accepts exact generic Target and registry destination, rejects legacy fields/duplicates/getters',()=>{
   const ref='r:'+ 'a'.repeat(32),other='r:'+ 'b'.repeat(32);
   const command=action=>canonicalizeCommand({contractVersion:1,matchId:'m',commandId:'c',actorSeat:'a',expectedRevision:0,action});
