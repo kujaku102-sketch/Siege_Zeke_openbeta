@@ -4506,6 +4506,31 @@ test("STD-223 Ambush interrupts an enemy Ob attack, pays two, damages and resume
   assert.ok(player.trash.some((card) => card.uid === victim.uid));
 });
 
+test("STD-223 Ambush resumes the attack after a Script window opened by the destroyed Ob", () => {
+  const state = createGame({ mode: "lab" }); const player = state.players.player; const ai = state.players.ai;
+  state.active = "ai"; player.memory = 2; ai.memory = 5;
+  const ambush = createCardInstance("STD-223", "player", 223011); const threshold = createCardInstance("STD-227", "player", 223012);
+  player.registry = [ambush, threshold]; player.front = [];
+  const attacker = createCardInstance("STD-022", "ai", 223013); attacker.summoningSick = false;
+  const bug = createCardInstance("STD-173", "ai", 223014); bug.sleep = true;
+  const cashBack = createCardInstance("STD-036", "ai", 223015); cashBack.faceDown = true;
+  ai.front = [attacker, bug]; ai.back = [cashBack];
+  const fortressBefore = player.fortressStr;
+  assert.equal(attack(state, "ai", attacker.uid, "player-fortress"), true);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "[アンブッシュ:2]を起動", selected: [] }), true);
+  assert.equal(state.pending.request.continuation.type, "std223-ambush-target");
+  // The answer must be accepted even though destroying the Ob opens the Script confirmation first.
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [bug.uid] }), true);
+  assert.ok(ai.trash.some((card) => card.uid === bug.uid));
+  assert.equal(state.prompt?.scriptUid, cashBack.uid);
+  assert.equal(state.deferredAttack?.attackerUid, attacker.uid);
+  assert.equal(player.fortressStr, fortressBefore, "the attack waits for the Script confirmation");
+  assert.equal(declinePrompt(state), true);
+  assert.equal(state.deferredAttack, null);
+  assert.ok(player.fortressStr < fortressBefore, "the declared attack resumes and lands after the confirmation");
+  assert.equal(attacker.sleep, true);
+});
+
 test("STD-224 records its chosen number and destroys itself with a matching enemy placement", () => {
   const state = createGame({ mode: "lab" }); const player = state.players.player; const ai = state.players.ai;
   const tackle = createCardInstance("STD-224", "player", 224001); player.hand = [tackle];

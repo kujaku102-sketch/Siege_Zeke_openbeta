@@ -5135,7 +5135,14 @@ function resolveCardSelectionCore(state, continuation, result) {
     if (state.lastDamageOutcome?.destructionDetermined) drawCards(state, playerId, 1);
     state.pending = null;
     const attacker = findCard(state, continuation.attackerUid)?.card;
-    return attacker ? attack(state, continuation.attackerPlayerId, attacker.uid, continuation.attackTargetUid) : true;
+    if (!attacker) return true;
+    // 3ダメージで破壊されたObの「自分Obが破壊された時」Script確認などが開いている間は攻撃宣言を再開できない。
+    // attack()は処理待ち中にfalseを返し、この回答ごと拒否されて詰むので、確認が終わってから宣言し直す。
+    if (state.pending || state.prompt) {
+      state.deferredAttack = { stage: null, playerId: continuation.attackerPlayerId, attackerUid: attacker.uid, targetUid: continuation.attackTargetUid };
+      return true;
+    }
+    return attack(state, continuation.attackerPlayerId, attacker.uid, continuation.attackTargetUid);
   }
   if (continuation.type === "std140-protect") {
     const target = findCard(state, result.selected[0])?.card;
