@@ -23,6 +23,25 @@ function redeployTurnCounts(query) {
   return next.counts;
 }
 
+// 回答が拒否されるとリビジョンが進まず同じ選択がそのまま届く。同じ回答を送り続けると手番が止まるので、
+// 同じ選択がリビジョンも変わらず再び届いたら、候補を1つずらして別の回答を試す。
+const answerLog = new Map();
+
+function answerAttempt(query, input) {
+  const key = `${query.status?.matchId}|${query.status?.viewerSeat}`;
+  const revision = query.status?.revision;
+  const current = answerLog.get(key);
+  const attempt = current?.choiceId === input.choiceId && current.revision === revision ? current.attempt + 1 : 0;
+  answerLog.set(key, { choiceId: input.choiceId, revision, attempt });
+  return attempt;
+}
+
+function rotated(options, attempt) {
+  if (!Array.isArray(options) || options.length < 2) return options;
+  const shift = attempt % options.length;
+  return [...options.slice(shift), ...options.slice(0, shift)];
+}
+
 function pickOptionIds(options, constraints) {
   if (!constraints || constraints.kind !== 'pick') return null;
   if (constraints.assignment === 'exclusive') {
@@ -144,13 +163,14 @@ function requiredInputAction(input, query) {
     type: 'answerChoice', choiceId: input.choiceId, optionIds: [], allocation: []
   };
   if (input.optional) return { type: 'declineChoice', choiceId: input.choiceId };
+  const options = rotated(input.options, answerAttempt(query, input));
   if (input.constraints?.kind === 'allocation') {
-    const answer = allocationAnswer(input);
+    const answer = allocationAnswer({ ...input, options });
     return answer ? { type: 'answerChoice', choiceId: input.choiceId, ...answer } : null;
   }
   const optionIds = input.constraints?.kind === 'confirmation'
-    ? input.options.slice(0, input.constraints.minimum).map(option => option.optionId)
-    : pickOptionIds(input.options, input.constraints);
+    ? options.slice(0, input.constraints.minimum).map(option => option.optionId)
+    : pickOptionIds(options, input.constraints);
   if (!optionIds) return null;
   return {
     type: 'answerChoice', choiceId: input.choiceId,
