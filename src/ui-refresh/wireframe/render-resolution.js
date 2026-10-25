@@ -1,5 +1,12 @@
 // Drawing pixels only. Never use these dimensions for layout or hit testing.
 export const DEFAULT_RENDER_QUALITY = Object.freeze({ scale: 3, maxPixels: 8_294_400 });
+// Per render mode (render-mode.js): compat draws its canvases (the life view) at CSS pixels,
+// whatever the DPR; full keeps the supersampled default.
+export const RENDER_QUALITY_PRESETS = Object.freeze({
+  compat: Object.freeze({ scale: 1, maxPixels: DEFAULT_RENDER_QUALITY.maxPixels }),
+  full: DEFAULT_RENDER_QUALITY
+});
+export const renderQualityFor = mode => mode === 'compat' ? RENDER_QUALITY_PRESETS.compat : RENDER_QUALITY_PRESETS.full;
 export const DISPLAY_FONT = 'Georgia, serif';
 
 export function renderResolution(width, height, quality = DEFAULT_RENDER_QUALITY, dpr = 1, maxDimension = 16384) {

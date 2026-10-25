@@ -8,6 +8,7 @@ import { runtimeShellHtml } from './ui-refresh/runtime-shell-view.js';
 import { patchHtml } from './ui-refresh/dom-patch.js';
 import { isIosWebKit, readSavedView, resolveView, saveView } from './ui-refresh/model.js';
 import { RENDER_STORAGE_KEY, readRenderPreference, resolveRenderMode, urlRenderPreference } from './ui-refresh/render-mode.js';
+import { renderQualityFor } from './ui-refresh/wireframe/render-resolution.js';
 import { isFullscreen, toggleFullscreen } from './ui-refresh/fullscreen.js';
 import { syncEntryLogoGlitch } from './ui-refresh/entry-logo-glitch.js';
 import { syncEntryCrtViewport } from './ui-refresh/entry-crt-viewport.js';
@@ -54,6 +55,8 @@ const readRenderSaved = () => {try {return readRenderPreference(localStorage.get
 host.renderPreference = readRenderSaved();host.renderContextLost = false;
 const renderMode = () => resolveRenderMode({url:location.search,saved:host.renderPreference,detection:renderDetection,contextLost:host.renderContextLost});
 const lowGpu = () => renderMode().mode === 'compat';
+// What a match surface takes from the mode: no WebGL, and canvases drawn at CSS pixels, in compat.
+const renderOptions = () => {const {mode} = renderMode();return {lowGpu:mode === 'compat',renderQuality:renderQualityFor(mode)};};
 const entryEffects = () => host.screen === 'entry' && host.effectsEnabled && !lowGpu() && !host.deckBuilder.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function renderShell(replace = false) {
   host.render = renderMode();host.renderUrl = urlRenderPreference(location.search);
@@ -83,18 +86,18 @@ function renderShell(replace = false) {
 function setRenderPreference(value) {
   host.renderPreference = readRenderPreference(value);host.renderContextLost = false;
   try {localStorage.setItem(RENDER_STORAGE_KEY,host.renderPreference);} catch {/* the choice still holds for this page */}
-  surface?.configure({lowGpu:lowGpu()});renderShell();
+  surface?.configure(renderOptions());renderShell();
 }
 // A WebGL context was lost: drop to compat for this page and say so; the player can switch back.
 function degradeAfterLoss() {
   if (lowGpu()) return;
-  host.renderContextLost = true;surface?.configure({lowGpu:true});
+  host.renderContextLost = true;surface?.configure(renderOptions());
   host.notice = '描画が不安定になったため軽量表示（WebGLなし）に切り替えました。タイトルのオプションで戻せます。';renderShell();
 }
 function attachSession(next) {
   surface?.dispose();surface = null;session = next;shellGeneration += 1;
   host.screen = 'game';host.options = false;host.notice = '';host.actor = session.scope().seatIds[0];renderShell(true);
-  const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,lowGpu:lowGpu(),onContextLost:degradeAfterLoss,
+  const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,...renderOptions(),onContextLost:degradeAfterLoss,
     boardStyle:new URLSearchParams(location.search).get('board') === 'classic' ? 'classic' : 'wireframe',
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
     effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;renderShell();},onTitle:leaveMatch,

@@ -42,5 +42,8 @@ export function attachLifeView(root, quality = DEFAULT_RENDER_QUALITY) {
       Object.assign(track,{canvas,mine:seat.seatId===model.match.viewerSeat,maximum:seat.user.maxFortressStr,thresholds:seat.user.incidents,used:seat.incidents});
     }
     request();
-  },dispose(){observer.dispose();cancelAnimationFrame(raf);tracks.clear();}};
+  },
+  // A render mode switch: the next frame resizes the canvases to the new drawing resolution.
+  setQuality(next){if(next===quality)return;quality=next;request();},
+  dispose(){observer.dispose();cancelAnimationFrame(raf);tracks.clear();}};
 }

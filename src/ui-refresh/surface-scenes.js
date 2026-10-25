@@ -68,11 +68,21 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest, l
       }
     },
     // Compat drops the WebGL board and HUD at once; full lets the next sync draw them again.
+    // Their canvases stay in the page, so the full-size drawing buffers are shrunk as well.
     setLowGpu(value) {
       if (lowGpu === Boolean(value)) return;
       lowGpu = Boolean(value);
-      if (lowGpu) { boardScene?.dispose(); boardScene = null; hudScene?.dispose(); hudScene = null; markBoard(); markHud(); }
+      if (lowGpu) {
+        boardScene?.dispose(); boardScene = null; hudScene?.dispose(); hudScene = null; markBoard(); markHud();
+        for (const canvas of root.querySelectorAll('.wf-board-model, .wf-hud-model')) { canvas.width = 1; canvas.height = 1; }
+      }
       else { boardTried = null; hudTried = null; boardUsable = true; hudUsable = true; sceneNode = null; hudSynced = null; }
+    },
+    // The drawing resolution of the render mode. The life view resizes at once; the board and HUD
+    // scenes only exist in full, so they take it when setLowGpu(false) lets the next sync make them.
+    setRenderQuality(quality) {
+      if (!quality || quality === renderQuality) return;
+      renderQuality = quality; lifeView?.setQuality(quality);
     },
     // Forgets the hovered board target without redrawing the preview.
     dropHover() { boardHover = null; },

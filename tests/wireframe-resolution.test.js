@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { renderResolution, observeDrawing } from '../src/ui-refresh/wireframe/render-resolution.js';
+import { DEFAULT_RENDER_QUALITY, RENDER_QUALITY_PRESETS, renderQualityFor, renderResolution, observeDrawing } from '../src/ui-refresh/wireframe/render-resolution.js';
+import { attachLifeView } from '../src/ui-refresh/wireframe/life-view.js';
+import { createSurfaceScenes } from '../src/ui-refresh/surface-scenes.js';
 import { attachBoardCamera } from '../src/ui-refresh/wireframe/camera.js';
 import { hexPixelScale, hexButtonState, HEX_TEXELS, pathPolygon, faceTexels, closeGaps } from '../src/ui-refresh/wireframe/hud-scene.js';
 import { METER_OUTER, CELL_PATHS } from '../src/ui-refresh/wireframe/memory-meter.js';
@@ -37,6 +39,83 @@ test('high quality changes buffer only and is independent of DPR', () => {
   }
   assert.equal(renderResolution(800,360,{scale:'device'},1).width,800);
   assert.equal(renderResolution(800,360,{scale:'device'},3).width,1600);
+});
+test('render quality presets: compat draws at CSS pixels on any DPR, full keeps the default', () => {
+  assert.equal(renderQualityFor('full'), DEFAULT_RENDER_QUALITY);
+  assert.deepEqual(RENDER_QUALITY_PRESETS.full, { scale: 3, maxPixels: 8_294_400 });
+  assert.deepEqual(renderQualityFor('compat'), { scale: 1, maxPixels: 8_294_400 });
+  for (const mode of [undefined, null, '', 'auto', 'COMPAT']) assert.equal(renderQualityFor(mode), DEFAULT_RENDER_QUALITY);
+  assert.ok(Object.isFrozen(RENDER_QUALITY_PRESETS.compat));
+  for (const dpr of [1, 2, 3]) {
+    assert.deepEqual(renderResolution(64, 26, renderQualityFor('compat'), dpr), { width: 64, height: 26, scale: 1 });
+    assert.deepEqual(renderResolution(64, 26, renderQualityFor('full'), dpr), { width: 192, height: 78, scale: 3 });
+  }
+});
+// A seat's life canvas inside a fake match root, with frames run by hand.
+function lifeHarness() {
+  const old = { raf: globalThis.requestAnimationFrame, caf: globalThis.cancelAnimationFrame, observer: globalThis.ResizeObserver };
+  const frames = new Map(); let id = 0;
+  globalThis.requestAnimationFrame = fn => { frames.set(++id, fn); return id; };
+  globalThis.cancelAnimationFrame = n => frames.delete(n);
+  globalThis.ResizeObserver = class { observe() {} disconnect() {} };
+  const context = new Proxy({}, { get: (target, key) => key in target ? target[key] : () => {}, set: (target, key, value) => { target[key] = value; return true; } });
+  const canvas = { width: 300, height: 150, dataset: { lifeSeat: 'a' }, getBoundingClientRect: () => ({ width: 64, height: 26 }), getContext: () => context };
+  const win = { devicePixelRatio: 3, requestAnimationFrame: globalThis.requestAnimationFrame, cancelAnimationFrame: globalThis.cancelAnimationFrame,
+    addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) };
+  // The WebGL hosts as a full-mode scene left them (DPR-independent x3 of the CSS size).
+  const drawn = [{ width: 2556, height: 1179 }, { width: 551, height: 1002 }];
+  const root = { ownerDocument: { defaultView: win }, querySelector: () => null,
+    querySelectorAll: selector => selector === '[data-life-seat]' ? [canvas] : selector === '.wf-board-model, .wf-hud-model' ? drawn : [] };
+  const model = { match: { viewerSeat: 'a' }, seats: [{ seatId: 'a', fortressStr: 12, incidents: [], user: { maxFortressStr: 20, incidents: [4] } }] };
+  const flush = () => { for (let i = 0; i < 3 && frames.size; i++) { const batch = [...frames.values()]; frames.clear(); for (const fn of batch) fn(performance.now()); } };
+  const restore = () => { globalThis.requestAnimationFrame = old.raf; globalThis.cancelAnimationFrame = old.caf; globalThis.ResizeObserver = old.observer; };
+  return { canvas, root, model, drawn, flush, restore };
+}
+test('life view: a render mode switch resizes the canvas both ways at DPR 3', () => {
+  const h = lifeHarness();
+  try {
+    const view = attachLifeView(h.root, renderQualityFor('compat'));
+    view.sync(h.model, false); h.flush();
+    assert.deepEqual([h.canvas.width, h.canvas.height], [64, 26], 'compat: CSS pixels, not DPR 3');
+    view.setQuality(renderQualityFor('full')); h.flush();
+    assert.deepEqual([h.canvas.width, h.canvas.height], [192, 78], 'full: the current x3 default');
+    view.setQuality(renderQualityFor('compat')); h.flush();
+    assert.deepEqual([h.canvas.width, h.canvas.height], [64, 26], 'back to compat shrinks again');
+    view.dispose();
+  } finally { h.restore(); }
+});
+test('surface scenes: setRenderQuality reaches the life view made before and after it', () => {
+  const h = lifeHarness();
+  try {
+    const scenes = createSurfaceScenes({ root: h.root, boardStyle: 'classic', renderQuality: renderQualityFor('full'), latest: () => null, lowGpu: true });
+    scenes.sync({ model: h.model }, false); h.flush();
+    assert.equal(h.canvas.width, 192);
+    scenes.setRenderQuality(renderQualityFor('compat')); h.flush();
+    assert.equal(h.canvas.width, 64);
+    scenes.setRenderQuality(null); h.flush();
+    assert.equal(h.canvas.width, 64, 'a missing preset changes nothing');
+    scenes.dispose();
+    const later = createSurfaceScenes({ root: h.root, boardStyle: 'classic', renderQuality: renderQualityFor('full'), latest: () => null, lowGpu: true });
+    later.setRenderQuality(renderQualityFor('compat'));
+    later.sync({ model: h.model }, false); h.flush();
+    assert.equal(h.canvas.width, 64, 'a life view attached after the switch starts at the new quality');
+    later.dispose();
+  } finally { h.restore(); }
+});
+test('surface scenes: going to compat shrinks the kept WebGL canvases; staying or going to full leaves them', () => {
+  const h = lifeHarness();
+  try {
+    const scenes = createSurfaceScenes({ root: h.root, boardStyle: 'classic', renderQuality: renderQualityFor('full'), latest: () => null, lowGpu: false });
+    scenes.setLowGpu(false);
+    assert.deepEqual(h.drawn.map(c => [c.width, c.height]), [[2556, 1179], [551, 1002]], 'no mode change, no resize');
+    scenes.setLowGpu(true);
+    assert.deepEqual(h.drawn.map(c => [c.width, c.height]), [[1, 1], [1, 1]]);
+    h.drawn[0].width = 2556; scenes.setLowGpu(true);
+    assert.equal(h.drawn[0].width, 2556, 'already compat: untouched');
+    scenes.setLowGpu(false);
+    assert.equal(h.drawn[0].width, 2556, 'full: the next scene sizes its own canvas');
+    scenes.dispose();
+  } finally { h.restore(); }
 });
 test('pixel and hardware limits bound allocations, zero size skips drawing', () => {
   for(const [w,h] of [[1920,1080],[3840,2160],[800,360]]) {

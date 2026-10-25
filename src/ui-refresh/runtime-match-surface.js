@@ -199,7 +199,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   opponents = sides.value;
   const surface = Object.freeze({
     refresh() { const read = ui.read(); render(read); opponents.startCpu(latest); opponents.startTutorial(); return read; },
-    configure(options) { if (typeof options.lowGpu === 'boolean') { lowGpu = options.lowGpu; scenes.setLowGpu(lowGpu); } if (options.view) view = options.view; if (typeof options.effectsEnabled === 'boolean') effectsEnabled = options.effectsEnabled; if (typeof options.tapDetails === 'boolean') tapDetails = options.tapDetails; return this.refresh(); },
+    configure(options) { if (options.renderQuality) scenes.setRenderQuality(options.renderQuality); if (typeof options.lowGpu === 'boolean') { lowGpu = options.lowGpu; scenes.setLowGpu(lowGpu); } if (options.view) view = options.view; if (typeof options.effectsEnabled === 'boolean') effectsEnabled = options.effectsEnabled; if (typeof options.tapDetails === 'boolean') tapDetails = options.tapDetails; return this.refresh(); },
     startAi() { return opponents.startAi(); },
     switchViewer(seatId) { pointer.stopPress(); fx.clear(); const read = ui.switchViewer(seatId); render(read); return read; },
     dispose() {
