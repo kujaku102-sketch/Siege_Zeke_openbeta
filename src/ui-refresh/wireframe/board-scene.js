@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { BOARD_CAMERA } from './geometry.js';
-import { DEFAULT_RENDER_QUALITY, renderResolution, observeDrawing, drawingLimit } from './render-resolution.js';
+import { DEFAULT_RENDER_QUALITY, renderResolution, observeDrawing, drawingLimit, watchContextLoss } from './render-resolution.js';
 import { createCardMeshes } from './card-meshes.js';
 import { boardPieces } from './board-view.js';
 
 // Decorative geometry only: the board and the card slabs. Public cards, targets and
 // action IDs live in the SVG overlay. No engine access and no interactive objects.
-export function createBoardScene(canvas, svg, quality = DEFAULT_RENDER_QUALITY) {
+// `onUsable(false|true)` reports a lost / restored context so the owner can show the SVG form.
+export function createBoardScene(canvas, svg, quality = DEFAULT_RENDER_QUALITY, { onUsable = () => {} } = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
   const limit = drawingLimit(renderer);
   const scene = new THREE.Scene();
@@ -42,7 +43,9 @@ export function createBoardScene(canvas, svg, quality = DEFAULT_RENDER_QUALITY) 
     glow.position.set(x,.35,z+.14);glow.rotation.y=Math.PI/4;scene.add(glow);
   }
   const cards=createCardMeshes(scene,canvas.ownerDocument);
+  let lost=false;
   function draw(){
+    if(lost)return;
     const rect=canvas.getBoundingClientRect(),v=svg.viewBox.baseVal;
     if(!rect.width||!rect.height||!v.width||!v.height)return;
     const size=renderResolution(rect.width,rect.height,quality,globalThis.devicePixelRatio,limit);
@@ -64,10 +67,15 @@ export function createBoardScene(canvas, svg, quality = DEFAULT_RENDER_QUALITY) 
   });
   const tick=()=>{
     frame=0;
+    if(lost)return;
     if(cards.follow(svg))draw();
     if(win.performance.now()<until||moving())frame=win.requestAnimationFrame(tick);
   };
   const watch=()=>{until=win.performance.now()+FOLLOW_MS;if(!frame)frame=win.requestAnimationFrame(tick);};
+  const unwatch=watchContextLoss(canvas,{
+    onLost(){lost=true;win.cancelAnimationFrame(frame);frame=0;onUsable(false);},
+    onRestored(){lost=false;onUsable(true);observer.request();watch();}
+  });
   cards.onChange(observer.request);
   svg.addEventListener('board-camera-change',observer.request);
   svg.addEventListener('board-motion',watch);
@@ -75,7 +83,7 @@ export function createBoardScene(canvas, svg, quality = DEFAULT_RENDER_QUALITY) 
   return {draw:observer.request,
     sync(model){cards.sync(boardPieces(model));observer.request();watch();},
     dispose(){
-    observer.dispose();win.cancelAnimationFrame(frame);
+    unwatch();observer.dispose();win.cancelAnimationFrame(frame);
     svg.removeEventListener('board-camera-change',observer.request);svg.removeEventListener('board-motion',watch);
     cards.dispose();
     const materials=new Set();scene.traverse(o=>{o.geometry?.dispose();if(o.material)materials.add(o.material);});

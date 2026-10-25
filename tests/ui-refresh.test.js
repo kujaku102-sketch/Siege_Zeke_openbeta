@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { resolveView, readSavedView, saveView, fitBoard, placePopup, cardSelection, clearSelection, gestureMoved } from "../src/ui-refresh/model.js";
+import { isIosWebKit, resolveView, readSavedView, saveView, fitBoard, placePopup, cardSelection, clearSelection, gestureMoved } from "../src/ui-refresh/model.js";
 import { planVisualEffects, snapshotVisualState } from "../src/ui/visual-effects.js";
 import { createGame } from "../src/game/engine.js";
 import { createCardInstance } from "../src/data/cards.js";
+import { watchContextLoss } from "../src/ui-refresh/wireframe/render-resolution.js";
 import { createEntryLogoController } from "../src/ui-refresh/entry-logo-glitch.js";
 import { LOGO_FIT, LOGO_EFFECT_SPEED, logoEffectDelta, createLogoAreas, updateLogoAreas, createLogoBands, updateLogoBands } from '../src/ui-refresh/logo-noise-model.js';
 
@@ -173,4 +174,46 @@ test("match notices show Japanese sentences, never raw codes, and ignore taps of
   for (const code of ["ACTION_NOT_ALLOWED", "AMBIGUOUS_INTERACTION_TARGET", "MEMORY_SHORT", "MATCH_SESSION_COMMAND_INFLIGHT"]) assert.doesNotMatch(noticeText(code), /[A-Z]{2,}_[A-Z]/);
   const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(source, /const notice = code => \{const text = noticeText\(code\);[^}]*if \(text === null\) return;host\.notice = text;/);
+});
+
+test("iOS WebKit is told from iPhone, iPod, iPad and the iPadOS desktop-site Mac, not from a Mac or Android", () => {
+  const ua = { iphone: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 CriOS/140", ipod: "Mozilla/5.0 (iPod touch; CPU iPhone OS 15_0)",
+    ipad: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)", mac: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15",
+    android: "Mozilla/5.0 (Linux; Android 15) Chrome/140 Mobile Safari/537.36", windows: "Mozilla/5.0 (Windows NT 10.0) Chrome/140" };
+  for (const name of ["iphone", "ipod", "ipad"]) assert.equal(isIosWebKit({ userAgent: ua[name] }), true, name);
+  assert.equal(isIosWebKit({ userAgent: ua.mac, platform: "MacIntel", maxTouchPoints: 5 }), true, "iPadOS asking for the desktop site");
+  assert.equal(isIosWebKit({ userAgent: ua.mac, platform: "MacIntel", maxTouchPoints: 0 }), false, "a Mac");
+  assert.equal(isIosWebKit({ userAgent: ua.mac, platform: "MacIntel" }), false);
+  assert.equal(isIosWebKit({ userAgent: ua.android, maxTouchPoints: 5 }), false);
+  assert.equal(isIosWebKit({ userAgent: ua.windows, platform: "Win32", maxTouchPoints: 10 }), false);
+  assert.equal(isIosWebKit(), false);
+});
+
+test("a lost WebGL context is answered at once and a restored one is reported; removal detaches both", () => {
+  const listeners = new Map();
+  const canvas = { addEventListener: (type, fn) => listeners.set(type, fn), removeEventListener: type => listeners.delete(type) };
+  const seen = [];
+  const stop = watchContextLoss(canvas, { onLost: () => seen.push("lost"), onRestored: () => seen.push("restored") });
+  let prevented = false;
+  listeners.get("webglcontextlost")({ preventDefault: () => { prevented = true; } });
+  listeners.get("webglcontextrestored")({});
+  assert.equal(prevented, true, "default is prevented so the browser may restore the context");
+  assert.deepEqual(seen, ["lost", "restored"]);
+  stop();
+  assert.equal(listeners.size, 0);
+});
+
+test("lowGpu reaches the match surface and the title; the drawn layers never take input, so the SVG hit areas stay the only targets", async () => {
+  const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.ok(main.includes("const lowGpu = isIosWebKit({"));
+  assert.ok(main.includes("host.effectsEnabled && !lowGpu"));
+  assert.ok(main.includes("view:host.view,lowGpu,"));
+  const scenes = await readFile(new URL("../src/ui-refresh/surface-scenes.js", import.meta.url), "utf8");
+  assert.ok(scenes.includes("svg && !lowGpu"));
+  assert.ok(scenes.includes("hudCanvas && !lowGpu"));
+  const css = await readFile(new URL("../src/ui-refresh/wireframe/board.css", import.meta.url), "utf8");
+  for (const selector of [".wf-board-model", ".wf-hud-model"]) {
+    const rule = css.split("\n").find(line => line.includes(selector + " {"));
+    assert.ok(rule && rule.includes("pointer-events:none"), selector + " never takes input");
+  }
 });

@@ -15,6 +15,14 @@ export function resolveView({ pathname = "", saved, mobile, userAgent = "", maxT
   return { view: null, source: "unknown" };
 }
 
+// iOS and iPadOS run every browser on WebKit, whose WebGL and graphics-memory limits drop a
+// context mid-match. iPadOS asks for the desktop site, so it reports as a Mac: a Mac that has
+// touch points is an iPad (no shipping Mac has a touchscreen). Used only to skip WebGL scenes.
+export function isIosWebKit({ userAgent = "", platform = "", maxTouchPoints = 0 } = {}) {
+  if (/iPhone|iPod|iPad/i.test(userAgent)) return true;
+  return (/Macintosh/i.test(userAgent) || platform === "MacIntel") && maxTouchPoints > 1;
+}
+
 export function readSavedView(storage) {
   try { const value = storage?.getItem(VIEW_STORAGE_KEY); return isView(value) ? value : null; }
   catch { return null; }

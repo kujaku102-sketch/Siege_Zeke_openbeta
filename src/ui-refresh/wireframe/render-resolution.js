@@ -35,6 +35,16 @@ export function observeDrawing(element, draw) {
   } };
 }
 
+// A lost WebGL context is answered at once, not waited for: the owner drops to its HTML/SVG form
+// (onLost) and returns to the drawn form when the browser gives the context back (onRestored).
+export function watchContextLoss(canvas, { onLost = () => {}, onRestored = () => {} } = {}) {
+  const lost = event => { event.preventDefault(); onLost(); };
+  const restored = () => onRestored();
+  canvas.addEventListener('webglcontextlost', lost);
+  canvas.addEventListener('webglcontextrestored', restored);
+  return () => { canvas.removeEventListener('webglcontextlost', lost); canvas.removeEventListener('webglcontextrestored', restored); };
+}
+
 export function drawingLimit(renderer) {
   const gl = renderer.getContext(), viewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
   return Math.min(renderer.capabilities.maxTextureSize, gl.getParameter(gl.MAX_RENDERBUFFER_SIZE), ...viewport);

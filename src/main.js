@@ -6,7 +6,7 @@ import { createMatchLifecycleController } from './adapters/match-lifecycle-contr
 import { mountRuntimeMatch } from './ui-refresh/runtime-match-surface.js';
 import { runtimeShellHtml } from './ui-refresh/runtime-shell-view.js';
 import { patchHtml } from './ui-refresh/dom-patch.js';
-import { readSavedView, resolveView, saveView } from './ui-refresh/model.js';
+import { isIosWebKit, readSavedView, resolveView, saveView } from './ui-refresh/model.js';
 import { isFullscreen, toggleFullscreen } from './ui-refresh/fullscreen.js';
 import { syncEntryLogoGlitch } from './ui-refresh/entry-logo-glitch.js';
 import { syncEntryCrtViewport } from './ui-refresh/entry-crt-viewport.js';
@@ -45,7 +45,9 @@ installAbilityHelp(root);
 const mobileViewport = installMobileViewport(root);
 // The raw code goes to the console only; the player sees a sentence or nothing.
 const notice = code => {const text = noticeText(code);console.debug('[notice]',code);if (text === null) return;host.notice = text;renderShell();};
-const entryEffects = () => host.screen === 'entry' && host.effectsEnabled && !host.deckBuilder.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// iOS WebKit: no WebGL title, logo noise, 3D board or HUD (context and memory limits); SVG/CSS only.
+const lowGpu = isIosWebKit({userAgent:navigator.userAgent,platform:navigator.platform,maxTouchPoints:navigator.maxTouchPoints});
+const entryEffects = () => host.screen === 'entry' && host.effectsEnabled && !lowGpu && !host.deckBuilder.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function renderShell(replace = false) {
   document.body.dataset.view = host.view;
   const viewport = captureDeckViewport(root);
@@ -72,7 +74,7 @@ function renderShell(replace = false) {
 function attachSession(next) {
   surface?.dispose();surface = null;session = next;shellGeneration += 1;
   host.screen = 'game';host.options = false;host.notice = '';host.actor = session.scope().seatIds[0];renderShell(true);
-  const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,
+  const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,lowGpu,
     boardStyle:new URLSearchParams(location.search).get('board') === 'classic' ? 'classic' : 'wireframe',
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
     effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;renderShell();},onTitle:leaveMatch,

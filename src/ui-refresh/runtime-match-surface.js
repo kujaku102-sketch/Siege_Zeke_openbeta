@@ -26,7 +26,7 @@ import { centerIncidentStrip } from './user-detail-view.js';
 // It wires the parts together; each surface-*.js module owns one concern.
 export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSeat = null,
   onTitle = () => {}, onRematch = () => {}, onMenu = null, onError = () => {},
-  onTutorialSkip = () => {}, onTutorialComplete = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY }) {
+  onTutorialSkip = () => {}, onTutorialComplete = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY, lowGpu = false }) {
   const created = createMatchUiController({ session, viewerSeat });
   if (!created.ok) return created;
   const ui = created.value;
@@ -53,7 +53,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const surfaceLayout = createSurfaceLayout({ root, session, scope, boardStyle, latest: () => latest,
     requestFrame: timers.requestFrame, disposed: () => disposed });
   const queueLayout = surfaceLayout.queue;
-  const scenes = createSurfaceScenes({ root, boardStyle, renderQuality, latest: () => latest });
+  const scenes = createSurfaceScenes({ root, boardStyle, renderQuality, latest: () => latest, lowGpu });
   const log = createLogSync(root);
   const render = result => {
     if (disposed) return;
@@ -109,7 +109,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       syncInteractionClasses(root, next);
       decorate(() => scenes.sync(next, effectsEnabled, shellRebuilt || runtimeChanged));
       if (geometryDirty) queueLayout();
-      decorate(() => syncResultFx(root,effectsEnabled));
+      decorate(() => syncResultFx(root,effectsEnabled && !lowGpu));
       decorate(() => fx.play(next, anchors, effectsEnabled));
       const ids = next.events.map(event => event.eventId);
       if (ids.length) {

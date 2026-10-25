@@ -127,5 +127,8 @@ function scanShader(canvas, tintColor) {
     frame = requestAnimationFrame(draw);
   };
   frame = requestAnimationFrame(draw);
-  return () => { stopped = true; cancelAnimationFrame(frame); gl.deleteBuffer(buffer); gl.deleteProgram(program); gl.deleteShader(vertex); gl.deleteShader(fragment); };
+  // A lost context ends this decoration (the result stays HTML); it is not drawn again.
+  const lost = event => { event.preventDefault(); stopped = true; cancelAnimationFrame(frame); canvas.hidden = true; };
+  canvas.addEventListener("webglcontextlost", lost);
+  return () => { canvas.removeEventListener("webglcontextlost", lost); stopped = true; cancelAnimationFrame(frame); gl.deleteBuffer(buffer); gl.deleteProgram(program); gl.deleteShader(vertex); gl.deleteShader(fragment); };
 }

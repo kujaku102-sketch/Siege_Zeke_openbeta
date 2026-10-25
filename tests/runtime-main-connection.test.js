@@ -101,6 +101,15 @@ test('a failing decorative step is reported once and does not keep shown events 
   assert.deepEqual(mounted.value.refresh().value.events,[]);
   lifecycle.dispose();
 });
+test('a lowGpu surface (iOS WebKit) still delegates input through the same ports',()=>{
+  const {lifecycle,session,port}=setup(),root=fakeRoot(),mounted=mountRuntimeMatch({root,session,viewerSeat:'a',lowGpu:true,effectsEnabled:true});
+  assert.equal(mounted.ok,true,JSON.stringify(mounted));
+  const entry=port.query().value.legalActions.find(entry=>entry.action?.type==='endTurn');
+  const button={dataset:{actionId:entry.actionId},hasAttribute:name=>name==='data-action-id'};
+  root.listeners.click({target:{closest:selector=>selector==='button'?button:null}});
+  assert.equal(port.query().value.status.revision,1);
+  lifecycle.dispose();
+});
 test('normal schema accepts exact generic Target and registry destination, rejects legacy fields/duplicates/getters',()=>{
   const ref='r:'+ 'a'.repeat(32),other='r:'+ 'b'.repeat(32);
   const command=action=>canonicalizeCommand({contractVersion:1,matchId:'m',commandId:'c',actorSeat:'a',expectedRevision:0,action});

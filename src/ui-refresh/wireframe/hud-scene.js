@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HUD_ICONS } from './controls-view.js';
-import { DEFAULT_RENDER_QUALITY, renderResolution, observeDrawing, drawingLimit } from './render-resolution.js';
+import { DEFAULT_RENDER_QUALITY, renderResolution, observeDrawing, drawingLimit, watchContextLoss } from './render-resolution.js';
 
 // PS1-style drawing of the TURN button, the three hex buttons and the memory
 // gauge, on one canvas behind the turn controls. The buttons stay HTML (clicks, focus, labels, hit
@@ -301,7 +301,8 @@ const POSE = {
   disabled: { z: 0, scale: 1, tilt: 1, shade: 1 },
 };
 
-export function createHudScene(canvas, quality = DEFAULT_RENDER_QUALITY) {
+// `onUsable(false|true)` reports a lost / restored context so the CSS buttons can take over.
+export function createHudScene(canvas, quality = DEFAULT_RENDER_QUALITY, { onUsable = () => {} } = {}) {
   const doc = canvas.ownerDocument, win = doc.defaultView, tools = canvas.parentElement;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true });
   const limit = drawingLimit(renderer);
@@ -409,8 +410,9 @@ export function createHudScene(canvas, quality = DEFAULT_RENDER_QUALITY) {
     return meshes.get(button);
   }
 
+  let lost = false;
   function draw(now = win.performance.now()) {
-    if (disposed) return;
+    if (disposed || lost) return;
     const box = canvas.getBoundingClientRect();
     if (!box.width || !box.height) return;
     const size = renderResolution(box.width, box.height, quality, win.devicePixelRatio, limit);
@@ -456,11 +458,15 @@ export function createHudScene(canvas, quality = DEFAULT_RENDER_QUALITY) {
   // Idle sway runs at a PS1-ish 15fps and only while effects are on.
   function loop(now) {
     frame = 0;
-    if (!sway || disposed) return;
+    if (!sway || disposed || lost) return;
     if (now - lastSway >= 66) { lastSway = now; draw(now); }
     frame = win.requestAnimationFrame(loop);
   }
   const observer = observeDrawing(canvas, () => draw());
+  const unwatch = watchContextLoss(canvas, {
+    onLost() { lost = true; win.cancelAnimationFrame(frame); frame = 0; onUsable(false); },
+    onRestored() { lost = false; onUsable(true); observer.request(); if (sway && !frame) frame = win.requestAnimationFrame(loop); }
+  });
   const events = ['pointerover', 'pointerout', 'pointerdown', 'pointerup', 'pointercancel', 'focusin', 'focusout', 'keydown', 'keyup'];
   // State changes land after the event; redraw on the next frame.
   const changed = () => observer.request();
@@ -475,7 +481,7 @@ export function createHudScene(canvas, quality = DEFAULT_RENDER_QUALITY) {
       observer.request();
     },
     dispose() {
-      disposed = true; observer.dispose(); win.cancelAnimationFrame(frame); win.cancelAnimationFrame(meter.flashFrame);
+      disposed = true; unwatch(); observer.dispose(); win.cancelAnimationFrame(frame); win.cancelAnimationFrame(meter.flashFrame);
       for (const type of events) tools.removeEventListener(type, changed);
       win.removeEventListener('pointerup', changed);
       for (const entry of meshes.values()) { entry.body.material.dispose(); entry.face.material.dispose(); entry.face.geometry.dispose(); }
