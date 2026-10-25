@@ -1,8 +1,9 @@
 const failure = code => ({ ok: false, error: { code } });
 const nonempty = value => typeof value === 'string' && value.length > 0;
 
+// 開始手順v2.4では常にキープ(keepOpeningHandが合法なら引き直さない)。legacyはkeepOpeningHandが無く、従来どおりopeningMulliganを選ぶ。
 const PRIORITY = Object.freeze([
-  'openingMulligan', 'install', 'activateAbility', 'executeLayered', 'executeCard',
+  'keepOpeningHand', 'openingMulligan', 'install', 'activateAbility', 'executeLayered', 'executeCard',
   'executeSpell','mountCard','setScript','executeRegistry','activateCardEffect',
   'activateScript', 'attack', 'redeploy', 'recoverRegistry', 'endTurn'
 ]);

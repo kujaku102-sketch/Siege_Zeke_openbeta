@@ -50,6 +50,8 @@ import {
   getMaxMemory,
   installCard,
   openingMulligan,
+  keepOpeningHand,
+  canOpeningMulligan,
   drawCards,
   emitGameEvent,
   playCard,
@@ -6618,6 +6620,129 @@ test("BIGBOSS can mulligan exactly three times before another opening action", (
     assert.equal(player.mulligansUsed, count);
   }
   assert.equal(openingMulligan(state, "player"), false);
+});
+
+// 開始手順 v2.4 (規則書2.4): 各ユーザーが1回、任意枚数を山札の下へ戻して引き直し、最後にダイスで先攻を決める。
+const openingGame = (extra = {}) => {
+  const dice = { value: 0.1 };
+  const state = createGame({ mode: "ai", openingProtocol: "v2.4", rng: () => dice.value, ...extra });
+  return { state, dice };
+};
+
+test("v2.4 starts in an opening phase with dealt hands, no turn started and the player deciding first", () => {
+  const { state } = openingGame();
+  assert.deepEqual(state.opening, { status: "mulligan", order: ["player", "ai"], index: 0 });
+  assert.equal(state.phase, "opening");
+  assert.equal(state.active, "player");
+  assert.equal(state.players.player.hand.length, 4);
+  assert.equal(state.players.ai.hand.length, 4);
+  assert.equal(state.players.player.turnsTaken, 0);
+  assert.equal(state.players.ai.turnsTaken, 0);
+  assert.equal(canOpeningMulligan(state, "player"), true);
+  assert.equal(canOpeningMulligan(state, "ai"), false, "the other user waits for its turn to decide");
+  // Unspecified and non-ai modes keep the old flow (no opening phase at all).
+  assert.equal("opening" in createGame({ mode: "ai" }), false);
+  for (const mode of ["tutorial", "lab", "sandbox"]) assert.equal("opening" in createGame({ mode, openingProtocol: "v2.4" }), false, mode);
+});
+
+test("v2.4 refuses every normal action until both users have decided", () => {
+  const { state } = openingGame();
+  const player = state.players.player;
+  const card = player.hand[0];
+  assert.equal(playCard(state, "player", card.uid), false);
+  assert.equal(installCard(state, "player", card.uid), false);
+  assert.equal(endTurn(state), false);
+  assert.equal(activateTurbo(state, "player"), false);
+  assert.equal(recoverRegistryCard(state, "player", card.uid), false);
+  assert.equal(player.hand.includes(card), true);
+  assert.equal(keepOpeningHand(state, "ai"), false, "only the deciding user can keep");
+  assert.equal(openingMulligan(state, "ai", { uids: [state.players.ai.hand[0].uid] }), false);
+  assert.ok(state.opening);
+});
+
+test("v2.4 mulligan returns the chosen cards to the bottom, redraws the same number and shuffles", () => {
+  const { state } = openingGame();
+  const player = state.players.player;
+  const deckBefore = player.deck.length;
+  const handBefore = player.hand.map((card) => card.uid);
+  const chosen = handBefore.slice(0, 2);
+  assert.equal(openingMulligan(state, "player", { uids: [] }), false, "at least one card");
+  assert.equal(openingMulligan(state, "player", { uids: [chosen[0], chosen[0]] }), false, "no duplicates");
+  assert.equal(openingMulligan(state, "player", { uids: ["not-in-hand"] }), false);
+  assert.equal(player.mulligansUsed, 0);
+
+  assert.equal(openingMulligan(state, "player", { uids: chosen }), true);
+  assert.equal(player.hand.length, 4);
+  assert.equal(player.deck.length, deckBefore);
+  assert.equal(player.mulligansUsed, 1);
+  assert.ok(handBefore.slice(2).every((uid) => player.hand.some((card) => card.uid === uid)), "unchosen cards stay in hand");
+  assert.equal(new Set([...player.hand, ...player.deck].map((card) => card.uid)).size, 4 + deckBefore, "no card lost or duplicated");
+  // The single mulligan is spent, so the decision passes to the next user.
+  assert.equal(state.active, "ai");
+  assert.equal(canOpeningMulligan(state, "player"), false);
+  assert.equal(state.opening.index, 1);
+});
+
+test("v2.4 rolls the dice in the last decision and starts the first player's turn", () => {
+  for (const [value, first, second] of [[0.1, "player", "ai"], [0.9, "ai", "player"]]) {
+    const { state, dice } = openingGame();
+    assert.equal(keepOpeningHand(state, "player"), true);
+    assert.equal(state.active, "ai");
+    assert.equal(state.opening.status, "mulligan");
+    dice.value = value;
+    assert.equal(keepOpeningHand(state, "ai"), true);
+    assert.equal("opening" in state, false);
+    assert.equal(state.firstPlayer, first);
+    assert.equal(state.active, first);
+    assert.equal(state.phase, "main");
+    assert.equal(state.turnNumber, 1);
+    assert.equal(state.players[first].hand.length, 4, "the first player skips the first draw");
+    assert.equal(state.players[first].turnsTaken, 1);
+    assert.equal(state.players[second].turnsTaken, 0);
+    assert.ok(state.log.some((entry) => entry.text.includes("先攻")));
+  }
+});
+
+test("v2.4 gives the second player the two-card first-turn draw after the dice", () => {
+  const { state, dice } = openingGame();
+  dice.value = 0.9; // ai goes first
+  keepOpeningHand(state, "player");
+  keepOpeningHand(state, "ai");
+  const player = state.players.player;
+  assert.equal(endTurn(state), true);
+  assert.equal(state.active, "player");
+  assert.equal(player.hand.length, 6);
+});
+
+test("v2.4 is deterministic for the same random stream", () => {
+  const run = () => {
+    let seed = 7;
+    const rng = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    const state = createGame({ mode: "ai", openingProtocol: "v2.4", rng });
+    openingMulligan(state, "player", { uids: [state.players.player.hand[0].uid] });
+    keepOpeningHand(state, "ai");
+    return JSON.stringify([state.firstPlayer, state.players.player.hand.map((card) => card.uid), state.players.ai.hand.map((card) => card.uid)]);
+  };
+  assert.equal(run(), run());
+});
+
+test("v2.4 lets BIGBOSS repeat the mulligan up to three times or keep earlier", () => {
+  const { state } = openingGame({ playerUserId: "bigboss" });
+  const player = state.players.player;
+  assert.equal(player.hand.length, 5);
+  assert.equal(openingMulligan(state, "player", { uids: [player.hand[0].uid] }), true);
+  assert.equal(state.active, "player", "BIGBOSS still decides after the first mulligan");
+  assert.equal(openingMulligan(state, "player", { uids: player.hand.slice(0, 3).map((card) => card.uid) }), true);
+  assert.equal(state.active, "player");
+  assert.equal(openingMulligan(state, "player", { uids: player.hand.map((card) => card.uid) }), true);
+  assert.equal(player.mulligansUsed, 3);
+  assert.equal(state.active, "ai", "the third mulligan ends the decision");
+  assert.equal(player.hand.length, 5);
+
+  const early = openingGame({ playerUserId: "bigboss" }).state;
+  assert.equal(openingMulligan(early, "player", { uids: [early.players.player.hand[0].uid] }), true);
+  assert.equal(keepOpeningHand(early, "player"), true);
+  assert.equal(early.active, "ai");
 });
 
 test("Savage same-symbol turn-end mill offers an optional one-card salvage", () => {

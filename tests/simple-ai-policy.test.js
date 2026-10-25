@@ -59,6 +59,13 @@ test('the CPU tries a different option when the same required input comes back a
   assert.equal(answered(answerQuery('ai-answer-2', 13)), 'o1', 'another match is independent');
 });
 
+test('the CPU keeps its opening hand when keeping is legal and still mulligans in the legacy opening', () => {
+  const mulligan = { actionId: 'action:mull', kind: 'fixed', action: { type: 'openingMulligan' } };
+  const keep = { actionId: 'action:keep', kind: 'fixed', action: { type: 'keepOpeningHand' } };
+  assert.equal(pick(query({ matchId: 'ai-open-1', turn: 1, legalActions: [mulligan, keep] }), 'c1').type, 'keepOpeningHand');
+  assert.equal(pick(query({ matchId: 'ai-open-2', turn: 1, legalActions: [mulligan, endTurn] }), 'c2').type, 'openingMulligan');
+});
+
 test('the CPU reports no legal action instead of repeating a spent re-execution', () => {
   const q = query({ matchId: 'ai-limit-4', turn: 2, legalActions: [redeploy('r:a')] });
   assert.equal(chooseSimpleAiIntent(q, 'c1').ok, true);

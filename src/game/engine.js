@@ -559,8 +559,19 @@ export function addSandboxCardToHand(state, playerId, cardId) {
   return true;
 }
 
+// 開始手順(規則書2.4)。openingProtocol="v2.4" の試合だけ、ゲーム開始前に各ユーザーが1回(BIGBOSSは最大3回)
+// 手札の任意枚数を山札の下へ戻して同数引き直せる。決定は seat 順(player→ai)に1人ずつ行い、最後の決定の中で
+// ダイスを振って先攻を決め、ターンを開始する。未指定("legacy")は従来どおり先攻=player固定で、BIGBOSSだけ全手札を引き直せる。
+const OPENING_ORDER = Object.freeze(["player", "ai"]);
+
+const openingMulliganLimit = (player) => (player.user.abilityKey === "watching_you" ? 3 : 1);
+
 export function canOpeningMulligan(state, playerId) {
   const player = state.players[playerId];
+  if (state.opening) {
+    return Boolean(player && state.opening.status === "mulligan" && state.active === playerId
+      && Number(player.mulligansUsed ?? 0) < openingMulliganLimit(player) && player.hand.length > 0);
+  }
   return Boolean(player
     && player.user.abilityKey === "watching_you"
     && state.turnNumber === 1 && state.active === playerId
@@ -570,9 +581,49 @@ export function canOpeningMulligan(state, playerId) {
     && player.hand.length === Number(player.user.initialHand ?? 5));
 }
 
-export function openingMulligan(state, playerId) {
+export function canKeepOpeningHand(state, playerId) {
+  return Boolean(state.opening && state.opening.status === "mulligan" && state.active === playerId && state.players[playerId]);
+}
+
+// 現在のユーザーの決定を終え、次のユーザーへ。全員が終わったらダイスで先攻を決めてターンを開始する。
+function finishOpeningDecision(state) {
+  const opening = state.opening;
+  opening.index += 1;
+  if (opening.index < opening.order.length) {
+    state.active = opening.order[opening.index];
+    return;
+  }
+  const first = state.rng() < 0.5 ? opening.order[0] : opening.order[1];
+  delete state.opening;
+  state.firstPlayer = first;
+  state.active = first;
+  state.phase = "main";
+  addLog(state, `ダイス: ${state.players[first].user.name}（${first === "player" ? "自分" : "相手"}）が先攻。`, "system");
+  startTurn(state, first);
+}
+
+export function openingMulligan(state, playerId, { uids } = {}) {
   if (!canOpeningMulligan(state, playerId)) return fail(state, "マリガン可能な開始状態ではない。", false);
   const player = state.players[playerId];
+  if (state.opening) {
+    const chosen = Array.isArray(uids) ? [...new Set(uids)] : [];
+    if (!chosen.length || chosen.length !== uids.length || !chosen.every((uid) => player.hand.some((card) => card.uid === uid))) {
+      return fail(state, "引き直すカードを手札から1枚以上選んで。", false);
+    }
+    const returned = chosen.map((uid) => player.hand.splice(player.hand.findIndex((card) => card.uid === uid), 1)[0]);
+    player.deck.unshift(...returned);
+    for (let index = 0; index < returned.length; index += 1) drawCardRaw(player);
+    player.deck = shuffle(player.deck, state.rng);
+    player.mulligansUsed += 1;
+    state.selectedUid = null;
+    const limit = openingMulliganLimit(player);
+    addLog(state, `${player.user.name}: ${returned.length}枚を山札の下へ戻して引き直し（${player.mulligansUsed}/${limit}）。`, "effect");
+    if (player.user.abilityKey === "watching_you") emitUserAbilityFeedback(state, "watching_you", playerId, playerId, {
+      branch: "mulligan", amount: Number(player.mulligansUsed), steps: [{ kind: "transfer", from: { kind: "zone_count", playerId, zone: "hand" }, to: { kind: "zone_count", playerId, zone: "deck" }, count: returned.length }, { kind: "transfer", from: { kind: "zone_count", playerId, zone: "deck" }, to: { kind: "zone_count", playerId, zone: "hand" }, count: returned.length }]
+    });
+    if (player.mulligansUsed >= limit) finishOpeningDecision(state);
+    return true;
+  }
   player.deck.push(...player.hand.splice(0));
   player.deck = shuffle(player.deck, state.rng);
   for (let index = 0; index < Number(player.user.initialHand ?? 5); index += 1) drawCardRaw(player);
@@ -585,6 +636,12 @@ export function openingMulligan(state, playerId) {
   return true;
 }
 
+export function keepOpeningHand(state, playerId) {
+  if (!canKeepOpeningHand(state, playerId)) return fail(state, "手札をキープできる開始状態ではない。", false);
+  addLog(state, `${state.players[playerId].user.name}: 手札をキープ。`, "effect");
+  finishOpeningDecision(state);
+  return true;
+}
 // 選べるのは7色のスタートデッキ。旧固定デッキ(hidden)はチュートリアルと過去の対戦記録の再生用に残す。
 export const DECK_OPTIONS = Object.freeze({
   ...Object.fromEntries(START_DECKS.map((deck) => [deck.id, {
@@ -596,7 +653,7 @@ export const DECK_OPTIONS = Object.freeze({
   neutron: { label: "ニュートロン・セキュリティ・青", color: "青", recipe: NEUTRON_DECK, hidden: true }
 });
 
-export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = "red", aiDeckId = "yellow", playerDeckRecipe = null, aiDeckRecipe = null, playerUserId = "doors_zx", aiUserId = "doors_zx", sandboxDeckSetup = false, rng = Math.random, runtimeContext = null } = {}) {
+export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = "red", aiDeckId = "yellow", playerDeckRecipe = null, aiDeckRecipe = null, playerUserId = "doors_zx", aiUserId = "doors_zx", sandboxDeckSetup = false, rng = Math.random, runtimeContext = null, openingProtocol = "legacy" } = {}) {
   if (runtimeContext !== null) rng = runtimeRng(runtimeContext);
   const isVengeanceTutorial = mode === "tutorial" && tutorialId === "vengeance";
   const selectedPlayerDeck = isVengeanceTutorial ? DECK_OPTIONS.vengeance : (DECK_OPTIONS[playerDeckId] ?? DECK_OPTIONS.red);
@@ -681,6 +738,12 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
     state.sandboxUi = { query: "", expansion: "all", catalogOwner: "player", opponentControl: "manual", actor: "player" };
   }
   if (runtimeContext !== null) normalizeBoardSlots(state);
+  if (openingProtocol === "v2.4" && mode === "ai") {
+    // 開始前フェーズ: 先攻はまだ決まっていない(最後の決定でダイス)。player から順に手札の確認を行う。
+    state.opening = { status: "mulligan", order: [...OPENING_ORDER], index: 0 };
+    state.phase = "opening";
+    return state;
+  }
   startTurn(state, state.active);
   return state;
 }
@@ -2366,6 +2429,7 @@ function recordVictoryFact(state, fact) {
 }
 
 function runEffectEntry(state, kind, playerId, resolver) {
+  if (state.opening) return false;
   const continuingDeclaredEffect = Boolean(
     state.winner
     && state.effectResolution?.declaredEffectId
@@ -3218,7 +3282,7 @@ export function installCard(state, playerId, uid, { force = false } = {}) {
   const player = state.players[playerId];
   const index = player.hand.findIndex((card) => card.uid === uid);
   if (index < 0) return fail(state, "そのカードは手札にない。", force);
-  if (!force && resultLocked(state)) return fail(state, RESULT_LOCKED_MESSAGE, false);
+  if (!force) { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   if (!force) { const check = installCheck(state, playerId, uid); if (!check.ok) return fail(state, check.reason, force); }
   const [card] = player.hand.splice(index, 1);
   player.registry.push(card);
@@ -6260,7 +6324,7 @@ function activateCardEffectCore(state, playerId, cardUid, effectId, { targetUid 
 }
 
 export function activateCardEffect(state, playerId, cardUid, effectId, options = {}) {
-  if (resultLocked(state)) return fail(state, RESULT_LOCKED_MESSAGE, false);
+  { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   normalizeBoardSlots(state);
   return resolveEffect(state, () => activateCardEffectCore(state, playerId, cardUid, effectId, options));
 }
@@ -6306,7 +6370,7 @@ export function canPlayLayeredCard(state, playerId, uid, materialUids, zone = "f
 }
 
 export function playLayeredCard(state, playerId, uid, materialUids, zone = "front", { requestedSlot = null } = {}) {
-  if (resultLocked(state)) return fail(state, RESULT_LOCKED_MESSAGE, false);
+  { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   const check = canPlayLayeredCard(state, playerId, uid, materialUids, zone, requestedSlot);
   if (!check.ok) return fail(state, check.reason, false);
   normalizeBoardSlots(state);
@@ -6539,7 +6603,7 @@ function resolveTrinityEffect(state, activePlayerId, sourceName) {
 }
 
 export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount = null, layerUid = null, requestedSlot = null, baseUid = null } = {}) {
-  if (resultLocked(state)) return fail(state, RESULT_LOCKED_MESSAGE, false);
+  { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   normalizeBoardSlots(state);
   const player = state.players[playerId];
   if (state.active !== playerId) return fail(state, "再実行は自分ターン中だけ。", false);
@@ -7457,7 +7521,7 @@ export function canActivateTurbo(state, playerId = "player") {
 
 export function activateTurbo(state, playerId = "player") {
   const player = state.players[playerId];
-  if (resultLocked(state)) return fail(state, RESULT_LOCKED_MESSAGE, false);
+  { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   if (!canActivateTurbo(state, playerId)) return fail(state, "ターボ・ブーストは今は使えない。", false);
   const beforeMaxMemory = getMaxMemory(player);
   player.turboUsed = true;
@@ -7587,7 +7651,7 @@ function resolveStd049TurnEnd(state, activeId) {
 }
 
 export function endTurn(state) {
-  if (state.winner) return false;
+  if (state.winner || state.opening) return false;
   const activeId = state.active;
   const player = state.players[activeId];
   const resumingStd094TurnEnd = state.std094TurnEndQueue?.activeId === activeId || state.std094TurnEndDone === activeId;
@@ -7776,6 +7840,11 @@ function provisional(state, text, card = null) {
 const RESULT_LOCKED_MESSAGE = "勝敗が固定されたため新しい行動はできない。";
 function resultLocked(state) {
   return Boolean(state.winner || state.victory?.lockedOutcome);
+}
+// 開始前のマリガン確認(state.opening)が終わるまで、通常の行動はできない。
+const OPENING_BLOCKED_MESSAGE = "開始前の手札確認が終わるまで行動できない。";
+function newActionBlock(state) {
+  return resultLocked(state) ? RESULT_LOCKED_MESSAGE : state.opening ? OPENING_BLOCKED_MESSAGE : null;
 }
 
 function fail(state, message, silent) {
