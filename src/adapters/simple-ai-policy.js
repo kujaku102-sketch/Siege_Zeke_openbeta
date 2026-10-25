@@ -1,15 +1,17 @@
 const failure = code => ({ ok: false, error: { code } });
 const nonempty = value => typeof value === 'string' && value.length > 0;
 
+// 開始手順v2.4では常にキープ(keepOpeningHandが合法なら引き直さない)。legacyはkeepOpeningHandが無く、従来どおりopeningMulliganを選ぶ。
 const PRIORITY = Object.freeze([
-  'openingMulligan', 'install', 'activateAbility', 'executeLayered', 'executeCard',
+  'keepOpeningHand', 'openingMulligan', 'install', 'activateAbility', 'executeLayered', 'executeCard',
   'executeSpell','mountCard','setScript','executeRegistry','activateCardEffect',
   'activateScript', 'attack', 'redeploy', 'recoverRegistry', 'endTurn'
 ]);
 
-// 同じカードの再実行は1ターン1回まで。淫魔像のように移動でメモリが戻ると、
-// 前後へ動かし続けて手番が終わらなくなるのを防ぐ。
-const REDEPLOY_LIMIT_PER_TURN = 1;
+// 同じカードの再実行と能力起動は、それぞれ1ターン1回まで。淫魔像のように移動でメモリが戻ると、
+// 前後へ動かし続けたり同じ能力を起動し続けたりして手番が終わらなくなるのを防ぐ。
+const REPEAT_LIMITED_ACTIONS = Object.freeze(['redeploy', 'activateCardEffect']);
+const REPEAT_LIMIT_PER_TURN = 1;
 const redeployLog = new Map();
 
 function redeployTurnCounts(query) {
@@ -21,6 +23,25 @@ function redeployTurnCounts(query) {
   const next = { turn, counts: new Map() };
   redeployLog.set(key, next);
   return next.counts;
+}
+
+// 回答が拒否されるとリビジョンが進まず同じ選択がそのまま届く。同じ回答を送り続けると手番が止まるので、
+// 同じ選択がリビジョンも変わらず再び届いたら、候補を1つずらして別の回答を試す。
+const answerLog = new Map();
+
+function answerAttempt(query, input) {
+  const key = `${query.status?.matchId}|${query.status?.viewerSeat}`;
+  const revision = query.status?.revision;
+  const current = answerLog.get(key);
+  const attempt = current?.choiceId === input.choiceId && current.revision === revision ? current.attempt + 1 : 0;
+  answerLog.set(key, { choiceId: input.choiceId, revision, attempt });
+  return attempt;
+}
+
+function rotated(options, attempt) {
+  if (!Array.isArray(options) || options.length < 2) return options;
+  const shift = attempt % options.length;
+  return [...options.slice(shift), ...options.slice(0, shift)];
 }
 
 function pickOptionIds(options, constraints) {
@@ -144,13 +165,14 @@ function requiredInputAction(input, query) {
     type: 'answerChoice', choiceId: input.choiceId, optionIds: [], allocation: []
   };
   if (input.optional) return { type: 'declineChoice', choiceId: input.choiceId };
+  const options = rotated(input.options, answerAttempt(query, input));
   if (input.constraints?.kind === 'allocation') {
-    const answer = allocationAnswer(input);
+    const answer = allocationAnswer({ ...input, options });
     return answer ? { type: 'answerChoice', choiceId: input.choiceId, ...answer } : null;
   }
   const optionIds = input.constraints?.kind === 'confirmation'
-    ? input.options.slice(0, input.constraints.minimum).map(option => option.optionId)
-    : pickOptionIds(input.options, input.constraints);
+    ? options.slice(0, input.constraints.minimum).map(option => option.optionId)
+    : pickOptionIds(options, input.constraints);
   if (!optionIds) return null;
   return {
     type: 'answerChoice', choiceId: input.choiceId,
@@ -191,8 +213,12 @@ export function chooseSimpleAiIntent(query, commandId, queryAction = null) {
   let selected = null;
   let plannedAction = null;
   const redeployCounts = redeployTurnCounts(query);
-  const overRedeployLimit = entry => (entry?.actionType === 'redeploy' || entry?.action?.type === 'redeploy')
-    && (redeployCounts.get(entry.base?.cardRef ?? entry.action?.cardRef) ?? 0) >= REDEPLOY_LIMIT_PER_TURN;
+  const repeatKey = (type, cardRef) => `${type}:${cardRef}`;
+  const overRedeployLimit = entry => {
+    const type = entry?.kind === 'fixed' ? entry.action?.type : entry?.actionType;
+    return REPEAT_LIMITED_ACTIONS.includes(type)
+      && (redeployCounts.get(repeatKey(type, entry.base?.cardRef ?? entry.action?.cardRef)) ?? 0) >= REPEAT_LIMIT_PER_TURN;
+  };
   for (const type of PRIORITY) {
     for (const entry of query.legalActions.filter(entry => (entry?.kind === 'fixed' ? entry.action?.type : entry?.actionType) === type && !overRedeployLimit(entry))) {
       if (entry.kind !== 'intent') { selected = entry; break; }
@@ -216,7 +242,10 @@ export function chooseSimpleAiIntent(query, commandId, queryAction = null) {
   const action = selected.kind === 'intent' ? plannedAction
     : selected.kind === 'template' ? templateAction(selected) : structuredClone(selected.action);
   if (!action) return failure('AI_ACTION_TEMPLATE_UNSUPPORTED');
-  if (action.type === 'redeploy') redeployCounts.set(action.cardRef, (redeployCounts.get(action.cardRef) ?? 0) + 1);
+  if (REPEAT_LIMITED_ACTIONS.includes(action.type)) {
+    const key = repeatKey(action.type, action.cardRef);
+    redeployCounts.set(key, (redeployCounts.get(key) ?? 0) + 1);
+  }
   return { ok: true, value: {
     commandId, expectedRevision: revision, action
   } };
