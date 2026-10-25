@@ -2894,16 +2894,16 @@ function applyDamageModifiers(state, sourcePlayerId, sourceCard, victimPlayerId,
 const MANDATORY_STATE_CHECK_PASSES = 8;
 
 function resolveMandatoryStateChecks(state) {
-  // 状態判定は安定するまで繰り返す。[バックアップ]で破壊が置換されたObは、STRが0以下のまま
-  // バックへ残るため、次の効果解決まで放置せず同じ境界でもう一度判定する。
-  // 破壊が成立しない(破壊不可・プロテクト)場合や選択待ちが開いた場合は進展なしとして止める。
+  // 状態判定は安定するまで繰り返す(破壊した常在効果の源が消えて、別のObがSTR0以下になる場合がある)。
+  // STR0以下の破壊は常時の状態判定なので[プロテクト]も[バックアップ]も貫通する(裁定済み)。
+  // 破壊不可で破壊が成立しない場合や選択待ち・STD-003の窓が開いた場合は進展なしとして止める。
   for (let pass = 0; pass < MANDATORY_STATE_CHECK_PASSES; pass += 1) {
     let progressed = false;
     // 戦闘以外(負荷やSTR-補正)でSTRが0以下になったObも、効果解決の終わりにルールで破壊する
     for (const [playerId, player] of Object.entries(state.players)) {
       for (const card of [...player.front, ...player.back]) {
         if (isObCard(card) && !card.faceDown && cardCurrentStr(state, playerId, card) <= 0) {
-          if (destroyCard(state, playerId, card.uid, { source: "STR0以下の状態判定" })) progressed = true;
+          if (destroyCard(state, playerId, card.uid, { source: "STR0以下の状態判定", piercing: true })) progressed = true;
         }
       }
     }
@@ -4281,7 +4281,7 @@ function resumeDeferredDestruction(state) {
   if (state.prompt || !state.deferredDestruction) return false;
   const deferred = state.deferredDestruction;
   state.deferredDestruction = null;
-  const resolved = destroyCard(state, deferred.ownerId, deferred.uid, { source: deferred.source, suppressReplacement: deferred.suppressReplacement, suppressTrashScriptWindow: true });
+  const resolved = destroyCard(state, deferred.ownerId, deferred.uid, { source: deferred.source, suppressReplacement: deferred.suppressReplacement, suppressTrashScriptWindow: true, piercing: Boolean(deferred.piercing) });
   continueDeferredSpellCleanup(state);
   return resolved;
 }
@@ -4876,7 +4876,7 @@ function resolveCardSelectionCore(state, continuation, result) {
       state.pending = { type: "selection", validTargets: request.candidates, request };
       return true;
     }
-    return destroyCard(state, playerId, continuation.targetUid, { source: continuation.source, suppressReplacement: true });
+    return destroyCard(state, playerId, continuation.targetUid, { source: continuation.source, suppressReplacement: true, piercing: Boolean(continuation.piercing) });
   }
   if (continuation.type === "std099-replacement-materials") {
     const targetLocation = findCard(state, continuation.targetUid);
@@ -7237,7 +7237,8 @@ function triggerStd165Threshold(state) {
   if (!state.effectResolution && !state.pending && !state.prompt) drainIndependentEffects(state);
 }
 
-export function destroyCard(state, ownerId, uid, { source = "破壊", suppressReplacement = false, replacementChoice = null, suppressTrashScriptWindow = false } = {}) {
+// piercing: STR0以下の常時破壊判定用。[プロテクト]も[バックアップ]も貫通する(裁定済み)。破壊不可・STD-003の窓・STD-099は通常どおり。
+export function destroyCard(state, ownerId, uid, { source = "破壊", suppressReplacement = false, replacementChoice = null, suppressTrashScriptWindow = false, piercing = false } = {}) {
   const player = state.players[ownerId];
   normalizeZoneSlots(player.front, { controllerId: ownerId, zoneName: "front", limit: player.user?.frontLimit });
   normalizeZoneSlots(player.back, { controllerId: ownerId, zoneName: "back", limit: player.user?.backLimit });
@@ -7257,7 +7258,7 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
     continuePlacementCostBatch(state);
     return false;
   }
-  if (consumeProtect(state, protectedCard, `${source}による破壊`)) {
+  if (!piercing && consumeProtect(state, protectedCard, `${source}による破壊`)) {
     settleDestructionContinuations(state, uid, false);
     resumeDestroyLkiFollowUp(state, uid);
     continuePlacementCostBatch(state);
@@ -7266,7 +7267,7 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
   const maxBackupUsesBefore = backupLimit(protectedCard);
   const grantedBackupUsesBefore = Number(protectedCard.backup ?? 0);
   const backupUsesBefore = protectedCard.backupUsedTurn === state.turnNumber ? Number(protectedCard.backupUsesThisTurn ?? 0) : 0;
-  const backupAvailable = zoneName === "front" && (grantedBackupUsesBefore > 0 || maxBackupUsesBefore > backupUsesBefore) && player.back.length < player.user.backLimit;
+  const backupAvailable = !piercing && zoneName === "front" && (grantedBackupUsesBefore > 0 || maxBackupUsesBefore > backupUsesBefore) && player.back.length < player.user.backLimit;
   const std099 = player.hand.find((candidate) => candidate.id === "STD-099");
   const std099Materials = [...player.front, ...player.back].filter((candidate) => candidate.uid !== uid && hasClass(candidate, "レッドパンクス"));
   const std099Available = isObCard(protectedCard) && protectedCard.name.includes("変形合体レッパオー") && std099 && std099Materials.length > 0;
@@ -7274,7 +7275,7 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
     const options = ["破壊をそのまま適用", ...(backupAvailable ? ["[バックアップ]で置換"] : []), "STD-099で置換ログイン"];
     const request = createSelectionRequest({ mode: "scope", scopeField: "destructionReplacement", scopeOptions: options,
       label: `${protectedCard.name}の破壊置換`, message: "適用する置換を1つ選択。",
-      continuation: { type: "destruction-replacement-choice", playerId: ownerId, targetUid: uid, std099Uid: std099.uid, source } });
+      continuation: { type: "destruction-replacement-choice", playerId: ownerId, targetUid: uid, std099Uid: std099.uid, source, piercing } });
     state.pending = { type: "selection", validTargets: [], request };
     return true;
   }
@@ -7282,7 +7283,7 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
     const scriptOwnerId = otherPlayer(ownerId);
     const script = state.players[scriptOwnerId].back.find((candidate) => candidate.id === "STD-003" && candidate.faceDown && state.players[scriptOwnerId].memory >= Number(candidate.cost ?? 0));
     if (script) {
-      state.deferredDestruction = { ownerId, uid, source, suppressReplacement };
+      state.deferredDestruction = { ownerId, uid, source, suppressReplacement, piercing };
       openScriptActivationWindow(state, scriptOwnerId, script, { type: "card_would_move_to_trash", ownerId, playerId: ownerId, cardUid: uid, category: protectedCard.category });
       return true;
     }
@@ -7294,7 +7295,7 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
   const maxBackupUses = backupLimit(card);
   const grantedBackupUses = Number(card.backup ?? 0);
   const backupUsesThisTurn = card.backupUsedTurn === state.turnNumber ? Number(card.backupUsesThisTurn ?? 0) : 0;
-  if (!suppressReplacement && zoneName === "front" && (replacementChoice === "backup" || (replacementChoice === null && (grantedBackupUses > 0 || maxBackupUses > backupUsesThisTurn))) && player.back.length < player.user.backLimit) {
+  if (!piercing && !suppressReplacement && zoneName === "front" && (replacementChoice === "backup" || (replacementChoice === null && (grantedBackupUses > 0 || maxBackupUses > backupUsesThisTurn))) && player.back.length < player.user.backLimit) {
     setCardSleeping(state, ownerId, card);
     card.damage = 0;
     if (grantedBackupUses > 0) card.backup = grantedBackupUses - 1;

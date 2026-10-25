@@ -4112,7 +4112,7 @@ test("Load that drops STR to 0 or less destroys the Ob by rule", () => {
   assert.equal(state.players.ai.trash.some((card) => card.uid === target.uid), true);
   assert.equal(cardAtk(state, "ai", target) >= 0 && cardCurrentStr(state, "ai", target) >= 0, true);
 });
-test("a Backup replacement of STR 0 destruction does not leave the Ob at STR 0 or less in the back", () => {
+test("STR 0 destruction is a standing state check that pierces Backup", () => {
   const state = createGame({ mode: "sandbox", rng: () => 0.5 });
   const player = state.players.player;
   const thief = createCardInstance("STD-076", "player", 900084);
@@ -4125,7 +4125,8 @@ test("a Backup replacement of STR 0 destruction does not leave the Ob at STR 0 o
   assert.equal(cardCurrentStr(state, "player", thief), 0);
   assert.equal(playCard(state, "player", filler.uid, {}), true);
   const logText = state.log.map((entry) => entry.text ?? entry).join("\n");
-  assert.match(logText, /こそ泥は\[バックアップ\]でスリープしてバックへ移動/);
+  assert.doesNotMatch(logText, /こそ泥は\[バックアップ\]でスリープしてバックへ移動/);
+  assert.match(logText, /STR0以下の状態判定: こそ泥を破壊/);
   assert.equal([...player.front, ...player.back].some((card) => card.uid === thief.uid), false);
   assert.equal(player.trash.some((card) => card.uid === thief.uid), true);
 });
@@ -4148,7 +4149,7 @@ test("a card that comes back from outside the area has no Load, damage or modifi
   assert.equal(cardCurrentStr(state, "player", back), 1);
 });
 
-test("Protect and indestructible Obs at STR 0 or less do not loop the state check", () => {
+test("STR 0 destruction pierces Protect; only an indestructible Ob survives the state check", () => {
   const state = createGame({ mode: "sandbox", rng: () => 0.5 });
   const player = state.players.player;
   const heavy = createCardInstance("STD-026", "player", 900086);
@@ -4159,9 +4160,18 @@ test("Protect and indestructible Obs at STR 0 or less do not loop the state chec
   player.hand = [filler];
   player.memory = 10;
   assert.equal(playCard(state, "player", filler.uid, {}), true);
-  assert.equal(heavy.protect, 0);
-  assert.equal(player.front.some((card) => card.uid === heavy.uid), true, "Protect negated only one destruction in this resolution");
+  assert.equal(heavy.protect ?? 1, 1, "Protect is not spent by the state check");
+  assert.equal(player.front.some((card) => card.uid === heavy.uid), false);
+  assert.equal(player.trash.some((card) => card.uid === heavy.uid), true);
   assert.equal(state.pending, null);
+  assert.equal(state.effectDepth, 0);
+
+  const unkillable = createCardInstance("STD-159", "player", 900092);
+  unkillable.faceDown = false; unkillable.load = 99;
+  const second = createCardInstance("STD-020", "player", 900093);
+  player.front = [unkillable]; player.hand = [second];
+  assert.equal(playCard(state, "player", second.uid, {}), true);
+  assert.equal(player.front.some((card) => card.uid === unkillable.uid), true, "forbid-destruction still holds");
   assert.equal(state.effectDepth, 0);
 });
 test("result lock refuses new install, re-execution, ability, effect and layered actions at the engine boundary", () => {
