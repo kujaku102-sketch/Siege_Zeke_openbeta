@@ -3,6 +3,7 @@ import { validateDeck } from '../game/deck-builder.js';
 import { START_DECKS } from '../data/start-decks.js';
 import { deckPresentation } from '../ui/deck-presentation.js';
 import { panelHeadHtml, controlsHelpHtml } from './cyber-panel.js';
+import { titleLinks } from '../config/external-links.js';
 const entryLogo = new URL("../assets/siege-zeke-logo-layers.svg", import.meta.url).href;
 const entryStaticLogo = new URL("../assets/siege-zeke-logo-static.png", import.meta.url).href;
 
@@ -62,6 +63,15 @@ function matchArchiveHtml(ui, toggle) {
   return `${row("対戦ログ", "logs", counts.logs)}${row("対戦リプレイ", "replays", counts.replays)}<p>対戦ログとリプレイはこのブラウザに新しい順で最大20件ずつ保存されます。</p>${toggle("対戦後に対戦ログを送信", "data-toggle-send-logs", Boolean(ui.sendMatchLogs))}<p>オンにすると、決着した対戦のログ(盤面の記録と両者のデッキ・ユーザー)を開発用サーバーへ送ります。</p>`;
 }
 
+// Download / Discord (V092-08): HTML outside the title stage and the CRT canvas. A link without
+// an address is shown as 準備中 and has no href, so it cannot be followed.
+export function titleLinksHtml(links = titleLinks()) {
+  const item = ({ key, label, href }) => href
+    ? `<a class="r2-title-link" data-title-link="${key}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`
+    : `<a class="r2-title-link is-pending" data-title-link="${key}" role="link" aria-disabled="true">${esc(label)}<small>準備中</small></a>`;
+  return `<nav class="r2-title-links" aria-label="外部リンク">${links.map(item).join("")}</nav>`;
+}
+
 // Render mode (V092-09): auto follows the device, compat draws no WebGL, full draws everything.
 const RENDER_CHOICES = [["auto", "自動"], ["compat", "軽量(WebGLなし)"], ["full", "通常"]];
 const renderReasons = { detected: "iPhone/iPadのため自動で軽量表示", "context-lost": "描画が止まったため軽量表示に切り替え中", url: "URLの指定が優先中", saved: "選んだ表示", default: "自動" };
@@ -100,6 +110,6 @@ export function runtimeShellHtml(host) {
   const state = {mode:host.mode,tutorialId:host.tutorialId,savedDecks:host.savedDecks,deckBuilder:host.deckBuilder,
     sandboxUi:{...host.catalog,opponentControl:host.opponentControl},playerDeckId:host.playerDeckId,aiDeckId:host.aiDeckId};
   const ui = {...host,screen:host.screen,options:host.options,entryCrtMenu:host.effectsEnabled && host.screen === 'entry'};
-  const entry = host.screen === 'entry' ? entryHtml(host.view,host.effectsEnabled).replace('data-deck ', 'data-deck-open ') : '';
+  const entry = host.screen === 'entry' ? entryHtml(host.view,host.effectsEnabled).replace('data-deck ', 'data-deck-open ') + titleLinksHtml() : '';
   return `<div class="r2-content" data-effects="${host.effectsEnabled ? 'on' : 'off'}"><nav class="r2-utilities" aria-label="メニュー"><button data-live="options" aria-label="メニュー・オプション">メニュー</button></nav>${entry}<div data-match-root></div><div data-shell-overlays>${renderNoteHtml(host)}${host.options ? settingsHtml(state,ui) : ''}${deckBuilderHtml(state,{view:host.view})}${host.catalogOpen ? `<div class="live-catalog"><button data-live="close-catalog">閉じる</button>${sandboxCatalogHtml(state)}</div>` : ''}${host.notice ? `<aside class="r2-notice" role="status">${esc(host.notice)}</aside>` : ''}</div></div><section class="r2-rotate" hidden role="status"><h1>端末を横向きにしてください</h1><p>横に戻すと、そのまま続きから操作できます。</p></section>`;
 }

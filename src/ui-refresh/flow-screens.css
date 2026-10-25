@@ -1,0 +1,11 @@
+/* V092-08 entry flow: the title links and the screens between the title and a match.
+   Relative sizes only (rem / dvh / vw / % / clamp); no px here. 2.75rem is the 44 CSS px tap floor. */
+
+/* Download / Discord: outside the 7:5 title stage and the CRT canvas, bottom right. */
+.r2-title-links { position:fixed; z-index:24; right:calc(.5rem + env(safe-area-inset-right,0rem)); bottom:calc(.5rem + env(safe-area-inset-bottom,0rem));
+  display:flex; flex-direction:column; align-items:flex-end; gap:.25rem; max-width:calc(100vw - 1rem); }
+.r2-title-link { display:inline-flex; align-items:center; gap:.5em; min-height:2.75rem; padding:0 .7em; border:.0625rem solid #00ff0080; background:#000000d9;
+  color:#00ff00; font:400 clamp(.75rem,2.2dvh,.95rem)/1.2 SZDotGothic,"Yu Gothic UI",sans-serif; text-decoration:none; white-space:nowrap; }
+.r2-title-link:focus-visible { outline:.125rem solid #00ff00; outline-offset:.125rem; }
+.r2-title-link.is-pending { border-color:#4a4a4a; color:#8a8a8a; cursor:default; }
+.r2-title-link small { font-size:.8em; color:#6f6f6f; }

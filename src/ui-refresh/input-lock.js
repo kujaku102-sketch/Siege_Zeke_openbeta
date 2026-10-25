@@ -1,4 +1,4 @@
-const LIVE_INPUT_SELECTOR = "main, .r2-entry, .r2-utilities, .r2-overlays";
+const LIVE_INPUT_SELECTOR = "main, .r2-entry, .r2-utilities, .r2-overlays, .r2-title-links, .r2-flow";
 
 export function liveInputLocked(node, { optionsOpen = false, uniqueOpen = false, resultOpen = false, entryCrtReady = false } = {}) {
   if (uniqueOpen || resultOpen) return true;

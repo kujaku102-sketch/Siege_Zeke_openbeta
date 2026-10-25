@@ -2,6 +2,7 @@ import "../styles.css";
 import "./preview.css";
 import "./live.css";
 import "./entry-design.css";
+import "./flow-screens.css";
 import "./detail.css";
 import "./result.css";
 import "./status-effects.css";
