@@ -70,7 +70,8 @@ import {
   enqueueLegacyProjection,
   promoteLegacyQueueHead,
   startTurn,
-  supportsDirectHandObExecution
+  supportsDirectHandObExecution,
+  supportsNormalScriptActivation
 } from "../src/game/engine.js";
 import { canConfirmSelection, collectDeckScopeOptions, confirmSelection, createAllocationSpec, createChoiceSpec, createGroupedSelectionSpec, createRandomSelectionSpec, createSelectionRequest, createSelectionSpec, hasExactAggregateCombination, isSelectionRequestFeasible, selectionRequestFromSpec, setAllocation, setSelectionScope, toggleSelection } from "../src/game/selection-model.js";
 import { resolveAutomatedAiChoices, runSimpleAiTurn, runSimpleAiTurnSteps } from "../src/game/ai.js";
@@ -7370,6 +7371,53 @@ test("STD159 is immune and counts Ob destruction only while face-up, independent
   ai.deck = [createCardInstance("STD-022", "ai", 975045)];
   startTurn(state, "ai");
   assert.equal(second.tempAtk, 0);
+});
+
+test("STD086 follow-up damage waits on STD159: a face-up copy survives, a face-down copy is destroyed", () => {
+  for (const faceDown of [false, true]) {
+    const state = createGame({ mode: "sandbox", rng: () => 0.5 });
+    const player = state.players.player; const ai = state.players.ai;
+    const shot = createCardInstance("STD-086", "player", 975060 + Number(faceDown));
+    const victim = createCardInstance("STD-131", "ai", 975062 + Number(faceDown));
+    const corpse = createCardInstance("STD-159", "player", 975064 + Number(faceDown));
+    corpse.faceDown = faceDown; victim.permanentStr = 20;
+    player.hand = [shot]; player.front = [corpse]; player.back = []; ai.front = [victim]; ai.back = []; player.memory = 20;
+    const fortress = ai.fortressStr;
+    assert.equal(playCard(state, "player", shot.uid, { targetUid: victim.uid, force: true, ignoreColor: true }), true);
+    assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [corpse.uid] }), true);
+    assert.equal(victim.damage, 3);
+    assert.equal(player.trash.some((card) => card.uid === shot.uid), true);
+    if (faceDown) {
+      assert.equal(player.trash.some((card) => card.uid === corpse.uid), true, "a face-down STD-159 has no destruction immunity");
+      assert.equal(ai.fortressStr, fortress - 2, "the destruction happened, so the follow-up damage applies");
+    } else {
+      assert.equal(player.front.some((card) => card.uid === corpse.uid), true, "a face-up STD-159 cannot be destroyed");
+      assert.equal(ai.fortressStr, fortress, "no destruction, so no follow-up damage");
+    }
+  }
+});
+
+test("a Script with only an [if:] condition cannot be activated normally, while a normal-activation Script resolves at once", () => {
+  assert.equal(supportsNormalScriptActivation(createCardInstance("STD-018", "player", 975070)), false);
+  assert.equal(supportsNormalScriptActivation(createCardInstance("STD-036", "player", 975071)), true);
+
+  const refused = createGame({ mode: "sandbox", rng: () => 0.5 });
+  const eventOnly = createCardInstance("STD-018", "player", 975072); eventOnly.faceDown = true;
+  refused.players.player.back = [eventOnly]; refused.players.player.memory = 20;
+  assert.equal(activateScript(refused, "player", eventOnly.uid), false);
+  assert.equal(refused.players.player.back.includes(eventOnly), true);
+  assert.equal(eventOnly.faceDown, true);
+  assert.equal(refused.declaredEffects.length, 0);
+
+  const normal = createGame({ mode: "sandbox", rng: () => 0.5 });
+  const player = normal.players.player;
+  const cashBack = createCardInstance("STD-036", "player", 975073); cashBack.faceDown = true;
+  player.back = [cashBack]; player.hand = []; player.memory = 20;
+  player.deck = [createCardInstance("STD-020", "player", 975074), createCardInstance("STD-021", "player", 975075)];
+  assert.equal(activateScript(normal, "player", cashBack.uid), true);
+  assert.equal(player.hand.length, 2);
+  assert.equal(player.trash.some((card) => card.uid === cashBack.uid), true);
+  assert.equal(normal.declaredEffects.length, 0);
 });
 
 test("STD124 Login applies exact cumulative X thresholds 0/2/3/5/7/20", () => {
