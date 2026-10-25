@@ -460,3 +460,26 @@ test('a required choice names its source card and the selection lights the claus
   // With a single own Ob the pick is made on the board, so the flow floats beside the prompt.
   assert.match(html, /^<aside class="effect-flow"[^]*<mark>自分のObを好きな数破壊する<\/mark>[^]*<aside class="board-pick-guide"/);
 });
+
+test('opening protocol v2.4: the HUD shows keep and redraw (an intent has no embedded command) and redraw plans a card pick', () => {
+  const created = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: { matchId: 'opening-hud', seatIds: ['player', 'ai'], seed: 5,
+    ruleVersion: 'rules', cardVersion: 'cards', gameOptions: { mode: 'ai', openingProtocol: 'v2.4', playerDeckRecipe: [['STD-020', 40]], aiDeckRecipe: [['STD-020', 40]] } } });
+  assert.equal(created.ok, true, JSON.stringify(created));
+  const ui = createMatchUiController({ session: created.value, viewerSeat: 'player' }).value;
+  const read = ui.read().value;
+  const types = read.model.legalActions.map(entry => entry.actionType ?? entry.action?.type);
+  assert.deepEqual(types.sort(), ['keepOpeningHand', 'openingMulligan']);
+  const html = runtimeGameHtml(read.model, { ...read, view: 'pc', boardStyle: 'wireframe', effectsEnabled: false });
+  const extra = html.split('wf-extra-actions')[1] ?? '';
+  assert.ok(extra.includes('>キープ</button>') && extra.includes('>引き直し</button>'), 'both opening controls are drawn');
+  assert.ok(!html.includes('>keepOpeningHand<') && !html.includes('>openingMulligan<'));
+  const mulligan = read.model.legalActions.find(entry => entry.actionType === 'openingMulligan');
+  const planned = ui.chooseAction(mulligan.actionId);
+  assert.equal(planned.ok, true, JSON.stringify(planned));
+  assert.equal(planned.value.request.presentationKey, 'opening-mulligan');
+  assert.equal(planned.value.request.constraints.minimum, 1);
+  // The waiting seat sees no opening action at all.
+  const waiting = createMatchUiController({ session: created.value, viewerSeat: 'ai' }).value.read().value;
+  assert.deepEqual(waiting.model.legalActions, []);
+  assert.notEqual(waiting.model.match.activeSeat, 'ai');
+});
