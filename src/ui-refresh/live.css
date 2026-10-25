@@ -401,3 +401,6 @@ body[data-view="mobile"] .r2-content .r2-wireframe-view .choice-row-stats .stat 
 body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-detail.cp-card > .cp-head { padding: .3em .5em .35em; gap: .4em; }
 body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-detail.cp-card > .cp-head h2 { font-size: clamp(.9rem, 4.6cqh, 1.15rem); margin: 0; }
 body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-detail.cp-card > .cp-head small { font-size: clamp(.5rem, 2.2cqh, .65rem); letter-spacing: .12em; }
+
+/* List rows drop their button chrome, so keyboard focus needs its own visible mark. */
+.r2-content .effect-modal .runtime-selection-options.is-list .runtime-selection-option > button:focus-visible { outline: 2px solid #ffe4a0; outline-offset: -2px; }

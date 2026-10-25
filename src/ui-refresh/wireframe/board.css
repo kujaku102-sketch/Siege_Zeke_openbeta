@@ -139,7 +139,7 @@ body[data-view] .r2-content .r2-wireframe-view .wf-unique .unique-effect-name { 
 .r2-wireframe-view .wf-turn:disabled .wf-turn-label { font:2.8cqh/1.5 serif; }
 .r2-wireframe-view .wf-turn:disabled { opacity:1; cursor:default; }
 .r2-wireframe-view .wf-turn:active:not(:disabled) { transform:translateY(.5cqh); }
-.r2-wireframe-view .wf-turn:focus-visible { outline:0; filter:brightness(1.2); }
+.r2-wireframe-view .wf-turn:focus-visible { outline:2px solid white; outline-offset:2px; filter:brightness(1.2); }
 .r2-wireframe-view .wf-memory { position:absolute; left:4.2cqh; right:0; top:29cqh; height:5.4cqh; border:1px solid #eee; border-radius:1.5cqh; background:#171717; color:#00ff00; box-shadow:inset 0 1.9cqh #303030; }
 .r2-wireframe-view .wf-memory>span { position:absolute; top:.3cqh; left:.8cqh; font:1.4cqh Arial; }
 .r2-wireframe-view .wf-memory output { display:block; text-align:center; font:5cqh/1 Georgia,serif; padding-left:2cqh; }
