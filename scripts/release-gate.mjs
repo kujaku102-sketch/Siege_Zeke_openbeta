@@ -54,12 +54,22 @@ function files(directory, prefix = "") {
   return result.sort();
 }
 
+// The ZIP is written by the bsdtar Windows ships in System32 (-a picks ZIP from the name). A shell
+// such as Git Bash puts GNU tar first on PATH, which reads "D:" in the archive path as a remote
+// host and fails, so the system tar is named directly; without one, PATH decides as before.
+function tarCommand() {
+  const system = process.platform === "win32" && process.env.SystemRoot
+    ? path.join(process.env.SystemRoot, "System32", "tar.exe") : null;
+  return system && existsSync(system) ? system : "tar.exe";
+}
+
 function packageDist(revision) {
   const archivePath = path.join(releaseRoot, `siege-zeke-simple-public-${revision}.zip`);
   rmSync(archivePath, { force: true });
-  const packed = spawnSync("tar.exe", ["-a", "-cf", archivePath, "-C", path.join(root, "dist"), "."], { cwd: root, encoding: "utf8", windowsHide: true });
+  const tar = tarCommand();
+  const packed = spawnSync(tar, ["-a", "-cf", archivePath, "-C", path.join(root, "dist"), "."], { cwd: root, encoding: "utf8", windowsHide: true });
   if (packed.status !== 0) throw new Error(`ZIP creation failed: ${packed.stderr ?? packed.stdout}`);
-  const listing = spawnSync("tar.exe", ["-tf", archivePath], { cwd: root, encoding: "utf8", windowsHide: true });
+  const listing = spawnSync(tar, ["-tf", archivePath], { cwd: root, encoding: "utf8", windowsHide: true });
   if (listing.status !== 0) throw new Error(`ZIP listing failed: ${listing.stderr ?? listing.stdout}`);
   const archiveFiles = listing.stdout.split(/\r?\n/).map((item) => item.replace(/^\.\//, "")).filter((item) => item && !item.endsWith("/")).sort();
   const distFiles = files(path.join(root, "dist"));
