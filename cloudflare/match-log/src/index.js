@@ -7,13 +7,41 @@ const MAX_BYTES = 256 * 1024;
 const ALLOWED_ORIGINS = [/^https:\/\/([a-z0-9-]+\.)*siegezeke\.online$/, /^https:\/\/([a-z0-9-]+\.)?siege-zeke-simple-public\.pages\.dev$/,
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/];
 
-const cors = origin => ({ 'access-control-allow-origin': origin ?? '*', 'access-control-allow-methods': 'POST, OPTIONS',
+// A refused origin gets no allow-origin header at all, rather than a wildcard.
+const cors = origin => ({ ...(origin ? { 'access-control-allow-origin': origin } : {}), 'access-control-allow-methods': 'POST, OPTIONS',
   'access-control-allow-headers': 'content-type', vary: 'origin' });
 const reply = (status, origin, body = null) => new Response(body, { status, headers: cors(origin) });
 
+// The day in the KV key comes straight from endedAt, so it must start as YYYY-MM-DD (the game sends toISOString()).
+// Date.parse alone also takes "Tue Oct 23 2026", whose first ten characters would make a key logs:pull never reads.
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}T/;
+
+// KV metadata is capped at 1 KiB and a put over it throws, so only short plain values are kept.
+const short = value => typeof value === 'string' && value.length <= 16 ? value : null;
+const metadataOf = log => ({ mode: short(log.mode), result: short(log.result), turns: Number.isSafeInteger(log.turns) ? log.turns : null });
+
+// Reads the body up to the cap even when no content-length was sent (a chunked body can be any size).
+async function readText(request) {
+  const reader = request.body?.getReader();
+  if (!reader) return '';
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_BYTES) { await reader.cancel().catch(() => {}); return null; }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder().decode(bytes);
+}
+
 function validLog(log) {
   return log?.kind === KIND && log.schemaVersion === 1 && typeof log.matchId === 'string' && /^[\w-]{1,80}$/.test(log.matchId)
-    && typeof log.endedAt === 'string' && !Number.isNaN(Date.parse(log.endedAt)) && Array.isArray(log.log)
+    && typeof log.endedAt === 'string' && ISO_DAY.test(log.endedAt) && !Number.isNaN(Date.parse(log.endedAt)) && Array.isArray(log.log)
     && log.players && typeof log.players === 'object';
 }
 
@@ -28,14 +56,20 @@ export default {
     if (!allowed) return reply(403, null);
     const size = Number(request.headers.get('content-length') ?? 0);
     if (size > MAX_BYTES) return reply(413, allowed);
-    const text = await request.text();
-    if (new TextEncoder().encode(text).length > MAX_BYTES) return reply(413, allowed);
+    const text = await readText(request);
+    if (text === null) return reply(413, allowed);
     let log;
     try { log = JSON.parse(text); } catch { return reply(400, allowed); }
     if (!validLog(log)) return reply(422, allowed);
-    // One key per match, grouped by the day it ended; a resend of the same match overwrites it.
+    // One key per match, grouped by the day it ended. The first log kept for a key stays: the same body
+    // again (the game resending after a lost answer) is just a success, a different body is a 409.
+    // KV is eventually consistent and get-then-put is not atomic, so this narrows overwrites, it cannot forbid them.
     const key = `log/${log.endedAt.slice(0, 10)}/${log.matchId}`;
-    await env.MATCH_LOGS.put(key, text, { metadata: { mode: log.mode, result: log.result, turns: log.turns } });
+    try {
+      const kept = await env.MATCH_LOGS.get(key);
+      if (kept !== null && kept !== undefined) return reply(kept === text ? 204 : 409, allowed);
+      await env.MATCH_LOGS.put(key, text, { metadata: metadataOf(log) });
+    } catch { return reply(503, allowed); }
     return reply(204, allowed);
   }
 };

@@ -2,7 +2,8 @@
 name = "siege-zeke-match-log"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
-workers_dev = true
+# The game posts to the custom domain below only; no *.workers.dev entry point.
+workers_dev = false
 
 # Filled in after `npx wrangler@4 kv namespace create MATCH_LOGS`.
 [[kv_namespaces]]

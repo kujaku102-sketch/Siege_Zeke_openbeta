@@ -148,21 +148,57 @@ test('a finished match leaves a replay and a readable log, and the log is sent o
   assert.ok(new TextEncoder().encode(JSON.stringify(log)).length < 60000, 'a whole match fits one beacon');
 });
 
-test('a log goes by beacon when it can, and by fetch otherwise', () => {
+test('a small log goes by keepalive fetch, a beacon only when there is no fetch', () => {
   const calls = [];
-  const beacon = (url, blob) => { calls.push(['beacon', url, blob.type]); return false; };
-  const post = (url, init) => { calls.push(['fetch', url, init.headers['content-type']]); return Promise.resolve(); };
+  const beacon = (url, blob) => { calls.push(['beacon', url, blob.type]); return true; };
+  const post = (url, init) => { calls.push(['fetch', url, init.headers['content-type'], init.keepalive]); return Promise.resolve({ status: 204 }); };
   assert.equal(sendMatchLog({ kind: 'x' }, { endpoint: 'https://example.test/logs', beacon, post }), true);
-  assert.deepEqual(calls.map(call => call[0]), ['beacon', 'fetch']);
-  assert.ok(calls.every(call => call[2].toLowerCase() === 'text/plain;charset=utf-8'));
-  assert.equal(sendMatchLog({ kind: 'x' }, { beacon: () => true, post: null }), true);
+  assert.deepEqual(calls, [['fetch', 'https://example.test/logs', 'text/plain;charset=UTF-8', true]]);
+  calls.length = 0;
+  assert.equal(sendMatchLog({ kind: 'x' }, { endpoint: 'https://example.test/logs', beacon, post: null }), true);
+  assert.deepEqual(calls.map(call => [call[0], call[2].toLowerCase()]), [['beacon', 'text/plain;charset=utf-8']]);
+  assert.equal(sendMatchLog({ kind: 'x' }, { beacon: () => false, post: null }), false);
 });
 
-test('a log over the beacon cap in bytes skips the beacon and goes by a plain fetch', () => {
+test('a log over the beacon cap in bytes goes by a plain fetch', () => {
   const calls = [];
   const beacon = () => { calls.push('beacon'); return true; };
-  const post = (url, init) => { calls.push(['fetch', init.keepalive]); return Promise.resolve(); };
+  const post = (url, init) => { calls.push(['fetch', init.keepalive]); return Promise.resolve({ status: 204 }); };
   // 25,000 characters, but 75,000 bytes: under the character count, over the 64 KiB cap.
   assert.equal(sendMatchLog({ text: 'ロ'.repeat(25000) }, { beacon, post }), true);
   assert.deepEqual(calls, [['fetch', false]]);
+  assert.equal(sendMatchLog({ text: 'ロ'.repeat(25000) }, { beacon, post: null }), false, 'too big for a beacon');
+});
+
+test('a failed send is retried once; a saved, already-held or hopeless one is not', async () => {
+  const run = async answers => {
+    const sent = [], timers = [];
+    const post = (url, init) => { sent.push(init.body); const answer = answers[sent.length - 1] ?? { status: 204 };
+      return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer); };
+    assert.equal(sendMatchLog({ matchId: 'm' }, { post, schedule: (fn, delay) => timers.push([fn, delay]) }), true);
+    await new Promise(resolve => setImmediate(resolve));
+    const first = { sent: sent.length, timers: timers.length };
+    for (const [fn] of timers) fn();
+    await new Promise(resolve => setImmediate(resolve));
+    return { ...first, total: sent.length, same: new Set(sent).size === 1, delay: timers[0]?.[1] };
+  };
+  const retried = { sent: 1, timers: 1, total: 2, same: true, delay: 3000 };
+  assert.deepEqual(await run([new TypeError('Failed to fetch')]), retried);
+  assert.deepEqual(await run([{ status: 503 }]), retried);
+  assert.deepEqual(await run([{ status: 503 }, { status: 503 }]), retried, 'only one more try');
+  for (const status of [204, 409, 403, 413, 422, 429, 400])
+    assert.deepEqual(await run([{ status }]), { sent: 1, timers: 0, total: 1, same: true, delay: undefined }, String(status));
+});
+
+import { readFileSync } from 'node:fs';
+import { MATCH_LOG_ENDPOINT } from '../src/adapters/match-log-sender.js';
+
+test('the page CSP lets the log sender reach its endpoint and a picked logo video play', () => {
+  const headers = readFileSync(new URL('../public/_headers', import.meta.url), 'utf8');
+  const csp = headers.split('\n').find(line => line.trim().startsWith('Content-Security-Policy:'));
+  const directive = name => csp.split(':').slice(1).join(':').split(';').map(part => part.trim().split(/\s+/)).find(part => part[0] === name) ?? [];
+  assert.ok(csp, 'a Content-Security-Policy header is set');
+  assert.ok(directive('connect-src').includes(new URL(MATCH_LOG_ENDPOINT).origin), 'beacon and fetch go to the log host');
+  assert.ok(directive('media-src').includes('blob:'), 'a <video> on an object URL falls to media-src, not connect-src');
+  assert.equal(directive('connect-src').includes('*'), false);
 });
