@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { EXTERNAL_LINKS, externalHref, runtimeTarget, titleLinks } from '../src/config/external-links.js';
 import { runtimeShellHtml, titleLinksHtml } from '../src/ui-refresh/runtime-shell-view.js';
+import { SCREENS, nextScreen, escapeScreen, isFlowScreen } from '../src/ui-refresh/screen-flow.js';
 
 const readSource = async path => (await readFile(new URL(path, import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
 const entryHost = (extra = {}) => ({ screen: 'entry', mode: 'sandbox', tutorialId: 'basics', view: 'pc', savedDecks: [], deckBuilder: { open: false },
@@ -45,4 +46,33 @@ test('external links: on the title only, outside the stage, and the CRT title ke
   const css = await readSource('../src/ui-refresh/flow-screens.css');
   assert.ok(!/\d(?:\.\d+)?px/.test(css), 'the flow screens bring no px sizes');
   assert.ok((await readSource('../src/ui-refresh/live-entry.js')).includes('import "./flow-screens.css";'));
+});
+
+test('screen flow: the title opens the tutorial list and the battle setup; each comes back or starts', () => {
+  assert.deepEqual([...SCREENS], ['entry', 'tutorial-select', 'battle-setup', 'game']);
+  assert.equal(nextScreen('entry', 'open-tutorials'), 'tutorial-select');
+  assert.equal(nextScreen('entry', 'open-battle'), 'battle-setup');
+  assert.equal(nextScreen('entry', 'start'), 'game', 'the sandbox still starts from the title');
+  for (const screen of ['tutorial-select', 'battle-setup']) {
+    assert.equal(nextScreen(screen, 'back'), 'entry');
+    assert.equal(nextScreen(screen, 'start'), 'game');
+  }
+  assert.equal(nextScreen('game', 'leave'), 'entry');
+  assert.equal(nextScreen('game', 'tutorial-complete'), 'tutorial-select');
+});
+
+test('screen flow: an event a screen does not take, or an unknown screen, moves nowhere', () => {
+  for (const [screen, event] of [['entry', 'back'], ['entry', 'leave'], ['tutorial-select', 'open-battle'], ['battle-setup', 'open-tutorials'],
+    ['game', 'back'], ['game', 'start'], ['tutorial-select', 'tutorial-complete'], ['online-room', 'back'], ['entry', 'constructor'], ['entry', 'toString'],
+    ['__proto__', 'back'], [undefined, 'start'], ['entry', undefined]])
+    assert.equal(nextScreen(screen, event), null, `${screen} / ${event}`);
+});
+
+test('screen flow: Escape goes back from a flow screen only with nothing open over it', () => {
+  assert.equal(escapeScreen('tutorial-select'), 'entry');
+  assert.equal(escapeScreen('battle-setup'), 'entry');
+  assert.equal(escapeScreen('battle-setup', { overlayOpen: true }), null);
+  assert.equal(escapeScreen('entry'), null);
+  assert.equal(escapeScreen('game'), null);
+  assert.deepEqual(SCREENS.filter(isFlowScreen), ['tutorial-select', 'battle-setup']);
 });
