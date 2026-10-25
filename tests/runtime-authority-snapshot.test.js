@@ -9,11 +9,11 @@ import { submitRuntimeCommand } from '../src/game/runtime/transaction.js';
 import { createRuntimeCard } from '../src/game/runtime/factory.js';
 import { buildRequiredInput } from '../src/game/runtime/required-input.js';
 
-function authority({ playerUserId = 'bigboss', playerDeckRecipe = [['STD-001', 10]], aiDeckRecipe = [['STD-001', 10]] } = {}) {
+function authority({ playerUserId = 'bigboss', playerDeckRecipe = [['STD-001', 10]], aiDeckRecipe = [['STD-001', 10]], openingProtocol = null } = {}) {
   const session = createRuntimeSession({
     matchId: 'snapshot-command-match', seatIds: ['seat-a', 'seat-b'], seed: 41,
     ruleVersion: 'rules-1', cardVersion: 'cards-1',
-    gameOptions: { mode: 'ai', playerUserId, playerDeckRecipe, aiDeckRecipe }
+    gameOptions: { mode: 'ai', playerUserId, playerDeckRecipe, aiDeckRecipe, ...(openingProtocol ? { openingProtocol } : {}) }
   });
   assert.equal(session.ok, true, JSON.stringify(session));
   const frame = buildRuntimeReferenceFrame(session.value.engineState);
@@ -139,4 +139,29 @@ test('authority snapshot keeps the field entry table and rejects a malformed one
   assert.deepEqual(restored.value.engineState.fieldEntryTurns, { [uid]: 1 });
   source.engineState.fieldEntryTurns = { [uid]: 'turn-1' };
   assert.equal(createRuntimeAuthoritySnapshot(source).ok, false);
+});
+
+test('v2.4 opening: not snapshottable before the first turn, then restores with its protocol and exact retry', () => {
+  const initial = authority({ openingProtocol: 'v2.4' });
+  const early = createRuntimeAuthoritySnapshot(initial);
+  assert.equal(early.ok, false);
+  assert.equal(early.error.code, 'SNAPSHOT_UNSUPPORTED_STATE');
+  const keep = (seat, commandId, revision) => ({ contractVersion: 1, matchId: 'snapshot-command-match', commandId, actorSeat: seat, expectedRevision: revision,
+    action: { type: 'keepOpeningHand' } });
+  const first = submitRuntimeCommand(initial, context, keep('seat-a', 'keep-a', 0));
+  assert.equal(first.value.kind, 'accepted', JSON.stringify(first));
+  assert.equal(createRuntimeAuthoritySnapshot(first.value.authority).ok, false);
+  const second = submitRuntimeCommand(first.value.authority, { ...context, actorSeat: 'seat-b' }, keep('seat-b', 'keep-b', 1));
+  assert.equal(second.value.kind, 'accepted', JSON.stringify(second));
+  assert.equal(Object.hasOwn(second.value.authority.engineState, 'opening'), false);
+  const snapshot = createRuntimeAuthoritySnapshot(second.value.authority);
+  assert.equal(snapshot.ok, true, JSON.stringify(snapshot));
+  const restored = restoreRuntimeAuthoritySnapshot(structuredClone(snapshot.value), expected);
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.equal(restored.value.metadata.startOptions.openingProtocol, 'v2.4');
+  const retry = submitRuntimeCommand(restored.value, { ...context, actorSeat: 'seat-b' }, keep('seat-b', 'keep-b', 1));
+  assert.equal(retry.value.kind, 'retry', JSON.stringify(retry));
+  // A legacy match keeps its nine start options exactly.
+  const legacy = createRuntimeAuthoritySnapshot(authority());
+  assert.equal(Object.hasOwn(legacy.value.runtime.metadata.startOptions, 'openingProtocol'), false);
 });

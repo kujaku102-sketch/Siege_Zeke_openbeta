@@ -56,11 +56,20 @@ function actionType(command) {
   return type && Object.hasOwn(type, 'value') && typeof type.value === 'string' ? type.value : null;
 }
 
-function preparationAuthority(root, type) {
+// The v2.4 opening mulligan names cards, so only that form reads references; the legacy form stays reference-free.
+function needsReferences(command) {
+  const type = actionType(command);
+  if (REFERENCE_ACTIONS.has(type)) return true;
+  if (type !== 'openingMulligan') return false;
+  const action = Object.getOwnPropertyDescriptor(command, 'action').value;
+  return Object.getOwnPropertyDescriptor(action, 'cardRefs') !== undefined;
+}
+
+function preparationAuthority(root, command) {
   const base = {
     metadata: root.metadata, revision: root.revision, engineState: root.engineState, journal: root.journal
   };
-  return REFERENCE_ACTIONS.has(type) ? { ...base, referenceState: root.referenceState } : base;
+  return needsReferences(command) ? { ...base, referenceState: root.referenceState } : base;
 }
 
 function terminalReceipt(command, status, revision, reasonCode) {
@@ -116,7 +125,7 @@ function baseline(root) {
 export function submitRuntimeCommand(authority, context, command, policy = {}) {
   try {
     const root = authorityRoot(authority);
-    const prepared = prepareRuntimeCommand(preparationAuthority(root, actionType(command)), context, command, policy);
+    const prepared = prepareRuntimeCommand(preparationAuthority(root, command), context, command, policy);
     if (!prepared.ok) {
       const reason = RECORDABLE_REJECTIONS.get(prepared.error.code);
       return reason ? recordRejection(root, context, command, reason) : prepared;

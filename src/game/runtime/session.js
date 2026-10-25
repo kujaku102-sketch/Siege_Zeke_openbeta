@@ -57,9 +57,14 @@ function recipe(input) {
 }
 
 function options(input) {
-  const supplied = fields(input, Object.keys(defaults), true);
+  const supplied = fields(input, [...Object.keys(defaults), 'openingProtocol'], true);
   if (!supplied || Object.values(supplied).some(value => value === undefined)) return null;
   const normalized = { ...defaults, ...supplied };
+  // 'legacy' is the absence of the key, so existing matches and records keep their exact start options.
+  if (Object.hasOwn(normalized, 'openingProtocol')) {
+    if (normalized.openingProtocol === 'legacy') delete normalized.openingProtocol;
+    else if (normalized.openingProtocol !== 'v2.4' || normalized.mode !== 'ai') return null;
+  }
   if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(normalized.mode) || !['basics', 'vengeance'].includes(normalized.tutorialId)) return null;
   for (const key of ['playerDeckId', 'aiDeckId']) if (typeof normalized[key] !== 'string' || !Object.hasOwn(DECK_OPTIONS, normalized[key])) return null;
   for (const key of ['playerUserId', 'aiUserId']) if (typeof normalized[key] !== 'string' || !Object.hasOwn(USER_CARDS, normalized[key])) return null;

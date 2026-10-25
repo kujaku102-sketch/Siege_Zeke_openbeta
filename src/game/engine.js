@@ -318,6 +318,19 @@ function clearComponents(target) {
   target.turnCostModifier = 0;
   delete target.revealedExecutionCost;
 }
+// エリアを離れたカードは別のカードとして戻る: ダメージ・負荷・各種補正・付与能力・カウンターはエリア離脱で消える。
+// 離脱時に直接消すと破壊直後のログアウト等が最後の情報を読めなくなるため、エリアへ入る時点で確定的に初期化する
+// (ゴミ箱・手札などエリア外にいる間は戦闘状態を参照する処理がない)。
+function resetLeftAreaState(card) {
+  clearComponents(card);
+  card.damage = 0;
+  card.battleStrBonus = 0;
+  card.protect = Number((card.compiled ? keywordValue(card, "PROTECT") : null) ?? 0);
+  card.keywordExpiries = {};
+  delete card.backupUsedTurn;
+  delete card.backupUsesThisTurn;
+}
+
 const backupLimit = (card) => {
   const match = String(card?.text ?? "").match(/\[バックアップ(?:[:：](\d+))?\]/);
   return match ? Number(match[1] ?? 1) : 0;
@@ -546,8 +559,19 @@ export function addSandboxCardToHand(state, playerId, cardId) {
   return true;
 }
 
+// 開始手順(規則書2.4)。openingProtocol="v2.4" の試合だけ、ゲーム開始前に各ユーザーが1回(BIGBOSSは最大3回)
+// 手札の任意枚数を山札の下へ戻して同数引き直せる。決定は seat 順(player→ai)に1人ずつ行い、最後の決定の中で
+// ダイスを振って先攻を決め、ターンを開始する。未指定("legacy")は従来どおり先攻=player固定で、BIGBOSSだけ全手札を引き直せる。
+const OPENING_ORDER = Object.freeze(["player", "ai"]);
+
+const openingMulliganLimit = (player) => (player.user.abilityKey === "watching_you" ? 3 : 1);
+
 export function canOpeningMulligan(state, playerId) {
   const player = state.players[playerId];
+  if (state.opening) {
+    return Boolean(player && state.opening.status === "mulligan" && state.active === playerId
+      && Number(player.mulligansUsed ?? 0) < openingMulliganLimit(player) && player.hand.length > 0);
+  }
   return Boolean(player
     && player.user.abilityKey === "watching_you"
     && state.turnNumber === 1 && state.active === playerId
@@ -557,9 +581,49 @@ export function canOpeningMulligan(state, playerId) {
     && player.hand.length === Number(player.user.initialHand ?? 5));
 }
 
-export function openingMulligan(state, playerId) {
+export function canKeepOpeningHand(state, playerId) {
+  return Boolean(state.opening && state.opening.status === "mulligan" && state.active === playerId && state.players[playerId]);
+}
+
+// 現在のユーザーの決定を終え、次のユーザーへ。全員が終わったらダイスで先攻を決めてターンを開始する。
+function finishOpeningDecision(state) {
+  const opening = state.opening;
+  opening.index += 1;
+  if (opening.index < opening.order.length) {
+    state.active = opening.order[opening.index];
+    return;
+  }
+  const first = state.rng() < 0.5 ? opening.order[0] : opening.order[1];
+  delete state.opening;
+  state.firstPlayer = first;
+  state.active = first;
+  state.phase = "main";
+  addLog(state, `ダイス: ${state.players[first].user.name}（${first === "player" ? "自分" : "相手"}）が先攻。`, "system");
+  startTurn(state, first);
+}
+
+export function openingMulligan(state, playerId, { uids } = {}) {
   if (!canOpeningMulligan(state, playerId)) return fail(state, "マリガン可能な開始状態ではない。", false);
   const player = state.players[playerId];
+  if (state.opening) {
+    const chosen = Array.isArray(uids) ? [...new Set(uids)] : [];
+    if (!chosen.length || chosen.length !== uids.length || !chosen.every((uid) => player.hand.some((card) => card.uid === uid))) {
+      return fail(state, "引き直すカードを手札から1枚以上選んで。", false);
+    }
+    const returned = chosen.map((uid) => player.hand.splice(player.hand.findIndex((card) => card.uid === uid), 1)[0]);
+    player.deck.unshift(...returned);
+    for (let index = 0; index < returned.length; index += 1) drawCardRaw(player);
+    player.deck = shuffle(player.deck, state.rng);
+    player.mulligansUsed += 1;
+    state.selectedUid = null;
+    const limit = openingMulliganLimit(player);
+    addLog(state, `${player.user.name}: ${returned.length}枚を山札の下へ戻して引き直し（${player.mulligansUsed}/${limit}）。`, "effect");
+    if (player.user.abilityKey === "watching_you") emitUserAbilityFeedback(state, "watching_you", playerId, playerId, {
+      branch: "mulligan", amount: Number(player.mulligansUsed), steps: [{ kind: "transfer", from: { kind: "zone_count", playerId, zone: "hand" }, to: { kind: "zone_count", playerId, zone: "deck" }, count: returned.length }, { kind: "transfer", from: { kind: "zone_count", playerId, zone: "deck" }, to: { kind: "zone_count", playerId, zone: "hand" }, count: returned.length }]
+    });
+    if (player.mulligansUsed >= limit) finishOpeningDecision(state);
+    return true;
+  }
   player.deck.push(...player.hand.splice(0));
   player.deck = shuffle(player.deck, state.rng);
   for (let index = 0; index < Number(player.user.initialHand ?? 5); index += 1) drawCardRaw(player);
@@ -572,6 +636,12 @@ export function openingMulligan(state, playerId) {
   return true;
 }
 
+export function keepOpeningHand(state, playerId) {
+  if (!canKeepOpeningHand(state, playerId)) return fail(state, "手札をキープできる開始状態ではない。", false);
+  addLog(state, `${state.players[playerId].user.name}: 手札をキープ。`, "effect");
+  finishOpeningDecision(state);
+  return true;
+}
 // 選べるのは7色のスタートデッキ。旧固定デッキ(hidden)はチュートリアルと過去の対戦記録の再生用に残す。
 export const DECK_OPTIONS = Object.freeze({
   ...Object.fromEntries(START_DECKS.map((deck) => [deck.id, {
@@ -583,7 +653,7 @@ export const DECK_OPTIONS = Object.freeze({
   neutron: { label: "ニュートロン・セキュリティ・青", color: "青", recipe: NEUTRON_DECK, hidden: true }
 });
 
-export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = "red", aiDeckId = "yellow", playerDeckRecipe = null, aiDeckRecipe = null, playerUserId = "doors_zx", aiUserId = "doors_zx", sandboxDeckSetup = false, rng = Math.random, runtimeContext = null } = {}) {
+export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = "red", aiDeckId = "yellow", playerDeckRecipe = null, aiDeckRecipe = null, playerUserId = "doors_zx", aiUserId = "doors_zx", sandboxDeckSetup = false, rng = Math.random, runtimeContext = null, openingProtocol = "legacy" } = {}) {
   if (runtimeContext !== null) rng = runtimeRng(runtimeContext);
   const isVengeanceTutorial = mode === "tutorial" && tutorialId === "vengeance";
   const selectedPlayerDeck = isVengeanceTutorial ? DECK_OPTIONS.vengeance : (DECK_OPTIONS[playerDeckId] ?? DECK_OPTIONS.red);
@@ -668,6 +738,12 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
     state.sandboxUi = { query: "", expansion: "all", catalogOwner: "player", opponentControl: "manual", actor: "player" };
   }
   if (runtimeContext !== null) normalizeBoardSlots(state);
+  if (openingProtocol === "v2.4" && mode === "ai") {
+    // 開始前フェーズ: 先攻はまだ決まっていない(最後の決定でダイス)。player から順に手札の確認を行う。
+    state.opening = { status: "mulligan", order: [...OPENING_ORDER], index: 0 };
+    state.phase = "opening";
+    return state;
+  }
   startTurn(state, state.active);
   return state;
 }
@@ -2067,6 +2143,8 @@ function executeQueuedTrigger(state, trigger) {
   });
   else for (const action of trigger.spec.actions) executeTriggerAction(state, trigger, action);
   if (!state.pending) trigger.status = "resolved";
+  // 同時に誘発した効果は別々の効果。1つ完了した時点で勝敗が決まったら、残りは未宣言のまま実行しない。
+  if (!state.pending && !state.prompt) lockVictoryIfDecided(state);
 }
 
 function finishTriggerThread(state) {
@@ -2126,6 +2204,9 @@ function resolveTriggerChoiceCore(state, itemId) {
   if (!thread || thread.status !== "resolving" || thread.currentControllerId !== "player") return false;
   const item = thread.items.find((entry) => entry.id === itemId && entry.status === "pending" && entry.controllerId === "player");
   if (!item) return false;
+  // 処理順の質問を閉じてから実行する。開いたままだと、この誘発が出す選択がpendingではなく待ち行列に積まれ、
+  // スレッド終了時に誰も開かないまま取り残されて盤面が止まる。
+  if (state.pending?.type === "trigger-order") state.pending = null;
   state.processingTriggers = true;
   item.status = "resolving";
   executeQueuedTrigger(state, item.trigger);
@@ -2144,6 +2225,10 @@ function resolveTriggerChoiceCore(state, itemId) {
 function resumeStalledTriggerThread(state) {
   const thread = state.triggerThread;
   if (thread?.status !== "resolving") return;
+  // 選択を終えた誘発の後で別の確認(Script起動確認など)が開き、その回答・解決で閉じた場合も、
+  // 他に待ち処理が残っていなければ再開する。残っている間は再開しない。
+  if (state.pending || state.prompt || state.processingTriggers || state.declaredEffects?.length || state.resolvingDeclaredEffect
+    || state.deferredAttack || state.deferredDestruction || state.deferredTrashMoves?.length || state.deferredDeclaredScriptCleanup) return;
   const item = thread.items.find((entry) => entry.status === "awaiting-selection");
   if (item) resumeTriggerThreadAfterSelection(state, item.id);
 }
@@ -2173,6 +2258,8 @@ function triggerRequiresChoice(trigger) {
 function drainTriggerQueue(state) {
   drainTriggerQueueCore(state);
   settleVictoryFactsOutsideResolution(state);
+  // 誘発の処理中に結果が固定された場合、宣言済みの処理が残っていなければここでゲーム終了にする。
+  if (state.winner && !state.processingTriggers) finishGameIfSettled(state);
 }
 
 // 効果解決の外(誘発の処理など)で勝利条件が成立した時、誰も確定させずに止まるのを防ぐ
@@ -2331,6 +2418,7 @@ function resolveEffect(state, resolver) {
         finalizeEffectResolution(state);
       }
       if (!state.winner) drainIndependentEffects(state);
+      if (!state.winner && !state.effectResolution) resumeStalledTriggerThread(state);
       if (!state.winner) drainTriggerQueue(state);
     }
   }
@@ -2341,6 +2429,7 @@ function recordVictoryFact(state, fact) {
 }
 
 function runEffectEntry(state, kind, playerId, resolver) {
+  if (state.opening) return false;
   const continuingDeclaredEffect = Boolean(
     state.winner
     && state.effectResolution?.declaredEffectId
@@ -2375,30 +2464,34 @@ function drainIndependentEffects(state) {
   if (!state.winner) drainIndependentEffects(state);
 }
 
+// 効果1つの処理が完了した境界で、勝敗が決まっていれば結果を固定する(最初に成立した境界で固定)。
+// 同時に誘発した効果は別々の効果なので、それぞれの完了ごとにここを通す。
+function lockVictoryIfDecided(state) {
+  if (state.victory?.lockedOutcome) return false;
+  const candidates = new Set();
+  for (const [playerId, player] of Object.entries(state.players)) {
+    if (Number(player.fortressStr) <= 0 || player.userBanned || player.mandatoryDrawFailed) candidates.add(otherPlayer(playerId));
+  }
+  for (const fact of state.victoryFacts ?? []) if (fact.type === "special" && fact.playerId) candidates.add(fact.playerId);
+  if (candidates.size > 1) state.winner = "draw";
+  else if (candidates.size === 1) state.winner = [...candidates][0];
+  if (!state.winner) return false;
+  state.victory = {
+    lockedOutcome: state.winner,
+    lockedAtEffectId: state.effectResolution?.id ?? null,
+    finished: false
+  };
+  state.pending = null; state.prompt = null; state.triggerQueue = [];
+  state.scriptActivationQueue = []; state.activationWindows = [];
+  state.selectionQueue = []; state.deferredAttack = null;
+  state.responseEventQueue = []; state.mandatoryDrawContinuation = null;
+  addLog(state, state.winner === "draw" ? "両ユーザーが勝利条件を満たしたため引き分け。" : `${state.players[state.winner].user.name}の勝利。`, "win");
+  return true;
+}
+
 function finalizeEffectResolution(state) {
   const completedResolution = state.effectResolution;
-  const alreadyLocked = Boolean(state.victory?.lockedOutcome);
-  if (!alreadyLocked) {
-    const candidates = new Set();
-    for (const [playerId, player] of Object.entries(state.players)) {
-      if (Number(player.fortressStr) <= 0 || player.userBanned || player.mandatoryDrawFailed) candidates.add(otherPlayer(playerId));
-    }
-    for (const fact of state.victoryFacts ?? []) if (fact.type === "special" && fact.playerId) candidates.add(fact.playerId);
-    if (candidates.size > 1) state.winner = "draw";
-    else if (candidates.size === 1) state.winner = [...candidates][0];
-  }
-  if (state.winner && !alreadyLocked) {
-    state.victory = {
-      lockedOutcome: state.winner,
-      lockedAtEffectId: state.effectResolution?.id ?? null,
-      finished: false
-    };
-    state.pending = null; state.prompt = null; state.triggerQueue = [];
-    state.scriptActivationQueue = []; state.activationWindows = [];
-    state.selectionQueue = []; state.deferredAttack = null;
-    state.responseEventQueue = []; state.mandatoryDrawContinuation = null;
-    addLog(state, state.winner === "draw" ? "両ユーザーが勝利条件を満たしたため引き分け。" : `${state.players[state.winner].user.name}の勝利。`, "win");
-  }
+  lockVictoryIfDecided(state);
   if (completedResolution?.declaredEffectId && state.resolvingDeclaredEffect?.id === completedResolution.declaredEffectId) {
     state.resolvingDeclaredEffect.status = "resolved";
     state.resolvingDeclaredEffect = null;
@@ -2668,7 +2761,11 @@ function placeByMode(state, ownerId, card, { zone, mode = "forced-effect", from 
     if (placement.mode === "forced-effect") return failForcedPlacement(state, card.owner ?? ownerId, card, { from, zone, source, suppressScriptWindow });
     return "normal-rejected";
   }
-  if (!["front", "back"].includes(from)) markFieldEntry(state, card);
+  if (!["front", "back"].includes(from)) {
+    markFieldEntry(state, card);
+    // 生成されたカードは効果が作った値をそのまま使う。実在のカードがエリア外から入る場合だけ初期化する。
+    if (from !== "generated") resetLeftAreaState(card);
+  }
   return "placed";
 }
 
@@ -2858,29 +2955,41 @@ function applyDamageModifiers(state, sourcePlayerId, sourceCard, victimPlayerId,
   return finalValue;
 }
 
+const MANDATORY_STATE_CHECK_PASSES = 8;
+
 function resolveMandatoryStateChecks(state) {
-  // 戦闘以外(負荷やSTR-補正)でSTRが0以下になったObも、効果解決の終わりにルールで破壊する
-  for (const [playerId, player] of Object.entries(state.players)) {
-    for (const card of [...player.front, ...player.back]) {
-      if (isObCard(card) && !card.faceDown && cardCurrentStr(state, playerId, card) <= 0) {
-        destroyCard(state, playerId, card.uid, { source: "STR0以下の状態判定" });
-      }
-    }
-  }
-  for (const [playerId, player] of Object.entries(state.players)) {
-    for (const card of [...player.front, ...player.back]) {
-      for (const spec of mandatoryStateCheckSpecsFor(card.id)) {
-        if (!continuousEffectConditionMatches(state, playerId, card, spec.condition)) continue;
-        if (spec.type === "destroy" && spec.target === "source") {
-          destroyCard(state, playerId, card.uid, {
-            source: `${card.name}の強制状態判定`,
-            suppressReplacement: Boolean(spec.suppressReplacement)
-          });
-          break;
+  // 確認(STD-003の窓など)の回答待ち・保留中の破壊がある間は判定しない。破壊が窓の後ろで保留されているカードを
+  // もう一度破壊しようとすると、回答のたびに新しい窓が開いて確認が終わらなくなる。回答後の次の解決で判定する。
+  if (state.prompt || state.deferredDestruction || state.scriptActivationQueue?.length) return;
+  // 状態判定は安定するまで繰り返す(破壊した常在効果の源が消えて、別のObがSTR0以下になる場合がある)。
+  // STR0以下の破壊は常時の状態判定なので[プロテクト]も[バックアップ]も貫通する(裁定済み)。
+  // 破壊不可で破壊が成立しない場合や選択待ち・STD-003の窓が開いた場合は進展なしとして止める。
+  for (let pass = 0; pass < MANDATORY_STATE_CHECK_PASSES; pass += 1) {
+    let progressed = false;
+    // 戦闘以外(負荷やSTR-補正)でSTRが0以下になったObも、効果解決の終わりにルールで破壊する
+    for (const [playerId, player] of Object.entries(state.players)) {
+      for (const card of [...player.front, ...player.back]) {
+        if (isObCard(card) && !card.faceDown && cardCurrentStr(state, playerId, card) <= 0) {
+          if (destroyCard(state, playerId, card.uid, { source: "STR0以下の状態判定", piercing: true })) progressed = true;
         }
-        throw new Error(`Unsupported mandatory state check: ${spec.type ?? "(missing)"}`);
       }
     }
+    for (const [playerId, player] of Object.entries(state.players)) {
+      for (const card of [...player.front, ...player.back]) {
+        for (const spec of mandatoryStateCheckSpecsFor(card.id)) {
+          if (!continuousEffectConditionMatches(state, playerId, card, spec.condition)) continue;
+          if (spec.type === "destroy" && spec.target === "source") {
+            if (destroyCard(state, playerId, card.uid, {
+              source: `${card.name}の強制状態判定`,
+              suppressReplacement: Boolean(spec.suppressReplacement)
+            })) progressed = true;
+            break;
+          }
+          throw new Error(`Unsupported mandatory state check: ${spec.type ?? "(missing)"}`);
+        }
+      }
+    }
+    if (!progressed || state.pending || state.prompt || state.deferredDestruction) return;
   }
 }
 
@@ -3173,6 +3282,7 @@ export function installCard(state, playerId, uid, { force = false } = {}) {
   const player = state.players[playerId];
   const index = player.hand.findIndex((card) => card.uid === uid);
   if (index < 0) return fail(state, "そのカードは手札にない。", force);
+  if (!force) { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   if (!force) { const check = installCheck(state, playerId, uid); if (!check.ok) return fail(state, check.reason, force); }
   const [card] = player.hand.splice(index, 1);
   player.registry.push(card);
@@ -4224,6 +4334,18 @@ export function declinePrompt(state) {
   });
 }
 
+// コストの支払いや付随効果を終えた後に、宣言した攻撃を続ける。支払いで開いた確認(STD-003の窓など)が
+// 残っている間はattack()がfalseを返し、回答ごと拒否されて詰むので、確認が済んでから宣言し直す。
+function continueAttackAfterCost(state, playerId, attackerUid, targetUid, { standbyAfter = false } = {}) {
+  if (state.pending || state.prompt) {
+    state.deferredAttack = { stage: null, playerId, attackerUid, targetUid, standbyAfter };
+    return true;
+  }
+  const resolved = attack(state, playerId, attackerUid, targetUid);
+  if (standbyAfter && findCard(state, attackerUid)) findCard(state, attackerUid).card.sleep = false;
+  return resolved;
+}
+
 function resumeDeferredAttack(state) {
   if (state.prompt || state.pending || !state.deferredAttack) return false;
   const deferred = state.deferredAttack;
@@ -4231,6 +4353,7 @@ function resumeDeferredAttack(state) {
   state.attackResumeStage = deferred.stage;
   const result = attack(state, deferred.playerId, deferred.attackerUid, deferred.targetUid);
   delete state.attackResumeStage;
+  if (deferred.standbyAfter && findCard(state, deferred.attackerUid)) findCard(state, deferred.attackerUid).card.sleep = false;
   return result;
 }
 
@@ -4238,7 +4361,7 @@ function resumeDeferredDestruction(state) {
   if (state.prompt || !state.deferredDestruction) return false;
   const deferred = state.deferredDestruction;
   state.deferredDestruction = null;
-  const resolved = destroyCard(state, deferred.ownerId, deferred.uid, { source: deferred.source, suppressReplacement: deferred.suppressReplacement, suppressTrashScriptWindow: true });
+  const resolved = destroyCard(state, deferred.ownerId, deferred.uid, { source: deferred.source, suppressReplacement: deferred.suppressReplacement, suppressTrashScriptWindow: true, piercing: Boolean(deferred.piercing) });
   continueDeferredSpellCleanup(state);
   return resolved;
 }
@@ -4833,7 +4956,7 @@ function resolveCardSelectionCore(state, continuation, result) {
       state.pending = { type: "selection", validTargets: request.candidates, request };
       return true;
     }
-    return destroyCard(state, playerId, continuation.targetUid, { source: continuation.source, suppressReplacement: true });
+    return destroyCard(state, playerId, continuation.targetUid, { source: continuation.source, suppressReplacement: true, piercing: Boolean(continuation.piercing) });
   }
   if (continuation.type === "std099-replacement-materials") {
     const targetLocation = findCard(state, continuation.targetUid);
@@ -5125,7 +5248,11 @@ function resolveCardSelectionCore(state, continuation, result) {
     if (state.lastDamageOutcome?.destructionDetermined) drawCards(state, playerId, 1);
     state.pending = null;
     const attacker = findCard(state, continuation.attackerUid)?.card;
-    return attacker ? attack(state, continuation.attackerPlayerId, attacker.uid, continuation.attackTargetUid) : true;
+    if (!attacker) return true;
+    // 3ダメージで破壊されたObの「自分Obが破壊された時」Script確認などが開いている間は、確認が済んでから宣言し直す。
+    // 3ダメージを受けた攻撃者自身が[バックアップ]や破壊で攻撃できなくなった場合は、宣言した攻撃がそこで終わる(回答は拒否しない)。
+    continueAttackAfterCost(state, continuation.attackerPlayerId, attacker.uid, continuation.attackTargetUid);
+    return true;
   }
   if (continuation.type === "std140-protect") {
     const target = findCard(state, result.selected[0])?.card;
@@ -5224,15 +5351,9 @@ function resolveCardSelectionCore(state, continuation, result) {
     source.skipQ3LayerAttackChoice = true;
     if (source.id === "STD-238") {
       source.permanentAtk = Number(source.permanentAtk ?? 0) + 2;
-      const resolved = attack(state, playerId, source.uid, continuation.targetUid);
-      if (findCard(state, source.uid)) source.sleep = false;
-      return resolved;
+      return continueAttackAfterCost(state, playerId, source.uid, continuation.targetUid, { standbyAfter: true });
     }
-    if (source.id === "STD-096") {
-      const resolved = attack(state, playerId, source.uid, continuation.targetUid);
-      if (findCard(state, source.uid)) source.sleep = false;
-      return resolved;
-    }
+    if (source.id === "STD-096") return continueAttackAfterCost(state, playerId, source.uid, continuation.targetUid, { standbyAfter: true });
     const candidates = player.trash.filter((card) => isObCard(card) || card.category === "Code");
     const request = createSelectionRequest({ mode: "up_to", candidates: candidates.map((card) => card.uid), minimum: 1, maximum: candidates.length,
       exactBudget: 2, candidateValues: Object.fromEntries(candidates.map((card) => [card.uid, Number(card.cost ?? 0)])),
@@ -5267,7 +5388,7 @@ function resolveCardSelectionCore(state, continuation, result) {
     grantDamageModifier(source, {
       direction: "received", damageKind: "battle", operation: "cap_max", amount: 1, duration: "battle"
     });
-    return attack(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
+    return continueAttackAfterCost(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
   }
   if (continuation.type === "std085-layer-pay") {
     const sourceLocation = findCard(state, continuation.sourceUid);
@@ -5282,7 +5403,7 @@ function resolveCardSelectionCore(state, continuation, result) {
       return true;
     }
     source.skipStd085LayerCost = true;
-    return attack(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
+    return continueAttackAfterCost(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
   }
   if (continuation.type === "std102-place") {
     const source = findCard(state, continuation.sourceUid)?.card;
@@ -5297,7 +5418,7 @@ function resolveCardSelectionCore(state, continuation, result) {
     if (source && source.mounted.length === 0) destroyCard(state, playerId, source.uid, { source: `${source.name}のレイヤー閾値` });
     const sourceLocation = source ? findCard(state, source.uid) : null;
     return sourceLocation && ["front", "back"].includes(sourceLocation.zoneName)
-      ? attack(state, playerId, source.uid, continuation.targetUid)
+      ? continueAttackAfterCost(state, playerId, source.uid, continuation.targetUid)
       : true;
   }
   if (continuation.type === "std164-choice") {
@@ -6203,6 +6324,7 @@ function activateCardEffectCore(state, playerId, cardUid, effectId, { targetUid 
 }
 
 export function activateCardEffect(state, playerId, cardUid, effectId, options = {}) {
+  { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   normalizeBoardSlots(state);
   return resolveEffect(state, () => activateCardEffectCore(state, playerId, cardUid, effectId, options));
 }
@@ -6248,6 +6370,7 @@ export function canPlayLayeredCard(state, playerId, uid, materialUids, zone = "f
 }
 
 export function playLayeredCard(state, playerId, uid, materialUids, zone = "front", { requestedSlot = null } = {}) {
+  { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   const check = canPlayLayeredCard(state, playerId, uid, materialUids, zone, requestedSlot);
   if (!check.ok) return fail(state, check.reason, false);
   normalizeBoardSlots(state);
@@ -6480,6 +6603,7 @@ function resolveTrinityEffect(state, activePlayerId, sourceName) {
 }
 
 export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount = null, layerUid = null, requestedSlot = null, baseUid = null } = {}) {
+  { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   normalizeBoardSlots(state);
   const player = state.players[playerId];
   if (state.active !== playerId) return fail(state, "再実行は自分ターン中だけ。", false);
@@ -7182,7 +7306,8 @@ function triggerStd165Threshold(state) {
   if (!state.effectResolution && !state.pending && !state.prompt) drainIndependentEffects(state);
 }
 
-export function destroyCard(state, ownerId, uid, { source = "破壊", suppressReplacement = false, replacementChoice = null, suppressTrashScriptWindow = false } = {}) {
+// piercing: STR0以下の常時破壊判定用。[プロテクト]も[バックアップ]も貫通する(裁定済み)。破壊不可・STD-003の窓・STD-099は通常どおり。
+export function destroyCard(state, ownerId, uid, { source = "破壊", suppressReplacement = false, replacementChoice = null, suppressTrashScriptWindow = false, piercing = false } = {}) {
   const player = state.players[ownerId];
   normalizeZoneSlots(player.front, { controllerId: ownerId, zoneName: "front", limit: player.user?.frontLimit });
   normalizeZoneSlots(player.back, { controllerId: ownerId, zoneName: "back", limit: player.user?.backLimit });
@@ -7202,7 +7327,7 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
     continuePlacementCostBatch(state);
     return false;
   }
-  if (consumeProtect(state, protectedCard, `${source}による破壊`)) {
+  if (!piercing && consumeProtect(state, protectedCard, `${source}による破壊`)) {
     settleDestructionContinuations(state, uid, false);
     resumeDestroyLkiFollowUp(state, uid);
     continuePlacementCostBatch(state);
@@ -7211,7 +7336,7 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
   const maxBackupUsesBefore = backupLimit(protectedCard);
   const grantedBackupUsesBefore = Number(protectedCard.backup ?? 0);
   const backupUsesBefore = protectedCard.backupUsedTurn === state.turnNumber ? Number(protectedCard.backupUsesThisTurn ?? 0) : 0;
-  const backupAvailable = zoneName === "front" && (grantedBackupUsesBefore > 0 || maxBackupUsesBefore > backupUsesBefore) && player.back.length < player.user.backLimit;
+  const backupAvailable = !piercing && zoneName === "front" && (grantedBackupUsesBefore > 0 || maxBackupUsesBefore > backupUsesBefore) && player.back.length < player.user.backLimit;
   const std099 = player.hand.find((candidate) => candidate.id === "STD-099");
   const std099Materials = [...player.front, ...player.back].filter((candidate) => candidate.uid !== uid && hasClass(candidate, "レッドパンクス"));
   const std099Available = isObCard(protectedCard) && protectedCard.name.includes("変形合体レッパオー") && std099 && std099Materials.length > 0;
@@ -7219,7 +7344,7 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
     const options = ["破壊をそのまま適用", ...(backupAvailable ? ["[バックアップ]で置換"] : []), "STD-099で置換ログイン"];
     const request = createSelectionRequest({ mode: "scope", scopeField: "destructionReplacement", scopeOptions: options,
       label: `${protectedCard.name}の破壊置換`, message: "適用する置換を1つ選択。",
-      continuation: { type: "destruction-replacement-choice", playerId: ownerId, targetUid: uid, std099Uid: std099.uid, source } });
+      continuation: { type: "destruction-replacement-choice", playerId: ownerId, targetUid: uid, std099Uid: std099.uid, source, piercing } });
     state.pending = { type: "selection", validTargets: [], request };
     return true;
   }
@@ -7227,7 +7352,7 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
     const scriptOwnerId = otherPlayer(ownerId);
     const script = state.players[scriptOwnerId].back.find((candidate) => candidate.id === "STD-003" && candidate.faceDown && state.players[scriptOwnerId].memory >= Number(candidate.cost ?? 0));
     if (script) {
-      state.deferredDestruction = { ownerId, uid, source, suppressReplacement };
+      state.deferredDestruction = { ownerId, uid, source, suppressReplacement, piercing };
       openScriptActivationWindow(state, scriptOwnerId, script, { type: "card_would_move_to_trash", ownerId, playerId: ownerId, cardUid: uid, category: protectedCard.category });
       return true;
     }
@@ -7239,7 +7364,7 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
   const maxBackupUses = backupLimit(card);
   const grantedBackupUses = Number(card.backup ?? 0);
   const backupUsesThisTurn = card.backupUsedTurn === state.turnNumber ? Number(card.backupUsesThisTurn ?? 0) : 0;
-  if (!suppressReplacement && zoneName === "front" && (replacementChoice === "backup" || (replacementChoice === null && (grantedBackupUses > 0 || maxBackupUses > backupUsesThisTurn))) && player.back.length < player.user.backLimit) {
+  if (!piercing && !suppressReplacement && zoneName === "front" && (replacementChoice === "backup" || (replacementChoice === null && (grantedBackupUses > 0 || maxBackupUses > backupUsesThisTurn))) && player.back.length < player.user.backLimit) {
     setCardSleeping(state, ownerId, card);
     card.damage = 0;
     if (grantedBackupUses > 0) card.backup = grantedBackupUses - 1;
@@ -7396,6 +7521,7 @@ export function canActivateTurbo(state, playerId = "player") {
 
 export function activateTurbo(state, playerId = "player") {
   const player = state.players[playerId];
+  { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   if (!canActivateTurbo(state, playerId)) return fail(state, "ターボ・ブーストは今は使えない。", false);
   const beforeMaxMemory = getMaxMemory(player);
   player.turboUsed = true;
@@ -7525,7 +7651,7 @@ function resolveStd049TurnEnd(state, activeId) {
 }
 
 export function endTurn(state) {
-  if (state.winner) return false;
+  if (state.winner || state.opening) return false;
   const activeId = state.active;
   const player = state.players[activeId];
   const resumingStd094TurnEnd = state.std094TurnEndQueue?.activeId === activeId || state.std094TurnEndDone === activeId;
@@ -7708,6 +7834,17 @@ function provisional(state, text, card = null) {
   const key = `${card?.id ?? "RULE"}:${text}`;
   if (!state.provisional.some((item) => item.key === key)) state.provisional.push({ key, text, cardId: card?.id ?? null });
   addLog(state, `暫定処理: ${text}`, "warning");
+}
+
+// 勝敗固定後は新しいプレイ・発動宣言を受け付けない(宣言済み効果の解決だけが続く)。
+const RESULT_LOCKED_MESSAGE = "勝敗が固定されたため新しい行動はできない。";
+function resultLocked(state) {
+  return Boolean(state.winner || state.victory?.lockedOutcome);
+}
+// 開始前のマリガン確認(state.opening)が終わるまで、通常の行動はできない。
+const OPENING_BLOCKED_MESSAGE = "開始前の手札確認が終わるまで行動できない。";
+function newActionBlock(state) {
+  return resultLocked(state) ? RESULT_LOCKED_MESSAGE : state.opening ? OPENING_BLOCKED_MESSAGE : null;
 }
 
 function fail(state, message, silent) {

@@ -88,7 +88,9 @@ export function projectRuntimeEventBatch(before, after, command, receipt, viewer
   const commandItem = owner ? { threadId: threadAfter.id, threadItemId: threadItemRef(threadAfter.id, owner.id) } : {};
   // Opponent installing a private hand card does not disclose its identity.
   threadTag = sameThread && threadOpenBefore ? commandItem : {};
-  emit('action_committed', { actionType: command.action.type,
+  // Whether the other user kept or redrew is not public, so they only learn that a decision was made.
+  const opening = ['openingMulligan', 'keepOpeningHand'].includes(command.action.type) && viewerSeat !== command.actorSeat;
+  emit('action_committed', { actionType: opening ? 'openingDecision' : command.action.type,
     source: cardSummary(actionSource) });
   threadTag = {};
   if (threadAfter?.items && (threadAfter.id !== threadBefore?.id || !threadBefore?.items)) announceThread = () => {

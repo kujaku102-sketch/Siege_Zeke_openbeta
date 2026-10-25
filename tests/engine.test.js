@@ -50,6 +50,8 @@ import {
   getMaxMemory,
   installCard,
   openingMulligan,
+  keepOpeningHand,
+  canOpeningMulligan,
   drawCards,
   emitGameEvent,
   playCard,
@@ -72,6 +74,7 @@ import {
 } from "../src/game/engine.js";
 import { canConfirmSelection, collectDeckScopeOptions, confirmSelection, createAllocationSpec, createChoiceSpec, createGroupedSelectionSpec, createRandomSelectionSpec, createSelectionRequest, createSelectionSpec, hasExactAggregateCombination, isSelectionRequestFeasible, selectionRequestFromSpec, setAllocation, setSelectionScope, toggleSelection } from "../src/game/selection-model.js";
 import { resolveAutomatedAiChoices, runSimpleAiTurn, runSimpleAiTurnSteps } from "../src/game/ai.js";
+import { chooseSimpleAiIntent } from "../src/adapters/simple-ai-policy.js";
 import { accessPolicy, deckMovePolicy, destructionOutcome, resultCountGate } from "../src/game/effect-operation-library.js";
 import { parseDynamicThresholdSelectionModule, parseLookSelectRemainderModule, parseSelectAllocateFollowUpModule } from "../src/game/effect-selection-modules.js";
 import { collectActivationWindows, createEventContext, createTriggerSpec, scriptConditionMatches } from "../src/game/activation-windows.js";
@@ -2147,7 +2150,7 @@ test("STD-087 runtime exposes only memory-one Ob or Code and drags the selected 
   const player = state.players.player;
   const glen = player.hand.find((card) => card.id === "STD-087");
   player.deck = [
-    { id: "O1", uid: "o1", owner: "player", name: "Ob 1", category: "Ob", cost: 1, classes: [], mounted: [] },
+    { id: "O1", uid: "o1", owner: "player", name: "Ob 1", category: "Ob", cost: 1, atk: 1, str: 1, classes: [], mounted: [] },
     { id: "C1", uid: "g-c1", owner: "player", name: "Code 1", category: "Code", cost: 1, classes: [], mounted: [] },
     { id: "S1", uid: "s1", owner: "player", name: "Script 1", category: "Script", cost: 1, classes: [], mounted: [] }
   ];
@@ -2553,6 +2556,53 @@ test("interactive simultaneous triggers form a selectable thread and dim resolve
   assert.equal(resolveTriggerChoice(state, remaining.id), true);
   assert.equal(state.triggerThread.status, "resolved");
   assert.equal(state.threadNotice, "スレッドが解決しました");
+});
+
+test("a selection opened by a trigger thread item becomes the pending choice instead of a stranded queue entry", () => {
+  const state = createGame({ mode: "lab" });
+  state.interactive = true;
+  const player = state.players.player;
+  const idol = createCardInstance("STD-191", "player", 193001);
+  const necria = createCardInstance("STD-193", "player", 193002);
+  const own = createCardInstance("STD-020", "player", 193003);
+  const enemy = createCardInstance("STD-020", "ai", 193004);
+  idol.summoningSick = false; necria.summoningSick = false; own.summoningSick = false;
+  player.front = [idol, own]; player.back = [necria]; player.memory = 10;
+  state.players.ai.front = [enemy];
+
+  assert.equal(relogCard(state, "player", necria.uid, "front"), true);
+  assert.equal(state.pending?.type, "trigger-order");
+  const necriaItem = state.triggerThread.items.find((item) => item.cardName === necria.name);
+  assert.ok(necriaItem && state.triggerThread.items.length === 2);
+  assert.equal(resolveTriggerChoice(state, necriaItem.id), true);
+  assert.equal(state.pending?.type, "selection");
+  assert.equal(state.pending.request.label, "自分と相手のObを1体ずつ選択");
+  assert.equal(state.selectionQueue.length, 0);
+
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [] }), true);
+  const rest = state.triggerThread.items.find((item) => item.status === "pending");
+  if (rest) assert.equal(resolveTriggerChoice(state, rest.id), true);
+  assert.equal(state.triggerThread.status, "resolved");
+  assert.equal(state.pending, null);
+  assert.equal(state.selectionQueue.length, 0);
+});
+
+test("a trigger thread resumes after a Script confirmation opened by its selected item is declined", () => {
+  const state = createGame({ mode: "lab" });
+  state.interactive = true;
+  const fakeTrigger = (id) => ({ id, status: "pending", source: { playerId: "ai", card: { name: `T-${id}` } }, event: { type: "test" }, spec: { actions: [] } });
+  const first = fakeTrigger("TRG-1"); const second = fakeTrigger("TRG-2");
+  state.triggerThread = { id: "THREAD-T", status: "resolving", currentControllerId: "ai", items: [
+    { id: "TRG-1", controllerId: "ai", cardName: "T-1", eventType: "test", status: "awaiting-selection", trigger: first },
+    { id: "TRG-2", controllerId: "ai", cardName: "T-2", eventType: "test", status: "pending", trigger: second }
+  ] };
+  state.processingTriggers = false;
+  state.prompt = { type: "script-activation", playerId: "player", message: "条件成立：確認", activationWindowId: "none" };
+  assert.equal(declinePrompt(state), true);
+  assert.equal(state.triggerThread.status, "resolved");
+  assert.deepEqual(state.triggerThread.items.map((item) => item.status), ["resolved", "resolved"]);
+  assert.equal(second.status, "resolved");
+  assert.equal(state.prompt, null);
 });
 
 test("lab Vengeance cards connect login and scope effects to the common selector", () => {
@@ -4065,6 +4115,113 @@ test("Load that drops STR to 0 or less destroys the Ob by rule", () => {
   assert.equal(state.players.ai.trash.some((card) => card.uid === target.uid), true);
   assert.equal(cardAtk(state, "ai", target) >= 0 && cardCurrentStr(state, "ai", target) >= 0, true);
 });
+test("STR 0 destruction is a standing state check that pierces Backup", () => {
+  const state = createGame({ mode: "sandbox", rng: () => 0.5 });
+  const player = state.players.player;
+  const thief = createCardInstance("STD-076", "player", 900084);
+  const filler = createCardInstance("STD-020", "player", 900085);
+  thief.load = 2;
+  player.front = [thief];
+  player.back = [];
+  player.hand = [filler];
+  player.memory = 10;
+  assert.equal(cardCurrentStr(state, "player", thief), 0);
+  assert.equal(playCard(state, "player", filler.uid, {}), true);
+  const logText = state.log.map((entry) => entry.text ?? entry).join("\n");
+  assert.doesNotMatch(logText, /こそ泥は\[バックアップ\]でスリープしてバックへ移動/);
+  assert.match(logText, /STR0以下の状態判定: こそ泥を破壊/);
+  assert.equal([...player.front, ...player.back].some((card) => card.uid === thief.uid), false);
+  assert.equal(player.trash.some((card) => card.uid === thief.uid), true);
+});
+test("a card that comes back from outside the area has no Load, damage or modifiers left", () => {
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  const player = state.players.player;
+  const mandrake = createCardInstance("STD-154", "player", 900090);
+  const filler = createCardInstance("STD-020", "player", 900091);
+  mandrake.load = 1; mandrake.tempAtk = 3; mandrake.permanentStr = 2; mandrake.damage = 1; mandrake.counters = { madness: 2 };
+  mandrake.permanentStr = 0;
+  player.front = [mandrake]; player.back = [];
+  player.hand = [filler]; player.memory = 10;
+  player.deck = Array.from({ length: 5 }, (_, index) => createCardInstance("STD-020", "player", 900100 + index));
+  assert.equal(playCard(state, "player", filler.uid, {}), true);
+  assert.equal(player.trash.some((card) => card.uid === mandrake.uid), true, "STR 0 from Load destroys it");
+  assert.equal(endTurn(state), true);
+  const back = [...player.front, ...player.back].find((card) => card.uid === mandrake.uid);
+  assert.ok(back, "STD-154 returns at the next turn start");
+  assert.deepEqual([back.load, back.damage, back.tempAtk, back.permanentStr, back.counters], [0, 0, 0, 0, {}]);
+  assert.equal(cardCurrentStr(state, "player", back), 1);
+});
+
+test("declining a trash-window confirmation ends it instead of re-opening one per answer through the STR 0 check", () => {
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  const { player, ai } = state.players;
+  const script = createCardInstance("STD-003", "player", 900094); script.faceDown = true;
+  const attacker = createCardInstance("STD-022", "player", 900095); attacker.summoningSick = false;
+  const guard = createCardInstance("STD-022", "ai", 900096); guard.sleep = true; guard.damage = guard.str - 1;
+  player.front = [attacker]; player.back = [script]; player.hand = []; player.memory = 10;
+  ai.front = [guard]; ai.back = []; ai.hand = [];
+  assert.equal(attack(state, "player", attacker.uid, guard.uid), true);
+  assert.equal(state.prompt?.scriptUid, script.uid);
+  assert.equal(declinePrompt(state), true);
+  assert.equal(state.prompt, null, "one answer closes the one confirmation");
+  assert.equal(ai.trash.some((card) => card.uid === guard.uid), true);
+  assert.equal(state.activationWindows.filter((window) => window.status === "pending").length, 0);
+});
+
+test("STR 0 destruction pierces Protect; only an indestructible Ob survives the state check", () => {
+  const state = createGame({ mode: "sandbox", rng: () => 0.5 });
+  const player = state.players.player;
+  const heavy = createCardInstance("STD-026", "player", 900086);
+  const filler = createCardInstance("STD-020", "player", 900087);
+  heavy.load = 4;
+  player.front = [heavy];
+  player.back = [];
+  player.hand = [filler];
+  player.memory = 10;
+  assert.equal(playCard(state, "player", filler.uid, {}), true);
+  assert.equal(heavy.protect ?? 1, 1, "Protect is not spent by the state check");
+  assert.equal(player.front.some((card) => card.uid === heavy.uid), false);
+  assert.equal(player.trash.some((card) => card.uid === heavy.uid), true);
+  assert.equal(state.pending, null);
+  assert.equal(state.effectDepth, 0);
+
+  const unkillable = createCardInstance("STD-159", "player", 900092);
+  unkillable.faceDown = false; unkillable.load = 99;
+  const second = createCardInstance("STD-020", "player", 900093);
+  player.front = [unkillable]; player.hand = [second];
+  assert.equal(playCard(state, "player", second.uid, {}), true);
+  assert.equal(player.front.some((card) => card.uid === unkillable.uid), true, "forbid-destruction still holds");
+  assert.equal(state.effectDepth, 0);
+});
+test("result lock refuses new install, re-execution, ability, effect and layered actions at the engine boundary", () => {
+  const state = createGame({ mode: "ai", rng: () => 0.5 });
+  const player = state.players.player;
+  const attacker = createCardInstance("STD-020", "player", 900088);
+  const installable = createCardInstance("STD-091", "player", 900089);
+  attacker.summoningSick = false;
+  player.hand = [installable];
+  player.front = [attacker];
+  player.memory = 10;
+  player.registryActionUsed = false;
+  state.players.ai.front = [];
+  state.players.ai.fortressStr = 1;
+  assert.equal(attack(state, "player", attacker.uid, "ai-fortress"), true);
+  assert.equal(state.victory.lockedOutcome, "player");
+  const memoryBefore = player.memory;
+
+  assert.equal(installCard(state, "player", installable.uid), false);
+  assert.equal(relogCard(state, "player", attacker.uid, "back"), false);
+  assert.equal(activateTurbo(state, "player"), false);
+  assert.equal(activateCardEffect(state, "player", attacker.uid, "missing"), false);
+  assert.equal(playLayeredCard(state, "player", installable.uid, []), false);
+  assert.equal(player.registry.length, 0);
+  assert.equal(player.hand.some((card) => card.uid === installable.uid), true);
+  assert.equal(player.front.some((card) => card.uid === attacker.uid), true);
+  assert.equal(player.memory, memoryBefore);
+  assert.equal(player.turboUsed, false);
+  // Forced installs made by effects and tutorial setup are not player actions.
+  assert.equal(installCard(state, "player", installable.uid, { force: true }), true);
+});
 test("Q3 STD-121/140/141/143 compile through explicit shared runtime operations", () => {
   for (const id of ["STD-121", "STD-140", "STD-141", "STD-143"]) {
     const card = STD_SUPPORTED_CARDS[id];
@@ -4444,6 +4601,49 @@ test("STD-223 Ambush interrupts an enemy Ob attack, pays two, damages and resume
   assert.ok(player.trash.some((card) => card.uid === victim.uid));
 });
 
+test("STD-223 Ambush resumes the attack after a Script window opened by the destroyed Ob", () => {
+  const state = createGame({ mode: "lab" }); const player = state.players.player; const ai = state.players.ai;
+  state.active = "ai"; player.memory = 2; ai.memory = 5;
+  const ambush = createCardInstance("STD-223", "player", 223011); const threshold = createCardInstance("STD-227", "player", 223012);
+  player.registry = [ambush, threshold]; player.front = [];
+  const attacker = createCardInstance("STD-022", "ai", 223013); attacker.summoningSick = false;
+  const bug = createCardInstance("STD-173", "ai", 223014); bug.sleep = true;
+  const cashBack = createCardInstance("STD-036", "ai", 223015); cashBack.faceDown = true;
+  ai.front = [attacker, bug]; ai.back = [cashBack];
+  const fortressBefore = player.fortressStr;
+  assert.equal(attack(state, "ai", attacker.uid, "player-fortress"), true);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "[アンブッシュ:2]を起動", selected: [] }), true);
+  assert.equal(state.pending.request.continuation.type, "std223-ambush-target");
+  // The answer must be accepted even though destroying the Ob opens the Script confirmation first.
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [bug.uid] }), true);
+  assert.ok(ai.trash.some((card) => card.uid === bug.uid));
+  assert.equal(state.prompt?.scriptUid, cashBack.uid);
+  assert.equal(state.deferredAttack?.attackerUid, attacker.uid);
+  assert.equal(player.fortressStr, fortressBefore, "the attack waits for the Script confirmation");
+  assert.equal(declinePrompt(state), true);
+  assert.equal(state.deferredAttack, null);
+  assert.ok(player.fortressStr < fortressBefore, "the declared attack resumes and lands after the confirmation");
+  assert.equal(attacker.sleep, true);
+});
+
+test("STD-223 Ambush aimed at the attacker ends the declared attack when Backup moves it out of the front", () => {
+  const state = createGame({ mode: "lab" }); const player = state.players.player; const ai = state.players.ai;
+  state.active = "ai"; player.memory = 2;
+  const ambush = createCardInstance("STD-223", "player", 223021); const threshold = createCardInstance("STD-227", "player", 223022);
+  player.registry = [ambush, threshold]; player.front = [];
+  const attacker = createCardInstance("STD-129", "ai", 223023); attacker.summoningSick = false;
+  ai.front = [attacker]; ai.back = [];
+  const fortressBefore = player.fortressStr;
+  assert.equal(attack(state, "ai", attacker.uid, "player-fortress"), true);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "[アンブッシュ:2]を起動", selected: [] }), true);
+  // The answer is accepted; the attacker (STR 1) is replaced by Backup and can no longer attack.
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [attacker.uid] }), true);
+  assert.equal(state.pending, null);
+  assert.equal(ai.back.some((card) => card.uid === attacker.uid), true);
+  assert.equal(attacker.sleep, true);
+  assert.equal(player.fortressStr, fortressBefore);
+});
+
 test("STD-224 records its chosen number and destroys itself with a matching enemy placement", () => {
   const state = createGame({ mode: "lab" }); const player = state.players.player; const ai = state.players.ai;
   const tackle = createCardInstance("STD-224", "player", 224001); player.hand = [tackle];
@@ -4484,6 +4684,33 @@ test("STD-238 requires one own area Ob plus registry material and pays two layer
   assert.equal(cannon.mounted.length, 0);
   assert.equal(cannon.permanentAtk, 2);
   assert.equal(cannon.sleep, false);
+});
+
+test("a layer cost whose trash move opens an STD-003 window defers the declared attack instead of rejecting the payment", () => {
+  const stage = (id, layerId) => {
+    const state = createGame({ mode: "lab" }); const { player, ai } = state.players;
+    state.players.ai.front = []; state.players.ai.back = [];
+    const script = createCardInstance("STD-003", "ai", 997001); script.faceDown = true;
+    ai.back = [script]; ai.memory = 10; ai.fortressStr = 20;
+    const source = createCardInstance(id, "player", 997002);
+    source.mounted = [createCardInstance(layerId, "player", 997003), createCardInstance(layerId, "player", 997004)];
+    source.summoningSick = false;
+    player.front = [source]; player.hand = []; player.memory = 20;
+    return { state, source, player, ai };
+  };
+  // STD-238: pay two layers, +2 ATK, then attack the user and stand by again.
+  const { state, source, ai } = stage("STD-238", "STD-020");
+  assert.equal(attack(state, "player", source.uid, "ai-fortress"), true);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "レイヤー2枚を破棄して起動", selected: [] }), true);
+  for (const layer of [...source.mounted]) toggleSelection(state.pending.request, layer.uid);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+  assert.equal(state.prompt?.scriptUid, ai.back[0].uid);
+  assert.ok(state.deferredAttack, "the attack waits for the confirmation");
+  assert.equal(ai.fortressStr, 20);
+  assert.equal(declinePrompt(state), true);
+  assert.equal(state.deferredAttack, null);
+  assert.ok(ai.fortressStr < 20, "the declared attack resumes and lands");
+  assert.equal(source.sleep, false, "the card stands by again after the attack");
 });
 
 test("Q4 existing candidates 118/199/203/204/207/209 compile completely", () => {
@@ -6396,6 +6623,129 @@ test("BIGBOSS can mulligan exactly three times before another opening action", (
   assert.equal(openingMulligan(state, "player"), false);
 });
 
+// 開始手順 v2.4 (規則書2.4): 各ユーザーが1回、任意枚数を山札の下へ戻して引き直し、最後にダイスで先攻を決める。
+const openingGame = (extra = {}) => {
+  const dice = { value: 0.1 };
+  const state = createGame({ mode: "ai", openingProtocol: "v2.4", rng: () => dice.value, ...extra });
+  return { state, dice };
+};
+
+test("v2.4 starts in an opening phase with dealt hands, no turn started and the player deciding first", () => {
+  const { state } = openingGame();
+  assert.deepEqual(state.opening, { status: "mulligan", order: ["player", "ai"], index: 0 });
+  assert.equal(state.phase, "opening");
+  assert.equal(state.active, "player");
+  assert.equal(state.players.player.hand.length, 4);
+  assert.equal(state.players.ai.hand.length, 4);
+  assert.equal(state.players.player.turnsTaken, 0);
+  assert.equal(state.players.ai.turnsTaken, 0);
+  assert.equal(canOpeningMulligan(state, "player"), true);
+  assert.equal(canOpeningMulligan(state, "ai"), false, "the other user waits for its turn to decide");
+  // Unspecified and non-ai modes keep the old flow (no opening phase at all).
+  assert.equal("opening" in createGame({ mode: "ai" }), false);
+  for (const mode of ["tutorial", "lab", "sandbox"]) assert.equal("opening" in createGame({ mode, openingProtocol: "v2.4" }), false, mode);
+});
+
+test("v2.4 refuses every normal action until both users have decided", () => {
+  const { state } = openingGame();
+  const player = state.players.player;
+  const card = player.hand[0];
+  assert.equal(playCard(state, "player", card.uid), false);
+  assert.equal(installCard(state, "player", card.uid), false);
+  assert.equal(endTurn(state), false);
+  assert.equal(activateTurbo(state, "player"), false);
+  assert.equal(recoverRegistryCard(state, "player", card.uid), false);
+  assert.equal(player.hand.includes(card), true);
+  assert.equal(keepOpeningHand(state, "ai"), false, "only the deciding user can keep");
+  assert.equal(openingMulligan(state, "ai", { uids: [state.players.ai.hand[0].uid] }), false);
+  assert.ok(state.opening);
+});
+
+test("v2.4 mulligan returns the chosen cards to the bottom, redraws the same number and shuffles", () => {
+  const { state } = openingGame();
+  const player = state.players.player;
+  const deckBefore = player.deck.length;
+  const handBefore = player.hand.map((card) => card.uid);
+  const chosen = handBefore.slice(0, 2);
+  assert.equal(openingMulligan(state, "player", { uids: [] }), false, "at least one card");
+  assert.equal(openingMulligan(state, "player", { uids: [chosen[0], chosen[0]] }), false, "no duplicates");
+  assert.equal(openingMulligan(state, "player", { uids: ["not-in-hand"] }), false);
+  assert.equal(player.mulligansUsed, 0);
+
+  assert.equal(openingMulligan(state, "player", { uids: chosen }), true);
+  assert.equal(player.hand.length, 4);
+  assert.equal(player.deck.length, deckBefore);
+  assert.equal(player.mulligansUsed, 1);
+  assert.ok(handBefore.slice(2).every((uid) => player.hand.some((card) => card.uid === uid)), "unchosen cards stay in hand");
+  assert.equal(new Set([...player.hand, ...player.deck].map((card) => card.uid)).size, 4 + deckBefore, "no card lost or duplicated");
+  // The single mulligan is spent, so the decision passes to the next user.
+  assert.equal(state.active, "ai");
+  assert.equal(canOpeningMulligan(state, "player"), false);
+  assert.equal(state.opening.index, 1);
+});
+
+test("v2.4 rolls the dice in the last decision and starts the first player's turn", () => {
+  for (const [value, first, second] of [[0.1, "player", "ai"], [0.9, "ai", "player"]]) {
+    const { state, dice } = openingGame();
+    assert.equal(keepOpeningHand(state, "player"), true);
+    assert.equal(state.active, "ai");
+    assert.equal(state.opening.status, "mulligan");
+    dice.value = value;
+    assert.equal(keepOpeningHand(state, "ai"), true);
+    assert.equal("opening" in state, false);
+    assert.equal(state.firstPlayer, first);
+    assert.equal(state.active, first);
+    assert.equal(state.phase, "main");
+    assert.equal(state.turnNumber, 1);
+    assert.equal(state.players[first].hand.length, 4, "the first player skips the first draw");
+    assert.equal(state.players[first].turnsTaken, 1);
+    assert.equal(state.players[second].turnsTaken, 0);
+    assert.ok(state.log.some((entry) => entry.text.includes("先攻")));
+  }
+});
+
+test("v2.4 gives the second player the two-card first-turn draw after the dice", () => {
+  const { state, dice } = openingGame();
+  dice.value = 0.9; // ai goes first
+  keepOpeningHand(state, "player");
+  keepOpeningHand(state, "ai");
+  const player = state.players.player;
+  assert.equal(endTurn(state), true);
+  assert.equal(state.active, "player");
+  assert.equal(player.hand.length, 6);
+});
+
+test("v2.4 is deterministic for the same random stream", () => {
+  const run = () => {
+    let seed = 7;
+    const rng = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    const state = createGame({ mode: "ai", openingProtocol: "v2.4", rng });
+    openingMulligan(state, "player", { uids: [state.players.player.hand[0].uid] });
+    keepOpeningHand(state, "ai");
+    return JSON.stringify([state.firstPlayer, state.players.player.hand.map((card) => card.uid), state.players.ai.hand.map((card) => card.uid)]);
+  };
+  assert.equal(run(), run());
+});
+
+test("v2.4 lets BIGBOSS repeat the mulligan up to three times or keep earlier", () => {
+  const { state } = openingGame({ playerUserId: "bigboss" });
+  const player = state.players.player;
+  assert.equal(player.hand.length, 5);
+  assert.equal(openingMulligan(state, "player", { uids: [player.hand[0].uid] }), true);
+  assert.equal(state.active, "player", "BIGBOSS still decides after the first mulligan");
+  assert.equal(openingMulligan(state, "player", { uids: player.hand.slice(0, 3).map((card) => card.uid) }), true);
+  assert.equal(state.active, "player");
+  assert.equal(openingMulligan(state, "player", { uids: player.hand.map((card) => card.uid) }), true);
+  assert.equal(player.mulligansUsed, 3);
+  assert.equal(state.active, "ai", "the third mulligan ends the decision");
+  assert.equal(player.hand.length, 5);
+
+  const early = openingGame({ playerUserId: "bigboss" }).state;
+  assert.equal(openingMulligan(early, "player", { uids: [early.players.player.hand[0].uid] }), true);
+  assert.equal(keepOpeningHand(early, "player"), true);
+  assert.equal(early.active, "ai");
+});
+
 test("Savage same-symbol turn-end mill offers an optional one-card salvage", () => {
   const state = createGame({ mode: "sandbox", playerUserId: "savage_salvage" });
   const player = state.players.player;
@@ -6873,6 +7223,44 @@ test("STD086 deferred cleanup never runs the Arms Band Jacket post-effect", () =
   assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [] }), true);
   assert.equal(state.pending?.request?.continuation?.type === "sztb-jacket-place", false);
   assert.equal([...player.front, ...player.back].some((card) => card.id === "SZTB-091"), false);
+});
+
+function simultaneousBackHackerState({ interactive }) {
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  state.interactive = interactive;
+  const { player, ai } = state.players;
+  player.hand = []; ai.hand = []; player.front = []; ai.front = [];
+  player.deck = Array.from({ length: 6 }, (_, index) => createCardInstance("STD-020", "player", 71100 + index));
+  ai.deck = Array.from({ length: 6 }, (_, index) => createCardInstance("STD-020", "ai", 71200 + index));
+  player.back = [createCardInstance("STD-190", "player", 71001)];
+  ai.back = [createCardInstance("STD-190", "ai", 71002)];
+  player.fortressStr = 2; ai.fortressStr = 2;
+  player.incidentsTriggered = [999]; ai.incidentsTriggered = [999];
+  return state;
+}
+
+test("simultaneous turn-end triggers are separate effects: the first lethal one locks and the other never runs", () => {
+  const state = simultaneousBackHackerState({ interactive: false });
+  assert.equal(endTurn(state), true);
+  // The active user's trigger resolves first (4.7); its completion boundary decides the result.
+  assert.equal(state.winner, "player");
+  assert.equal(state.victory.lockedOutcome, "player");
+  assert.equal(state.victory.finished, true);
+  assert.equal(state.players.ai.fortressStr, 0);
+  assert.equal(state.players.player.fortressStr, 2, "the undeclared simultaneous trigger of the loser does not run");
+  assert.equal(state.log.filter((entry) => entry.text.includes("バックハッカー: Doors ZXへ2ダメージ")).length, 1);
+});
+
+test("a simultaneous trigger thread cancels the remaining items once an earlier item locks the result", () => {
+  const state = simultaneousBackHackerState({ interactive: true });
+  assert.equal(endTurn(state), true);
+  assert.equal(state.pending?.type, "trigger-order");
+  const own = state.triggerThread.items.find((item) => item.controllerId === "player");
+  assert.equal(resolveTriggerChoice(state, own.id), true);
+  assert.equal(state.winner, "player");
+  assert.equal(state.victory.finished, true);
+  assert.deepEqual(state.triggerThread.items.map((item) => `${item.controllerId}:${item.status}`), ["player:resolved", "ai:cancelled-after-victory-lock"]);
+  assert.equal(state.players.player.fortressStr, 2);
 });
 
 test("automatic triggers wait for the parent Spell boundary and do not run after its victory lock", () => {
@@ -7854,3 +8242,78 @@ test("SZTB-097 keeps an STD-003 prompt and resumes cleanup once after accept or 
     resolveSztb097Jacket(scenario.state, scenario.player, scenario.spell);
   }
 });
+
+// CPU policy (src/adapters/simple-ai-policy.js). Kept in this file because `pnpm test` runs an explicit file list.
+{
+  const redeploy = cardRef => ({ actionId: `action:${cardRef}`, kind: 'fixed', action: { type: 'redeploy', cardRef, destination: { zone: 'back', slot: 0 } } });
+  const endTurn = { actionId: 'action:end', kind: 'fixed', action: { type: 'endTurn' } };
+  const query = ({ matchId, seat = 'cpu', turn, legalActions }) => ({
+    status: { matchId, revision: 7, viewerSeat: seat }, observation: { turnNumber: turn },
+    requiredInput: null, legalActions
+  });
+  const pick = (q, id) => chooseSimpleAiIntent(q, id).value.action;
+
+  test('the CPU re-executes the same card at most once per turn and ends the turn instead of looping', () => {
+    const legalActions = [redeploy('r:a'), endTurn];
+    const mk = turn => query({ matchId: 'ai-limit-1', turn, legalActions });
+    assert.equal(pick(mk(5), 'c1').type, 'redeploy');
+    assert.equal(pick(mk(5), 'c2').type, 'endTurn', 'a second re-execution of the same card in the same turn is skipped');
+    assert.equal(pick(mk(7), 'c3').type, 'redeploy', 'the allowance returns on the next turn');
+  });
+
+  test('the CPU activates the same card effect at most once per turn (cost-neutral effects must not loop)', () => {
+    // STD-196 swapped with a memory-recovering card made the CPU activate it for ever (start-purple mirror, seed 31).
+    const effect = ref => ({ actionId: `action:eff:${ref}`, kind: 'fixed', actionType: 'activateCardEffect', action: { type: 'activateCardEffect', cardRef: ref, effectKey: 'effect:x', targets: [] } });
+    const legalActions = [effect('r:a'), effect('r:b'), endTurn];
+    const mk = turn => query({ matchId: 'ai-limit-effect', turn, legalActions });
+    assert.equal(pick(mk(9), 'c1').cardRef, 'r:a');
+    assert.equal(pick(mk(9), 'c2').cardRef, 'r:b');
+    assert.equal(pick(mk(9), 'c3').type, 'endTurn');
+    assert.equal(pick(mk(11), 'c4').cardRef, 'r:a', 'the allowance returns on the next turn');
+  });
+
+  test('the CPU re-execution allowance is tracked per card, match and seat', () => {
+    const both = [redeploy('r:a'), redeploy('r:b'), endTurn];
+    const first = pick(query({ matchId: 'ai-limit-2', turn: 3, legalActions: both }), 'c1');
+    assert.deepEqual([first.type, first.cardRef], ['redeploy', 'r:a']);
+    const second = pick(query({ matchId: 'ai-limit-2', turn: 3, legalActions: both }), 'c2');
+    assert.deepEqual([second.type, second.cardRef], ['redeploy', 'r:b'], 'another card is still allowed');
+    assert.equal(pick(query({ matchId: 'ai-limit-2', turn: 3, legalActions: both }), 'c3').type, 'endTurn');
+    assert.equal(pick(query({ matchId: 'ai-limit-3', turn: 3, legalActions: both }), 'c4').type, 'redeploy', 'a different match is independent');
+    assert.equal(pick(query({ matchId: 'ai-limit-2', seat: 'other', turn: 3, legalActions: both }), 'c5').type, 'redeploy', 'a different seat is independent');
+  });
+
+  const pickInput = options => ({
+    choiceId: 'choice:7:selection', kind: 'selection', presentationKey: 'card', actorSeat: 'cpu', canAnswer: true, optional: false,
+    constraints: { kind: 'pick', minimum: 1, maximum: 1, aggregate: null, groups: [] }, options: options.map(optionId => ({ optionId }))
+  });
+  const answerQuery = (matchId, revision, options = ['o1', 'o2', 'o3']) => ({
+    status: { matchId, revision, viewerSeat: 'cpu' }, observation: { turnNumber: 4 }, legalActions: [], requiredInput: pickInput(options)
+  });
+  const answered = q => chooseSimpleAiIntent(q, 'c').value.action.optionIds[0];
+
+  test('the CPU tries a different option when the same required input comes back at the same revision', () => {
+    // A rejected answer leaves the revision unchanged; repeating it would never advance the match.
+    assert.equal(answered(answerQuery('ai-answer-1', 12)), 'o1');
+    assert.equal(answered(answerQuery('ai-answer-1', 12)), 'o2');
+    assert.equal(answered(answerQuery('ai-answer-1', 12)), 'o3');
+    assert.equal(answered(answerQuery('ai-answer-1', 12)), 'o1', 'wraps around after every option was tried');
+    assert.equal(answered(answerQuery('ai-answer-1', 13)), 'o1', 'a new revision starts again from the first option');
+    assert.equal(answered(answerQuery('ai-answer-2', 13)), 'o1', 'another match is independent');
+  });
+
+  test('the CPU keeps its opening hand when keeping is legal and still mulligans in the legacy opening', () => {
+    const mulligan = { actionId: 'action:mull', kind: 'fixed', action: { type: 'openingMulligan' } };
+    const keep = { actionId: 'action:keep', kind: 'fixed', action: { type: 'keepOpeningHand' } };
+    assert.equal(pick(query({ matchId: 'ai-open-1', turn: 1, legalActions: [mulligan, keep] }), 'c1').type, 'keepOpeningHand');
+    assert.equal(pick(query({ matchId: 'ai-open-2', turn: 1, legalActions: [mulligan, endTurn] }), 'c2').type, 'openingMulligan');
+  });
+
+  test('the CPU reports no legal action instead of repeating a spent re-execution', () => {
+    const q = query({ matchId: 'ai-limit-4', turn: 2, legalActions: [redeploy('r:a')] });
+    assert.equal(chooseSimpleAiIntent(q, 'c1').ok, true);
+    const exhausted = chooseSimpleAiIntent(q, 'c2');
+    assert.equal(exhausted.ok, false);
+    assert.equal(exhausted.error.code, 'AI_NO_LEGAL_ACTION');
+  });
+}
