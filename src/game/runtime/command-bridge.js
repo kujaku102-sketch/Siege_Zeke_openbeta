@@ -1,5 +1,5 @@
 import { canonicalizeCommand, classifyCommand } from './command-record.js';
-import { canActivateTurbo, canAddSandboxCardToHand, canAttack, canDirectRelogAtSlot, canExecuteAtSlot, canOpeningMulligan, canPlayLayeredCard, cardHasKeyword, enabledSymbols, getAttackTargets, supportsDirectHandObExecution, supportsNormalScriptActivation } from '../engine.js';
+import { canActivateTurbo, canAddSandboxCardToHand, canAttack, canDirectRelogAtSlot, canExecuteAtSlot, canKeepOpeningHand, canOpeningMulligan, canPlayLayeredCard, cardHasKeyword, enabledSymbols, getAttackTargets, supportsDirectHandObExecution, supportsNormalScriptActivation } from '../engine.js';
 import { isObCard } from '../card-types.js';
 import { normalExecutionCheck, normalSpellSelection, normalCardEffectSelection, getActivatableEffects, relogPreparationKind, supportsAlternateScriptSetup } from '../engine.js';
 import { opaqueOrdinal } from './opaque-id.js';
@@ -98,7 +98,11 @@ function metadataData(value) {
   const metadata = exact(value, METADATA_KEYS, 'INVALID_AUTHORITY');
   if (!nonempty(metadata.matchId) || !nonempty(metadata.ruleVersion) || !nonempty(metadata.cardVersion)) reject('INVALID_AUTHORITY');
   metadata.seatIds = seatIds(metadata.seatIds);
-  const options = exact(metadata.startOptions, START_OPTION_KEYS, 'INVALID_AUTHORITY');
+  // 'openingProtocol' is stored only for v2.4 matches; its absence is the legacy opening.
+  ordinary(metadata.startOptions, 'INVALID_AUTHORITY');
+  const hasProtocol = Object.hasOwn(metadata.startOptions, 'openingProtocol');
+  const options = exact(metadata.startOptions, hasProtocol ? [...START_OPTION_KEYS, 'openingProtocol'] : START_OPTION_KEYS, 'INVALID_AUTHORITY');
+  if (hasProtocol && (options.openingProtocol !== 'v2.4' || options.mode !== 'ai')) reject('INVALID_AUTHORITY');
   if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(options.mode) || !['basics', 'vengeance'].includes(options.tutorialId)
     || !nonempty(options.playerDeckId) || !nonempty(options.aiDeckId) || !nonempty(options.playerUserId) || !nonempty(options.aiUserId)
     || typeof options.sandboxDeckSetup !== 'boolean') reject('INVALID_AUTHORITY');
@@ -209,8 +213,10 @@ function engineData(value, metadata, restSecurity = false) {
     playerDeckId: own(value, 'playerDeckId', 'INVALID_AUTHORITY'), aiDeckId: own(value, 'aiDeckId', 'INVALID_AUTHORITY'),
     playerUserId: own(value, 'playerUserId', 'INVALID_AUTHORITY'), aiUserId: own(value, 'aiUserId', 'INVALID_AUTHORITY'),
     active: own(value, 'active', 'INVALID_AUTHORITY'), winner: own(value, 'winner', 'INVALID_AUTHORITY'),
-    phase: own(value, 'phase', 'INVALID_AUTHORITY'), interactive: own(value, 'interactive', 'INVALID_AUTHORITY'), busy: false
+    phase: own(value, 'phase', 'INVALID_AUTHORITY'), interactive: own(value, 'interactive', 'INVALID_AUTHORITY'), busy: false,
+    opening: Object.hasOwn(value, 'opening')
   };
+  if (state.opening) ordinary(own(value, 'opening', 'INVALID_AUTHORITY'), 'INVALID_AUTHORITY');
   const expectedPlayerDeck = options.mode === 'tutorial' && options.tutorialId === 'vengeance' ? 'vengeance' : options.playerDeckId;
   if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(state.mode) || state.mode !== options.mode
     || !['basics', 'vengeance'].includes(state.tutorialId) || state.tutorialId !== options.tutorialId
@@ -256,7 +262,8 @@ function engineData(value, metadata, restSecurity = false) {
     if (status !== 'resolved') state.busy = true;
   }
   optionalState(value, state, restSecurity);
-  if (state.phase !== 'main') state.busy = true;
+  // The opening decisions happen in their own phase before the first turn.
+  if (state.phase !== 'main' && !(state.opening && state.phase === 'opening')) state.busy = true;
   return state;
 }
 
@@ -983,11 +990,15 @@ function mulliganEligibilityView(engineState, playerId) {
         && (!Number.isSafeInteger(initialHandRaw) || initialHandRaw < 0 || Object.is(initialHandRaw, -0)))) reject(code);
     userView = { abilityKey, initialHand: initialHandRaw ?? 5 };
   } finally { ancestors.delete(user); }
+  const openingState = Object.hasOwn(engineState, 'opening') ? own(engineState, 'opening', code) : null;
+  if (openingState !== null) ordinary(openingState, code);
+  const opening = openingState === null ? null : selectedField(openingState, 'status', code);
+  if (opening !== null && typeof opening !== 'string') reject(code);
   const mulligansUsed = selectedField(player, 'mulligansUsed', code);
   if (!Number.isSafeInteger(mulligansUsed) || mulligansUsed < 0 || Object.is(mulligansUsed, -0)) reject(code);
   const zone = name => selectedArray(selectedField(player, name, code), code, new Set(), () => null);
   return {
-    active, turnNumber,
+    active, turnNumber, ...(opening === null ? {} : { opening: { status: opening } }),
     players: { [playerId]: {
       user: userView, mulligansUsed,
       hand: zone('hand'), front: zone('front'), back: zone('back'), registry: zone('registry'),
@@ -1238,9 +1249,24 @@ function prepareRedeployAction({ source, metadata, trusted, canonical, playerId,
   });
 }
 
-function prepareOpeningMulliganAction({ source, canonical, playerId }) {
-  if (!canOpeningMulligan(mulliganEligibilityView(source.engineState, playerId), playerId)) reject('ACTION_NOT_ALLOWED');
-  return prepared(canonical, { engineFunction: 'openingMulligan', playerId });
+const OPENING_ACTIONS = new Set(['openingMulligan', 'keepOpeningHand']);
+
+// v2.4 names the cards to return and only exists while the engine holds the opening; the
+// no-argument form is the legacy mulligan. A match accepts only the form of its own protocol.
+function prepareOpeningMulliganAction({ source, metadata, trusted, canonical, playerId, readReferenceState }) {
+  const action = canonical.value.command.action, v24 = metadata.startOptions.openingProtocol === 'v2.4';
+  if (v24 !== Object.hasOwn(action, 'cardRefs')) reject('ACTION_NOT_ALLOWED');
+  const view = mulliganEligibilityView(source.engineState, playerId);
+  if (v24 && !view.opening || !canOpeningMulligan(view, playerId)) reject('ACTION_NOT_ALLOWED');
+  if (!v24) return prepared(canonical, { engineFunction: 'openingMulligan', playerId });
+  const uids = action.cardRefs.map(cardRef => installTarget(source.engineState, readReferenceState(), cardRef, metadata, trusted.actorSeat).uid);
+  return prepared(canonical, { engineFunction: 'openingMulliganCards', playerId, uids });
+}
+
+function prepareKeepOpeningHandAction({ source, metadata, canonical, playerId }) {
+  if (metadata.startOptions.openingProtocol !== 'v2.4'
+    || !canKeepOpeningHand(mulliganEligibilityView(source.engineState, playerId), playerId)) reject('ACTION_NOT_ALLOWED');
+  return prepared(canonical, { engineFunction: 'keepOpeningHand', playerId });
 }
 
 function prepareActivateAbilityAction({ source, canonical, playerId }) {
@@ -1270,6 +1296,7 @@ const ACTION_REGISTRY = createActionRegistry([
   { type: 'redeploy', requiresReferenceState: true, prepare: prepareRedeployAction },
   { type: 'attack', requiresReferenceState: true, prepare: prepareAttackAction },
   { type: 'openingMulligan', requiresReferenceState: false, prepare: prepareOpeningMulliganAction },
+  { type: 'keepOpeningHand', requiresReferenceState: false, prepare: prepareKeepOpeningHandAction },
   { type: 'activateAbility', requiresReferenceState: false, prepare: prepareActivateAbilityAction },
   { type: 'sandboxAddCard', requiresReferenceState: false, prepare: prepareSandboxAddAction },
   { type: 'sandboxSelectActiveSeat', requiresReferenceState: false, prepare: prepareSandboxSelectAction },
@@ -1290,12 +1317,14 @@ export function prepareRuntimeCommand(authority, context, envelope, { tutorialAu
 
     const action = lookupActionHandler(ACTION_REGISTRY, canonical.value.command.action.type);
     if (!action) reject('ACTION_SCHEMA_UNAVAILABLE');
-    const journal = journalAfterAuthorization(authority, action.requiresReferenceState);
+    const needsReferences = action.requiresReferenceState
+      || action.type === 'openingMulligan' && Object.hasOwn(canonical.value.command.action, 'cardRefs');
+    const journal = journalAfterAuthorization(authority, needsReferences);
     const classified = classifyCommand(journal, trusted, envelope);
     if (!classified.ok) return classified;
     if (classified.value.kind === 'retry') return { ok: true, value: classified.value };
 
-    const source = action.requiresReferenceState
+    const source = needsReferences
       ? {
         metadata: own(authority, 'metadata', 'INVALID_AUTHORITY'),
         revision: own(authority, 'revision', 'INVALID_AUTHORITY'),
@@ -1321,6 +1350,8 @@ export function prepareRuntimeCommand(authority, context, envelope, { tutorialAu
     if (trusted.actorSeat !== activeSeat) reject('ACTION_NOT_ALLOWED');
     if (engine.hasResult) reject('ACTION_NOT_ALLOWED');
     if (engine.busy) reject('ACTION_NOT_ALLOWED');
+    // Before the first turn only the opening decisions exist; the engine refuses the rest too.
+    if (engine.opening && !OPENING_ACTIONS.has(action.type)) reject('ACTION_NOT_ALLOWED');
 
     return action.prepare({ ...preparation, playerId });
   } catch (error) {

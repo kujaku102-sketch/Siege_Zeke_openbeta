@@ -1,5 +1,5 @@
 import {
-  activateScript, activateTurbo, addSandboxCardToHand, attack, endTurn, installCard, openingMulligan,
+  activateScript, activateTurbo, addSandboxCardToHand, attack, endTurn, installCard, keepOpeningHand, openingMulligan,
   playCard, playLayeredCard, recoverRegistryCard, relogCard, restSecurity, executeRegistryCard, activateCardEffect
 } from '../engine.js';
 import { applyRequiredInputAction } from './required-input.js';
@@ -61,6 +61,17 @@ const HANDLERS = Object.freeze({
     keys: ['engineFunction', 'playerId'],
     apply: (state, adapter) => openingMulligan(state, adapter.playerId),
     progress: () => 'complete'
+  },
+  openingMulliganCards: {
+    keys: ['engineFunction', 'playerId', 'uids'],
+    validate: adapter => stringList(adapter.uids) && new Set(adapter.uids).size === adapter.uids.length,
+    apply: (state, adapter) => openingMulligan(state, adapter.playerId, { uids: adapter.uids }),
+    progress: normalProgress
+  },
+  keepOpeningHand: {
+    keys: ['engineFunction', 'playerId'],
+    apply: (state, adapter) => keepOpeningHand(state, adapter.playerId),
+    progress: normalProgress
   },
   recoverRegistryCard: {
     keys: ['engineFunction', 'playerId', 'uid'],
@@ -166,7 +177,7 @@ function adapterData(value) {
     if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) return null;
     adapter[key] = descriptor.value;
   }
-  for (const key of handler.keys.filter(key => !['options', 'materialUids', 'revision', 'optionIndexes', 'allocation'].includes(key))) {
+  for (const key of handler.keys.filter(key => !['options', 'materialUids', 'uids', 'revision', 'optionIndexes', 'allocation'].includes(key))) {
     if (!text(adapter[key])) return null;
   }
   if (handler.validate && !handler.validate(adapter)) return null;

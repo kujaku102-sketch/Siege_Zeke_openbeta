@@ -5,6 +5,9 @@ import { canonicalizeCommand } from '../src/game/runtime/command-record.js';
 import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
 import { createMatchLifecycleController } from '../src/adapters/match-lifecycle-controller.js';
 import { createMatchUiController } from '../src/adapters/match-ui-controller.js';
+import { createNewMatchSessionController } from '../src/adapters/match-session-controller.js';
+import { replayMatchRecord } from '../src/adapters/match-replay.js';
+import { chooseSimpleAiIntent } from '../src/adapters/simple-ai-policy.js';
 import { createTutorialOpponentController } from '../src/adapters/tutorial-opponent-controller.js';
 import { mountRuntimeMatch } from '../src/ui-refresh/runtime-match-surface.js';
 import { runtimeGameHtml } from '../src/ui-refresh/runtime-read-view.js';
@@ -547,4 +550,141 @@ test('player-facing sources import no engine, legacy AI or selection model beyon
 test('player-facing sources hold no raw match state, no undo and no legacy AI iterator', () => {
   const forbidden = /state\.(pending|prompt)\b|state\.(active|mode)\s*=[^=]|\.sandboxUi\s*=[^=]|\bgetState\b|\bsetState\b|\bundo\(|runSimpleAiTurn|resolveAutomatedAiChoices|\bselectedUid\s*=[^=]/;
   assert.deepEqual(playerFacingSources().filter(file => forbidden.test(readFileSync(new URL(file, import.meta.url), 'utf8'))), []);
+});
+
+// Opening protocol v2.4: each user decides in seat order before the first turn; the last decision rolls the dice.
+const openingMatch = (seed = 7, options = {}) => {
+  const created = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: { matchId: 'opening-' + seed, seatIds: ['a', 'b'], seed,
+    ruleVersion: 'rules', cardVersion: 'cards', gameOptions: { mode: 'ai', openingProtocol: 'v2.4', playerDeckRecipe: [['STD-020', 40]], aiDeckRecipe: [['STD-020', 40]], ...options } } });
+  assert.equal(created.ok, true, JSON.stringify(created));
+  return created.value;
+};
+const OPENING_V24 = { openingProtocol: 'v2.4' };
+const handRefs = query => seatView(query).hand.cards.map(card => card.cardRef);
+function pickCards(port, count) {
+  const query = port.query().value, entry = query.legalActions.find(item => item.actionType === 'openingMulligan');
+  assert.ok(entry, 'mulligan intent');
+  const first = port.queryAction({ expectedRevision: query.status.revision, actionId: entry.actionId, selections: [] });
+  assert.equal(first.ok, true, JSON.stringify(first));
+  const request = first.value.selectionRequests[0];
+  assert.equal(request.presentationKey, 'opening-mulligan');
+  const answer = { requestId: request.requestId, optionIds: request.options.slice(0, count).map(option => option.optionId), allocation: [] };
+  const done = port.queryAction({ expectedRevision: query.status.revision, actionId: entry.actionId, selections: [answer] });
+  assert.equal(done.ok, true, JSON.stringify(done));
+  return { request, action: done.value.completion.action };
+}
+test('v2.4 opening: seat order, partial mulligan returns the chosen cards, dice start the first turn', () => {
+  const session = openingMatch(), a = session.port('a').value, b = session.port('b').value;
+  try {
+    const start = a.query().value;
+    assert.equal(start.status.activeSeat, 'a');
+    assert.deepEqual(legalTypes(start).sort(), ['keepOpeningHand', 'openingMulligan']);
+    assert.equal(seatView(start).hand.cards.length, 4);
+    assert.deepEqual(b.query().value.legalActions, []);
+    assertRefused(b, { type: 'keepOpeningHand' });
+    assertRefused(a, { type: 'endTurn' });
+    assertRefused(a, { type: 'install', cardRef: handRefs(start)[0] });
+    const { request, action } = pickCards(a, 2);
+    assert.equal(request.constraints.minimum, 1);
+    assert.equal(request.constraints.maximum, 4);
+    assert.equal(action.cardRefs.length, 2);
+    const before = handRefs(start);
+    const after = submit(a, action);
+    assert.equal(seatView(after).hand.cards.length, 4);
+    assert.equal(action.cardRefs.some(ref => handRefs(after).includes(ref)), false, 'returned cards left the hand');
+    assert.equal(handRefs(after).filter(ref => before.includes(ref)).length >= 2, true, 'kept cards keep their refs');
+    assertRefused(a, action, after.status.revision);
+    assert.equal(after.status.activeSeat, 'b');
+    assert.deepEqual(legalTypes(a.query().value), []);
+    assert.equal(seatView(b.query().value, 'a').hand.count, 4);
+    // The second user keeps; the dice then decide who plays turn 1.
+    const second = submit(b, { type: 'keepOpeningHand' });
+    assert.equal(second.observation.turnNumber, 1);
+    assert.equal(legalTypes(second).includes('keepOpeningHand') || legalTypes(second).includes('openingMulligan'), false);
+    const firstSeat = second.status.activeSeat;
+    assert.ok(['a', 'b'].includes(firstSeat));
+    assert.ok(legalTypes((firstSeat === 'a' ? a : b).query().value).includes('endTurn'));
+    assertRefused(a, { type: 'openingMulligan', cardRefs: [handRefs(a.query().value)[0]] });
+  } finally { session.dispose(); }
+});
+test('v2.4 opening: other users learn only that a decision happened, and the same seed gives the same start', () => {
+  const run = keep => {
+    const session = openingMatch(11), a = session.port('a').value, b = session.port('b').value;
+    submit(a, keep ? { type: 'keepOpeningHand' } : pickCards(a, 1).action);
+    const events = b.events({ afterEventId: null }).value.events.filter(event => event.type === 'action_committed');
+    const result = { actions: events.map(event => event.actionType), view: JSON.stringify(b.query().value.observation).replace(/r:[0-9a-f]{32}/g, 'ref') };
+    submit(b, { type: 'keepOpeningHand' });
+    result.first = b.query().value.status.activeSeat;
+    session.dispose();
+    return result;
+  };
+  const kept = run(true), redrew = run(false), again = run(true);
+  assert.deepEqual(kept.actions, ['openingDecision']);
+  assert.deepEqual(redrew.actions, ['openingDecision']);
+  assert.equal(kept.first, again.first);
+  assert.equal(kept.view, again.view);
+});
+test('v2.4 opening: each user decides once, and BIGBOSS up to three times with a keep at any point', () => {
+  const session = openingMatch(5, { ...OPENING_V24, playerUserId: 'bigboss', playerDeckRecipe: [['STD-020', 50]] });
+  const a = session.port('a').value;
+  try {
+    for (let used = 1; used <= 2; used += 1) { submit(a, pickCards(a, 1).action); assert.equal(a.query().value.status.activeSeat, 'a'); }
+    submit(a, { type: 'keepOpeningHand' });
+    assert.equal(a.query().value.status.activeSeat, 'b');
+  } finally { session.dispose(); }
+  const single = openingMatch(5, OPENING_V24), one = single.port('a').value;
+  try { submit(one, pickCards(one, 1).action); assert.equal(one.query().value.status.activeSeat, 'b'); } finally { single.dispose(); }
+});
+test('opening forms are bound to the match protocol, so legacy records keep their meaning', () => {
+  const legacy = openingMatch(3, { openingProtocol: 'legacy', playerUserId: 'bigboss', playerDeckRecipe: [['STD-020', 50]] }), port = legacy.port('a').value;
+  try {
+    assert.equal(legalTypes(port.query().value).includes('keepOpeningHand'), false);
+    assertRefused(port, { type: 'keepOpeningHand' });
+    assertRefused(port, { type: 'openingMulligan', cardRefs: [handRefs(port.query().value)[0]] });
+    submit(port, { type: 'openingMulligan' });
+  } finally { legacy.dispose(); }
+  const modern = openingMatch(3, { ...OPENING_V24, playerUserId: 'bigboss', playerDeckRecipe: [['STD-020', 50]] }), v24 = modern.port('a').value;
+  try { assertRefused(v24, { type: 'openingMulligan' }); } finally { modern.dispose(); }
+  for (const options of [{ ...OPENING_V24, mode: 'sandbox' }, { openingProtocol: 'v3' }, { openingProtocol: undefined }]) {
+    assert.equal(createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: { matchId: 'bad', seatIds: ['a', 'b'], seed: 1,
+      ruleVersion: 'rules', cardVersion: 'cards', gameOptions: options } }).ok, false);
+  }
+  const plain = openingMatch(3, { openingProtocol: 'legacy' });
+  assert.equal(Object.hasOwn(plain.matchRecord().value.game.gameOptions, 'openingProtocol'), false);
+  plain.dispose();
+});
+test('a v2.4 match record replays its opening decisions to the same state', () => {
+  const session = openingMatch(21, OPENING_V24), a = session.port('a').value, b = session.port('b').value;
+  try {
+    submit(a, pickCards(a, 3).action);
+    submit(b, { type: 'keepOpeningHand' });
+    const active = [a, b].find(port => port.query().value.status.activeSeat === port.query().value.status.viewerSeat);
+    submit(active, { type: 'endTurn' });
+    drain(active);
+    const record = session.matchRecord();
+    assert.equal(record.ok, true, JSON.stringify(record));
+    assert.equal(record.value.game.gameOptions.openingProtocol, 'v2.4');
+    assert.equal(JSON.stringify(record.value.commands).includes('r:'), false);
+    const replayed = replayMatchRecord(JSON.parse(JSON.stringify(record.value)));
+    assert.equal(replayed.ok, true, JSON.stringify(replayed));
+    assert.equal(replayed.value.revision, active.query().value.status.revision);
+    assert.equal(replayed.value.engineState.firstPlayer, replayMatchRecord(record.value).value.engineState.firstPlayer);
+  } finally { session.dispose(); }
+});
+test('two CPU controllers pass the v2.4 opening by keeping, then play and replay the same match', () => {
+  const session = openingMatch(33, { playerDeckRecipe: null, aiDeckRecipe: null, playerDeckId: 'red', aiDeckId: 'yellow' });
+  try {
+    let serial = 0;
+    for (let step = 0; step < 60; step += 1) {
+      let port = session.port('a').value, query = port.query().value;
+      if (query.status.finished) break;
+      if (query.requiredInput ? !query.requiredInput.canAnswer : query.status.activeSeat !== 'a') { port = session.port('b').value; query = port.query().value; }
+      const intent = chooseSimpleAiIntent(query, 'cpu:' + ++serial, input => port.queryAction(input));
+      assert.equal(intent.ok, true, step + ' ' + JSON.stringify(intent));
+      if (step < 2) assert.equal(intent.value.action.type, 'keepOpeningHand');
+      assert.equal(port.submit(intent.value).ok, true);
+    }
+    const record = session.matchRecord();
+    assert.equal(replayMatchRecord(JSON.parse(JSON.stringify(record.value))).value.revision, session.port('a').value.query().value.status.revision);
+  } finally { session.dispose(); }
 });

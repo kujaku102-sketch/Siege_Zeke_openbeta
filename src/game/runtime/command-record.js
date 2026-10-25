@@ -142,7 +142,15 @@ function canonicalCommand(input) {
   const type = own(action, 'type', 'INVALID_COMMAND');
   if (!nonempty(type)) reject('INVALID_COMMAND');
   let canonicalAction;
-  if (type === 'endTurn' || type === 'openingMulligan') canonicalAction = exact(action, ['type'], 'INVALID_COMMAND');
+  if (type === 'endTurn' || type === 'keepOpeningHand' || type === 'openingMulligan' && !Object.hasOwn(action, 'cardRefs')) canonicalAction = exact(action, ['type'], 'INVALID_COMMAND');
+  else if (type === 'openingMulligan') {
+    // Opening protocol v2.4 names the cards to return; whether this form is valid for the match is the bridge's call.
+    canonicalAction = exact(action, ['type', 'cardRefs'], 'INVALID_COMMAND');
+    canonicalAction.cardRefs = dense(canonicalAction.cardRefs, 'INVALID_COMMAND');
+    if (canonicalAction.cardRefs.length < 1
+      || !canonicalAction.cardRefs.every(cardRef => typeof cardRef === 'string' && cardRef.length === 34 && REFERENCE_TOKEN.test(cardRef))
+      || new Set(canonicalAction.cardRefs).size !== canonicalAction.cardRefs.length) reject('INVALID_COMMAND');
+  }
   else if (type === 'executeSpell' || type === 'executeRegistry' || type === 'activateCardEffect') {
     const keys = type === 'executeSpell' ? ['type','cardRef','targets','selectionScope']
       : type === 'executeRegistry' ? ['type','cardRef','placement','targets','selectionScope']

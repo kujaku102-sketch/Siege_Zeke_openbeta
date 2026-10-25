@@ -92,6 +92,11 @@ export function queryRuntimeAction(authority, viewerSeat, input, currentCatalog 
         : entry.actionType === 'executeRegistry' ? {type:'executeRegistry',cardRef:entry.base.cardRef,placement,targets,selectionScope}
         : entry.actionType === 'activateCardEffect' ? {type:'activateCardEffect',cardRef:entry.base.cardRef,effectKey,targets,targetZone}
         : {type:'executeSpell',cardRef:entry.base.cardRef,targets,selectionScope};
+    } else if (entry.actionType === 'openingMulligan') {
+      const values = context.state.players[context.playerId].hand.map(card => ({ cardRef: context.refFor(card) }));
+      if (!values.length || values.some(item => !item.cardRef)) return failure('ACTION_NOT_ALLOWED');
+      const chosen = select('cards', 'opening-mulligan', values, pick(1, values.length));
+      if (chosen) action = { type: 'openingMulligan', cardRefs: chosen.map(item => item.cardRef) };
     } else {
       let materialRefs = [];
       let materialsReady = true;

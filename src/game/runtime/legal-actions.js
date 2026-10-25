@@ -1,4 +1,4 @@
-import { canOpeningMulligan, canActivateTurbo, supportsNormalScriptActivation, enabledSymbols } from '../engine.js';
+import { canKeepOpeningHand, canOpeningMulligan, canActivateTurbo, supportsNormalScriptActivation, enabledSymbols } from '../engine.js';
 import { runtimePlanningReads } from './command-bridge.js';
 import { createPlanningContext } from './planning-context.js';
 import { attackIntents } from './attack-planning.js';
@@ -10,7 +10,15 @@ export function planningCatalog(context) {
   const player = state.players[playerId];
   const actions = [];
   const add = action => actions.push({ kind: 'fixed', action });
-  if (canOpeningMulligan(runtimePlanningReads.mulliganEligibilityView(state, playerId), playerId)) add({ type: 'openingMulligan' });
+  const mulligan = runtimePlanningReads.mulliganEligibilityView(state, playerId);
+  const indexed = list => list.map((entry, index) => ({ actionId: `action:${context.revision}:${index + 1}`, ...entry }));
+  if (mulligan.opening) {
+    // Before the first turn the only decisions are keeping the hand or choosing cards to return.
+    if (canKeepOpeningHand(mulligan, playerId)) add({ type: 'keepOpeningHand' });
+    if (canOpeningMulligan(mulligan, playerId)) actions.push({ kind: 'intent', actionType: 'openingMulligan', base: {}, readiness: 'ready' });
+    return indexed(actions);
+  }
+  if (context.metadata.startOptions.openingProtocol !== 'v2.4' && canOpeningMulligan(mulligan, playerId)) add({ type: 'openingMulligan' });
   if (canActivateTurbo(runtimePlanningReads.turboEligibilityView(state, playerId), playerId)) add({ type: 'activateAbility', ability: { kind: 'user', key: 'turbo' } });
   if (!player.registryActionUsed) {
     runtimePlanningReads.requireRegistryAction(state, playerId);
@@ -29,7 +37,7 @@ export function planningCatalog(context) {
   }
   actions.push(...executionIntents(context), ...attackIntents(context));
   add({ type: 'endTurn' });
-  return actions.map((entry, index) => ({ actionId: `action:${context.revision}:${index + 1}`, ...entry }));
+  return indexed(actions);
 }
 
 export function buildRuntimeLegalActions(authority, viewerSeat, observation, requiredInput, readContext = null, allowTutorial = false) {

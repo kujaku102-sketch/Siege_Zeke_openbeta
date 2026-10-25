@@ -24,7 +24,7 @@ const STATE_KEYS = [
 ];
 const OPTIONAL_ROOT = {
   null: ['deferredAttack', 'deferredDestruction', 'deferredSpellCleanup', 'std230AmbushCleanup', 'securityRestWindow',
-    'attackResumeStage', 'std094TurnEndQueue', 'std141TurnEndQueue', 'std142TurnEndQueue', 'std142DestroyBatch', 'std211DestructionBatch'],
+    'attackResumeStage', 'std094TurnEndQueue', 'std141TurnEndQueue', 'std142TurnEndQueue', 'opening', 'std142DestroyBatch', 'std211DestructionBatch'],
   array: ['deferredTrashMoves', 'destroyLkiFollowUps', 'independentEffects'],
   object: ['runtimeDestructionContinuations', 'std142DestructionContinuations', 'std211DestructionContinuations'],
   boolean: ['drainingIndependentEffects', 'resolvingStd165', 'skipSavageTurnEnd'],
@@ -153,7 +153,9 @@ function recipeData(input, code) {
 }
 
 function optionsData(input, code) {
-  const supplied = exact(input, OPTION_KEYS, code);
+  // Stored only for v2.4 matches; a legacy match's options keep exactly the nine original keys.
+  ordinary(input, code);
+  const supplied = exact(input, Object.hasOwn(input, 'openingProtocol') ? [...OPTION_KEYS, 'openingProtocol'] : OPTION_KEYS, code);
   const result = { ...defaults, ...supplied };
   if (typeof result.mode !== 'string' || !['ai', 'tutorial', 'lab', 'sandbox'].includes(result.mode)) reject(code);
   if (['lab', 'sandbox'].includes(result.mode)) reject(UNSUPPORTED);
@@ -161,6 +163,7 @@ function optionsData(input, code) {
   for (const key of ['playerDeckId', 'aiDeckId']) if (typeof result[key] !== 'string' || !Object.hasOwn(DECK_OPTIONS, result[key])) reject(code);
   for (const key of ['playerUserId', 'aiUserId']) if (typeof result[key] !== 'string' || !Object.hasOwn(USER_CARDS, result[key])) reject(code);
   if (typeof result.sandboxDeckSetup !== 'boolean') reject(code);
+  if (Object.hasOwn(result, 'openingProtocol') && (result.openingProtocol !== 'v2.4' || result.mode !== 'ai')) reject(code);
   for (const key of ['playerDeckRecipe', 'aiDeckRecipe']) result[key] = recipeData(result[key], code);
   if (result.mode === 'tutorial') {
     const vengeance = result.tutorialId === 'vengeance';
