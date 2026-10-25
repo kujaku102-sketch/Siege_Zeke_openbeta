@@ -58,11 +58,22 @@ function answerFor(request,query,preference={}) {
   for (let count=request.constraints.minimum ?? 0;count<=Math.min(request.constraints.maximum ?? 0,ordered.length);count+=1) {const found=search(0,count);if(found)return found;}
   throw new Error('no valid safe selection: '+request.presentationKey);
 }
+// A single pick is made on the board itself (the lit slot, card or user) and decides the step; a list or
+// multi pick uses its option buttons and a confirm. Either way the control is found like a player would.
+async function pick(page,option,query) {
+  const listed=page.locator('[data-option-id="'+option.optionId+'"]');
+  for (let index=0;index<await listed.count();index+=1) if (await listed.nth(index).isVisible()) return clickVisible(page,'[data-option-id="'+option.optionId+'"]');
+  if (option.cardRef ?? option.hostRef) return clickVisible(page,'[data-card-ref="'+(option.cardRef ?? option.hostRef)+'"]');
+  if (option.zone && Number.isSafeInteger(option.slot)) return clickVisible(page,'.board-slot[data-seat="'+(option.seatId ?? query.status.viewerSeat)+'"][data-zone="'+option.zone+'"][data-slot="'+option.slot+'"]');
+  if (option.kind==='user' || option.targetKind==='user') return clickVisible(page,'[data-fortress="'+option.seatId+'"]');
+  throw new Error('no control for option '+JSON.stringify(option));
+}
 async function choose(page,request,query,preference) {
   const answer=answerFor(request,query,preference);
-  for (const id of answer.optionIds) await clickVisible(page,'[data-option-id="'+id+'"]');
+  for (const id of answer.optionIds) await pick(page,request.options.find(option => option.optionId===id),query);
   for (const row of answer.allocation) await page.locator('[data-allocation-option="'+row.optionId+'"]').fill(String(row.amount));
-  await clickVisible(page,'[data-runtime-confirm]');
+  const confirm=page.locator('[data-runtime-confirm]').first();
+  if (await confirm.count() && await confirm.isVisible() && await confirm.isEnabled()) await clickVisible(page,'[data-runtime-confirm]');
   return answer;
 }
 async function settle(page,{decline=false,checkBack=false}={}) {
@@ -95,14 +106,22 @@ async function action(page,type,id,preference={}) {
   }
   await clickVisible(page,'[data-action-id="'+entry.actionId+'"]');
   if (entry.kind === 'fixed') return;
-  const selections=[];
+  const selections=[],moved=async () => (await read(page)).value.status.revision!==query.status.revision;
   for (let index=0;index<6;index+=1) {
+    // A finished plan is submitted by the UI itself; a pick that completes it ends the action.
+    if (await moved()) return;
     const planned=await page.evaluate(input => window.__SIMPLE_ZEKE_E2E__.queryAction(input),{expectedRevision:query.status.revision,actionId:entry.actionId,selections});
-    if (!planned.ok) throw new Error(JSON.stringify(planned));
-    if (planned.value.completion) {await clickVisible(page,'[data-runtime-confirm]');return;}
+    if (!planned.ok) {if (await moved()) return;throw new Error(JSON.stringify(planned));}
+    if (planned.value.completion) {
+      const confirm=page.locator('[data-runtime-confirm]').first();
+      if (await confirm.count() && await confirm.isVisible()) await clickVisible(page,'[data-runtime-confirm]');
+      if (await moved()) return;
+      continue;
+    }
     const request=planned.value.selectionRequests[0];
     selections.push(await choose(page,request,query,preference));
   }
+  if (await moved()) return;
   throw new Error('planning failed to complete');
 }
 async function intro(page,id) {
@@ -118,7 +137,8 @@ async function step(page,id,index) {
   await page.waitForFunction(({id,index}) => document.querySelector('.live-guide')?.dataset.tutorialStep === id+':'+index && window.__SIMPLE_ZEKE_E2E__.tutorial().value?.opponentScript === null,{id,index});
   const audit=await page.locator('.live-guide').evaluate(node => {const rect=node.getBoundingClientRect();return {left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,w:innerWidth,h:innerHeight};});
   if (audit.left<0 || audit.top<0 || audit.right>audit.w+1 || audit.bottom>audit.h+1) throw new Error('guide clipped: '+JSON.stringify(audit));
-  if (!await page.locator('.live-focus[data-tutorial-focus-label]').count()) throw new Error('tutorial focus missing');
+  // The focus marks are placed by the frame-coalesced layout, one frame after the guide text changes.
+  await page.locator('.live-focus[data-tutorial-focus-label]').first().waitFor({state:'attached',timeout:3000}).catch(() => {throw new Error('tutorial focus missing at '+id+':'+index);});
 }
 async function freshCompletion(page,old) {
   await page.waitForFunction(matchId => window.__SIMPLE_ZEKE_E2E__.scope()?.matchId !== matchId,old.matchId);

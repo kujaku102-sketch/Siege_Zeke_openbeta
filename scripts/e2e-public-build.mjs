@@ -99,7 +99,8 @@ try {
   await startMode(page, "ai");
   if (!await page.locator(".r2-board").count() || !await page.locator(".r2-console").count() || !await page.locator(".r2-hand").count()) throw new Error("AI mode did not mount the separated board, console and hand layers");
   await page.locator('[data-runtime-end-turn]').click();
-  await page.waitForFunction(() => /TURN 3 \/ YOU/.test(document.querySelector(".r2-console")?.textContent ?? "") && !/CPU処理中/.test(document.querySelector(".r2-console")?.textContent ?? ""), null, { timeout: 10000 });
+  // The turn control is a HUD button counting each side's own turns: once the CPU is done it is enabled again as the player's 2nd turn.
+  await page.waitForFunction(() => { const turn = document.querySelector("[data-runtime-end-turn]"); return turn?.dataset.turnSide === "mine" && turn.dataset.turn === "2" && !turn.disabled; }, null, { timeout: 15000 });
 
   const mobilePage = await browser.newPage({ viewport: { width: 844, height: 390 } });
   await mobilePage.addInitScript(() => Object.defineProperty(window.navigator, "standalone", { value: true, configurable: true }));
@@ -153,20 +154,40 @@ async function runNormalVictory({page,base,browser}) {
     await page.waitForFunction(selector=>[...document.querySelectorAll(selector)].some(node=>{
       const rect=node.getBoundingClientRect(),style=getComputedStyle(node);
       return rect.width>0&&rect.height>0&&style.visibility!=='hidden'&&style.display!=='none';
-    }),selector,{timeout:2000});
+    }),selector,{timeout:2000}).catch(()=>{throw new Error('victory control not shown: '+selector+(touch?' (touch)':' (mouse)'));});
     const diagnostics=[];
     for(let index=0;index<await nodes.count();index+=1){
       const control=nodes.nth(index);if(!await control.isVisible())continue;
-      await control.scrollIntoViewIfNeeded();
-      await control.focus();
-      const hit=await control.evaluate((node,selector)=>{
-        const rect=node.getBoundingClientRect(),enabled=!node.matches(':disabled')&&!node.closest('[inert]')&&rect.width>0&&rect.height>0
-          &&rect.left>=0&&rect.top>=0&&rect.right<=innerWidth&&rect.bottom<=innerHeight;
-        const points=[[.5,.5],[.5,.18],[.2,.18],[.8,.18],[.18,.5],[.82,.5],[.5,.82],[.2,.82],[.8,.82]]
-          .map(([rx,ry])=>({x:rect.left+rect.width*rx,y:rect.top+rect.height*ry}));
-        const point=enabled?points.find(({x,y})=>document.elementFromPoint(x,y)?.closest(selector)===node):null;
-        return {x:point?.x??0,y:point?.y??0,valid:Boolean(point),rect:{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,height:rect.height},tops:points.map(({x,y})=>document.elementFromPoint(x,y)?.outerHTML?.slice(0,160)??null)};
-      },selector);
+      // The hand is fixed to the screen edge; scrolling cannot bring a fanned card fully into view.
+      const inHand=await control.evaluate(node=>Boolean(node.closest('.r2-hand')));
+      let hit=null;
+      // A raised touch hand lowers itself 2.5s after the last touch: raise it again if it dropped before the tap.
+      for(let attempt=0;attempt<(inHand?3:1);attempt+=1){
+        // A lowered hand only peeks above the screen edge: the player points at (or taps) the strip, it rises,
+        // then the card is reachable. A raised hand is left alone so the tap cannot pick a card by accident.
+        if(await control.evaluate(node=>Boolean(node.closest('.r2-hand'))&&!document.querySelector('.wf-hand-raised'))){
+          const strip=await control.evaluate(node=>{const hand=node.closest('.r2-hand').getBoundingClientRect(),rect=node.getBoundingClientRect();
+            return {x:Math.min(Math.max(rect.left+rect.width/2,1),innerWidth-1),y:Math.min(hand.bottom,innerHeight)-4};});
+          if(touch)await page.touchscreen.tap(strip.x,strip.y);else await page.mouse.move(strip.x,strip.y);
+          await page.waitForFunction(()=>Boolean(document.querySelector('.wf-hand-raised')),null,{timeout:2000}).catch(()=>{});
+          await page.waitForTimeout(350);
+        }
+        // A long hand scrolls sideways inside its strip (the strip itself stays on screen), so only that scroll is wanted.
+        if(inHand)await control.evaluate(node=>node.scrollIntoView({block:'nearest',inline:'center'}));
+        else await control.scrollIntoViewIfNeeded();
+        // A tap never focuses first: a programmatic focus opens the choice peek, and a touch then only closes it.
+        if(!touch)await control.focus();
+        hit=await control.evaluate((node,selector)=>{
+          const rect=node.getBoundingClientRect(),enabled=!node.matches(':disabled')&&!node.closest('[inert]')&&rect.width>0&&rect.height>0
+            &&(Boolean(node.closest('.r2-hand'))||(rect.left>=0&&rect.top>=0&&rect.right<=innerWidth&&rect.bottom<=innerHeight));
+          // A fanned hand card bleeds past the screen edge by design; the hit point below must still land on it.
+          const points=[[.5,.5],[.5,.18],[.2,.18],[.8,.18],[.18,.5],[.82,.5],[.5,.82],[.2,.82],[.8,.82]]
+            .map(([rx,ry])=>({x:rect.left+rect.width*rx,y:rect.top+rect.height*ry}));
+          const point=enabled?points.find(({x,y})=>document.elementFromPoint(x,y)?.closest(selector)===node):null;
+          return {x:point?.x??0,y:point?.y??0,valid:Boolean(point),rect:{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,height:rect.height},tops:points.map(({x,y})=>document.elementFromPoint(x,y)?.outerHTML?.slice(0,160)??null)};
+        },selector);
+        if(hit.valid)break;
+      }
       if(hit.valid)return {control,x:hit.x,y:hit.y};
       diagnostics.push(hit);
     }
@@ -180,7 +201,7 @@ async function runNormalVictory({page,base,browser}) {
     const before=await readCurrent();if(before.status.viewerSeat===seat)return;
     const beforeScope=await scope(),answering=await readQuery(seat),input=answering.requiredInput;
     const waiting=before.requiredInput?.canAnswer===false;
-    await visibleClick(waiting?'.effect-modal [data-runtime-menu]':'[data-live="options"]');
+    await visibleClick(waiting?'.effect-modal [data-runtime-menu]':'[data-runtime-menu]');
     const selector=await hitControl('.runtime-host-options [data-sandbox-actor]');
     await selector.control.selectOption(seat);
     await visibleClick('.runtime-host-options [data-live="close-options"]');
@@ -200,7 +221,7 @@ async function runNormalVictory({page,base,browser}) {
   };
   const setActive=async seat=>{
     if((await readQuery()).requiredInput)throw new Error('active setup attempted during choice');
-    await visibleClick('[data-live="options"]');await (await hitControl('[data-sandbox-active]')).control.selectOption(seat);
+    await visibleClick('[data-runtime-menu]');await (await hitControl('[data-sandbox-active]')).control.selectOption(seat);
     await visibleClick('[data-live="close-options"]');
     if((await readQuery()).status.activeSeat!==seat)throw new Error('normal active-seat admin failed');
     await viewer(seat);
@@ -238,12 +259,26 @@ async function runNormalVictory({page,base,browser}) {
       ||!validSelectionAnswer(request,selected)||generic.optionIds.length!==0||!validSelectionAnswer(request,generic))throw new Error('explicit optional choice regression failed');
     if(JSON.stringify(await readQuery(input.actorSeat))!==JSON.stringify(query)||JSON.stringify(await scope())!==JSON.stringify(beforeScope))throw new Error('pure selection checks mutated match');
   };
+  // A single pick is made on the board itself (the lit slot, card or user) and decides the step; a list or
+  // multi pick uses its option buttons and a confirm. Either way the control is found like a player would.
+  const pickOption=async (option,query)=>{
+    const listed=page.locator('[data-option-id="'+option.optionId+'"]');
+    for(let index=0;index<await listed.count();index+=1)if(await listed.nth(index).isVisible())return visibleClick('[data-option-id="'+option.optionId+'"]');
+    if(option.cardRef??option.hostRef)return visibleClick('[data-card-ref="'+(option.cardRef??option.hostRef)+'"]');
+    if(option.zone&&Number.isSafeInteger(option.slot))return visibleClick('.board-slot[data-seat="'+(option.seatId??query.status.viewerSeat)+'"][data-zone="'+option.zone+'"][data-slot="'+option.slot+'"]');
+    if(option.kind==='user'||option.targetKind==='user')return visibleClick('[data-fortress="'+option.seatId+'"]');
+    throw new Error('no control for option '+JSON.stringify(option));
+  };
+  const confirmIfShown=async ()=>{
+    const confirm=page.locator('[data-runtime-confirm]').first();
+    if(await confirm.count()&&await confirm.isVisible()&&await confirm.isEnabled())await visibleClick('[data-runtime-confirm]');
+  };
   const answer=async (query,preference=null)=>{
     const input=query.requiredInput;if(!input?.canAnswer)throw new Error('wrong answering viewer');
-    const selected=selectAnswer({...input,requestId:input.choiceId},query,preference);
-    for(const id of selected.optionIds)await visibleClick('[data-option-id="'+id+'"]');
+    const request={...input,requestId:input.choiceId},selected=selectAnswer(request,query,preference);
+    for(const id of selected.optionIds){await pickOption(request.options.find(option=>option.optionId===id),query);}
     for(const row of selected.allocation)await page.locator('[data-allocation-option="'+row.optionId+'"]').fill(String(row.amount));
-    await visibleClick('[data-runtime-confirm]');
+    await confirmIfShown();
   };
   const settle=async ()=>{
     while(true){
@@ -267,17 +302,26 @@ async function runNormalVictory({page,base,browser}) {
       return rect.width>0&&rect.height>0&&style.visibility!=='hidden'&&style.display!=='none';
     }));
     if(card.location?.zone==='hand'&&!sourceVisible)await visibleClick('[data-runtime-hand]');
-    await visibleClick(source);await visibleClick('[data-action-id="'+entry.actionId+'"]');
+    // The first touch on a lowered hand only raises it, and a raised hand lowers itself 2.5s after the last touch:
+    // like a player, tap again when the card did not take the selection.
+    for(let attempt=0;;attempt+=1){
+      await visibleClick(source);
+      const taken=await page.waitForFunction(()=>Boolean(document.querySelector('.r2-popup')),null,{timeout:1500}).then(()=>true,()=>false);
+      if(taken)break;if(attempt>=2)throw new Error('victory source did not take the selection: '+source);
+    }
+    await visibleClick('[data-action-id="'+entry.actionId+'"]');
     if(entry.kind==='fixed')return;
-    const selections=[];
+    const selections=[],moved=async ()=>(await readQuery(seat)).status.revision!==query.status.revision;
     while(true){
+      // A finished plan is submitted by the UI itself; the pick that completes it ends the action.
+      if(await moved())return;
       const planned=await page.evaluate(({input,seat})=>window.__SIMPLE_ZEKE_E2E__.queryAction(input,seat),{
         input:{expectedRevision:query.status.revision,actionId:entry.actionId,selections},seat});
-      if(!planned?.ok)throw new Error(JSON.stringify(planned));
-      if(planned.value.completion){await visibleClick('[data-runtime-confirm]');return;}
+      if(!planned?.ok){if(await moved())return;throw new Error(JSON.stringify(planned));}
+      if(planned.value.completion){await confirmIfShown();if(await moved())return;throw new Error('victory plan is complete but was not submitted');}
       const request=planned.value.selectionRequests[0],selected=selectAnswer(request,query,preference);
-      for(const id of selected.optionIds)await visibleClick('[data-option-id="'+id+'"]');
-      await visibleClick('[data-runtime-confirm]');selections.push(selected);
+      for(const id of selected.optionIds)await pickOption(request.options.find(option=>option.optionId===id),query);
+      await confirmIfShown();selections.push(selected);
     }
   };
   const fresh=async ()=>{

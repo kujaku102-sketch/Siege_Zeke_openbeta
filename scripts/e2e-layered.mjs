@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
+import { waitForBootSplash } from './e2e-entry-crt.mjs';
 const args=process.argv.slice(2),flag=args.indexOf('--playwright-module');
 const explicitPlaywrightModule=flag>=0 ? args[flag+1] : process.env.SIMPLE_ZEKE_PLAYWRIGHT_MODULE;
 const url=args.find((arg,index) => arg !== '--playwright-module' && index !== flag+1) ?? 'http://127.0.0.1:4173/';
@@ -24,7 +25,7 @@ const own=query => query.observation.seats[0];
 function selection(request,query,{zone='front',ids=[],scope=''}={}) {
   const ordered=[...request.options].sort((a,b) => {
     const rank=option => (option.zone===zone ? 100 : 0)+(option.kind==='user' ? 100 : 0)
-      +(ids.includes(visibleCards(query).find(card => card.cardRef===option.cardRef)?.definition?.id) ? 1000 : 0)
+      +(ids.includes(visibleCards(query).find(card => card.cardRef===(option.cardRef ?? option.hostRef))?.definition?.id) ? 1000 : 0)
       +(scope && option.label?.includes(scope) ? 1000 : 0);
     return rank(b)-rank(a);
   });
@@ -37,10 +38,22 @@ function selection(request,query,{zone='front',ids=[],scope=''}={}) {
   throw new Error('no safe valid selection '+request.presentationKey);
 }
 async function click(selector) {const nodes=page.locator(selector);for(let index=0;index<await nodes.count();index+=1)if(await nodes.nth(index).isVisible()){await nodes.nth(index).click();return;}throw new Error('visible control missing '+selector);}
+// A single pick is made on the board itself (the lit slot, card or user) and decides the step; a list or
+// multi pick uses its option buttons and a confirm. Either way the control is found like a player would.
+async function pick(option,query) {
+  const listed=page.locator('[data-option-id="'+option.optionId+'"]');
+  for(let index=0;index<await listed.count();index+=1)if(await listed.nth(index).isVisible()){await listed.nth(index).click();return;}
+  if(option.cardRef ?? option.hostRef)return click('[data-card-ref="'+(option.cardRef ?? option.hostRef)+'"]');
+  if(option.zone && Number.isSafeInteger(option.slot))return click('.board-slot[data-seat="'+(option.seatId ?? query.status.viewerSeat)+'"][data-zone="'+option.zone+'"][data-slot="'+option.slot+'"]');
+  if(option.kind==='user' || option.targetKind==='user')return click('[data-fortress="'+option.seatId+'"]');
+  throw new Error('no control for option '+JSON.stringify(option));
+}
 async function choose(request,query,preference) {
   const answer=selection(request,query,preference);
-  for(const id of answer.optionIds)await click('[data-option-id="'+id+'"]');
-  await click('[data-runtime-confirm]');return answer;
+  for(const id of answer.optionIds){await pick(request.options.find(option => option.optionId===id),query);}
+  const confirm=page.locator('[data-runtime-confirm]').first();
+  if(await confirm.count() && await confirm.isVisible() && await confirm.isEnabled())await confirm.click();
+  return answer;
 }
 async function settle(preference={}) {
   for(let index=0;index<50;index+=1){
@@ -59,17 +72,20 @@ async function action(type,id,preference={}) {
   if(card){await click('[data-card-ref="'+card.cardRef+'"]');}
   await click('[data-action-id="'+entry.actionId+'"]');
   if(entry.kind==='fixed')return;
-  const selections=[];
+  const selections=[],moved=async () => (await read()).status.revision!==query.status.revision;
   for(let index=0;index<6;index+=1){
+    // A finished plan is submitted by the UI itself (no extra confirm); a pick that completes it ends the action.
+    if(await moved())return;
     const result=await page.evaluate(input => window.__SIMPLE_ZEKE_E2E__.queryAction(input),{expectedRevision:query.status.revision,actionId:entry.actionId,selections});
-    if(!result.ok)throw new Error(JSON.stringify(result));
-    if(result.value.completion){await click('[data-runtime-confirm]');return;}
+    if(!result.ok){if(await moved())return;throw new Error(JSON.stringify(result));}
+    if(result.value.completion){const confirm=page.locator('[data-runtime-confirm]').first();if(await confirm.count() && await confirm.isVisible())await confirm.click();if(await moved())return;continue;}
     selections.push(await choose(result.value.selectionRequests[0],query,preference));
   }
+  if(await moved())return;
   throw new Error('normal plan did not complete');
 }
 async function fresh(ids) {
-  const target=new URL(url);target.searchParams.set('e2e','1');await page.goto(target.toString(),{waitUntil:'networkidle'});
+  const target=new URL(url);target.searchParams.set('e2e','1');await page.goto(target.toString(),{waitUntil:'networkidle'});await waitForBootSplash(page);
   const start=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.start('sandbox','basics',1));
   if(!start.ok)throw new Error(JSON.stringify(start));
   for(const id of ids){const result=await page.evaluate(id => window.__SIMPLE_ZEKE_E2E__.sandbox({type:'sandboxAddCard',definitionId:id,targetSeat:'player'}),id);if(!result.ok || result.value.kind!=='accepted')throw new Error(JSON.stringify(result));}
@@ -104,7 +120,8 @@ try {
 
   // A legal mounted Code preserves a nested subtree when consumed as material.
   await fresh(['STD-205','STD-205','STD-020','SZTB-091']);await action('install','STD-205');await action('executeCard','STD-020');
-  await action('mountCard','SZTB-091',{ids:['STD-020']});await action('executeLayered','STD-205',{ids:['STD-020']});await settle();
+  // A Code is mounted through its normal execution: the destination list offers the host Ob.
+  await action('executeCard','SZTB-091',{ids:['STD-020']});await action('executeLayered','STD-205',{ids:['STD-020']});await settle();
   query=await read();if(top(query,'STD-205').mounted.map(card => card.definition.id).join()!=='STD-020,SZTB-091')throw new Error('nested layered mismatch');
 
   // All negative surfaces are reached through normal setup/commands.

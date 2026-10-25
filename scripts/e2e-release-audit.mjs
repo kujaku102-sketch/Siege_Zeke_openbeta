@@ -115,6 +115,8 @@ async function keyboardSandboxAndDeck(browser, base) {
   await tabActivate(page, '[data-live="close-catalog"]');
   await tabActivate(page, '[data-runtime-menu]');
   await tabActivate(page, "[data-deck-open]");
+  // The recommender lives in the AUTO BUILD panel, opened from the deck toolbar.
+  await tabActivate(page, "[data-deck-auto-build]");
   await tabActivate(page, "[data-deck-recommend]");
   await tabActivate(page, "[data-deck-save]");
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("simple-zeke.saved-decks.v1") ?? "[]").length);
@@ -130,14 +132,15 @@ async function flatBoardOperation(browser, base) {
   const target = new URL(base);
   target.searchParams.set("e2e", "1");
   await page.goto(target.toString(), { waitUntil: "networkidle" });
-  await page.addStyleTag({ content: ".battle-board,.battle-board * { transform: none !important; perspective: none !important; }" });
+  // The default board is the wireframe one (host .wire-board-host); the classic .battle-board is only for ?board=classic.
+  await page.addStyleTag({ content: ".battle-board,.battle-board *,.wire-board-host,.wire-board-host * { transform: none !important; perspective: none !important; }" });
   await clickEntryControl(page, '[data-mode="sandbox"]');
   await openSandboxCatalog(page);
   const before = await playerHandCount(page);
   await page.locator('[data-catalog-card="STD-075"]').click();
   const result = await page.evaluate(() => ({
     after: window.__SIMPLE_ZEKE_E2E__.query("player").value.observation.seats.find((seat) => seat.seatId === "player").hand.count,
-    transform: getComputedStyle(document.querySelector(".battle-board")).transform
+    transform: getComputedStyle(document.querySelector(".wire-board-host")).transform
   }));
   await page.close();
   if (result.transform !== "none" || result.after !== before + 1) throw new Error(`flat board operation failed: ${JSON.stringify({ before, ...result })}`);

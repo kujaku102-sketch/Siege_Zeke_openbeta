@@ -13,3 +13,9 @@ export async function clickEntryControl(page, selector) {
   await page.mouse.click(canvas.x + (1 + u * perspective) * canvas.width / 2,
     canvas.y + (1 - v * perspective) * canvas.height / 2);
 }
+
+// The start-up splash hides the page (visibility:hidden) until it detaches, so a script that
+// drives a match straight through the E2E hook waits for it like a player would.
+export async function waitForBootSplash(page) {
+  await page.locator("#boot-splash").waitFor({ state: "detached", timeout: 15000 });
+}
