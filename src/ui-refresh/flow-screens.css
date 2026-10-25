@@ -10,7 +10,7 @@
   color:#00ff00; font:400 clamp(.7rem,2.2dvh,.95rem)/1.2 SZDotGothic,"Yu Gothic UI",sans-serif; text-decoration:none; overflow-wrap:anywhere; }
 .r2-title-link:focus-visible { outline:.125rem solid #00ff00; outline-offset:.125rem; }
 .r2-title-link.is-pending { border-color:#4a4a4a; color:#8a8a8a; cursor:default; }
-.r2-title-link small { font-size:.8em; color:#6f6f6f; }
+.r2-title-link small { font-size:max(.8em,.6875rem); color:#6f6f6f; }
 
 /* Flow screens: a white sheet on black like the title stage, scrolling inside itself when the
    viewport is short, never shrinking the text below its floor. */

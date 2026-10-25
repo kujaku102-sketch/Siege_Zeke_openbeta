@@ -24,6 +24,38 @@ async function startMode(page, mode) {
   if (start) await page.locator(start).click();
 }
 
+// V092-08 entry flow, by real clicks and keys on the public build (no E2E hook): the title links are
+// 準備中 outside the stage, both flow screens open and come back by [戻る] and Escape, and the
+// online button does nothing.
+async function checkEntryFlow(page) {
+  // The links sit in the margin beside the stage; where that margin is narrow (16:10 here) they may
+  // reach over the stage's empty corner, but never over the title's buttons or menu, nor off screen.
+  const title = await page.evaluate(() => {
+    const box = node => node.getBoundingClientRect().toJSON();
+    const links = [...document.querySelectorAll(".r2-title-link")].map(link => ({ text: link.textContent, href: link.getAttribute("href"), box: box(link) }));
+    const controls = [...document.querySelectorAll(".r2-mode-grid>button, .r2-utilities button")].map(box);
+    return { battle: document.querySelector('[data-mode="ai"] strong')?.textContent, links, controls, width: innerWidth, height: innerHeight };
+  });
+  const meets = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  if (title.battle !== "対戦") throw new Error(`title battle button is not 対戦: ${title.battle}`);
+  if (title.links.length !== 2 || title.links.some(link => link.href !== null || !link.text.includes("準備中"))) throw new Error(`title links are not 準備中: ${JSON.stringify(title.links)}`);
+  if (title.links.some(({ box }) => title.controls.some(control => meets(box, control)) || box.left < 0 || box.top < 0 || box.right > title.width || box.bottom > title.height)) throw new Error(`title links cover a title control or leave the screen: ${JSON.stringify(title)}`);
+  await page.locator('[data-mode="tutorial"]').click();
+  await page.locator('[data-flow-screen="tutorial-select"]').waitFor({ state: "visible" });
+  const items = await page.locator("[data-tutorial-item]").evaluateAll(nodes => nodes.map(node => `${node.dataset.tutorialItem}:${node.dataset.done}`));
+  if (items.join() !== "basics:false,vengeance:false") throw new Error(`tutorial list is wrong: ${items}`);
+  await page.keyboard.press("Escape");
+  await page.locator(".r2-entry").waitFor({ state: "visible" });
+  await page.locator('[data-mode="ai"]').click();
+  await page.locator('[data-flow-screen="battle-setup"]').waitFor({ state: "visible" });
+  if (await page.locator(".r2-flow select").count() !== 4) throw new Error("battle setup does not offer deck and user for both sides");
+  if (await page.locator("[data-online-battle]").getAttribute("aria-disabled") !== "true") throw new Error("online battle is not marked unavailable");
+  await page.locator("[data-online-battle]").click({ force: true });
+  if (!await page.locator('[data-flow-screen="battle-setup"]').count() || await page.locator(".r2-notice").count()) throw new Error("online battle did something");
+  await page.locator("[data-flow-back]").click();
+  await page.locator(".r2-entry").waitFor({ state: "visible" });
+}
+
 async function advanceTutorialIntroduction(page) {
   for (let index = 0; index < 7; index += 1) {
     const guide = page.locator(".live-guide");
@@ -72,6 +104,7 @@ try {
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: "networkidle" });
   if (await page.locator('[data-mode="tutorial"], [data-mode="ai"], [data-mode="sandbox"], [data-deck-open]').count() !== 4) throw new Error("R2 entry does not expose the four primary routes");
+  await checkEntryFlow(page);
 
   await startMode(page, "tutorial");
   await advanceTutorialIntroduction(page);
@@ -129,7 +162,7 @@ try {
   if (!detailAudit.effect || !detailAudit.runtime || !detailAudit.inViewport || !await mobilePage.locator(".r2-popup").count()) throw new Error(`mobile card detail or operation popup is invalid: ${JSON.stringify(detailAudit)}`);
   await mobilePage.close();
 
-  console.log(JSON.stringify({ environment: manifest.release.environment, revision: manifest.release.buildRevision, cardCount: manifest.publicCardPool.cardCount, entryRoutes: 4, liveTutorialGuide: true, tutorialFocus: true, deckBuilder: true, separatedLayers: true, pacedAiTurn: true, mobilePwa: true, mobileGuideClickThrough: true, mobileDetail: true, ok: true }));
+  console.log(JSON.stringify({ environment: manifest.release.environment, revision: manifest.release.buildRevision, cardCount: manifest.publicCardPool.cardCount, entryRoutes: 4, entryFlow: true, liveTutorialGuide: true, tutorialFocus: true, deckBuilder: true, separatedLayers: true, pacedAiTurn: true, mobilePwa: true, mobileGuideClickThrough: true, mobileDetail: true, ok: true }));
 } finally {
   await browser.close();
 }
