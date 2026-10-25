@@ -7,6 +7,10 @@ const root = path.resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : p
 const rootRealpath = await realpath(root);
 const forbiddenDirectories = new Set(["inputs", "outputs", "artifacts", "audit", "tusk"]);
 const ignoredGeneratedDirectories = new Set(["node_modules", "dist"]);
+// The tool workspace at the repository root (.claude/worktrees holds other checkouts of this
+// repository). Only that one root-level directory is skipped; a .claude anywhere else is scanned.
+const isToolWorkspace = (directory, name) => directory === root && name === ".claude";
+const reachesRestricted = (relative) => relative.split("/").some((segment) => restrictedDirectories.has(segment.toLowerCase())) || relative.split("/")[0].toLowerCase() === ".claude";
 const restrictedDirectories = new Set([...forbiddenDirectories, ...ignoredGeneratedDirectories]);
 const exactAllowedPackages = new Set(["vite", "three"]);
 const filesystemApis = new Set(["read", "readFile", "readFileSync", "readdir", "readdirSync", "open", "openSync", "stat", "statSync", "lstat", "lstatSync", "realpath", "realpathSync", "createReadStream"]);
@@ -36,7 +40,7 @@ async function collect(directory) {
     if (status.isSymbolicLink()) { addIssue("symlink", source, source); continue; }
     if (status.isDirectory()) {
       if (forbiddenDirectories.has(entry.name.toLowerCase())) addIssue("forbidden_directory", source, source);
-      else if (ignoredGeneratedDirectories.has(entry.name.toLowerCase())) continue;
+      else if (ignoredGeneratedDirectories.has(entry.name.toLowerCase()) || isToolWorkspace(directory, entry.name)) continue;
       else files.push(...await collect(target));
     } else if (status.isFile() && /\.(?:js|mjs)$/i.test(entry.name)) files.push(target);
   }
@@ -63,7 +67,7 @@ function inspectSpecifier(sourcePath, specifier) {
     if (!target) return;
     const normalized = target.replace(/\\/g, "/");
     if (/(?:^|\/)(?:std-source\.generated|std-supported\.generated)\.js$/i.test(normalized)) addIssue("canonical_private_module", source, specifier);
-    if (relativeName(target).split("/").some((segment) => restrictedDirectories.has(segment.toLowerCase()))) addIssue("forbidden_target", source, specifier);
+    if (reachesRestricted(relativeName(target))) addIssue("forbidden_target", source, specifier);
   });
   const packageName = specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0];
   if (!exactAllowedPackages.has(packageName) || packageName !== specifier) addIssue("unallowlisted_package", source, specifier);
@@ -123,7 +127,7 @@ async function inspectModuleSyntax(body, sourcePath) {
     if (token.value === "import" && next?.value === "(") { const result = balanced(tokens, index + 1); if (result.values.length === 1 && result.values[0].type === "string") await inspectSpecifier(sourcePath, result.values[0].value); else { const expression = result.values.map((value) => value.value).join(""); const count = (dynamicExpressionCounts.get(source) ?? 0) + 1; dynamicExpressionCounts.set(source, count); const inLoader = loaderRanges.some(([open, close]) => index > open && index < close); const externalE2eLoaders = new Set(["scripts/e2e-public-build.mjs", "scripts/e2e-tutorial.mjs", "scripts/e2e-layered.mjs", "scripts/e2e-partial-batch-a.mjs", "scripts/e2e-pwa-cache.mjs", "scripts/e2e-release-audit.mjs", "scripts/e2e-user-ability-feedback.mjs"]); if (!(externalE2eLoaders.has(source) && expression === "specifier" && count === 1 && inLoader)) addIssue("dynamic_import_expression", source, expression || "nonliteral"); } index = result.end; continue; }
     if (token.value === "import" || token.value === "export") { for (let cursor = index + 1; cursor < tokens.length && ![";", "import", "export"].includes(tokens[cursor].value); cursor += 1) if (tokens[cursor].value === "from" && tokens[cursor + 1]?.type === "string") { await inspectSpecifier(sourcePath, tokens[cursor + 1].value); index = cursor + 1; break; } }
     if ((token.value === "require" || token.value === "createRequire" || aliases.has(token.value)) && next?.value === "(" && tokens[index + 2]?.type === "string") await inspectSpecifier(sourcePath, tokens[index + 2].value);
-    if (filesystemApis.has(token.value) && next?.value === "(" && tokens[index + 2]?.type === "string") { const literal = tokens[index + 2].value; if (/^(?:[A-Za-z]:[\\/]|[\\/]|file:)/.test(literal)) addIssue("filesystem_literal", source, literal); else { const target = await resolveRelative(sourcePath, literal); if (target && relativeName(target).split("/").some((part) => restrictedDirectories.has(part.toLowerCase()))) addIssue("forbidden_target", source, literal); } }
+    if (filesystemApis.has(token.value) && next?.value === "(" && tokens[index + 2]?.type === "string") { const literal = tokens[index + 2].value; if (/^(?:[A-Za-z]:[\\/]|[\\/]|file:)/.test(literal)) addIssue("filesystem_literal", source, literal); else { const target = await resolveRelative(sourcePath, literal); if (target && reachesRestricted(relativeName(target))) addIssue("forbidden_target", source, literal); } }
     if (token.value === "new" && next?.value === "URL" && tokens[index + 2]?.value === "(" && tokens[index + 3]?.type === "string" && tokens[index + 4]?.value === "," && tokens[index + 5]?.value === "import" && tokens[index + 6]?.value === "." && tokens[index + 7]?.value === "meta" && tokens[index + 8]?.value === "." && tokens[index + 9]?.value === "url") await inspectSpecifier(sourcePath, tokens[index + 3].value);
   }
 }

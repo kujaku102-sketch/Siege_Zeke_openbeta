@@ -51,6 +51,16 @@ test("boundary scanner ignores generated roots during traversal", async () => {
   try { const result = scan(directory); assert.equal(result.status, 0, result.stderr); } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
+test("boundary scanner skips only the root .claude tool workspace", async () => {
+  const bad = "import(variable)";
+  const skipped = await fixture({ "src/main.js": "", ".claude/worktrees/other/scripts/e2e.mjs": bad });
+  try { const result = scan(skipped); assert.equal(result.status, 0, result.stderr); } finally { await rm(skipped, { recursive: true, force: true }); }
+  await rejects("nested .claude is still scanned", { "src/main.js": "", "src/.claude/tool.mjs": bad }, "dynamic_import_expression");
+  await rejects("root-level look-alike is still scanned", { "src/main.js": "", ".claude-extra/tool.mjs": bad }, "dynamic_import_expression");
+  await rejects("source outside .claude is still scanned", { "scripts/tool.mjs": bad }, "dynamic_import_expression");
+  await rejects("a root import into .claude is not excused", { "src/main.js": "import'../.claude/x.js'", ".claude/x.js": "" }, "forbidden_target");
+});
+
 test("boundary scanner enforces package contract and exact E2E exception", async () => {
   await rejects("extra dependency", { "src/main.js": "" }, "package_dependencies", { ...packageJson, dependencies: { extra: "1.0.0" } });
   await rejects("top level E2E dynamic import", { "scripts/e2e-public-build.mjs": "async function loadPlaywright(){}; import(specifier);" }, "dynamic_import_expression");
