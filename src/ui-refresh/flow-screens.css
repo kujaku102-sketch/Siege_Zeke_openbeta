@@ -34,4 +34,14 @@
 .r2-flow-item p { margin:.25em 0 0; font-size:.9em; color:#3d4955; }
 .r2-flow-mark { white-space:nowrap; font-size:.9em; color:#6b747d; }
 .r2-flow-item[data-done="true"] .r2-flow-mark { color:#0a7a3a; }
+.r2-flow-sides { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr)); gap:clamp(.5rem,2vw,1.25rem); }
+.r2-flow-side { display:grid; gap:.6em; margin:0; padding:clamp(.5rem,2dvh,1rem) clamp(.5rem,2vw,1.25rem); border:.0625rem solid #111820; }
+.r2-flow-side legend { padding:0 .4em; font:400 1.1em/1.2 SZKaiso,"Yu Gothic UI",sans-serif; font-synthesis:none; }
+.r2-flow-side label { display:grid; gap:.25em; font-size:.9em; color:#3d4955; }
+.r2-flow-side select { width:100%; padding:0 .5em; border:.0625rem solid #111820; border-radius:.125rem; background:#fff; color:#111820; }
+.r2-flow-side select:focus-visible { outline:.125rem solid #111820; outline-offset:.125rem; }
+.r2-flow-actions { display:flex; flex-wrap:wrap; align-items:center; gap:clamp(.5rem,2vw,1rem); margin-top:clamp(.75rem,3dvh,1.5rem); }
+.r2-flow-actions .r2-flow-primary { order:-1; min-width:min(100%,12em); }
+.r2-flow .r2-flow-online[aria-disabled="true"] { border-color:#9aa3ab; color:#7a838b; background:#f2f3f4; cursor:default; }
+.r2-flow-online small { margin-left:.6em; font-size:.8em; }
 @media (max-width:40rem) { .r2-flow-item { grid-template-columns:minmax(0,1fr) auto; } .r2-flow-item-text { grid-column:1 / -1; } }

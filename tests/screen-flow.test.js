@@ -5,7 +5,9 @@ import { EXTERNAL_LINKS, externalHref, runtimeTarget, titleLinks } from '../src/
 import { runtimeShellHtml, titleLinksHtml } from '../src/ui-refresh/runtime-shell-view.js';
 import { SCREENS, nextScreen, escapeScreen, isFlowScreen } from '../src/ui-refresh/screen-flow.js';
 import { TUTORIAL_ITEMS, TUTORIAL_IDS, TUTORIAL_DONE_KEY, readTutorialDone, markTutorialDone } from '../src/ui-refresh/tutorial-items.js';
-import { tutorialSelectHtml } from '../src/ui-refresh/flow-screens-view.js';
+import { battleSetupHtml, tutorialSelectHtml } from '../src/ui-refresh/flow-screens-view.js';
+import { deckOptionsHtml, userOptionsHtml } from '../src/ui-refresh/runtime-shell-view.js';
+import { START_DECKS } from '../src/data/start-decks.js';
 import { tutorialSteps } from '../src/data/tutorial-script.js';
 
 const readSource = async path => (await readFile(new URL(path, import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
@@ -129,4 +131,27 @@ test('tutorial list screen: each item, its mark and its own start; a way back; d
   assert.ok(shell.includes('data-flow-screen="tutorial-select"'));
   assert.ok(!shell.includes('r2-mode-grid') && !shell.includes('r2-title-links'), 'the title is not drawn under it');
   assert.ok(runtimeShellHtml(entryHost({ screen: 'tutorial-select', options: true })).includes('r2-title-options'), 'the title options, not the match options');
+});
+
+test('battle setup: deck and user for both sides, start, deck building, and a 準備中 online button', () => {
+  const host = entryHost({ screen: 'battle-setup', playerDeckId: 'start-blue', aiDeckId: 'start-yellow', playerUserId: 'phoenix', aiUserId: 'bigboss' });
+  const html = battleSetupHtml(host, { deckOptions: selected => deckOptionsHtml({ savedDecks: [] }, selected), userOptions: userOptionsHtml });
+  for (const attr of ['data-player-deck', 'data-player-user', 'data-ai-deck', 'data-ai-user']) assert.ok(html.includes('<select ' + attr + '>'), attr);
+  assert.ok(html.includes('<option value="start-blue" selected>') && html.includes('<option value="start-yellow" selected>'));
+  assert.ok(html.includes('<option value="phoenix" selected>') && html.includes('<option value="bigboss" selected>'));
+  const playerDecks = html.slice(html.indexOf('<select data-player-deck>'), html.indexOf('</select>', html.indexOf('<select data-player-deck>')));
+  assert.equal(playerDecks.split('<option').length - 1, START_DECKS.length, 'the seven start decks');
+  assert.ok(html.includes('対戦相手：CPU') && !/強さ|難易度/.test(html), 'one CPU, no strength choice');
+  for (const deck of START_DECKS) assert.ok(!html.includes(deck.tactic), 'no tactic memo: ' + deck.id);
+  assert.ok(html.includes('data-start="ai"') && html.includes('data-deck-open') && html.includes('data-flow-back'));
+  assert.ok(html.includes('<button class="r2-flow-online" data-online-battle aria-disabled="true">オンライン対戦<small>準備中</small></button>'));
+  assert.ok(!html.includes('data-mode='), 'starting is not a title route');
+});
+
+test('battle setup: saved decks are offered, one that needs fixing cannot be picked; the shell draws it', () => {
+  const broken = { id: 'bad', name: 'BAD', userId: 'doors_zx', cards: {} };
+  const shell = runtimeShellHtml(entryHost({ screen: 'battle-setup', savedDecks: [broken] }));
+  assert.ok(shell.includes('data-flow-screen="battle-setup"') && !shell.includes('r2-mode-grid'));
+  assert.match(shell, /<option value="custom:bad"\s+disabled>保存: BAD（要修正）<\/option>/, 'a deck that needs fixing is disabled');
+  assert.ok(!runtimeShellHtml(entryHost({ screen: 'entry' })).includes('data-flow-screen'), 'the title draws no flow screen');
 });

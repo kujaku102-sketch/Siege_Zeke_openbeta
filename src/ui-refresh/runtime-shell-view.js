@@ -4,7 +4,7 @@ import { START_DECKS } from '../data/start-decks.js';
 import { deckPresentation } from '../ui/deck-presentation.js';
 import { panelHeadHtml, controlsHelpHtml } from './cyber-panel.js';
 import { titleLinks } from '../config/external-links.js';
-import { tutorialSelectHtml } from './flow-screens-view.js';
+import { battleSetupHtml, tutorialSelectHtml } from './flow-screens-view.js';
 const entryLogo = new URL("../assets/siege-zeke-logo-layers.svg", import.meta.url).href;
 const entryStaticLogo = new URL("../assets/siege-zeke-logo-static.png", import.meta.url).href;
 
@@ -29,6 +29,8 @@ export function deckOptionsHtml(state, selectedId) {
   return [...fixed.map(([id, label]) => `<option value="${id}" ${selectedId === id ? "selected" : ""}>${label}</option>`),
     ...(state.savedDecks ?? []).map((deck) => `<option value="custom:${esc(deck.id)}" ${selectedId === `custom:${deck.id}` ? "selected" : ""} ${validateDeck(deck).valid ? "" : "disabled"}>保存: ${esc(deck.name)}${validateDeck(deck).valid ? "" : "（要修正）"}</option>`)].join("");
 }
+
+export const userOptionsHtml = selected => Object.entries(USER_CARDS).map(([id, user]) => `<option value="${id}" ${selected === id ? "selected" : ""}>${esc(user.name)}</option>`).join("");
 
 export function deckBuilderHtml(state, options = {}) {
   if (!state.deckBuilder?.open) return "";
@@ -96,7 +98,7 @@ function settingsHtml(state, ui) {
     const contents = `<header><h2>オプション</h2><button data-live="close-options">閉じる</button></header><div class="r2-title-settings-list">${toggle("全画面", 'data-live="fullscreen"', Boolean(ui.fullscreen))}${toggle("PC版", 'data-view="pc"', ui.view === "pc")}${toggle("モバイル版", 'data-view="mobile"', ui.view === "mobile")}${toggle("通常タップで詳細", 'data-title-tap-details', Boolean(ui.tapDetails))}${toggle("演出", 'data-toggle-effects', Boolean(ui.effectsEnabled))}${ui.entryCrtMenu ? "" : renderModeHtml(ui)}<div class="r2-title-volume"><span>音量</span><div role="group" aria-label="音量 0～10">${Array.from({ length: 10 }, (_, index) => `<button data-volume="${index + 1}" aria-label="音量 ${index + 1}" aria-pressed="${index < volume}"></button>`).join("")}</div><output>${volume}/10</output></div><p>音量設定は今後のサウンド向けに保存されます。</p>${matchArchiveHtml(ui, toggle)}</div>`;
     return `<div class="r2-modal r2-title-options${ui.entryCrtMenu ? " r2-title-options-crt" : ""}" role="dialog" aria-modal="true" aria-label="オプション"><section>${contents}</section></div>`;
   }
-  const users = selected => Object.entries(USER_CARDS).map(([id, user]) => `<option value="${id}" ${selected === id ? "selected" : ""}>${esc(user.name)}</option>`).join("");
+  const users = userOptionsHtml;
   const busy = ui.busy === true;
   const setupOnly = ui.screen === "entry";
   const viewer = state.mode === "sandbox" ? `<label>操作表示側<select data-sandbox-actor ${state.sandboxUi?.opponentControl === "ai" ? "disabled" : ""}><option value="player" ${(ui.actor ?? "player") === "player" ? "selected" : ""}>YOU</option><option value="ai" ${ui.actor === "ai" ? "selected" : ""}>OPPONENT</option></select></label>` : "";
@@ -113,6 +115,7 @@ export function runtimeShellHtml(host) {
     sandboxUi:{...host.catalog,opponentControl:host.opponentControl},playerDeckId:host.playerDeckId,aiDeckId:host.aiDeckId};
   const ui = {...host,screen:host.screen,options:host.options,entryCrtMenu:host.effectsEnabled && host.screen === 'entry'};
   const entry = host.screen === 'entry' ? entryHtml(host.view,host.effectsEnabled).replace('data-deck ', 'data-deck-open ') + titleLinksHtml() : '';
-  const flow = host.screen === 'tutorial-select' ? tutorialSelectHtml(host) : '';
+  const flow = host.screen === 'tutorial-select' ? tutorialSelectHtml(host)
+    : host.screen === 'battle-setup' ? battleSetupHtml(host,{deckOptions:selected => deckOptionsHtml(state,selected),userOptions:userOptionsHtml}) : '';
   return `<div class="r2-content" data-effects="${host.effectsEnabled ? 'on' : 'off'}"><nav class="r2-utilities" aria-label="メニュー"><button data-live="options" aria-label="メニュー・オプション">メニュー</button></nav>${entry}${flow}<div data-match-root></div><div data-shell-overlays>${renderNoteHtml(host)}${host.options ? settingsHtml(state,ui) : ''}${deckBuilderHtml(state,{view:host.view})}${host.catalogOpen ? `<div class="live-catalog"><button data-live="close-catalog">閉じる</button>${sandboxCatalogHtml(state)}</div>` : ''}${host.notice ? `<aside class="r2-notice" role="status">${esc(host.notice)}</aside>` : ''}</div></div><section class="r2-rotate" hidden role="status"><h1>端末を横向きにしてください</h1><p>横に戻すと、そのまま続きから操作できます。</p></section>`;
 }
