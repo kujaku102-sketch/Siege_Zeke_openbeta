@@ -371,12 +371,12 @@ body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-deta
   --detail-width: min(32cqw, 56cqh); width: var(--detail-width);
   max-height: min(90cqh, calc(100% - var(--wf-top) - var(--wf-bottom)));
 }
-/* Pick prompt: compact, at the top of the stage between the detail and the user window, so the lit slots stay visible. */
-body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .board-pick-guide {
+/* Pick prompt (PC and mobile): compact, at the top of the stage between the detail and the user window, so the lit slots stay visible. */
+body[data-view] .r2-content .r2-runtime-view.r2-wireframe-view .board-pick-guide {
   top: var(--wf-top); left: 56cqw; transform: translateX(-50%); gap: .5em; padding: .35em .6em;
   font-size: clamp(.75rem, 3.4cqh, 1rem); max-width: 40cqw; row-gap: .25em;
 }
-body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .board-pick-guide button { min-height: var(--wf-hit); padding: 0 .8em; }
+body[data-view] .r2-content .r2-runtime-view.r2-wireframe-view .board-pick-guide button { min-height: var(--wf-hit); padding: 0 .8em; }
 /* Choice dialog: header, rows and cards scale with the stage; the list takes the room that is left. */
 body[data-view="mobile"] .r2-content .r2-wireframe-view .effect-modal .cp-head { margin: 0 0 .4em; padding: 0 0 .35em; gap: .5em; }
 body[data-view="mobile"] .r2-content .r2-wireframe-view .effect-modal .cp-head h2 { font-size: clamp(1rem, 5.2cqh, 1.45rem); margin: 0; }
