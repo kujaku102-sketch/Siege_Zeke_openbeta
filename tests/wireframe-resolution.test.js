@@ -51,6 +51,17 @@ test('render quality presets: compat draws at CSS pixels on any DPR, full keeps 
     assert.deepEqual(renderResolution(64, 26, renderQualityFor('full'), dpr), { width: 192, height: 78, scale: 3 });
   }
 });
+test('render quality: a sample scale replaces the full scale only; compat stays at 1', () => {
+  assert.deepEqual(renderQualityFor('full', 0.5), { scale: 0.5, maxPixels: 8_294_400 });
+  assert.deepEqual(renderQualityFor('full', 1), { scale: 1, maxPixels: 8_294_400 });
+  assert.equal(renderQualityFor('full', 3), DEFAULT_RENDER_QUALITY, 'the default scale is the default preset');
+  for (const scale of [null, undefined, 0, -1, NaN, Infinity, '0.5']) assert.equal(renderQualityFor('full', scale), DEFAULT_RENDER_QUALITY, String(scale));
+  for (const scale of [0.25, 0.5, 1, 3]) assert.equal(renderQualityFor('compat', scale), RENDER_QUALITY_PRESETS.compat);
+  assert.deepEqual(renderResolution(852, 393, renderQualityFor('full', 0.5), 2), { width: 426, height: 196, scale: 0.5 });
+  assert.deepEqual(renderResolution(852, 393, renderQualityFor('full', 1), 2), { width: 852, height: 393, scale: 1 });
+  // The pixel cap still wins over a large sample scale on a large screen.
+  assert.ok(renderResolution(1920, 1080, renderQualityFor('full', 3), 1).width <= 3840);
+});
 // A seat's life canvas inside a fake match root, with frames run by hand.
 function lifeHarness() {
   const old = { raf: globalThis.requestAnimationFrame, caf: globalThis.cancelAnimationFrame, observer: globalThis.ResizeObserver };

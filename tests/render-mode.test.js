@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RENDER_STORAGE_KEY, readRenderPreference, urlRenderPreference, resolveRenderMode } from '../src/ui-refresh/render-mode.js';
+import { RENDER_STORAGE_KEY, RENDER_SCALE_RANGE, readRenderPreference, urlRenderPreference, urlRenderScale, resolveRenderMode } from '../src/ui-refresh/render-mode.js';
 import { isIosWebKit } from '../src/ui-refresh/model.js';
 
 const UA = {
@@ -41,6 +41,21 @@ test('render mode: a broken saved value or URL reads as auto', () => {
   assert.equal(urlRenderPreference('?render='), null);
   assert.equal(urlRenderPreference(undefined), null);
   assert.deepEqual(resolveRenderMode({ url: '?render=bogus', saved: 'nonsense', detection: detect(UA.iphone) }), { mode: 'compat', reason: 'detected' });
+});
+
+test('render scale sample route: numbers are clamped to 0.25..3, anything else is ignored', () => {
+  assert.deepEqual(RENDER_SCALE_RANGE, [0.25, 3]);
+  assert.equal(urlRenderScale('?render=full&renderScale=0.5'), 0.5);
+  assert.equal(urlRenderScale('https://x.test/mobile/?renderScale=1#top'), 1);
+  assert.equal(urlRenderScale('?renderScale=1.25'), 1.25);
+  assert.equal(urlRenderScale('?renderScale=0.1'), 0.25);
+  assert.equal(urlRenderScale('?renderScale=0'), 0.25);
+  assert.equal(urlRenderScale('?renderScale=-2'), 0.25);
+  assert.equal(urlRenderScale('?renderScale=8'), 3);
+  for (const url of ['', undefined, null, '?render=full', '?renderScale=', '?renderScale=%20', '?renderScale=half', '?renderScale=Infinity', '?renderScale=NaN', '?renderscale=1'])
+    assert.equal(urlRenderScale(url), null, String(url));
+  // It is a separate parameter: the mode still follows ?render= and the saved choice.
+  assert.deepEqual(resolveRenderMode({ url: '?renderScale=0.5', saved: null, detection: detect(UA.iphone) }), { mode: 'compat', reason: 'detected' });
 });
 
 test('render mode: a lost context drops to compat even after full was chosen; choosing again comes back', () => {

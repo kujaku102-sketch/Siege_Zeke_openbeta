@@ -7,7 +7,7 @@ import { mountRuntimeMatch } from './ui-refresh/runtime-match-surface.js';
 import { runtimeShellHtml } from './ui-refresh/runtime-shell-view.js';
 import { patchHtml } from './ui-refresh/dom-patch.js';
 import { isIosWebKit, readSavedView, resolveView, saveView } from './ui-refresh/model.js';
-import { RENDER_STORAGE_KEY, readRenderPreference, resolveRenderMode, urlRenderPreference } from './ui-refresh/render-mode.js';
+import { RENDER_STORAGE_KEY, readRenderPreference, resolveRenderMode, urlRenderPreference, urlRenderScale } from './ui-refresh/render-mode.js';
 import { renderQualityFor } from './ui-refresh/wireframe/render-resolution.js';
 import { isFullscreen, toggleFullscreen } from './ui-refresh/fullscreen.js';
 import { syncEntryLogoGlitch } from './ui-refresh/entry-logo-glitch.js';
@@ -56,7 +56,8 @@ host.renderPreference = readRenderSaved();host.renderContextLost = false;
 const renderMode = () => resolveRenderMode({url:location.search,saved:host.renderPreference,detection:renderDetection,contextLost:host.renderContextLost});
 const lowGpu = () => renderMode().mode === 'compat';
 // What a match surface takes from the mode: no WebGL, and canvases drawn at CSS pixels, in compat.
-const renderOptions = () => {const {mode} = renderMode();return {lowGpu:mode === 'compat',renderQuality:renderQualityFor(mode)};};
+// ?renderScale= sets the full-mode scale for comparing samples; it is not saved.
+const renderOptions = () => {const {mode} = renderMode();return {lowGpu:mode === 'compat',renderQuality:renderQualityFor(mode,urlRenderScale(location.search))};};
 const entryEffects = () => host.screen === 'entry' && host.effectsEnabled && !lowGpu() && !host.deckBuilder.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function renderShell(replace = false) {
   host.render = renderMode();host.renderUrl = urlRenderPreference(location.search);

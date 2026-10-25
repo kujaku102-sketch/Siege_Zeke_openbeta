@@ -10,11 +10,23 @@ export const RENDER_PREFERENCES = Object.freeze(['auto', 'compat', 'full']);
 export const readRenderPreference = value => RENDER_PREFERENCES.includes(value) ? value : 'auto';
 
 // `url` may be a whole address, a search string ("?render=full") or empty.
-export function urlRenderPreference(url) {
+const urlQuery = url => {
   const text = String(url ?? '');
-  const query = text.includes('?') ? text.slice(text.indexOf('?') + 1).split('#')[0] : text;
-  const value = new URLSearchParams(query).get('render');
+  return new URLSearchParams(text.includes('?') ? text.slice(text.indexOf('?') + 1).split('#')[0] : text);
+};
+export function urlRenderPreference(url) {
+  const value = urlQuery(url).get('render');
   return RENDER_PREFERENCES.includes(value) ? value : null;
+}
+
+// ?renderScale= is a sample route for comparing full-mode drawing scales (e.g. 1, 0.5): never
+// saved, clamped to the range, ignored when not a number. Compat keeps its own scale.
+export const RENDER_SCALE_RANGE = Object.freeze([0.25, 3]);
+export function urlRenderScale(url) {
+  const raw = urlQuery(url).get('renderScale');
+  if (raw === null || raw.trim() === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? Math.min(RENDER_SCALE_RANGE[1], Math.max(RENDER_SCALE_RANGE[0], value)) : null;
 }
 
 export function resolveRenderMode({ url = '', saved = null, detection = {}, contextLost = false } = {}) {
