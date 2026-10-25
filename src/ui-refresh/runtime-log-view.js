@@ -7,6 +7,8 @@ const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<'
 const names = { install: 'インストール', executeCard: '実行', executeLayered: 'レイヤード実行',
   redeploy: '再実行', activateScript: '起動', attack: '攻撃', endTurn: 'ターン終了',
   recoverRegistry: '回収', activateAbility: '固有能力', openingMulligan: '引き直し',
+  // v2.4 opening: the opponent's decision is reported as one hidden kind (keep or redraw is not shown).
+  keepOpeningHand: 'キープ', openingDecision: '開始手札の決定',
   executeSpell:'スペル実行',mountCard:'実行',setScript:'Script設置',executeRegistry:'レジストリ実行',activateCardEffect:'効果起動',
   sandboxAddCard: 'カード追加', answerChoice: '対象確定', declineChoice: '見送る' };
 
@@ -38,7 +40,7 @@ function runtimeEventText(event) {
 const tags = { install: 'INSTALL', executeCard: 'EXEC', executeLayered: 'EXEC', executeSpell: 'SPELL',
   executeRegistry: 'EXEC', redeploy: 'EXEC', activateScript: 'ACTIVATE', activateCardEffect: 'ACTIVATE',
   activateAbility: 'ABILITY', mountCard: 'EXEC', setScript: 'SET', attack: 'ATTACK', endTurn: 'END',
-  recoverRegistry: 'RECOVER', openingMulligan: 'REDRAW', answerChoice: 'CHOICE', declineChoice: 'CHOICE' };
+  recoverRegistry: 'RECOVER', openingMulligan: 'REDRAW', keepOpeningHand: 'KEEP', openingDecision: 'OPENING', answerChoice: 'CHOICE', declineChoice: 'CHOICE' };
 
 // Zone words follow the rulebook (3. フィールド構造).
 const zoneNames = { hand: '手札', deck: '山札', front: 'フロント', back: 'バック', registry: 'レジストリ',

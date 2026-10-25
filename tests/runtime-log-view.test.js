@@ -100,3 +100,14 @@ test('a thread item for the callout stack carries its number, side, card and eff
   assert.match(theirs, /is-opponent[^]*OPP · 裏向きカード/);
   assert.doesNotMatch(theirs, /起動！/);
 });
+
+test('opening decisions are named: own keep, own redraw, and the opponent decision without its content', () => {
+  const html = runtimeLogHtml([
+    { eventId: 'o1', commandId: 'c1', type: 'action_committed', actionType: 'keepOpeningHand', turnNumber: 1, actorSeat: 'seat-a' },
+    { eventId: 'o2', commandId: 'c2', type: 'action_committed', actionType: 'openingDecision', turnNumber: 1, actorSeat: 'seat-b' }
+  ], 'seat-a');
+  const row = id => html.split('<article').find(part => part.includes('data-event-id="' + id + '"')) ?? '';
+  assert.ok(row('o1').includes('>KEEP<') && row('o1').includes('<p>キープ</p>'));
+  assert.ok(row('o2').includes('>OPENING<') && row('o2').includes('<p>開始手札の決定</p>'));
+  assert.ok(!html.includes('keepOpeningHand') && !html.includes('openingDecision') && !html.includes('>ACTION<'));
+});
