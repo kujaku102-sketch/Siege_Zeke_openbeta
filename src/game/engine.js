@@ -318,6 +318,19 @@ function clearComponents(target) {
   target.turnCostModifier = 0;
   delete target.revealedExecutionCost;
 }
+// エリアを離れたカードは別のカードとして戻る: ダメージ・負荷・各種補正・付与能力・カウンターはエリア離脱で消える。
+// 離脱時に直接消すと破壊直後のログアウト等が最後の情報を読めなくなるため、エリアへ入る時点で確定的に初期化する
+// (ゴミ箱・手札などエリア外にいる間は戦闘状態を参照する処理がない)。
+function resetLeftAreaState(card) {
+  clearComponents(card);
+  card.damage = 0;
+  card.battleStrBonus = 0;
+  card.protect = Number((card.compiled ? keywordValue(card, "PROTECT") : null) ?? 0);
+  card.keywordExpiries = {};
+  delete card.backupUsedTurn;
+  delete card.backupUsesThisTurn;
+}
+
 const backupLimit = (card) => {
   const match = String(card?.text ?? "").match(/\[バックアップ(?:[:：](\d+))?\]/);
   return match ? Number(match[1] ?? 1) : 0;
@@ -2684,7 +2697,11 @@ function placeByMode(state, ownerId, card, { zone, mode = "forced-effect", from 
     if (placement.mode === "forced-effect") return failForcedPlacement(state, card.owner ?? ownerId, card, { from, zone, source, suppressScriptWindow });
     return "normal-rejected";
   }
-  if (!["front", "back"].includes(from)) markFieldEntry(state, card);
+  if (!["front", "back"].includes(from)) {
+    markFieldEntry(state, card);
+    // 生成されたカードは効果が作った値をそのまま使う。実在のカードがエリア外から入る場合だけ初期化する。
+    if (from !== "generated") resetLeftAreaState(card);
+  }
   return "placed";
 }
 

@@ -2147,7 +2147,7 @@ test("STD-087 runtime exposes only memory-one Ob or Code and drags the selected 
   const player = state.players.player;
   const glen = player.hand.find((card) => card.id === "STD-087");
   player.deck = [
-    { id: "O1", uid: "o1", owner: "player", name: "Ob 1", category: "Ob", cost: 1, classes: [], mounted: [] },
+    { id: "O1", uid: "o1", owner: "player", name: "Ob 1", category: "Ob", cost: 1, atk: 1, str: 1, classes: [], mounted: [] },
     { id: "C1", uid: "g-c1", owner: "player", name: "Code 1", category: "Code", cost: 1, classes: [], mounted: [] },
     { id: "S1", uid: "s1", owner: "player", name: "Script 1", category: "Script", cost: 1, classes: [], mounted: [] }
   ];
@@ -4129,6 +4129,25 @@ test("a Backup replacement of STR 0 destruction does not leave the Ob at STR 0 o
   assert.equal([...player.front, ...player.back].some((card) => card.uid === thief.uid), false);
   assert.equal(player.trash.some((card) => card.uid === thief.uid), true);
 });
+test("a card that comes back from outside the area has no Load, damage or modifiers left", () => {
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  const player = state.players.player;
+  const mandrake = createCardInstance("STD-154", "player", 900090);
+  const filler = createCardInstance("STD-020", "player", 900091);
+  mandrake.load = 1; mandrake.tempAtk = 3; mandrake.permanentStr = 2; mandrake.damage = 1; mandrake.counters = { madness: 2 };
+  mandrake.permanentStr = 0;
+  player.front = [mandrake]; player.back = [];
+  player.hand = [filler]; player.memory = 10;
+  player.deck = Array.from({ length: 5 }, (_, index) => createCardInstance("STD-020", "player", 900100 + index));
+  assert.equal(playCard(state, "player", filler.uid, {}), true);
+  assert.equal(player.trash.some((card) => card.uid === mandrake.uid), true, "STR 0 from Load destroys it");
+  assert.equal(endTurn(state), true);
+  const back = [...player.front, ...player.back].find((card) => card.uid === mandrake.uid);
+  assert.ok(back, "STD-154 returns at the next turn start");
+  assert.deepEqual([back.load, back.damage, back.tempAtk, back.permanentStr, back.counters], [0, 0, 0, 0, {}]);
+  assert.equal(cardCurrentStr(state, "player", back), 1);
+});
+
 test("Protect and indestructible Obs at STR 0 or less do not loop the state check", () => {
   const state = createGame({ mode: "sandbox", rng: () => 0.5 });
   const player = state.players.player;
