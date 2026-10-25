@@ -9,3 +9,29 @@
 .r2-title-link:focus-visible { outline:.125rem solid #00ff00; outline-offset:.125rem; }
 .r2-title-link.is-pending { border-color:#4a4a4a; color:#8a8a8a; cursor:default; }
 .r2-title-link small { font-size:.8em; color:#6f6f6f; }
+
+/* Flow screens: a white sheet on black like the title stage, scrolling inside itself when the
+   viewport is short, never shrinking the text below its floor. */
+.r2-content:has(.r2-flow) { background:#000; }
+.r2-flow { position:fixed; inset:0; z-index:5; overflow:auto; overscroll-behavior:contain; box-sizing:border-box;
+  padding:calc(.75rem + env(safe-area-inset-top,0rem)) calc(.75rem + env(safe-area-inset-right,0rem)) calc(.75rem + env(safe-area-inset-bottom,0rem)) calc(.75rem + env(safe-area-inset-left,0rem));
+  background:#000; color:#111820; font:400 clamp(.875rem,2.6dvh,1.125rem)/1.45 "Yu Gothic UI",sans-serif; }
+.r2-flow-sheet { box-sizing:border-box; width:min(100%,140dvh,64rem); min-height:100%; margin:0 auto; padding:clamp(.75rem,3dvh,2rem) clamp(.75rem,3vw,2.5rem); background:#fff; }
+.r2-flow-head { display:flex; align-items:center; gap:clamp(.5rem,2vw,1.25rem); padding-inline-end:clamp(4.5rem,12vw,7rem); }
+.r2-flow-head h1 { margin:0; font:400 clamp(1.25rem,5dvh,2rem)/1.2 SZKaiso,"Yu Gothic UI",sans-serif; font-synthesis:none; }
+.r2-flow :is(button,select) { min-height:2.75rem; font:inherit; }
+.r2-flow button { padding:0 1em; border:.0625rem solid #111820; border-radius:.125rem; background:#fff; color:#111820; cursor:pointer; }
+.r2-flow button:is(:hover,:focus-visible):not([aria-disabled="true"]) { background:#111820; color:#fff; }
+.r2-flow button:focus-visible { outline:.125rem solid #111820; outline-offset:.125rem; }
+.r2-flow .r2-flow-primary { background:#111820; color:#fff; }
+.r2-flow .r2-flow-primary:is(:hover,:focus-visible) { background:#2b3846; }
+.r2-flow-lead { margin:.75em 0; color:#3d4955; font-size:.9em; }
+.r2-flow-list { display:grid; gap:clamp(.5rem,2dvh,1rem); margin:0; padding:0; list-style:none; }
+.r2-flow-item { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:clamp(.5rem,2vw,1.25rem);
+  padding:clamp(.5rem,2dvh,1rem) clamp(.5rem,2vw,1.25rem); border:.0625rem solid #111820; }
+.r2-flow-item h2 { display:flex; align-items:baseline; gap:.5em; margin:0; font:400 1.15em/1.25 SZKaiso,"Yu Gothic UI",sans-serif; font-synthesis:none; }
+.r2-flow-item h2 small { font-size:.75em; color:#56616c; }
+.r2-flow-item p { margin:.25em 0 0; font-size:.9em; color:#3d4955; }
+.r2-flow-mark { white-space:nowrap; font-size:.9em; color:#6b747d; }
+.r2-flow-item[data-done="true"] .r2-flow-mark { color:#0a7a3a; }
+@media (max-width:40rem) { .r2-flow-item { grid-template-columns:minmax(0,1fr) auto; } .r2-flow-item-text { grid-column:1 / -1; } }
