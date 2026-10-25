@@ -4149,6 +4149,22 @@ test("a card that comes back from outside the area has no Load, damage or modifi
   assert.equal(cardCurrentStr(state, "player", back), 1);
 });
 
+test("declining a trash-window confirmation ends it instead of re-opening one per answer through the STR 0 check", () => {
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  const { player, ai } = state.players;
+  const script = createCardInstance("STD-003", "player", 900094); script.faceDown = true;
+  const attacker = createCardInstance("STD-022", "player", 900095); attacker.summoningSick = false;
+  const guard = createCardInstance("STD-022", "ai", 900096); guard.sleep = true; guard.damage = guard.str - 1;
+  player.front = [attacker]; player.back = [script]; player.hand = []; player.memory = 10;
+  ai.front = [guard]; ai.back = []; ai.hand = [];
+  assert.equal(attack(state, "player", attacker.uid, guard.uid), true);
+  assert.equal(state.prompt?.scriptUid, script.uid);
+  assert.equal(declinePrompt(state), true);
+  assert.equal(state.prompt, null, "one answer closes the one confirmation");
+  assert.equal(ai.trash.some((card) => card.uid === guard.uid), true);
+  assert.equal(state.activationWindows.filter((window) => window.status === "pending").length, 0);
+});
+
 test("STR 0 destruction pierces Protect; only an indestructible Ob survives the state check", () => {
   const state = createGame({ mode: "sandbox", rng: () => 0.5 });
   const player = state.players.player;

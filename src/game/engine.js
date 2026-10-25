@@ -2894,6 +2894,9 @@ function applyDamageModifiers(state, sourcePlayerId, sourceCard, victimPlayerId,
 const MANDATORY_STATE_CHECK_PASSES = 8;
 
 function resolveMandatoryStateChecks(state) {
+  // 確認(STD-003の窓など)の回答待ち・保留中の破壊がある間は判定しない。破壊が窓の後ろで保留されているカードを
+  // もう一度破壊しようとすると、回答のたびに新しい窓が開いて確認が終わらなくなる。回答後の次の解決で判定する。
+  if (state.prompt || state.deferredDestruction || state.scriptActivationQueue?.length) return;
   // 状態判定は安定するまで繰り返す(破壊した常在効果の源が消えて、別のObがSTR0以下になる場合がある)。
   // STR0以下の破壊は常時の状態判定なので[プロテクト]も[バックアップ]も貫通する(裁定済み)。
   // 破壊不可で破壊が成立しない場合や選択待ち・STD-003の窓が開いた場合は進展なしとして止める。
