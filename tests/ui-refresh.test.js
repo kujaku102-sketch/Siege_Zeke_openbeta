@@ -217,3 +217,23 @@ test("lowGpu reaches the match surface and the title; the drawn layers never tak
     assert.ok(rule && rule.includes("pointer-events:none"), selector + " never takes input");
   }
 });
+
+test("a tap on an occupied slot answers a slot request, and a card request still wins on the card", async () => {
+  const { routeClick } = await import("../src/ui-refresh/surface-clicks.js");
+  const ref = "r:" + "a".repeat(32);
+  const slot = { dataset: { seat: "a", zone: "front", slot: "1" } }, card = { dataset: { cardRef: ref } };
+  const request = (options) => ({ requestId: "q", constraints: { kind: "pick", minimum: 1, maximum: 1 }, options });
+  const run = (interaction, request) => {
+    const hits = [];
+    const wire = { hasAttribute: () => false, closest: selector => selector === "[data-card-ref]" ? card
+      : selector === ".board-slot[data-seat][data-zone][data-slot]" ? slot : selector === '[data-live-region="board"]' ? {} : null };
+    const ui = { hitTarget: hit => { hits.push(hit); return { ok: true, value: {} }; } };
+    routeClick({ target: { closest: selector => selector === "button" ? null : selector === "[data-wire-hit]" ? wire : null } },
+      { ui, act: () => {}, boardStyle: "wireframe", latest: () => ({ request, interactionRequest: interaction, stage: null }) });
+    return hits;
+  };
+  const slotOnly = { requestId: "q", options: [{ optionId: "d", targets: [{ kind: "slot", seatId: "a", zone: "front", slot: 1 }] }] };
+  assert.deepEqual(run(slotOnly, request([{ optionId: "d", zone: "front", slot: 1 }])), [{ kind: "slot", seatId: "a", zone: "front", slot: 1 }]);
+  const cardOnly = { requestId: "q", options: [{ optionId: "c", targets: [{ kind: "card", cardRef: ref }] }] };
+  assert.deepEqual(run(cardOnly, request([{ optionId: "c", cardRef: ref }])), [{ kind: "card", cardRef: ref }]);
+});

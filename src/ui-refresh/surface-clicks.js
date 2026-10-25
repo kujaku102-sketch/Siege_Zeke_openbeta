@@ -49,10 +49,11 @@ export function routeClick(event, c) {
     const card = target.closest('[data-card-ref]');
     const fortress = target.closest('[data-fortress]');
     const slot = target.closest('.board-slot[data-seat][data-zone][data-slot]');
-    const hit = card ? { kind: 'card', cardRef: card.dataset.cardRef }
-      : fortress ? { kind: 'user', seatId: fortress.dataset.fortress }
-      : slot ? slotHit(slot)
-      : null;
+    // A placed card sits in its slot: the tap may mean the card or the slot, so the one the
+    // current request lists wins (an occupied slot is a legal destination, e.g. a layered stack).
+    const hits = [card && { kind: 'card', cardRef: card.dataset.cardRef },
+      fortress && { kind: 'user', seatId: fortress.dataset.fortress }, slot && slotHit(slot)].filter(Boolean);
+    const hit = hits.find(item => resolveInteractionTarget(latest.interactionRequest, item).kind !== 'none') ?? hits[0] ?? null;
     // A board pick is answered on the board only. Hand cards and anything that is not
     // a lit target are ignored, so they can neither open a popup nor raise an error.
     if (hit && latest.request && (isBoardPick(latest.request, latest.interactionRequest) || latest.stage)
