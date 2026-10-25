@@ -368,7 +368,7 @@ body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view {
 }
 /* Card detail: its width follows the shorter side of the stage, its art square with it. */
 body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-detail {
-  --detail-width: min(32cqw, 56cqh); width: var(--detail-width);
+  --detail-width: min(32cqw, 56cqh); --detail-text: var(--wf-font); width: var(--detail-width);
   max-height: min(90cqh, calc(100% - var(--wf-top) - var(--wf-bottom)));
 }
 /* Pick prompt (PC and mobile): compact, at the top of the stage between the detail and the user window, so the lit slots stay visible. */

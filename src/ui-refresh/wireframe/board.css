@@ -234,15 +234,17 @@ body[data-view] .r2-content .r2-wireframe-view .wf-unique .unique-effect-name { 
 
 /* Content scrolls, while exit/confirmation controls stay available. */
 body[data-view] .r2-content .r2-wireframe-view .r2-detail {
-  --detail-width:min(22rem,42cqw); --detail-info-font:var(--wf-font); --detail-body-font:var(--wf-font); --detail-title-font:calc(var(--wf-font) * 1.15);
-  --component-name-font:var(--wf-font); --component-note-font:var(--wf-font); z-index:26;
-  position:absolute; top:var(--wf-top); left:var(--wf-left); width:min(22rem,42cqw); max-width:calc(100% - var(--wf-left) - var(--wf-right));
+  /* PC: the 1920x1080 look (352px wide, 18px text) kept as a ratio of the stage; the text never drops below its floor. */
+  --detail-width:min(18.33cqw,32.6cqh); --detail-text:clamp(.875rem,1.667cqh,1.5rem);
+  --detail-info-font:var(--detail-text); --detail-body-font:var(--detail-text); --detail-title-font:calc(var(--detail-text) * 1.15);
+  --component-name-font:var(--detail-text); --component-note-font:var(--detail-text); z-index:26;
+  position:absolute; top:var(--wf-top); left:var(--wf-left); width:var(--detail-width); max-width:calc(100% - var(--wf-left) - var(--wf-right));
   max-height:calc(100% - var(--wf-top) - var(--wf-bottom)); overflow:auto; padding:0 var(--wf-space) var(--wf-space); box-sizing:border-box;
 }
 .r2-content .r2-wireframe-view .r2-detail>header { position:sticky; top:0; z-index:2; background:#18181b; margin:0; min-height:var(--wf-hit); }
 .r2-content .r2-wireframe-view .r2-detail header button { min-width:var(--wf-hit); min-height:var(--wf-hit); }
-.r2-content .r2-wireframe-view .r2-detail .card-inspector { font-size:var(--wf-font); overflow:visible; padding-top:min(25cqh,8rem); }
-.r2-content .r2-wireframe-view .r2-detail .card-effect-copy { font-size:var(--wf-font); line-height:1.4; }
+.r2-content .r2-wireframe-view .r2-detail .card-inspector { font-size:var(--detail-text,var(--wf-font)); overflow:visible; padding-top:min(25cqh,8rem); }
+.r2-content .r2-wireframe-view .r2-detail .card-effect-copy { font-size:var(--detail-text,var(--wf-font)); line-height:1.4; }
 body[data-view] .r2-content .r2-wireframe-view .effect-modal {
   position:absolute; inset:var(--wf-top) auto var(--wf-bottom) var(--wf-left); width:min(32rem,60cqw); height:auto; max-height:none;
   display:flex; flex-direction:column; justify-content:flex-start; gap:0; overflow:hidden;
