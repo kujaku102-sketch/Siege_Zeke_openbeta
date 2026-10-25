@@ -41,8 +41,16 @@ export function attachBoardCamera(board) {
     board.classList.add('camera-dragging');
     board.dispatchEvent(new CustomEvent('board-camera-gesture', { bubbles: true }));
   };
+  // Drops every listed pointer, as when the window loses focus or the page is hidden.
+  const forget = () => {
+    pointers.clear(); gesture = null; board.classList.remove('camera-dragging');
+  };
   listen(board, 'pointerdown', e => {
     if (e.button !== 0) return;
+    // A primary pointer means no other contact is down. Any pointer still listed lost its
+    // pointerup/pointercancel (released elsewhere, dropped by the system) and would otherwise keep
+    // the board in two-finger mode, blocking every later tap until the window loses focus.
+    if (e.isPrimary === true && pointers.size) forget();
     if (!pointers.size) { moved = false; blockClick = false; }
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     gesture = center();
@@ -69,6 +77,11 @@ export function attachBoardCamera(board) {
   };
   listen(window, 'pointerup', finish, true);
   listen(window, 'pointercancel', finish, true);
+  // A drag that loses its capture without an up (node replaced, system gesture) ends here.
+  listen(board, 'lostpointercapture', e => {
+    if (!pointers.delete(e.pointerId) || pointers.size) return;
+    gesture = null; board.classList.remove('camera-dragging');
+  });
   listen(board, 'click', e => {
     if (!blockClick || e.detail === 0) return;
     blockClick = false; e.preventDefault(); e.stopImmediatePropagation();
@@ -78,10 +91,14 @@ export function attachBoardCamera(board) {
     const point = { x: e.clientX, y: e.clientY };
     transform(point,point,Math.exp(-clamp(e.deltaY * (e.deltaMode===1?16:e.deltaMode===2?300:1),-150,150)*.002));
   }, { passive: false });
-  listen(window, 'blur', () => {
-    pointers.clear(); gesture=null; board.classList.remove('camera-dragging');
+  const release = () => {
+    forget();
     board.dispatchEvent(new CustomEvent('board-camera-gesture', { bubbles:true }));
-  });
+  };
+  listen(window, 'blur', release);
+  // Leaving the page (app switch, lock) can swallow the up of a contact that was down.
+  const doc = board.ownerDocument;
+  if (doc) listen(doc, 'visibilitychange', () => { if (doc.visibilityState === 'hidden') release(); });
   const observer = new ResizeObserver(paint); observer.observe(board); paint();
   const dispose = () => { observer.disconnect(); lifetime.abort(); pointers.clear(); };
   listen(window, 'pagehide', dispose, { once:true });

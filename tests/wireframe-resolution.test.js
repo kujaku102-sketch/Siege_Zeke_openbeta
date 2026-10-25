@@ -139,3 +139,52 @@ test('a re-render keeps what a scene set on its own node (canvas size, WebGL tag
   syncAttributes(plain, node({ class: 'a' }));
   assert.deepEqual([plain.getAttribute('class'), plain.hasAttribute('title')], ['a', false]);
 });
+
+test('board camera: a lost pointer no longer blocks taps; two fingers and a drag still stop the click', () => {
+  const oldWindow = globalThis.window, oldObserver = globalThis.ResizeObserver;
+  globalThis.window = new EventTarget();
+  globalThis.ResizeObserver = class { observe() {} disconnect() {} };
+  const board = Object.assign(new EventTarget(), {
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 450 }), setAttribute() {},
+    classList: { add() {}, remove() {} }, setPointerCapture() {}, hasPointerCapture: () => false, releasePointerCapture() {}
+  });
+  let reached = 0;
+  const pointer = (type, target, props) => target.dispatchEvent(Object.assign(new Event(type, { cancelable: true }),
+    { button: 0, clientX: 100, clientY: 100, ...props }));
+  const tap = (pointerId, x = 100, y = 100) => {
+    pointer('pointerdown', board, { pointerId, isPrimary: true, clientX: x, clientY: y });
+    pointer('pointerup', window, { pointerId, isPrimary: true, clientX: x, clientY: y });
+    board.dispatchEvent(Object.assign(new Event('click', { cancelable: true }), { detail: 1 }));
+  };
+  try {
+    const camera = attachBoardCamera(board);
+    board.addEventListener('click', () => { reached += 1; });
+    tap(1);
+    assert.equal(reached, 1, 'a plain tap passes');
+    // A pointer whose up never reached the window (synthetic, not primary), then real taps.
+    pointer('pointerdown', board, { pointerId: 77, isPrimary: false });
+    tap(2); tap(3);
+    assert.equal(reached, 3, 'taps after a lost pointer pass');
+    // Two fingers: the second contact is not primary, so the click is still stopped.
+    pointer('pointerdown', board, { pointerId: 4, isPrimary: true });
+    pointer('pointerdown', board, { pointerId: 5, isPrimary: false, clientX: 200 });
+    pointer('pointerup', window, { pointerId: 5 }); pointer('pointerup', window, { pointerId: 4 });
+    board.dispatchEvent(Object.assign(new Event('click', { cancelable: true }), { detail: 1 }));
+    assert.equal(reached, 3, 'a pinch does not select');
+    tap(6);
+    assert.equal(reached, 4, 'the next tap after a pinch passes');
+    // A drag of 7px or more moves the camera instead of selecting.
+    pointer('pointerdown', board, { pointerId: 7, isPrimary: true });
+    pointer('pointermove', board, { pointerId: 7, isPrimary: true, clientX: 130, clientY: 110 });
+    pointer('pointerup', window, { pointerId: 7, clientX: 130, clientY: 110 });
+    board.dispatchEvent(Object.assign(new Event('click', { cancelable: true }), { detail: 1 }));
+    assert.equal(reached, 4, 'a drag does not select');
+    // A capture lost mid-drag ends that drag, so the next tap is a tap.
+    pointer('pointerdown', board, { pointerId: 8, isPrimary: true });
+    pointer('pointermove', board, { pointerId: 8, isPrimary: true, clientX: 140, clientY: 110 });
+    pointer('lostpointercapture', board, { pointerId: 8 });
+    tap(9);
+    assert.equal(reached, 5);
+    camera.dispose();
+  } finally { globalThis.window = oldWindow; globalThis.ResizeObserver = oldObserver; }
+});
