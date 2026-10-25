@@ -237,3 +237,11 @@ test("a tap on an occupied slot answers a slot request, and a card request still
   const cardOnly = { requestId: "q", options: [{ optionId: "c", targets: [{ kind: "card", cardRef: ref }] }] };
   assert.deepEqual(run(cardOnly, request([{ optionId: "c", cardRef: ref }])), [{ kind: "card", cardRef: ref }]);
 });
+
+test("opening protocol v2.4 is opt-in by URL and only for the AI mode; the redraw pick has its own wording", async () => {
+  const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.ok(main.includes("mode === 'ai' && new URLSearchParams(location.search).get('opening') === 'v2.4' ? {openingProtocol:'v2.4'} : {}"));
+  assert.ok(main.includes("gameOptions:{\n    ...opening,mode,tutorialId,"));
+  const { presentationLabel } = await import("../src/ui-refresh/choice-read-view.js");
+  assert.equal(presentationLabel("opening-mulligan"), "引き直すカードを選択");
+});

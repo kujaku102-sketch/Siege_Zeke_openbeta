@@ -111,3 +111,18 @@ test('opening decisions are named: own keep, own redraw, and the opponent decisi
   assert.ok(row('o2').includes('>OPENING<') && row('o2').includes('<p>開始手札の決定</p>'));
   assert.ok(!html.includes('keepOpeningHand') && !html.includes('openingDecision') && !html.includes('>ACTION<'));
 });
+
+test('opening rows sit under their own divider and the first turn starts its own after the last decision', () => {
+  const html = runtimeLogHtml([
+    { eventId: 'p1', commandId: 'c1', type: 'action_committed', actionType: 'openingMulligan', turnNumber: 1, actorSeat: 'seat-a' },
+    { eventId: 'p2', commandId: 'c1', type: 'card_moved', turnNumber: 1, actorSeat: 'seat-a', source: sam, target: sam, from: { kind: 'zone', seatId: 'seat-a', zone: 'hand' }, to: { kind: 'unobserved' } },
+    { eventId: 'p3', commandId: 'c2', type: 'action_committed', actionType: 'openingDecision', turnNumber: 1, actorSeat: 'seat-b' },
+    { eventId: 'p4', commandId: 'c2', type: 'turn_started', turnNumber: 1, actorSeat: 'seat-b' },
+    { eventId: 'p5', commandId: 'c2', type: 'card_moved', turnNumber: 1, actorSeat: 'seat-b', target: mika, from: { kind: 'unobserved' }, to: { kind: 'zone', seatId: 'seat-b', zone: 'hand' } }
+  ], 'seat-a');
+  const at = text => html.indexOf(text);
+  assert.ok(at('OPENING</b>') >= 0 && at('OPENING</b>') < at('data-event-id="p1"'));
+  assert.ok(at('data-event-id="p3"') < at('TURN 01'), 'the decisions come before the first turn divider');
+  assert.ok(at('TURN 01') < at('data-event-id="p4"') && at('data-event-id="p4"') < at('data-event-id="p5"'));
+  assert.equal(html.split('class="r2-log-turn').length - 1, 2, 'one OPENING divider and one TURN divider');
+});

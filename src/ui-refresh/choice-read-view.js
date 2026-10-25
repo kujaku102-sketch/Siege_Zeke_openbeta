@@ -6,7 +6,8 @@ const PRESENTATION_LABELS = {
   'execution-destination': '配置先を選択', 'execution-placement': '配置先を選択',
   'attack-target': '攻撃対象を選択', 'execution-targets': '効果の対象を選択',
   'card-effect': '起動する効果を選択', 'effect-destination': '移動先を選択',
-  'layered-materials': 'レイヤードの素材を選択', 'trigger-order': '解決順を選択'
+  'layered-materials': 'レイヤードの素材を選択', 'trigger-order': '解決順を選択',
+  'opening-mulligan': '引き直すカードを選択'
 };
 export const presentationLabel = key => PRESENTATION_LABELS[key] ?? '選択';
 // Slot-only requests are answered on the board itself, as before the runtime split.
@@ -44,7 +45,8 @@ export function selectionRequestHtml(request, { cards = [], answer = null, cardH
       .map(option => `${option.zone.toUpperCase()} ${option.slot}`).join('、');
     return `<section class="effect-dialog board-slot-request" data-request-id="${esc(request.requestId)}"><header><h2>${esc(requestTitle(request))}</h2></header><p role="status">${chosen ? `選択中：${esc(chosen)}` : '盤面の明るいマスを選択'}</p></section>`;
   }
-  const instructions = c.kind === 'random' ? 'ランダム選択：続行で確定'
+  const instructions = request.presentationKey === 'opening-mulligan' ? `${selected.size} ／ ${c.minimum}〜${c.maximum}枚 ・ 戻るとキープに戻れます`
+    : c.kind === 'random' ? 'ランダム選択：続行で確定'
     : isSinglePick(request) ? (c.minimum === 0 ? '1枚選ぶとすぐ決定（選ばないことも可）' : '1枚選ぶとすぐ決定')
     : c.kind === 'allocation' ? `合計 ${c.total} ／ 現在 ${(answer?.allocation ?? []).reduce((sum, row) => sum + row.amount, 0)}`
     : `${selected.size} ／ ${c.minimum}〜${c.maximum}枚${c.aggregate ? ` ・ 合計${c.aggregate.comparator}${c.aggregate.value}` : ''}`;

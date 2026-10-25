@@ -84,10 +84,12 @@ function attachSession(next) {
 }
 function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.getRandomValues(new Uint32Array(1))[0]) {
   const saved = id => host.savedDecks.find(deck => `custom:${deck.id}` === id), player = saved(host.playerDeckId), ai = saved(host.aiDeckId);
+  // Opening protocol v2.4 (keep / redraw before the first turn, dice for the first player) is opt-in by URL until it becomes the default.
+  const opening = mode === 'ai' && new URLSearchParams(location.search).get('opening') === 'v2.4' ? {openingProtocol:'v2.4'} : {};
   if (mode !== 'tutorial') {const invalid = [player,ai].find(deck => deck && !validateDeck(deck).valid);
     if (invalid) {host.deckBuilder.open = true;host.deckBuilder.draft = structuredClone(invalid);host.notice = `「${invalid.name}」は構築規定の修正が必要です。`;renderShell();return {ok:false,error:{code:'INVALID_DECK'}};}}
   const result = lifecycle.start({matchId:crypto.randomUUID(),seatIds:['player','ai'],seed,ruleVersion:'2.0-public-staging.11',cardVersion:'beta0.9.1',gameOptions:{
-    mode,tutorialId,playerDeckId:mode === 'tutorial' ? 'red' : player ? 'red' : host.playerDeckId,aiDeckId:mode === 'tutorial' ? 'yellow' : ai ? 'yellow' : host.aiDeckId,
+    ...opening,mode,tutorialId,playerDeckId:mode === 'tutorial' ? 'red' : player ? 'red' : host.playerDeckId,aiDeckId:mode === 'tutorial' ? 'yellow' : ai ? 'yellow' : host.aiDeckId,
     playerDeckRecipe:mode === 'tutorial' ? null : player ? deckToRecipe(player) : null,aiDeckRecipe:mode === 'tutorial' ? null : ai ? deckToRecipe(ai) : null,
     playerUserId:mode === 'tutorial' ? 'doors_zx' : player?.userId ?? host.playerUserId,aiUserId:mode === 'tutorial' ? 'doors_zx' : ai?.userId ?? host.aiUserId,sandboxDeckSetup:mode === 'sandbox'}});
   if (result.ok) {host.mode = mode;host.tutorialId = tutorialId;attachSession(result.value);} else notice(result.error.code);

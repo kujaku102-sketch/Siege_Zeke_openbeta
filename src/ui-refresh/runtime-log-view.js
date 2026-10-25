@@ -103,6 +103,10 @@ const badgeHtml = badge => badge.tone === 'str'
 
 const turnDivider = (turnNumber, side) => `<div class="r2-log-turn ${side}"><b>TURN ${esc(String(turnNumber).padStart(2, '0'))}</b>${side === 'is-you' ? 'YOU' : 'OPPONENT'}</div>`;
 
+// Before the first turn the users keep or redraw in turn; those rows sit under their own divider, not under the first TURN.
+const OPENING_ACTIONS = new Set(['openingMulligan', 'keepOpeningHand', 'openingDecision']);
+const openingDivider = '<div class="r2-log-turn is-system"><b>OPENING</b>開始前</div>';
+
 const triggerKeywords = { logout: 'ログアウト', login: 'ログイン' };
 // Regex literals, not `new RegExp` strings: the doubled backslashes a string needs read as a UNC path to the public build check.
 const triggerOpeners = { logout: /[\[［]ログアウト[\]］]/, login: /[\[［]ログイン[\]］]/ };
@@ -136,12 +140,19 @@ export function runtimeLogBodyHtml(events, viewerSeat, freshIds = new Set()) {
   let previousTurn = null;
   let head = null;
   let thread = null;
+  const openingCommands = new Set(events.filter(event => event.type === 'action_committed' && OPENING_ACTIONS.has(event.actionType)).map(event => event.commandId));
+  const started = new Set();
   for (const event of events) {
     // Inside a thread the effect line already says what runs; the wait/resolve pairs are noise.
     if (thread && (event.type === 'choice_required' || event.type === 'choice_resolved')) continue;
     // What was picked shows in the rows that follow, so the answer itself is not logged.
     if (event.type === 'action_committed' && event.actionType === 'answerChoice') continue;
-    if (event.turnNumber !== previousTurn) {
+    if (event.type === 'turn_started') started.add(event.commandId);
+    // The last decision's command also starts turn 1: its rows from turn_started on belong to the turn.
+    const opening = openingCommands.has(event.commandId) && !started.has(event.commandId);
+    if (opening) {
+      if (previousTurn !== 'opening') { html += openingDivider; previousTurn = 'opening'; }
+    } else if (event.turnNumber !== previousTurn) {
       // The divider names whose turn it is; the ending player's last row can lead the new turn.
       const turnSeat = events.find(item => item.turnNumber === event.turnNumber && item.type === 'turn_started')?.actorSeat ?? event.actorSeat;
       html += turnDivider(event.turnNumber, turnSeat === viewerSeat ? 'is-you' : 'is-opponent');
