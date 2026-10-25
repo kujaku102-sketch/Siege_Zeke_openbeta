@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from './src/index.js';
 
-const store = () => { const items = new Map(); return { items, put: async (key, value, options) => { items.set(key, { value, options }); } }; };
+const store = () => { const items = new Map(); return { items, get: async key => items.get(key)?.value ?? null, put: async (key, value, options) => { items.set(key, { value, options }); } }; };
 const log = { kind: 'siege-zeke.match-log', schemaVersion: 1, matchId: 'abc-123', endedAt: '2026-10-23T20:00:00.000Z',
   mode: 'ai', result: 'you', turns: 9, players: { you: {}, opponent: {} }, log: [] };
 const post = (body, origin = 'https://siegezeke.online') => new Request('https://log.siegezeke.online/match-logs',
@@ -48,7 +48,7 @@ test('metadata stays small and typed, and a KV failure answers 503 with CORS ins
   const env = { MATCH_LOGS: store() };
   assert.equal((await worker.fetch(post({ ...log, mode: 'x'.repeat(5000), result: { a: 1 }, turns: 'many' }), env)).status, 204);
   assert.deepEqual(env.MATCH_LOGS.items.get('log/2026-10-23/abc-123').options.metadata, { mode: null, result: null, turns: null });
-  const failing = { MATCH_LOGS: { put: async () => { throw new Error('KV put failed'); } } };
+  const failing = { MATCH_LOGS: { get: async () => null, put: async () => { throw new Error('KV put failed'); } } };
   const response = await worker.fetch(post(log), failing);
   assert.equal(response.status, 503);
   assert.equal(response.headers.get('access-control-allow-origin'), 'https://siegezeke.online');
@@ -70,4 +70,19 @@ test('a body without content-length is cut off at the cap, and a refused origin 
   assert.equal(refused.status, 403);
   assert.equal(refused.headers.get('access-control-allow-origin'), null);
   assert.equal((await worker.fetch(new Request('https://log.siegezeke.online/other'), env)).headers.get('access-control-allow-origin'), null);
+});
+
+test('the first log kept for a match stays: the same body again is a success, a different one is a 409', async () => {
+  const env = { MATCH_LOGS: store() };
+  assert.equal((await worker.fetch(post(log), env)).status, 204);
+  const key = 'log/2026-10-23/abc-123', first = env.MATCH_LOGS.items.get(key);
+  assert.equal((await worker.fetch(post(log), env)).status, 204, 'a resend after a lost answer');
+  const changed = await worker.fetch(post({ ...log, turns: 99 }), env);
+  assert.equal(changed.status, 409);
+  assert.equal(changed.headers.get('access-control-allow-origin'), 'https://siegezeke.online');
+  assert.equal(env.MATCH_LOGS.items.get(key), first, 'the stored entry was not replaced');
+  assert.equal((await worker.fetch(post({ ...log, matchId: 'other-match' }), env)).status, 204);
+  assert.equal(env.MATCH_LOGS.items.size, 2);
+  const unreadable = { MATCH_LOGS: { get: async () => { throw new Error('KV get failed'); }, put: async () => { throw new Error('must not write'); } } };
+  assert.equal((await worker.fetch(post(log), unreadable)).status, 503);
 });

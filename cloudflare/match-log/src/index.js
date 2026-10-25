@@ -61,9 +61,15 @@ export default {
     let log;
     try { log = JSON.parse(text); } catch { return reply(400, allowed); }
     if (!validLog(log)) return reply(422, allowed);
-    // One key per match, grouped by the day it ended; a resend of the same match overwrites it.
+    // One key per match, grouped by the day it ended. The first log kept for a key stays: the same body
+    // again (the game resending after a lost answer) is just a success, a different body is a 409.
+    // KV is eventually consistent and get-then-put is not atomic, so this narrows overwrites, it cannot forbid them.
     const key = `log/${log.endedAt.slice(0, 10)}/${log.matchId}`;
-    try { await env.MATCH_LOGS.put(key, text, { metadata: metadataOf(log) }); } catch { return reply(503, allowed); }
+    try {
+      const kept = await env.MATCH_LOGS.get(key);
+      if (kept !== null && kept !== undefined) return reply(kept === text ? 204 : 409, allowed);
+      await env.MATCH_LOGS.put(key, text, { metadata: metadataOf(log) });
+    } catch { return reply(503, allowed); }
     return reply(204, allowed);
   }
 };
