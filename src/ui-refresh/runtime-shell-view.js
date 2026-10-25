@@ -20,7 +20,7 @@ const entryIcon = (kind) => {
 };
 function entryHtml(view, effectsEnabled = true) {
   return `<section class="r2-entry" aria-label="モード選択"><div class="r2-entry-inner"><div class="r2-intro"><h1><img src="${effectsEnabled ? entryLogo : entryStaticLogo}" alt="Siege÷Zeke" data-logo-static="${!effectsEnabled}"><canvas class="r2-logo-canvas" aria-hidden="true"></canvas></h1></div>
-    <nav class="r2-mode-grid" aria-label="始めるモード"><button data-mode="tutorial">${entryIcon("tutorial")}<strong>チュートリアル</strong></button><button data-mode="ai">${entryIcon("ai")}<strong>AI対戦</strong></button><button data-mode="sandbox">${entryIcon("sandbox")}<strong>実験場</strong></button><button data-deck class="r2-deck-entry">${entryIcon("deck")}<strong>デッキ構築</strong></button></nav>
+    <nav class="r2-mode-grid" aria-label="始めるモード"><button data-mode="tutorial" data-flow="open-tutorials">${entryIcon("tutorial")}<strong>チュートリアル</strong></button><button data-mode="ai" data-flow="open-battle">${entryIcon("ai")}<strong>対戦</strong></button><button data-mode="sandbox">${entryIcon("sandbox")}<strong>実験場</strong></button><button data-deck class="r2-deck-entry">${entryIcon("deck")}<strong>デッキ構築</strong></button></nav>
     </div></section>`;
 }
 

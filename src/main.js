@@ -9,6 +9,8 @@ import { patchHtml } from './ui-refresh/dom-patch.js';
 import { isIosWebKit, readSavedView, resolveView, saveView } from './ui-refresh/model.js';
 import { RENDER_STORAGE_KEY, readRenderPreference, resolveRenderMode, urlRenderPreference, urlRenderScale } from './ui-refresh/render-mode.js';
 import { renderQualityFor } from './ui-refresh/wireframe/render-resolution.js';
+import { escapeScreen, nextScreen } from './ui-refresh/screen-flow.js';
+import { markTutorialDone, readTutorialDone } from './ui-refresh/tutorial-items.js';
 import { isFullscreen, toggleFullscreen } from './ui-refresh/fullscreen.js';
 import { syncEntryLogoGlitch } from './ui-refresh/entry-logo-glitch.js';
 import { syncEntryCrtViewport } from './ui-refresh/entry-crt-viewport.js';
@@ -40,7 +42,7 @@ const host = {screen:'entry',mode:'sandbox',tutorialId:'basics',
   options:false,notice:'',storedCounts:storedCounts(),sendMatchLogs:localStorage.getItem(SEND_LOGS_STORAGE_KEY) === 'on',tapDetails:true,effectsEnabled:localStorage.getItem(EFFECTS_STORAGE_KEY) === "on",
   masterVolume:Math.max(0,Math.min(10,Number.parseInt(localStorage.getItem('sz-master-volume') ?? '7',10) || 0)),
   logoNoiseProfile:localStorage.getItem('sz-logo-noise-profile') || 'random',logoVideoName:'',actor:'player',opponentControl:'manual',
-  catalogOpen:false,catalog:{query:'',expansion:'all',catalogOwner:'player'}};
+  catalogOpen:false,catalog:{query:'',expansion:'all',catalogOwner:'player'},tutorialDone:readTutorialDone(globalThis.localStorage)};
 let surface = null, session = null, screenRendered = null, entryLogoVideoFile = null;
 let shellGeneration = 0, adminSerial = 0, press = null, suppressDeckClickUntil = 0;
 installAbilityHelp(root);
@@ -72,6 +74,8 @@ function renderShell(replace = false) {
   else {
     const template = document.createElement('template');template.innerHTML = html;
     patchHtml(root.querySelector('[data-shell-overlays]'),template.content.querySelector('[data-shell-overlays]').innerHTML);
+    const flow = root.querySelector('[data-flow-screen]'), nextFlow = template.content.querySelector('[data-flow-screen]');
+    if (flow && nextFlow) patchHtml(flow,nextFlow.innerHTML);
     const entry = root.querySelector('.r2-entry img'), next = template.content.querySelector('.r2-entry img');
     if (entry && next) entry.src = next.src;
     root.querySelector('.r2-content')?.setAttribute('data-effects',host.effectsEnabled ? 'on' : 'off');
@@ -119,9 +123,22 @@ function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.
   if (result.ok) {host.mode = mode;host.tutorialId = tutorialId;attachSession(result.value);} else notice(result.error.code);
   return result;
 }
-function replaceTutorial(complete) {const result = complete ? lifecycle.completeTutorial() : lifecycle.skipTutorial();
+// A finished tutorial is marked in this browser and returns to the list (V092-08 Q4, Q5);
+// a skipped one stays unfinished and goes on to the sandbox as before.
+function replaceTutorial(complete) {
+  if (complete) {host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);return leaveMatch(nextScreen('game','tutorial-complete'));}
+  const result = lifecycle.skipTutorial();
   if (!result.ok) return notice(result.error.code);host.mode = 'sandbox';host.opponentControl = 'manual';attachSession(result.value);}
-function leaveMatch() {lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = 'entry';host.options = false;host.catalogOpen = false;renderShell(true);}
+function leaveMatch(screen = nextScreen('game','leave')) {lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = screen;host.options = false;host.catalogOpen = false;renderShell(true);
+  if (screen !== 'entry') root.querySelector('[data-flow-back]')?.focus({preventScroll:true});}
+// Entry flow screens move by their own buttons and Escape only, never by the browser history (Q14).
+// Focus follows the move (a re-render drops it to the body, out of reach of Escape): a flow screen
+// starts on its [戻る], the title on the button that opened the screen just left.
+function goTo(screen) {if (!screen) return;const from = host.screen;host.screen = screen;host.options = false;host.catalogOpen = false;host.notice = '';renderShell();
+  const opener = {'tutorial-select':'[data-flow="open-tutorials"]','battle-setup':'[data-flow="open-battle"]'}[from];
+  root.querySelector(screen === 'entry' ? opener ?? '[data-mode]' : '[data-flow-back]')?.focus({preventScroll:true});}
+// Online play (P02B) will connect here; until then its button is marked 準備中 and does nothing.
+function onOnlineBattle() {}
 function newDeckDraft() {host.deckBuilder.draft = normalizeSavedDeck({name:'新規デッキ',userId:'doors_zx',cards:{}},'');}
 function admin(action) {
   if (!session) return {ok:false,error:{code:'MATCH_UNAVAILABLE'}};
@@ -141,6 +158,11 @@ root.addEventListener('click',event => {
   if (event.target.closest('[data-match-root]') || event.target.closest('[data-ability-help]')) return;
   const button = event.target.closest('button');if (!button) return;
   const d = button.dataset, deck = host.deckBuilder;
+  // The title's tutorial and battle buttons keep data-mode for the CRT and old links but open their screens.
+  if (d.flow) return goTo(nextScreen(host.screen,d.flow));
+  if (button.hasAttribute('data-flow-back')) return goTo(nextScreen(host.screen,'back'));
+  if (d.start) return startMatch(d.start,d.start === 'tutorial' ? d.tutorialId : host.tutorialId);
+  if (button.hasAttribute('data-online-battle')) return onOnlineBattle();
   if (d.mode) return startMatch(d.mode);
   if (d.view) {host.view = d.view;saveView(localStorage,d.view);surface?.configure({view:d.view});return renderShell();}
   if (d.live === 'options') host.options = true;
@@ -209,7 +231,10 @@ root.addEventListener('pointerdown',event => {const tile = event.target.closest(
     suppressDeckClickUntil = performance.now()+800;host.deckBuilder.detailId = tile.dataset.deckCardId ?? tile.dataset.deckSummaryId;renderShell();clearPress();},480)};});
 root.addEventListener('pointermove',event => {if (press && Math.hypot(event.clientX-press.x,event.clientY-press.y)>8) clearPress();});
 for (const name of ['pointerup','pointercancel','pointerleave']) root.addEventListener(name,clearPress);
-root.addEventListener('keydown',event => {if (event.key === 'Escape' && !event.target.closest('[data-match-root]')) {host.options = false;host.deckBuilder.detailId = null;renderShell();}});
+root.addEventListener('keydown',event => {if (event.key === 'Escape' && !event.target.closest('[data-match-root]')) {
+  const back = escapeScreen(host.screen,{overlayOpen:host.options || host.deckBuilder.open || host.catalogOpen});
+  if (back) return goTo(back);
+  host.options = false;host.deckBuilder.detailId = null;renderShell();}});
 window.addEventListener('pagehide',() => {clearPress();mobileViewport.dispose();lifecycle.dispose();surface = null;session = null;});
 window.addEventListener('pageshow',event => {if (event.persisted) location.reload();});
 renderShell(true);registerPwa();

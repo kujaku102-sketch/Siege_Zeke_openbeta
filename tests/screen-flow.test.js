@@ -155,3 +155,34 @@ test('battle setup: saved decks are offered, one that needs fixing cannot be pic
   assert.match(shell, /<option value="custom:bad"\s+disabled>保存: BAD（要修正）<\/option>/, 'a deck that needs fixing is disabled');
   assert.ok(!runtimeShellHtml(entryHost({ screen: 'entry' })).includes('data-flow-screen'), 'the title draws no flow screen');
 });
+
+test('title: the tutorial and battle buttons open their screens; the battle button reads 対戦; sandbox still starts', () => {
+  const title = runtimeShellHtml(entryHost());
+  assert.ok(title.includes('<button data-mode="tutorial" data-flow="open-tutorials">'));
+  assert.ok(title.includes('<button data-mode="ai" data-flow="open-battle">'));
+  assert.ok(title.includes('<strong>対戦</strong>') && !title.includes('AI対戦'));
+  assert.ok(title.includes('<button data-mode="sandbox">'), 'the sandbox has no flow screen');
+});
+
+test('main wiring: flow buttons before title modes, Escape and [戻る] through the table, no browser history', async () => {
+  const main = await readSource('../src/main.js');
+  const click = main.slice(main.indexOf("root.addEventListener('click'"));
+  assert.ok(click.indexOf('if (d.flow) return goTo(nextScreen(host.screen,d.flow));') < click.indexOf('if (d.mode) return startMatch(d.mode);'), 'data-flow wins over data-mode');
+  assert.ok(click.includes("if (button.hasAttribute('data-flow-back')) return goTo(nextScreen(host.screen,'back'));"));
+  assert.ok(click.includes("if (d.start) return startMatch(d.start,d.start === 'tutorial' ? d.tutorialId : host.tutorialId);"));
+  assert.ok(click.includes("if (button.hasAttribute('data-online-battle')) return onOnlineBattle();"));
+  assert.ok(main.includes('function onOnlineBattle() {}'), 'online play is not connected');
+  assert.ok(main.includes('const back = escapeScreen(host.screen,{overlayOpen:host.options || host.deckBuilder.open || host.catalogOpen});'));
+  for (const source of [main, await readSource('../src/ui-refresh/screen-flow.js'), await readSource('../src/ui-refresh/runtime-shell-view.js')])
+    assert.ok(!/pushState|replaceState|popstate|location\.hash/.test(source), 'no history API (Q14)');
+});
+
+test('main wiring: a finished tutorial is marked and returns to the list; a skipped one goes to the sandbox unfinished', async () => {
+  const main = await readSource('../src/main.js');
+  const replace = main.slice(main.indexOf('function replaceTutorial(complete) {'), main.indexOf('function leaveMatch('));
+  assert.ok(replace.includes("if (complete) {host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);return leaveMatch(nextScreen('game','tutorial-complete'));}"));
+  assert.ok(replace.includes('lifecycle.skipTutorial()') && replace.includes("host.mode = 'sandbox'"));
+  assert.ok(!replace.includes('markTutorialDone(globalThis.localStorage,host.tutorialId);host.mode'), 'skipping marks nothing');
+  assert.ok(main.includes("function leaveMatch(screen = nextScreen('game','leave'))"));
+  assert.ok(main.includes('tutorialDone:readTutorialDone(globalThis.localStorage)'));
+});

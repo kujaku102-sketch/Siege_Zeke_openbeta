@@ -78,7 +78,10 @@ async function choose(page,request,query,preference) {
 }
 async function settle(page,{decline=false,checkBack=false}={}) {
   for (let index=0;index<50;index+=1) {
-    const result=await read(page);if (!result.ok) throw new Error(JSON.stringify(result));
+    const result=await read(page);
+    // The last step finishes the tutorial, which leaves the match for the list (checked by completionReturnsToList).
+    if (!result.ok && result.error?.code==='MATCH_UNAVAILABLE' && await page.locator('[data-flow-screen="tutorial-select"]').count()) return;
+    if (!result.ok) throw new Error(JSON.stringify(result));
     const query=result.value,input=query.requiredInput;
     if (!input) return;
     if (!input.canAnswer) {await page.waitForFunction(() => {const input=window.__SIMPLE_ZEKE_E2E__.query().value?.requiredInput;return !input || input.canAnswer;});continue;}
@@ -106,7 +109,8 @@ async function action(page,type,id,preference={}) {
   }
   await clickVisible(page,'[data-action-id="'+entry.actionId+'"]');
   if (entry.kind === 'fixed') return;
-  const selections=[],moved=async () => (await read(page)).value.status.revision!==query.status.revision;
+  // No match left also counts as moved: the last step finishes the tutorial and leaves for the list.
+  const selections=[],moved=async () => {const result=await read(page);return !result.ok || result.value.status.revision!==query.status.revision;};
   for (let index=0;index<6;index+=1) {
     // A finished plan is submitted by the UI itself; a pick that completes it ends the action.
     if (await moved()) return;
@@ -140,19 +144,19 @@ async function step(page,id,index) {
   // The focus marks are placed by the frame-coalesced layout, one frame after the guide text changes.
   await page.locator('.live-focus[data-tutorial-focus-label]').first().waitFor({state:'attached',timeout:3000}).catch(() => {throw new Error('tutorial focus missing at '+id+':'+index);});
 }
-async function freshCompletion(page,old) {
-  await page.waitForFunction(matchId => window.__SIMPLE_ZEKE_E2E__.scope()?.matchId !== matchId,old.matchId);
-  const scope=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.scope()),query=(await read(page)).value;
-  if (scope.sessionGeneration<=old.sessionGeneration || query.status.revision!==0 || query.requiredInput || query.observation.seats.some(seat => seat.front.cards.length || seat.back.cards.length || seat.trash.cards.length)) throw new Error('tutorial completion carried old match');
-  await action(page,'endTurn');
-  if ((await read(page)).value.status.activeSeat===query.status.activeSeat) throw new Error('fresh sandbox end-turn unavailable');
+// V092-08 Q4/Q5: a finished tutorial leaves the match for the tutorial list, marked done in this browser.
+async function completionReturnsToList(page,id) {
+  await page.locator('[data-flow-screen="tutorial-select"]').waitFor({state:'visible',timeout:10000});
+  const state=await page.evaluate(id => ({scope:window.__SIMPLE_ZEKE_E2E__.scope(),done:document.querySelector(`[data-tutorial-item="${id}"]`)?.dataset.done,
+    saved:JSON.parse(localStorage.getItem('sz-tutorial-done') ?? '[]'),board:Boolean(document.querySelector('[data-live-region="board"]'))}),id);
+  if (state.scope!==null || state.board) throw new Error('tutorial completion kept the match');
+  if (state.done!=='true' || !state.saved.includes(id)) throw new Error('tutorial completion not marked: '+JSON.stringify(state));
 }
 async function run(page,id) {
   const target=new URL(url);target.searchParams.set('e2e','1');
   await page.goto(target.toString(),{waitUntil:'networkidle'});
   await page.waitForFunction(() => document.body.classList.contains('boot-done') && !document.querySelector('#boot-splash'), null, {timeout:10000});
   await page.evaluate(id => window.__SIMPLE_ZEKE_E2E__.start('tutorial',id,1),id);
-  const old=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.scope());
   await intro(page,id);
   if (id==='basics') {
     await step(page,id,1);await action(page,'install','STD-076');
@@ -173,7 +177,7 @@ async function run(page,id) {
     await step(page,id,5);await action(page,'executeCard','STD-192',{zone:'front'});await settle(page);
     await step(page,id,6);await action(page,'activateCardEffect','STD-192',{targetId:'STD-194',zone:'back'});await settle(page);
   }
-  await freshCompletion(page,old);
+  await completionReturnsToList(page,id);
 }
 const playwright=await loadPlaywright(),{chromium}=playwright.default ?? playwright;
 const browser=await chromium.launch({channel:'msedge',headless:true}),runs=[],errors=[];
@@ -197,5 +201,5 @@ try {
     await page.close();
   }
   if (errors.length) throw new Error('tutorial page errors: '+errors.join(' | '));
-  console.log(JSON.stringify({suite:'tutorial',runs,freshCompletion:true,freshSkip:true,requiredBackPreserves:true,keyboardMode,ok:true}));
+  console.log(JSON.stringify({suite:'tutorial',runs,completionReturnsToList:true,freshSkip:true,requiredBackPreserves:true,keyboardMode,ok:true}));
 } finally {await browser.close();}

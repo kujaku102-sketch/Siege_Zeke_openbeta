@@ -1,11 +1,13 @@
 /* V092-08 entry flow: the title links and the screens between the title and a match.
    Relative sizes only (rem / dvh / vw / % / clamp); no px here. 2.75rem is the 44 CSS px tap floor. */
 
-/* Download / Discord: outside the 7:5 title stage and the CRT canvas, bottom right. */
+/* Download / Discord: outside the 7:5 title stage and the CRT canvas, bottom right. The column is as
+   wide as the black margin beside the stage (min(100vw,140dvh) wide), wrapping its text to fit;
+   only a near-4:3 screen with no margin lets it reach over the stage's corner. */
 .r2-title-links { position:fixed; z-index:24; right:calc(.5rem + env(safe-area-inset-right,0rem)); bottom:calc(.5rem + env(safe-area-inset-bottom,0rem));
-  display:flex; flex-direction:column; align-items:flex-end; gap:.25rem; max-width:calc(100vw - 1rem); }
-.r2-title-link { display:inline-flex; align-items:center; gap:.5em; min-height:2.75rem; padding:0 .7em; border:.0625rem solid #00ff0080; background:#000000d9;
-  color:#00ff00; font:400 clamp(.75rem,2.2dvh,.95rem)/1.2 SZDotGothic,"Yu Gothic UI",sans-serif; text-decoration:none; white-space:nowrap; }
+  display:flex; flex-direction:column; align-items:stretch; gap:.25rem; width:max(7rem,min(16rem,calc((100vw - min(100vw,140dvh)) / 2 - 1rem))); }
+.r2-title-link { display:flex; flex-wrap:wrap; align-items:center; column-gap:.5em; min-height:2.75rem; box-sizing:border-box; padding:.2em .6em; border:.0625rem solid #00ff0080; background:#000000d9;
+  color:#00ff00; font:400 clamp(.7rem,2.2dvh,.95rem)/1.2 SZDotGothic,"Yu Gothic UI",sans-serif; text-decoration:none; overflow-wrap:anywhere; }
 .r2-title-link:focus-visible { outline:.125rem solid #00ff00; outline-offset:.125rem; }
 .r2-title-link.is-pending { border-color:#4a4a4a; color:#8a8a8a; cursor:default; }
 .r2-title-link small { font-size:.8em; color:#6f6f6f; }
@@ -15,7 +17,7 @@
 .r2-content:has(.r2-flow) { background:#000; }
 .r2-flow { position:fixed; inset:0; z-index:5; overflow:auto; overscroll-behavior:contain; box-sizing:border-box;
   padding:calc(.75rem + env(safe-area-inset-top,0rem)) calc(.75rem + env(safe-area-inset-right,0rem)) calc(.75rem + env(safe-area-inset-bottom,0rem)) calc(.75rem + env(safe-area-inset-left,0rem));
-  background:#000; color:#111820; font:400 clamp(.875rem,2.6dvh,1.125rem)/1.45 "Yu Gothic UI",sans-serif; }
+  background:#000; color:#111820; color-scheme:light; font:400 clamp(.875rem,2.6dvh,1.125rem)/1.45 "Yu Gothic UI",sans-serif; }
 .r2-flow-sheet { box-sizing:border-box; width:min(100%,140dvh,64rem); min-height:100%; margin:0 auto; padding:clamp(.75rem,3dvh,2rem) clamp(.75rem,3vw,2.5rem); background:#fff; }
 .r2-flow-head { display:flex; align-items:center; gap:clamp(.5rem,2vw,1.25rem); padding-inline-end:clamp(4.5rem,12vw,7rem); }
 .r2-flow-head h1 { margin:0; font:400 clamp(1.25rem,5dvh,2rem)/1.2 SZKaiso,"Yu Gothic UI",sans-serif; font-synthesis:none; }
@@ -25,7 +27,7 @@
 .r2-flow button:focus-visible { outline:.125rem solid #111820; outline-offset:.125rem; }
 .r2-flow .r2-flow-primary { background:#111820; color:#fff; }
 .r2-flow .r2-flow-primary:is(:hover,:focus-visible) { background:#2b3846; }
-.r2-flow-lead { margin:.75em 0; color:#3d4955; font-size:.9em; }
+.r2-flow-lead { margin:clamp(.25em,1.5dvh,.75em) 0; color:#3d4955; font-size:.9em; }
 .r2-flow-list { display:grid; gap:clamp(.5rem,2dvh,1rem); margin:0; padding:0; list-style:none; }
 .r2-flow-item { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:clamp(.5rem,2vw,1.25rem);
   padding:clamp(.5rem,2dvh,1rem) clamp(.5rem,2vw,1.25rem); border:.0625rem solid #111820; }
@@ -34,13 +36,15 @@
 .r2-flow-item p { margin:.25em 0 0; font-size:.9em; color:#3d4955; }
 .r2-flow-mark { white-space:nowrap; font-size:.9em; color:#6b747d; }
 .r2-flow-item[data-done="true"] .r2-flow-mark { color:#0a7a3a; }
-.r2-flow-sides { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr)); gap:clamp(.5rem,2vw,1.25rem); }
-.r2-flow-side { display:grid; gap:.6em; margin:0; padding:clamp(.5rem,2dvh,1rem) clamp(.5rem,2vw,1.25rem); border:.0625rem solid #111820; }
+/* Both sides side by side where they fit, a label beside its select, so a short landscape phone
+   still shows [対戦開始] without scrolling where it can. */
+.r2-flow-sides { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr)); gap:clamp(.5rem,2vw,1.25rem); }
+.r2-flow-side { display:grid; gap:.4em; min-width:0; margin:0; padding:clamp(.25rem,1.5dvh,1rem) clamp(.5rem,2vw,1.25rem); border:.0625rem solid #111820; }
 .r2-flow-side legend { padding:0 .4em; font:400 1.1em/1.2 SZKaiso,"Yu Gothic UI",sans-serif; font-synthesis:none; }
-.r2-flow-side label { display:grid; gap:.25em; font-size:.9em; color:#3d4955; }
+.r2-flow-side label { display:grid; grid-template-columns:4.5em minmax(0,1fr); align-items:center; gap:.5em; font-size:.9em; color:#3d4955; }
 .r2-flow-side select { width:100%; padding:0 .5em; border:.0625rem solid #111820; border-radius:.125rem; background:#fff; color:#111820; }
 .r2-flow-side select:focus-visible { outline:.125rem solid #111820; outline-offset:.125rem; }
-.r2-flow-actions { display:flex; flex-wrap:wrap; align-items:center; gap:clamp(.5rem,2vw,1rem); margin-top:clamp(.75rem,3dvh,1.5rem); }
+.r2-flow-actions { display:flex; flex-wrap:wrap; align-items:center; gap:clamp(.5rem,2vw,1rem); margin-top:clamp(.5rem,3dvh,1.5rem); }
 .r2-flow-actions .r2-flow-primary { order:-1; min-width:min(100%,12em); }
 .r2-flow .r2-flow-online[aria-disabled="true"] { border-color:#9aa3ab; color:#7a838b; background:#f2f3f4; cursor:default; }
 .r2-flow-online small { margin-left:.6em; font-size:.8em; }

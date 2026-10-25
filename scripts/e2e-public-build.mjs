@@ -17,8 +17,11 @@ async function loadPlaywright() {
   return import(specifier);
 }
 
+// V092-08: the title's tutorial and battle buttons open their screens, and the match starts there.
 async function startMode(page, mode) {
   await clickEntryControl(page, `[data-mode="${mode}"]`);
+  const start = { tutorial: '[data-start="tutorial"][data-tutorial-id="basics"]', ai: '[data-start="ai"]' }[mode];
+  if (start) await page.locator(start).click();
 }
 
 async function advanceTutorialIntroduction(page) {
