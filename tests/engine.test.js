@@ -4667,6 +4667,33 @@ test("STD-238 requires one own area Ob plus registry material and pays two layer
   assert.equal(cannon.sleep, false);
 });
 
+test("a layer cost whose trash move opens an STD-003 window defers the declared attack instead of rejecting the payment", () => {
+  const stage = (id, layerId) => {
+    const state = createGame({ mode: "lab" }); const { player, ai } = state.players;
+    state.players.ai.front = []; state.players.ai.back = [];
+    const script = createCardInstance("STD-003", "ai", 997001); script.faceDown = true;
+    ai.back = [script]; ai.memory = 10; ai.fortressStr = 20;
+    const source = createCardInstance(id, "player", 997002);
+    source.mounted = [createCardInstance(layerId, "player", 997003), createCardInstance(layerId, "player", 997004)];
+    source.summoningSick = false;
+    player.front = [source]; player.hand = []; player.memory = 20;
+    return { state, source, player, ai };
+  };
+  // STD-238: pay two layers, +2 ATK, then attack the user and stand by again.
+  const { state, source, ai } = stage("STD-238", "STD-020");
+  assert.equal(attack(state, "player", source.uid, "ai-fortress"), true);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "レイヤー2枚を破棄して起動", selected: [] }), true);
+  for (const layer of [...source.mounted]) toggleSelection(state.pending.request, layer.uid);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+  assert.equal(state.prompt?.scriptUid, ai.back[0].uid);
+  assert.ok(state.deferredAttack, "the attack waits for the confirmation");
+  assert.equal(ai.fortressStr, 20);
+  assert.equal(declinePrompt(state), true);
+  assert.equal(state.deferredAttack, null);
+  assert.ok(ai.fortressStr < 20, "the declared attack resumes and lands");
+  assert.equal(source.sleep, false, "the card stands by again after the attack");
+});
+
 test("Q4 existing candidates 118/199/203/204/207/209 compile completely", () => {
   for (const id of ["STD-118", "STD-199", "STD-203", "STD-204", "STD-207", "STD-209"]) {
     const card = NEUTRON_CARDS[id] ?? VENGEANCE_CARDS[id];

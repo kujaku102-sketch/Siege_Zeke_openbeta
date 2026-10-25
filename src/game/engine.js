@@ -4267,6 +4267,18 @@ export function declinePrompt(state) {
   });
 }
 
+// コストの支払いや付随効果を終えた後に、宣言した攻撃を続ける。支払いで開いた確認(STD-003の窓など)が
+// 残っている間はattack()がfalseを返し、回答ごと拒否されて詰むので、確認が済んでから宣言し直す。
+function continueAttackAfterCost(state, playerId, attackerUid, targetUid, { standbyAfter = false } = {}) {
+  if (state.pending || state.prompt) {
+    state.deferredAttack = { stage: null, playerId, attackerUid, targetUid, standbyAfter };
+    return true;
+  }
+  const resolved = attack(state, playerId, attackerUid, targetUid);
+  if (standbyAfter && findCard(state, attackerUid)) findCard(state, attackerUid).card.sleep = false;
+  return resolved;
+}
+
 function resumeDeferredAttack(state) {
   if (state.prompt || state.pending || !state.deferredAttack) return false;
   const deferred = state.deferredAttack;
@@ -4274,6 +4286,7 @@ function resumeDeferredAttack(state) {
   state.attackResumeStage = deferred.stage;
   const result = attack(state, deferred.playerId, deferred.attackerUid, deferred.targetUid);
   delete state.attackResumeStage;
+  if (deferred.standbyAfter && findCard(state, deferred.attackerUid)) findCard(state, deferred.attackerUid).card.sleep = false;
   return result;
 }
 
@@ -5169,14 +5182,9 @@ function resolveCardSelectionCore(state, continuation, result) {
     state.pending = null;
     const attacker = findCard(state, continuation.attackerUid)?.card;
     if (!attacker) return true;
-    // 3ダメージで破壊されたObの「自分Obが破壊された時」Script確認などが開いている間は攻撃宣言を再開できない。
-    // attack()は処理待ち中にfalseを返し、この回答ごと拒否されて詰むので、確認が終わってから宣言し直す。
-    if (state.pending || state.prompt) {
-      state.deferredAttack = { stage: null, playerId: continuation.attackerPlayerId, attackerUid: attacker.uid, targetUid: continuation.attackTargetUid };
-      return true;
-    }
+    // 3ダメージで破壊されたObの「自分Obが破壊された時」Script確認などが開いている間は、確認が済んでから宣言し直す。
     // 3ダメージを受けた攻撃者自身が[バックアップ]や破壊で攻撃できなくなった場合は、宣言した攻撃がそこで終わる(回答は拒否しない)。
-    attack(state, continuation.attackerPlayerId, attacker.uid, continuation.attackTargetUid);
+    continueAttackAfterCost(state, continuation.attackerPlayerId, attacker.uid, continuation.attackTargetUid);
     return true;
   }
   if (continuation.type === "std140-protect") {
@@ -5276,15 +5284,9 @@ function resolveCardSelectionCore(state, continuation, result) {
     source.skipQ3LayerAttackChoice = true;
     if (source.id === "STD-238") {
       source.permanentAtk = Number(source.permanentAtk ?? 0) + 2;
-      const resolved = attack(state, playerId, source.uid, continuation.targetUid);
-      if (findCard(state, source.uid)) source.sleep = false;
-      return resolved;
+      return continueAttackAfterCost(state, playerId, source.uid, continuation.targetUid, { standbyAfter: true });
     }
-    if (source.id === "STD-096") {
-      const resolved = attack(state, playerId, source.uid, continuation.targetUid);
-      if (findCard(state, source.uid)) source.sleep = false;
-      return resolved;
-    }
+    if (source.id === "STD-096") return continueAttackAfterCost(state, playerId, source.uid, continuation.targetUid, { standbyAfter: true });
     const candidates = player.trash.filter((card) => isObCard(card) || card.category === "Code");
     const request = createSelectionRequest({ mode: "up_to", candidates: candidates.map((card) => card.uid), minimum: 1, maximum: candidates.length,
       exactBudget: 2, candidateValues: Object.fromEntries(candidates.map((card) => [card.uid, Number(card.cost ?? 0)])),
@@ -5319,7 +5321,7 @@ function resolveCardSelectionCore(state, continuation, result) {
     grantDamageModifier(source, {
       direction: "received", damageKind: "battle", operation: "cap_max", amount: 1, duration: "battle"
     });
-    return attack(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
+    return continueAttackAfterCost(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
   }
   if (continuation.type === "std085-layer-pay") {
     const sourceLocation = findCard(state, continuation.sourceUid);
@@ -5334,7 +5336,7 @@ function resolveCardSelectionCore(state, continuation, result) {
       return true;
     }
     source.skipStd085LayerCost = true;
-    return attack(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
+    return continueAttackAfterCost(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
   }
   if (continuation.type === "std102-place") {
     const source = findCard(state, continuation.sourceUid)?.card;
@@ -5349,7 +5351,7 @@ function resolveCardSelectionCore(state, continuation, result) {
     if (source && source.mounted.length === 0) destroyCard(state, playerId, source.uid, { source: `${source.name}のレイヤー閾値` });
     const sourceLocation = source ? findCard(state, source.uid) : null;
     return sourceLocation && ["front", "back"].includes(sourceLocation.zoneName)
-      ? attack(state, playerId, source.uid, continuation.targetUid)
+      ? continueAttackAfterCost(state, playerId, source.uid, continuation.targetUid)
       : true;
   }
   if (continuation.type === "std164-choice") {
