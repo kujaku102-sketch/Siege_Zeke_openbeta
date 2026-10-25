@@ -11,6 +11,24 @@
 
 受け付ける送り元は `*.siegezeke.online`、`siege-zeke-simple-public.pages.dev` とそのプレビュー、localhost。
 
+`workers_dev = false` にしてあるので、`*.workers.dev` 経由の入口は無く、受け口は `log.siegezeke.online` だけ(次回の `wrangler deploy` で反映される。ゲーム側のコードに workers.dev の宛先は無い)。
+
+## 濫用対策: レート制限(ダッシュボードで設定。コードの外)
+
+Origin ヘッダは curl などから偽装できるので、Worker の許可リストだけでは書き込みを防げない。Cloudflare 側で IP ごとの回数を絞る。
+
+1. Cloudflare ダッシュボードで `siegezeke.online` のゾーンを開く
+2. **Security** → **Security rules**(旧 WAF)→ **Create rule** → **Rate limiting rule**(画面名は版で違うことがある)
+3. 設定の推奨値:
+   - Rule name: `match-log post limit`
+   - If incoming requests match: Hostname `equals` `log.siegezeke.online` **and** URI Path `equals` `/match-logs`
+   - Characteristics: IP
+   - Requests: **10** / Period: **1 minute**(無料プランで選べる期間が 10 秒などに限られる場合は、その範囲で 1 分あたり 10 件前後になる値)
+   - Action: Block / Duration: 同じ期間(選べる最短)
+4. Deploy
+
+目安: 1 対局 = 1 件の送信なので、10 件/分は通常の遊び方では当たらない(再戦の連打でも足りる)。厳しすぎたら 20〜30 に上げる。
+
 ## 見る
 
 - まとめて手元に: リポジトリのルートで `pnpm logs:pull`(`logs/match-logs/<終了日>/<matchId>.json` に落ちる。取り込み済みは飛ばす)
