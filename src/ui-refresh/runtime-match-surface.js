@@ -26,7 +26,7 @@ import { centerIncidentStrip } from './user-detail-view.js';
 // It wires the parts together; each surface-*.js module owns one concern.
 export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSeat = null,
   onTitle = () => {}, onRematch = () => {}, onMenu = null, onError = () => {},
-  onTutorialSkip = () => {}, onTutorialComplete = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY, lowGpu = false }) {
+  onTutorialSkip = () => {}, onTutorialComplete = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY, lowGpu = false, onContextLost = () => {} }) {
   const created = createMatchUiController({ session, viewerSeat });
   if (!created.ok) return created;
   const ui = created.value;
@@ -53,7 +53,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const surfaceLayout = createSurfaceLayout({ root, session, scope, boardStyle, latest: () => latest,
     requestFrame: timers.requestFrame, disposed: () => disposed });
   const queueLayout = surfaceLayout.queue;
-  const scenes = createSurfaceScenes({ root, boardStyle, renderQuality, latest: () => latest, lowGpu });
+  const scenes = createSurfaceScenes({ root, boardStyle, renderQuality, latest: () => latest, lowGpu,
+    onContextLost: () => { if (!disposed) onContextLost(); } });
   const log = createLogSync(root);
   const render = result => {
     if (disposed) return;
@@ -198,7 +199,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   opponents = sides.value;
   const surface = Object.freeze({
     refresh() { const read = ui.read(); render(read); opponents.startCpu(latest); opponents.startTutorial(); return read; },
-    configure(options) { if (options.view) view = options.view; if (typeof options.effectsEnabled === 'boolean') effectsEnabled = options.effectsEnabled; if (typeof options.tapDetails === 'boolean') tapDetails = options.tapDetails; return this.refresh(); },
+    configure(options) { if (typeof options.lowGpu === 'boolean') { lowGpu = options.lowGpu; scenes.setLowGpu(lowGpu); } if (options.view) view = options.view; if (typeof options.effectsEnabled === 'boolean') effectsEnabled = options.effectsEnabled; if (typeof options.tapDetails === 'boolean') tapDetails = options.tapDetails; return this.refresh(); },
     startAi() { return opponents.startAi(); },
     switchViewer(seatId) { pointer.stopPress(); fx.clear(); const read = ui.switchViewer(seatId); render(read); return read; },
     dispose() {

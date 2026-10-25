@@ -208,9 +208,10 @@ test("a lost WebGL context is answered at once and a restored one is reported; r
 
 test("lowGpu reaches the match surface and the title; the drawn layers never take input, so the SVG hit areas stay the only targets", async () => {
   const main = await readSource("../src/main.js");
-  assert.ok(main.includes("const lowGpu = isIosWebKit({"));
-  assert.ok(main.includes("host.effectsEnabled && !lowGpu"));
-  assert.ok(main.includes("view:host.view,lowGpu,"));
+  assert.ok(main.includes("const renderDetection = {iosWebKit:isIosWebKit({"));
+  assert.ok(main.includes("const lowGpu = () => renderMode().mode === 'compat';"));
+  assert.ok(main.includes("host.effectsEnabled && !lowGpu()"));
+  assert.ok(main.includes("view:host.view,lowGpu:lowGpu(),onContextLost:degradeAfterLoss,"));
   const scenes = await readSource("../src/ui-refresh/surface-scenes.js");
   assert.ok(scenes.includes("svg && !lowGpu"));
   assert.ok(scenes.includes("hudCanvas && !lowGpu"));
@@ -247,4 +248,24 @@ test("opening protocol v2.4 is opt-in by URL and only for the AI mode; the redra
   assert.ok(main.includes("gameOptions:{\n    ...opening,mode,tutorialId,"));
   const { presentationLabel } = await import("../src/ui-refresh/choice-read-view.js");
   assert.equal(presentationLabel("opening-mulligan"), "引き直すカードを選択");
+});
+
+test("render mode UI: the title note is outside the stage and only in compat; the HTML options window has the row, the CRT one does not", async () => {
+  const { runtimeShellHtml } = await import("../src/ui-refresh/runtime-shell-view.js");
+  const base = { screen: "entry", view: "pc", options: false, effectsEnabled: false, savedDecks: [], deckBuilder: { open: false }, catalog: { query: "", expansion: "all", catalogOwner: "player" },
+    storedCounts: { replays: 0, logs: 0 }, renderPreference: "auto", render: { mode: "compat", reason: "detected" }, renderUrl: null };
+  const note = html => html.split('<aside class="r2-render-note"')[1]?.split("</aside>")[0] ?? null;
+  const compat = runtimeShellHtml(base);
+  assert.ok(note(compat).includes("軽量表示（WebGLなし）") && note(compat).includes('data-render-mode="full"'));
+  assert.ok(compat.indexOf("r2-render-note") > compat.indexOf("</section>"), "the note follows the title stage, not inside it");
+  assert.equal(note(runtimeShellHtml({ ...base, render: { mode: "full", reason: "default" } })), null);
+  assert.equal(note(runtimeShellHtml({ ...base, screen: "game" })), null, "the note is for the title only");
+  const locked = note(runtimeShellHtml({ ...base, renderUrl: "compat", render: { mode: "compat", reason: "url" } }));
+  assert.ok(locked.includes("URLの指定が優先中") && !locked.includes("data-render-mode"));
+  const options = runtimeShellHtml({ ...base, options: true, renderPreference: "full", render: { mode: "full", reason: "saved" } });
+  const row = options.split('class="r2-title-render"')[1] ?? "";
+  for (const value of ["auto", "compat", "full"]) assert.ok(row.includes('data-render-mode="' + value + '"'));
+  assert.ok(row.includes('data-render-mode="full" role="radio" aria-checked="true"') && row.includes('data-render-mode="auto" role="radio" aria-checked="false"'));
+  const crt = runtimeShellHtml({ ...base, options: true, effectsEnabled: true });
+  assert.ok(!crt.includes("r2-title-render"), "the CRT-drawn options window keeps its fixed items");
 });

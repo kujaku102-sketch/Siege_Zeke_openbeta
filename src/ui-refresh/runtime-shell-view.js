@@ -62,11 +62,26 @@ function matchArchiveHtml(ui, toggle) {
   return `${row("対戦ログ", "logs", counts.logs)}${row("対戦リプレイ", "replays", counts.replays)}<p>対戦ログとリプレイはこのブラウザに新しい順で最大20件ずつ保存されます。</p>${toggle("対戦後に対戦ログを送信", "data-toggle-send-logs", Boolean(ui.sendMatchLogs))}<p>オンにすると、決着した対戦のログ(盤面の記録と両者のデッキ・ユーザー)を開発用サーバーへ送ります。</p>`;
 }
 
+// Render mode (V092-09): auto follows the device, compat draws no WebGL, full draws everything.
+const RENDER_CHOICES = [["auto", "自動"], ["compat", "軽量(WebGLなし)"], ["full", "通常"]];
+const renderReasons = { detected: "iPhone/iPadのため自動で軽量表示", "context-lost": "描画が止まったため軽量表示に切り替え中", url: "URLの指定が優先中", saved: "選んだ表示", default: "自動" };
+function renderModeHtml(ui) {
+  const mode = ui.render?.mode === "compat" ? "軽量(WebGLなし)" : "通常";
+  return `<div class="r2-title-render" role="radiogroup" aria-label="描画"><span>描画</span><div>${RENDER_CHOICES.map(([value, label]) => `<button data-render-mode="${value}" role="radio" aria-checked="${(ui.renderPreference ?? "auto") === value}">${label}</button>`).join("")}</div></div><p>現在：${mode}（${renderReasons[ui.render?.reason] ?? "自動"}）。設定はこのブラウザにだけ保存されます。</p>`;
+}
+// Outside the title stage (never on the CRT canvas), in the overlays the shell re-renders on every
+// change: says the light form is on and offers the way back.
+function renderNoteHtml(host) {
+  if (host.screen !== "entry" || host.render?.mode !== "compat") return "";
+  const back = host.renderUrl ? "<small>URLの指定が優先中</small>" : '<button data-render-mode="full">通常表示に戻す</button>';
+  return `<aside class="r2-render-note" role="status"><span>軽量表示（WebGLなし）</span>${back}</aside>`;
+}
+
 function settingsHtml(state, ui) {
   if (ui.screen === "entry") {
     const volume = Math.max(0, Math.min(10, Number(ui.masterVolume ?? 7)));
     const toggle = (label, selector, checked) => `<button class="r2-title-setting" ${selector} role="checkbox" aria-checked="${checked}">${label}<span aria-hidden="true">${checked ? "☑" : "□"}</span></button>`;
-    const contents = `<header><h2>オプション</h2><button data-live="close-options">閉じる</button></header><div class="r2-title-settings-list">${toggle("全画面", 'data-live="fullscreen"', Boolean(ui.fullscreen))}${toggle("PC版", 'data-view="pc"', ui.view === "pc")}${toggle("モバイル版", 'data-view="mobile"', ui.view === "mobile")}${toggle("通常タップで詳細", 'data-title-tap-details', Boolean(ui.tapDetails))}${toggle("演出", 'data-toggle-effects', Boolean(ui.effectsEnabled))}<div class="r2-title-volume"><span>音量</span><div role="group" aria-label="音量 0～10">${Array.from({ length: 10 }, (_, index) => `<button data-volume="${index + 1}" aria-label="音量 ${index + 1}" aria-pressed="${index < volume}"></button>`).join("")}</div><output>${volume}/10</output></div><p>音量設定は今後のサウンド向けに保存されます。</p>${matchArchiveHtml(ui, toggle)}</div>`;
+    const contents = `<header><h2>オプション</h2><button data-live="close-options">閉じる</button></header><div class="r2-title-settings-list">${toggle("全画面", 'data-live="fullscreen"', Boolean(ui.fullscreen))}${toggle("PC版", 'data-view="pc"', ui.view === "pc")}${toggle("モバイル版", 'data-view="mobile"', ui.view === "mobile")}${toggle("通常タップで詳細", 'data-title-tap-details', Boolean(ui.tapDetails))}${toggle("演出", 'data-toggle-effects', Boolean(ui.effectsEnabled))}${ui.entryCrtMenu ? "" : renderModeHtml(ui)}<div class="r2-title-volume"><span>音量</span><div role="group" aria-label="音量 0～10">${Array.from({ length: 10 }, (_, index) => `<button data-volume="${index + 1}" aria-label="音量 ${index + 1}" aria-pressed="${index < volume}"></button>`).join("")}</div><output>${volume}/10</output></div><p>音量設定は今後のサウンド向けに保存されます。</p>${matchArchiveHtml(ui, toggle)}</div>`;
     return `<div class="r2-modal r2-title-options${ui.entryCrtMenu ? " r2-title-options-crt" : ""}" role="dialog" aria-modal="true" aria-label="オプション"><section>${contents}</section></div>`;
   }
   const users = selected => Object.entries(USER_CARDS).map(([id, user]) => `<option value="${id}" ${selected === id ? "selected" : ""}>${esc(user.name)}</option>`).join("");
@@ -86,5 +101,5 @@ export function runtimeShellHtml(host) {
     sandboxUi:{...host.catalog,opponentControl:host.opponentControl},playerDeckId:host.playerDeckId,aiDeckId:host.aiDeckId};
   const ui = {...host,screen:host.screen,options:host.options,entryCrtMenu:host.effectsEnabled && host.screen === 'entry'};
   const entry = host.screen === 'entry' ? entryHtml(host.view,host.effectsEnabled).replace('data-deck ', 'data-deck-open ') : '';
-  return `<div class="r2-content" data-effects="${host.effectsEnabled ? 'on' : 'off'}"><nav class="r2-utilities" aria-label="メニュー"><button data-live="options" aria-label="メニュー・オプション">メニュー</button></nav>${entry}<div data-match-root></div><div data-shell-overlays>${host.options ? settingsHtml(state,ui) : ''}${deckBuilderHtml(state,{view:host.view})}${host.catalogOpen ? `<div class="live-catalog"><button data-live="close-catalog">閉じる</button>${sandboxCatalogHtml(state)}</div>` : ''}${host.notice ? `<aside class="r2-notice" role="status">${esc(host.notice)}</aside>` : ''}</div></div><section class="r2-rotate" hidden role="status"><h1>端末を横向きにしてください</h1><p>横に戻すと、そのまま続きから操作できます。</p></section>`;
+  return `<div class="r2-content" data-effects="${host.effectsEnabled ? 'on' : 'off'}"><nav class="r2-utilities" aria-label="メニュー"><button data-live="options" aria-label="メニュー・オプション">メニュー</button></nav>${entry}<div data-match-root></div><div data-shell-overlays>${renderNoteHtml(host)}${host.options ? settingsHtml(state,ui) : ''}${deckBuilderHtml(state,{view:host.view})}${host.catalogOpen ? `<div class="live-catalog"><button data-live="close-catalog">閉じる</button>${sandboxCatalogHtml(state)}</div>` : ''}${host.notice ? `<aside class="r2-notice" role="status">${esc(host.notice)}</aside>` : ''}</div></div><section class="r2-rotate" hidden role="status"><h1>端末を横向きにしてください</h1><p>横に戻すと、そのまま続きから操作できます。</p></section>`;
 }

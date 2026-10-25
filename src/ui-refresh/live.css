@@ -404,3 +404,15 @@ body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-deta
 
 /* List rows drop their button chrome, so keyboard focus needs its own visible mark. */
 .r2-content .effect-modal .runtime-selection-options.is-list .runtime-selection-option > button:focus-visible { outline: 2px solid #ffe4a0; outline-offset: -2px; }
+
+/* Render mode (V092-09): the light-form note sits outside the title stage, the choice is one row
+   of the HTML options window. */
+.r2-render-note { position:fixed; z-index:24; left:calc(8px + env(safe-area-inset-left,0px)); bottom:calc(8px + env(safe-area-inset-bottom,0px));
+  display:flex; align-items:center; gap:.6em; max-width:calc(100vw - 16px); padding:.35em .6em; border:1px solid #2f8f9c; background:#071015e8;
+  color:#c9f6ff; font:clamp(.75rem, 2.2dvh, .9rem)/1.3 "Yu Gothic UI",sans-serif; }
+.r2-render-note button { min-height:2.75rem; padding:0 .8em; font:inherit; }
+.r2-render-note small { color:#7fa7b0; }
+.r2-title-render { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.r2-title-render>div { display:flex; flex-wrap:wrap; gap:4px; }
+.r2-title-render button { min-height:2.75rem; padding:0 .8em; }
+.r2-title-render button[aria-checked="true"] { outline:2px solid #00ff00; outline-offset:-2px; }

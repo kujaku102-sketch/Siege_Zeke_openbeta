@@ -7,6 +7,7 @@ import { mountRuntimeMatch } from './ui-refresh/runtime-match-surface.js';
 import { runtimeShellHtml } from './ui-refresh/runtime-shell-view.js';
 import { patchHtml } from './ui-refresh/dom-patch.js';
 import { isIosWebKit, readSavedView, resolveView, saveView } from './ui-refresh/model.js';
+import { RENDER_STORAGE_KEY, readRenderPreference, resolveRenderMode, urlRenderPreference } from './ui-refresh/render-mode.js';
 import { isFullscreen, toggleFullscreen } from './ui-refresh/fullscreen.js';
 import { syncEntryLogoGlitch } from './ui-refresh/entry-logo-glitch.js';
 import { syncEntryCrtViewport } from './ui-refresh/entry-crt-viewport.js';
@@ -45,10 +46,17 @@ installAbilityHelp(root);
 const mobileViewport = installMobileViewport(root);
 // The raw code goes to the console only; the player sees a sentence or nothing.
 const notice = code => {const text = noticeText(code);console.debug('[notice]',code);if (text === null) return;host.notice = text;renderShell();};
-// iOS WebKit: no WebGL title, logo noise, 3D board or HUD (context and memory limits); SVG/CSS only.
-const lowGpu = isIosWebKit({userAgent:navigator.userAgent,platform:navigator.platform,maxTouchPoints:navigator.maxTouchPoints});
-const entryEffects = () => host.screen === 'entry' && host.effectsEnabled && !lowGpu && !host.deckBuilder.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Render mode (V092-09): compat draws no WebGL title, logo noise, 3D board, HUD or result shader,
+// only SVG/CSS. iOS WebKit starts in compat (context and memory limits) and a lost context drops to
+// it; the player picks auto / compat / full, kept in this browser only. ?render= wins and is not saved.
+const renderDetection = {iosWebKit:isIosWebKit({userAgent:navigator.userAgent,platform:navigator.platform,maxTouchPoints:navigator.maxTouchPoints})};
+const readRenderSaved = () => {try {return readRenderPreference(localStorage.getItem(RENDER_STORAGE_KEY));} catch {return 'auto';}};
+host.renderPreference = readRenderSaved();host.renderContextLost = false;
+const renderMode = () => resolveRenderMode({url:location.search,saved:host.renderPreference,detection:renderDetection,contextLost:host.renderContextLost});
+const lowGpu = () => renderMode().mode === 'compat';
+const entryEffects = () => host.screen === 'entry' && host.effectsEnabled && !lowGpu() && !host.deckBuilder.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function renderShell(replace = false) {
+  host.render = renderMode();host.renderUrl = urlRenderPreference(location.search);
   document.body.dataset.view = host.view;
   const viewport = captureDeckViewport(root);
   host.fullscreen = isFullscreen(document);
@@ -71,10 +79,22 @@ function renderShell(replace = false) {
   syncLiveInputLocks(root,{optionsOpen:host.options,entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))});
   mobileViewport.sync(host.view);
 }
+// A choice from the title or the options window is kept; it also clears a loss-driven fallback.
+function setRenderPreference(value) {
+  host.renderPreference = readRenderPreference(value);host.renderContextLost = false;
+  try {localStorage.setItem(RENDER_STORAGE_KEY,host.renderPreference);} catch {/* the choice still holds for this page */}
+  surface?.configure({lowGpu:lowGpu()});renderShell();
+}
+// A WebGL context was lost: drop to compat for this page and say so; the player can switch back.
+function degradeAfterLoss() {
+  if (lowGpu()) return;
+  host.renderContextLost = true;surface?.configure({lowGpu:true});
+  host.notice = '描画が不安定になったため軽量表示（WebGLなし）に切り替えました。タイトルのオプションで戻せます。';renderShell();
+}
 function attachSession(next) {
   surface?.dispose();surface = null;session = next;shellGeneration += 1;
   host.screen = 'game';host.options = false;host.notice = '';host.actor = session.scope().seatIds[0];renderShell(true);
-  const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,lowGpu,
+  const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,lowGpu:lowGpu(),onContextLost:degradeAfterLoss,
     boardStyle:new URLSearchParams(location.search).get('board') === 'classic' ? 'classic' : 'wireframe',
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
     effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;renderShell();},onTitle:leaveMatch,
@@ -143,6 +163,7 @@ root.addEventListener('click',event => {
   else if (button.hasAttribute('data-toggle-send-logs')) {host.sendMatchLogs = !host.sendMatchLogs;localStorage.setItem(SEND_LOGS_STORAGE_KEY,host.sendMatchLogs ? 'on' : 'off');}
   else if (button.hasAttribute('data-title-tap-details')) {host.tapDetails = !host.tapDetails;surface?.configure({tapDetails:host.tapDetails});}
   else if (button.hasAttribute('data-toggle-effects')) {host.effectsEnabled = !host.effectsEnabled;localStorage.setItem('sz-ui-effects',host.effectsEnabled ? 'on' : 'off');surface?.configure({effectsEnabled:host.effectsEnabled});}
+  else if (d.renderMode) return setRenderPreference(d.renderMode);
   else if (d.volume) {host.masterVolume = Number(d.volume);localStorage.setItem('sz-master-volume',String(host.masterVolume));}
   else if (button.hasAttribute('data-logo-video-clear')) {entryLogoVideoFile = null;host.logoVideoName = '';}
   else if (button.hasAttribute('data-catalog-open')) {host.catalogOpen = true;host.options = false;}
