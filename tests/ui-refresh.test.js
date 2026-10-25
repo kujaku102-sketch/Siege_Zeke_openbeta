@@ -9,8 +9,11 @@ import { watchContextLoss } from "../src/ui-refresh/wireframe/render-resolution.
 import { createEntryLogoController } from "../src/ui-refresh/entry-logo-glitch.js";
 import { LOGO_FIT, LOGO_EFFECT_SPEED, logoEffectDelta, createLogoAreas, updateLogoAreas, createLogoBands, updateLogoBands } from '../src/ui-refresh/logo-noise-model.js';
 
+// Source text checks read LF lines whatever the checkout wrote (core.autocrlf=true gives CRLF).
+const readSource = async path => (await readFile(new URL(path, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+
 test("effects stay off when no preference has been stored", async () => {
-  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const source = await readSource("../src/main.js");
   assert.match(source, /effectsEnabled:\s*localStorage\.getItem\(EFFECTS_STORAGE_KEY\) === "on"/);
 });
 
@@ -172,7 +175,7 @@ test("match notices show Japanese sentences, never raw codes, and ignore taps of
   assert.equal(noticeText("AMBIGUOUS_INTERACTION_TARGET"), "対象を絞り込めません。もう一度選んでください");
   for (const code of ["SOME_UNKNOWN_CODE", "RUNTIME_RENDER_FAILED", "toString", "__proto__", undefined]) assert.equal(noticeText(code), FALLBACK_NOTICE, String(code));
   for (const code of ["ACTION_NOT_ALLOWED", "AMBIGUOUS_INTERACTION_TARGET", "MEMORY_SHORT", "MATCH_SESSION_COMMAND_INFLIGHT"]) assert.doesNotMatch(noticeText(code), /[A-Z]{2,}_[A-Z]/);
-  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const source = await readSource("../src/main.js");
   assert.match(source, /const notice = code => \{const text = noticeText\(code\);[^}]*if \(text === null\) return;host\.notice = text;/);
 });
 
@@ -204,14 +207,14 @@ test("a lost WebGL context is answered at once and a restored one is reported; r
 });
 
 test("lowGpu reaches the match surface and the title; the drawn layers never take input, so the SVG hit areas stay the only targets", async () => {
-  const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const main = await readSource("../src/main.js");
   assert.ok(main.includes("const lowGpu = isIosWebKit({"));
   assert.ok(main.includes("host.effectsEnabled && !lowGpu"));
   assert.ok(main.includes("view:host.view,lowGpu,"));
-  const scenes = await readFile(new URL("../src/ui-refresh/surface-scenes.js", import.meta.url), "utf8");
+  const scenes = await readSource("../src/ui-refresh/surface-scenes.js");
   assert.ok(scenes.includes("svg && !lowGpu"));
   assert.ok(scenes.includes("hudCanvas && !lowGpu"));
-  const css = await readFile(new URL("../src/ui-refresh/wireframe/board.css", import.meta.url), "utf8");
+  const css = await readSource("../src/ui-refresh/wireframe/board.css");
   for (const selector of [".wf-board-model", ".wf-hud-model"]) {
     const rule = css.split("\n").find(line => line.includes(selector + " {"));
     assert.ok(rule && rule.includes("pointer-events:none"), selector + " never takes input");
@@ -239,7 +242,7 @@ test("a tap on an occupied slot answers a slot request, and a card request still
 });
 
 test("opening protocol v2.4 is opt-in by URL and only for the AI mode; the redraw pick has its own wording", async () => {
-  const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const main = await readSource("../src/main.js");
   assert.ok(main.includes("mode === 'ai' && new URLSearchParams(location.search).get('opening') === 'v2.4' ? {openingProtocol:'v2.4'} : {}"));
   assert.ok(main.includes("gameOptions:{\n    ...opening,mode,tutorialId,"));
   const { presentationLabel } = await import("../src/ui-refresh/choice-read-view.js");
