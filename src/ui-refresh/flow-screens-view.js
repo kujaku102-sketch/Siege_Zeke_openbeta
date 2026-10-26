@@ -21,7 +21,7 @@ export function battleSetupHtml(host, { deckOptions, userOptions }) {
 export function tutorialSelectHtml({ tutorialDone = [] } = {}) {
   const items = TUTORIAL_ITEMS.map(item => {
     const done = tutorialDone.includes(item.id);
-    return `<li class="r2-flow-item" data-tutorial-item="${item.id}" data-done="${done}"><div class="r2-flow-item-text"><h2>${esc(item.title)}<small>${esc(item.color)}</small></h2><p>${esc(item.summary)}</p></div>`
+    return `<li class="r2-flow-item" data-tutorial-item="${item.id}" data-done="${done}"><div class="r2-flow-item-text"><h2>${esc(item.title)}<small>${esc(item.subtitle)}</small></h2><p>${esc(item.summary)}</p></div>`
       + `<span class="r2-flow-mark">${done ? "✓ 完了" : "未完了"}</span><button class="r2-flow-primary" data-start="tutorial" data-tutorial-id="${item.id}" aria-label="${esc(item.title)}をはじめる">はじめる</button></li>`;
   }).join("");
   return `<section class="r2-flow r2-flow-tutorials" data-flow-screen="tutorial-select" aria-labelledby="r2-flow-tutorials-title"><div class="r2-flow-sheet">${head("r2-flow-tutorials-title", "チュートリアル")}`

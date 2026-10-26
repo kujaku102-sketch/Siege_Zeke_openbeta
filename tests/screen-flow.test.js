@@ -89,12 +89,13 @@ const memoryStorage = (initial = {}, { failWrite = false, failRead = false } = {
 };
 
 test('tutorial items: the two existing tutorials, each a real tutorial id with its own steps', () => {
-  assert.deepEqual([...TUTORIAL_IDS], ['basics', 'vengeance']);
+  assert.deepEqual([...TUTORIAL_IDS], ['basics', 'vengeance'], 'the ids stay the tutorial ids, so saved marks keep matching');
+  assert.deepEqual(TUTORIAL_ITEMS.map(item => [item.title, item.subtitle]), [['チャプター1', '基本操作・赤'], ['チャプター2', 'ヴェンジェンス・紫']]);
   assert.equal(new Set(TUTORIAL_IDS).size, TUTORIAL_IDS.length, 'no duplicates');
   assert.notEqual(tutorialSteps('vengeance'), tutorialSteps('basics'), 'vengeance is not the fallback');
   for (const item of TUTORIAL_ITEMS) {
     assert.ok(tutorialSteps(item.id).length > 1, item.id);
-    assert.ok(item.title && item.color && item.summary, item.id);
+    assert.ok(item.title && item.subtitle && item.summary, item.id);
     assert.ok(Object.isFrozen(item));
   }
 });
@@ -185,4 +186,12 @@ test('main wiring: a finished tutorial is marked and returns to the list; a skip
   assert.ok(!replace.includes('markTutorialDone(globalThis.localStorage,host.tutorialId);host.mode'), 'skipping marks nothing');
   assert.ok(main.includes("function leaveMatch(screen = nextScreen('game','leave'))"));
   assert.ok(main.includes('tutorialDone:readTutorialDone(globalThis.localStorage)'));
+});
+
+test('tutorial list: chapters with their old names as subtitles; a mark saved under the old ids still shows', () => {
+  const storage = { getItem: () => '["basics"]', setItem() {} };
+  const html = tutorialSelectHtml({ tutorialDone: readTutorialDone(storage) });
+  assert.ok(html.includes('<h2>チャプター1<small>基本操作・赤</small></h2>') && html.includes('<h2>チャプター2<small>ヴェンジェンス・紫</small></h2>'));
+  assert.ok(html.includes('data-tutorial-item="basics" data-done="true"') && html.includes('data-tutorial-item="vengeance" data-done="false"'));
+  assert.ok(html.includes('aria-label="チャプター1をはじめる"'));
 });
