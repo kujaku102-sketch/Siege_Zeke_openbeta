@@ -130,11 +130,11 @@ try {
     return { step: node.dataset.tutorialStep, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, viewportWidth: innerWidth, viewportHeight: innerHeight, imageWidth: image.naturalWidth, imageHeight: image.naturalHeight, speaker: node.querySelector("strong")?.textContent?.trim(), text: node.querySelector(".live-guide-text")?.textContent?.trim() };
   });
   const basicsZeroLabels = await tutorialFocusLabels(page);
-  if (guideAudit.step !== "basics:0" || guideAudit.left < 0 || guideAudit.top < 0 || guideAudit.right > guideAudit.viewportWidth || guideAudit.bottom > guideAudit.viewportHeight || guideAudit.imageWidth !== 1081 || guideAudit.imageHeight !== 1280 || guideAudit.speaker !== "じぐさぽ" || !guideAudit.text || !basicsZeroLabels.includes("開始") || !basicsZeroLabels.includes("自分のDoors ZX")) throw new Error(`desktop live tutorial guide is invalid: ${JSON.stringify({ guideAudit, basicsZeroLabels })}`);
+  if (guideAudit.step !== "basics:0" || guideAudit.left < 0 || guideAudit.top < 0 || guideAudit.right > guideAudit.viewportWidth || guideAudit.bottom > guideAudit.viewportHeight || guideAudit.imageWidth !== 1081 || guideAudit.imageHeight !== 1280 || guideAudit.speaker !== "じぐさぽ" || !guideAudit.text || !basicsZeroLabels.includes("兵士") || !basicsZeroLabels.includes("アツト")) throw new Error(`desktop live tutorial guide is invalid: ${JSON.stringify({ guideAudit, basicsZeroLabels })}`);
   await page.locator('[data-runtime-tutorial-next]').click();
   if (await guide.getAttribute("data-tutorial-step") !== "basics:1") throw new Error("tutorial did not advance to basics:1");
   const basicsOneLabels = await tutorialFocusLabels(page);
-  if (!basicsOneLabels.includes("こそ泥") || !basicsOneLabels.includes("レジストリ")) throw new Error(`tutorial focus did not follow basics:1: ${basicsOneLabels.join(", ")}`);
+  if (!basicsOneLabels.includes("ジャンクパーツ")) throw new Error(`tutorial focus did not follow basics:1: ${basicsOneLabels.join(", ")}`);
 
   await page.locator('[data-runtime-menu]').click();
   await page.locator("[data-deck-open]").click();

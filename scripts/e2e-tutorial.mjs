@@ -41,8 +41,10 @@ function cards(query) {
 }
 function answerFor(request,query,preference={}) {
   const preferred = request.options.filter(option => (!preference.zone || !option.zone || option.zone === preference.zone)
-    && (!preference.targetId || !option.cardRef || cards(query).some(card => card.cardRef === option.cardRef && !card.faceDown && card.definition.id === preference.targetId))
+    // A mount destination names its host by hostRef.
+    && (!preference.targetId || !(option.cardRef ?? option.hostRef) || cards(query).some(card => card.cardRef === (option.cardRef ?? option.hostRef) && !card.faceDown && card.definition.id === preference.targetId))
     && (!preference.user || option.kind !== 'card')
+    && (!preference.cardOnly || Boolean(option.cardRef ?? option.hostRef))
     && (!preference.scope || !option.label || option.label.includes(preference.scope)));
   const ordered = [...preferred,...request.options.filter(option => !preferred.includes(option))];
   const selected = [];
@@ -129,6 +131,12 @@ async function action(page,type,id,preference={}) {
     if (planned.value.completion) {
       const confirm=page.locator('[data-runtime-confirm]').first();
       if (await confirm.count() && await confirm.isVisible()) await clickVisible(page,'[data-runtime-confirm]');
+      // A refused plan stays on its confirm bar; the player backs out of it with [戻る].
+      if (preference.refused) {
+        await page.waitForTimeout(600);if (await moved()) throw new Error('off-script '+type+' '+id+' was accepted');
+        for (let back=0;back<4 && await page.locator('[data-runtime-back]').first().isVisible().catch(() => false);back+=1) await clickVisible(page,'[data-runtime-back]');
+        return;
+      }
       if (await moved()) return;
       continue;
     }
@@ -137,6 +145,19 @@ async function action(page,type,id,preference={}) {
   }
   if (await moved()) return;
   throw new Error('planning failed to complete');
+}
+const next = page => clickVisible(page,'[data-runtime-tutorial-next]');
+// Red step 3: Atto's play button is highlighted in its popup; pressing it names the missing red symbol and the step moves on.
+async function tryBlockedPlay(page,id,cardId) {
+  const card=cards((await read(page)).value).find(card => !card.faceDown && card.definition.id===cardId && card.location?.zone==='hand');
+  const selector='[data-card-ref="'+card.cardRef+'"]';
+  if (!await page.locator(selector).first().isVisible()) await clickVisible(page,'[data-runtime-hand]');
+  await clickVisible(page,selector);
+  await page.locator('.r2-popup[data-card-id="'+cardId+'"] [data-tutorial-try].live-focus').waitFor({state:'attached',timeout:3000}).catch(() => {throw new Error('the blocked play is not highlighted in its popup');});
+  await clickVisible(page,'[data-tutorial-try]');
+  await page.waitForFunction(id => document.querySelector('.live-guide')?.dataset.tutorialStep===id+':4',id,{timeout:5000});
+  const notice=await page.locator('.r2-notice').innerText().catch(() => '');
+  if (!notice.includes('シンボル')) throw new Error('the missing symbol is not named: '+notice);
 }
 async function intro(page,id) {
   for (let index=0;index<7;index+=1) {
@@ -159,8 +180,9 @@ async function step(page,id,index) {
 async function completionReturnsToList(page,id) {
   await page.locator('.live-guide [data-runtime-tutorial-finish]').waitFor({state:'visible',timeout:10000});
   const closing=await page.evaluate(() => ({text:document.querySelector('.live-guide-text')?.innerText ?? '',skip:Boolean(document.querySelector('[data-runtime-tutorial-skip]')),
-    result:Boolean(document.querySelector('.r2-result')),won:window.__SIMPLE_ZEKE_E2E__.query().value?.status.lockedOutcome?.winnerSeat}));
-  if (!closing.text.startsWith('勝利。') || closing.skip || closing.result || closing.won!=='player') throw new Error('closing line wrong: '+JSON.stringify(closing));
+    result:Boolean(document.querySelector('.r2-result')),won:window.__SIMPLE_ZEKE_E2E__.query().value?.status.lockedOutcome?.winnerSeat,
+    opponentStr:window.__SIMPLE_ZEKE_E2E__.query().value?.observation.seats.find(seat => seat.seatId!=='player')?.fortressStr}));
+  if (!closing.text.includes('勝利') || closing.skip || closing.result || closing.won!=='player' || closing.opponentStr!==0) throw new Error('closing line wrong: '+JSON.stringify(closing));
   await clickVisible(page,'[data-runtime-tutorial-finish]');
   await page.locator('[data-flow-screen="tutorial-select"]').waitFor({state:'visible',timeout:10000});
   const state=await page.evaluate(id => ({scope:window.__SIMPLE_ZEKE_E2E__.scope(),done:document.querySelector(`[data-tutorial-item="${id}"]`)?.dataset.done,
@@ -175,17 +197,27 @@ async function run(page,id) {
   await page.evaluate(id => window.__SIMPLE_ZEKE_E2E__.start('tutorial',id,1),id);
   await intro(page,id);
   if (id==='basics') {
-    await step(page,id,1);await action(page,'install','STD-076');
-    await step(page,id,2);await action(page,'executeCard','STD-075',{zone:'front'});
-    await step(page,id,3);await action(page,'attack','STD-075',{user:true});await settle(page);
-    await step(page,id,4);await action(page,'endTurn');await settle(page);
-    // Kaneko's Junk Parts go standalone to the front; a layer under Kaneko would leave the script unwinnable.
-    await step(page,id,5);await action(page,'executeCard','STD-090',{zone:'front'});await settle(page,{preference:{scope:'フロント'},refuse:{label:'レイヤー配置',reason:'フロント'}});
-    await step(page,id,6);await action(page,'endTurn');await settle(page);
-    await step(page,id,7);await action(page,'executeSpell','STD-086',{targetId:'STD-131'});await settle(page,{preference:{targetId:'STD-078',pick:true}});
-    await step(page,id,8);await action(page,'attack','STD-090',{user:true});await settle(page);
-    await step(page,id,9);await action(page,'endTurn');await settle(page);
-    await step(page,id,10);await action(page,'attack','STD-090',{user:true});await settle(page);
+    // The author's 17-step red script: soldier, Atto (QA), Glenn for the red symbol, Junk Parts under Atto vs the Guardman.
+    await step(page,id,1);await next(page);
+    await step(page,id,2);await action(page,'executeCard','STD-021',{zone:'front'});
+    await step(page,id,3);await tryBlockedPlay(page,id,'STD-091');
+    await step(page,id,4);await next(page);
+    await step(page,id,5);await action(page,'install','STD-087');
+    await step(page,id,6);
+    if (!await page.locator('[data-runtime-counts].live-focus').count()) throw new Error('the info button is not highlighted');
+    await next(page);
+    await step(page,id,7);await action(page,'executeCard','STD-091',{zone:'front'});
+    await step(page,id,8);await next(page);
+    await step(page,id,9);await action(page,'attack','STD-091',{user:true});await settle(page);
+    await step(page,id,10);await action(page,'endTurn');await settle(page);
+    await step(page,id,11);await next(page);
+    // Alone in a slot the Junk Parts leave Atto too weak for the Guardman: refused, with the reason in the guide.
+    await step(page,id,12);await action(page,'executeCard','STD-078',{zone:'front',refused:true});
+    if (!(await page.locator('.live-guide .live-guide-error').innerText().catch(() => '')).includes('アツト')) throw new Error('the Junk Parts refusal reason is not shown');
+    await action(page,'executeCard','STD-078',{targetId:'STD-091',cardOnly:true});await settle(page);
+    await step(page,id,13);await action(page,'attack','STD-091',{targetId:'STD-022'});await settle(page);
+    await step(page,id,14);await next(page);
+    await step(page,id,15);await action(page,'attack','STD-021',{user:true});await settle(page);
   } else {
     await step(page,id,1);await action(page,'install','STD-191');
     await step(page,id,2);await action(page,'executeLayered','STD-195',{zone:'front'});await settle(page);
