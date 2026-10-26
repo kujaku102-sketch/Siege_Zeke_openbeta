@@ -1,0 +1,30 @@
+/* HUD sprites — V092-10, approved by 文豪. Compat (no WebGL) only: the surface puts
+   .wf-hud-sprites on .wf-turn-controls once every sheet has decoded; without it the CSS hexes stay.
+   Each .wf-sprite is placed with spriteBox() from wireframe/hud-sprites.js (a test keeps them equal).
+   Four cells per sheet: normal, hover, pressed, disabled. Text and icons stay DOM, the gauge SVG. */
+.r2-wireframe-view .wf-sprite { display:none; }
+.r2-wireframe-view .wf-hud-sprites .wf-sprite { display:block; position:absolute; z-index:-1; pointer-events:none;
+  background-repeat:no-repeat; background-position:0 0; background-size:400% 100%; image-rendering:pixelated; }
+
+/* The CSS faces step aside; the buttons, their text and icons stay as they are. */
+.r2-wireframe-view .wf-hud-sprites .wf-hex::before,.r2-wireframe-view .wf-hud-sprites .wf-hex::after,.r2-wireframe-view .wf-hud-sprites .wf-turn-facet { display:none; }
+.r2-wireframe-view .wf-hud-sprites .wf-turn { clip-path:none; background:transparent; isolation:isolate; }
+.r2-wireframe-view .wf-hud-sprites .wf-turn:active:not(:disabled) { transform:none; }
+/* The opponent's face is dark: its TURN caption turns light, as on the WebGL face. */
+body[data-view] .r2-content .r2-wireframe-view .wf-hud-sprites .wf-turn[data-turn-side="theirs"] small { color:#e6e6e6; }
+
+.r2-wireframe-view .wf-hud-sprites .wf-log .wf-sprite { left:-17.396%; top:-18.745%; width:130.466%; height:136.073%; background-image:url('../assets/ui-sprites/ui-hud-log.png'); }
+.r2-wireframe-view .wf-hud-sprites .wf-information .wf-sprite { left:-17.396%; top:-17.217%; width:130.466%; height:133.296%; background-image:url('../assets/ui-sprites/ui-hud-info.png'); }
+.r2-wireframe-view .wf-hud-sprites .wf-zones .wf-sprite { left:-12.708%; top:-17.967%; width:128.05%; height:133.296%; background-image:url('../assets/ui-sprites/ui-hud-zones.png'); }
+.r2-wireframe-view .wf-hud-sprites .wf-turn .wf-sprite { left:-10.692%; top:-9.625%; width:117.786%; height:116.386%; background-image:url('../assets/ui-sprites/ui-hud-turn-mine.png'); }
+.r2-wireframe-view .wf-hud-sprites .wf-turn[data-turn-side="theirs"] .wf-sprite { background-image:url('../assets/ui-sprites/ui-hud-turn-theirs.png'); }
+
+/* States. Hover only where a pointer can hover (iOS keeps :hover after a tap); a held info
+   button (data-count-peek) is pressed. */
+@media (hover:hover) {
+  .r2-wireframe-view .wf-hud-sprites :is(.wf-hex,.wf-turn):hover:not(:disabled) .wf-sprite { background-position:33.333% 0; }
+}
+.r2-wireframe-view .wf-hud-sprites :is(.wf-hex,.wf-turn):focus-visible .wf-sprite { background-position:33.333% 0; }
+.r2-wireframe-view .wf-hud-sprites :is(.wf-hex,.wf-turn):active:not(:disabled) .wf-sprite,
+[data-count-peek] .r2-wireframe-view .wf-hud-sprites .wf-information .wf-sprite { background-position:66.667% 0; }
+.r2-wireframe-view .wf-hud-sprites :is(.wf-hex,.wf-turn):disabled .wf-sprite { background-position:100% 0; }

@@ -3,13 +3,16 @@ import { wireframePreviewHtml, fitPixelLines } from './wireframe/board-view.js';
 import { createBoardScene } from './wireframe/board-scene.js';
 import { attachLifeView } from './wireframe/life-view.js';
 import { createHudScene } from './wireframe/hud-scene.js';
+import { loadHudSprites } from './wireframe/hud-sprites.js';
 
 // The drawn parts of a mounted match that live outside the HTML: the wireframe
 // camera, its 3D board and hover preview, the PS1 turn/hex buttons and the life view.
 // Each is re-attached when a re-render replaces its host node.
 // `lowGpu` (compat render mode) keeps the board and HUD in their SVG/CSS form: no WebGL context is
 // made. It can change during a match (setLowGpu); a lost context is reported through onContextLost.
-export function createSurfaceScenes({ root, boardStyle, renderQuality, latest, lowGpu = false, onContextLost = () => {} }) {
+// In compat the HUD shows the sprite sheets (V092-10) once they have all decoded; until then,
+// or if one fails, the CSS hexes stay. `loadSprites` resolves true when every sheet decoded.
+export function createSurfaceScenes({ root, boardStyle, renderQuality, latest, lowGpu = false, onContextLost = () => {}, loadSprites = loadHudSprites }) {
   let boardCamera = null, cameraNode = null, boardHover = null;
   let boardScene = null, lifeView = null, sceneNode = null;
   let hudScene = null, hudNode = null, hudSynced = null;
@@ -20,6 +23,13 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest, l
   const markBoard = () => root.querySelector('.wire-board-host')?.classList.toggle('wf-has-model', Boolean(boardScene) && boardUsable);
   const markHud = () => root.querySelector('.wf-hud-model')?.parentElement?.classList.toggle('wf-hud-rendered', Boolean(hudScene) && hudUsable);
   const lost = usable => { if (!usable) onContextLost(); };
+  let spritesReady = false, spritesAsked = false, disposed = false;
+  const markSprites = () => root.querySelector('.wf-turn-controls')?.classList.toggle('wf-hud-sprites', lowGpu && spritesReady);
+  const askSprites = () => {
+    if (!lowGpu || spritesAsked) return;
+    spritesAsked = true;
+    loadSprites().then(ok => { spritesReady = ok === true; if (!disposed) markSprites(); }, () => {});
+  };
   const fitLines = event => fitPixelLines(event.currentTarget);
   const updateWirePreview = () => {
     const overlay = root.querySelector('.wf-preview');
@@ -59,7 +69,7 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest, l
         hudTried = hudCanvas;
         try{hudScene=createHudScene(hudCanvas,renderQuality,{onUsable:usable => { hudUsable = usable; markHud(); lost(usable); }});}catch{/* The CSS buttons stay as they are. */}
       }
-      markHud();
+      markHud(); askSprites(); markSprites();
       const hudFresh = redraw || !lifeView || hudCanvas !== hudSynced;
       hudSynced = hudCanvas;
       if (hudFresh) {
@@ -72,6 +82,7 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest, l
     setLowGpu(value) {
       if (lowGpu === Boolean(value)) return;
       lowGpu = Boolean(value);
+      markSprites(); askSprites();
       if (lowGpu) {
         boardScene?.dispose(); boardScene = null; hudScene?.dispose(); hudScene = null; markBoard(); markHud();
         for (const canvas of root.querySelectorAll('.wf-board-model, .wf-hud-model')) { canvas.width = 1; canvas.height = 1; }
@@ -95,6 +106,7 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest, l
       updateWirePreview();
     },
     dispose() {
+      disposed = true;
       cameraNode?.removeEventListener('board-camera-change',fitLines);
       boardCamera?.dispose(); boardScene?.dispose();lifeView?.dispose();boardCamera = null; boardScene=null;lifeView=null;cameraNode = null;
       hudScene?.dispose();hudScene=null;hudNode=null;

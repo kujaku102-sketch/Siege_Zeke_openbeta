@@ -2,6 +2,7 @@ import './styles.css';
 import './ui/ability-help.css';
 import './ui-refresh/wireframe/board.css';
 import './ui-refresh/hud-skin.css';
+import './ui-refresh/hud-sprites.css';
 import { createMatchLifecycleController } from './adapters/match-lifecycle-controller.js';
 import { mountRuntimeMatch } from './ui-refresh/runtime-match-surface.js';
 import { runtimeShellHtml } from './ui-refresh/runtime-shell-view.js';
