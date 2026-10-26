@@ -9,10 +9,10 @@ const failure = code => ({ ok: false, error: { code } });
 // resolves must pass (picking none, or declining, is refused too); `reason` is shown in the guide.
 const LAYER_COST = option => option.kind !== 'value' || String(option.label ?? '').startsWith('レイヤー1枚を破棄');
 export const TUTORIAL_STEP_GUARDS = Object.freeze({
-  // Red (17 steps): the Junk Parts must be mounted under Atto. Alone in a slot, or under the soldier,
+  // Red (44 steps; index 37): the Junk Parts must be mounted under Atto. Alone in a slot, or under the soldier,
   // Atto stays at ATK 3 and cannot break the Guardman (STR 4), so the soldier never reaches the user.
   basics: Object.freeze({
-    12: Object.freeze({ action: { hostCardId: 'STD-091' }, reason: 'ジャンクパーツは『アツト』の下に実行して、マウントして。' })
+    37: Object.freeze({ action: { hostCardId: 'STD-091' }, reason: 'ジャンクパーツは『アツト』の下に実行して、マウントして。' })
   }),
   vengeance: Object.freeze({
     3: Object.freeze({ choose: LAYER_COST, reason: '移動コストは『レイヤー1枚を破棄』で払って。' }),
