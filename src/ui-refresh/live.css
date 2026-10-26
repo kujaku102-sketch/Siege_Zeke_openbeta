@@ -36,6 +36,8 @@ body { overflow:hidden; }
 .live-guide[data-paging="pending"] .live-guide-text p { visibility:hidden; }
 .live-guide-next span { margin-left:8px; }
 .live-focus { outline:3px solid #f9df8a!important; outline-offset:2px; }
+/* Panels and their buttons are cut by clip-path, which hides an outline drawn outside them: draw it inside. */
+.r2-content .cp-panel.live-focus, .r2-content .cp-panel .live-focus { outline-offset:-3px; }
 .r2-content .r2-mode-grid button { cursor:pointer; }
 .r2-entry { max-height:calc(100svh - 64px); overflow:auto; }
 .r2-modal fieldset { border:1px solid #555; padding:10px; }

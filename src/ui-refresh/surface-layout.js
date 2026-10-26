@@ -102,9 +102,10 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       const named = element => !focus.badge || [element.getAttribute('aria-label'), element.getAttribute('title'), element.textContent].some(text => text?.includes(focus.badge));
       for (const element of [...root.querySelectorAll(selectors[focus.kind] ?? ':not(*)')].filter(named)) {
         element.classList.add('live-focus');element.dataset.tutorialFocusLabel = focus.label;
-        // The card detail scrolls; on a short screen its ability buttons sit below the fold.
+        // The card detail scrolls; on a short screen its ability buttons sit below the fold. Centred, so the
+        // highlight's outline is not cut by the panel's edge.
         const key = `${tutorial.value.flow.index}:${focus.target}`;
-        if (focus.kind === 'ui' && focus.target === 'ability-badge' && scrolledFocus !== key) { scrolledFocus = key; element.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+        if (focus.kind === 'ui' && focus.target === 'ability-badge' && scrolledFocus !== key) { scrolledFocus = key; element.scrollIntoView({ block: 'center', inline: 'nearest' }); }
       }
     }
     const guide = root.querySelector('.live-guide');

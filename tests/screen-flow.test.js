@@ -238,7 +238,7 @@ test('tutorial try: the blocked play moves the step on and puts its reason in th
   assert.ok(surfaceNote.includes('const note = tutorialNote?.index === tutorial.value.flow.index ? { note: tutorialNote.text } : {};'), 'the note belongs to one step');
   const layout = await readSource('../src/ui-refresh/surface-layout.js');
   assert.ok(layout.includes("for (const element of root.querySelectorAll('.live-focus')) { element.classList.remove('live-focus'); delete element.dataset.tutorialFocusLabel; }"), 'last step\'s marks are cleared');
-  assert.ok(layout.includes("if (focus.kind === 'ui' && focus.target === 'ability-badge' && scrolledFocus !== key) { scrolledFocus = key; element.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }"), 'a highlighted badge is scrolled into its panel once');
+  assert.ok(layout.includes("if (focus.kind === 'ui' && focus.target === 'ability-badge' && scrolledFocus !== key) { scrolledFocus = key; element.scrollIntoView({ block: 'center', inline: 'nearest' }); }"), 'a highlighted badge is scrolled to the middle of its panel once, its outline clear of the edge');
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
   assert.ok(surface.includes('const reportError = code => { noticeStep = tutorialIndex(); onError(code); };'));
   assert.ok(surface.includes('if (noticeStep !== null && tutorial.ok && tutorial.value.flow.index > noticeStep) { noticeStep = null; onNoticeClear(); }'));
