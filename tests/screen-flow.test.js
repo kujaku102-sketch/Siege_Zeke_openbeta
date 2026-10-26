@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { EXTERNAL_LINKS, externalHref, runtimeTarget, titleLinks } from '../src/config/external-links.js';
 import { runtimeShellHtml, titleLinksHtml } from '../src/ui-refresh/runtime-shell-view.js';
 import { SCREENS, nextScreen, escapeScreen, isFlowScreen } from '../src/ui-refresh/screen-flow.js';
-import { TUTORIAL_ITEMS, TUTORIAL_IDS, TUTORIAL_DONE_KEY, readTutorialDone, markTutorialDone } from '../src/ui-refresh/tutorial-items.js';
+import { TUTORIAL_ITEMS, TUTORIAL_IDS, TUTORIAL_DONE_KEY, TUTORIAL_ORDER, numberTutorialItems, readTutorialDone, markTutorialDone } from '../src/ui-refresh/tutorial-items.js';
 import { battleSetupHtml, tutorialSelectHtml } from '../src/ui-refresh/flow-screens-view.js';
 import { deckOptionsHtml, userOptionsHtml } from '../src/ui-refresh/runtime-shell-view.js';
 import { START_DECKS } from '../src/data/start-decks.js';
@@ -87,6 +87,18 @@ const memoryStorage = (initial = {}, { failWrite = false, failRead = false } = {
   return { data, getItem: key => { if (failRead) throw new Error('blocked'); return data.has(key) ? data.get(key) : null; },
     setItem: (key, value) => { if (failWrite) throw new Error('quota'); data.set(key, String(value)); } };
 };
+
+test('tutorial items: chapter numbers follow the color order with no gaps, renumbering when a tutorial joins', () => {
+  assert.deepEqual([...TUTORIAL_ORDER], ['basics', 'blue', 'green', 'yellow', 'vengeance', 'black', 'orange']);
+  const titles = ids => numberTutorialItems(ids.map(id => ({ id, subtitle: id, summary: id }))).map(item => `${item.id}=${item.title}`);
+  assert.deepEqual(titles(['vengeance', 'basics']), ['basics=チャプター1', 'vengeance=チャプター2'], 'today: red 1, purple 2, whatever order they are given in');
+  assert.deepEqual(titles(['basics', 'vengeance', 'blue']), ['basics=チャプター1', 'blue=チャプター2', 'vengeance=チャプター3']);
+  assert.deepEqual(titles(['basics', 'blue', 'vengeance', 'green', 'yellow']),
+    ['basics=チャプター1', 'blue=チャプター2', 'green=チャプター3', 'yellow=チャプター4', 'vengeance=チャプター5']);
+  assert.deepEqual(titles(['orange', 'vengeance']), ['vengeance=チャプター1', 'orange=チャプター2'], 'no gaps for colors not yet made');
+  const all = titles([...TUTORIAL_ORDER].reverse());
+  assert.deepEqual(all.map(entry => entry.split('=')[1]), TUTORIAL_ORDER.map((_, index) => `チャプター${index + 1}`));
+});
 
 test('tutorial items: the two existing tutorials, each a real tutorial id with its own steps', () => {
   assert.deepEqual([...TUTORIAL_IDS], ['basics', 'vengeance'], 'the ids stay the tutorial ids, so saved marks keep matching');

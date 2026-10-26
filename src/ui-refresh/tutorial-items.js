@@ -1,9 +1,20 @@
-// The tutorial list (V092-08 Q3): the two existing tutorials as items, in one place. They are shown as
-// chapters (provisional names); the subtitle is the in-match select's label, and the summaries only
-// name what the existing steps already teach. The ids stay the tutorial ids, so saved marks still match.
-export const TUTORIAL_ITEMS = Object.freeze([
-  Object.freeze({ id: 'basics', title: 'チャプター1', subtitle: '基本操作・赤', summary: '赤デッキで、インストール・実行・攻撃から、実行先選択、QA、セキュリティ、マウント、任意追加効果まで。' }),
-  Object.freeze({ id: 'vengeance', title: 'チャプター2', subtitle: 'ヴェンジェンス・紫', summary: '紫デッキで、Obの移動とレイヤード。インストール、レイヤード、リログ、効果起動（アップデート）まで。' })
+// The tutorial list (V092-08 Q3): the existing tutorials as items, in one place. They are shown as
+// chapters; the subtitle is the in-match select's label, and the summaries only name what the existing
+// steps already teach. The ids stay the tutorial ids, so saved marks still match.
+//
+// Chapter numbers are not written down (文豪, 2026-10-26): the tutorials that exist are listed in this
+// color order and numbered 1, 2, 3… with no gaps, so a new color renumbers the ones after it.
+export const TUTORIAL_ORDER = Object.freeze(['basics', 'blue', 'green', 'yellow', 'vengeance', 'black', 'orange']);
+
+export function numberTutorialItems(entries, order = TUTORIAL_ORDER) {
+  const rank = id => { const index = order.indexOf(id); return index < 0 ? order.length : index; };
+  return Object.freeze([...entries].sort((a, b) => rank(a.id) - rank(b.id))
+    .map((entry, index) => Object.freeze({ id: entry.id, title: `チャプター${index + 1}`, subtitle: entry.subtitle, summary: entry.summary })));
+}
+
+export const TUTORIAL_ITEMS = numberTutorialItems([
+  { id: 'basics', subtitle: '基本操作・赤', summary: '赤デッキで、インストール・実行・攻撃から、実行先選択、QA、セキュリティ、マウント、任意追加効果まで。' },
+  { id: 'vengeance', subtitle: 'ヴェンジェンス・紫', summary: '紫デッキで、Obの移動とレイヤード。インストール、レイヤード、リログ、効果起動（アップデート）まで。' }
 ]);
 export const TUTORIAL_IDS = Object.freeze(TUTORIAL_ITEMS.map(item => item.id));
 
