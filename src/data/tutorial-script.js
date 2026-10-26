@@ -55,7 +55,7 @@ const BASIC_STEPS = [
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "黄側は『華守り』をスリープして[セキュリティ]を構えた。『サプライヤー・カネコ』をフロントへ実行して、アクセスしたジャンクパーツの配置先は『フロント』を選んで、カネコの下に重ねず単体で置く。Codeは単体で場に残る。",
+    text: "黄側は『華守り』をスリープして[セキュリティ]を構えた。『サプライヤー・カネコ』をフロントへ実行。アクセスしたジャンクパーツの配置先は、カネコの下に重ねず『フロント』を選んで単体で置く。Codeは単体で場に残る。",
     focus: [{ kind: "card", cardId: "STD-090", owner: "player", zone: "hand", label: "カネコ" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }, { kind: "card", cardId: "STD-131", owner: "ai", zone: "front", label: "華守り" }],
     expect: { type: "play", cardId: "STD-090", zone: "front" }
   },
