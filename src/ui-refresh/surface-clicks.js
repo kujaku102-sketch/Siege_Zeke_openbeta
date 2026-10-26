@@ -8,6 +8,8 @@ const BUTTONS = [
   ['data-runtime-title', c => c.onTitle()],
   ['data-runtime-tutorial-skip', c => c.onTutorialSkip()],
   ['data-runtime-tutorial-finish', c => c.onTutorialComplete()],
+  ['data-runtime-guide-next', c => c.turnGuidePage(1)],
+  ['data-runtime-guide-prev', c => c.turnGuidePage(-1)],
   // The tried play moves the step on and its reason shows in the guide for that step (not a shell notice).
   ['data-tutorial-try', (c, target) => { const next = c.session.advanceTutorial(); if (!next.ok) return c.onError(next.error.code); c.noteTutorial(blockMessage({ code: target.dataset.tutorialTry })); return c.act(c.ui.read()); }],
   ['data-runtime-tutorial-next', c => { const next = c.session.advanceTutorial(); return next.ok ? c.act(c.ui.read()) : c.onError(next.error.code); }],

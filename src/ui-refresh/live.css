@@ -29,6 +29,11 @@ body { overflow:hidden; }
 .r2-content .r2-guide.live-guide .live-guide-skip { color:#b0b0ba; }
 .r2-content .r2-guide.live-guide .live-guide-error { margin:.4em 0 0; color:#ffd479; }
 .r2-content .r2-guide.live-guide .live-guide-next { min-width:72px; background:#e6e6e9; color:#18181b; font-weight:700; }
+/* Guide pages: the number between the buttons, [戻る] beside [次へ]; text hidden until the screen's pages are cut. */
+.live-guide-turn { display:flex; gap:8px; margin-left:auto; }
+.r2-content .r2-guide.live-guide .live-guide-page { color:#9a9aa3; font-size:11px; letter-spacing:.04em; }
+.r2-content .r2-guide.live-guide .live-guide-prev { color:#d4d4d8; }
+.live-guide[data-paging="pending"] .live-guide-text p { visibility:hidden; }
 .live-guide-next span { margin-left:8px; }
 .live-focus { outline:3px solid #f9df8a!important; outline-offset:2px; }
 .r2-content .r2-mode-grid button { cursor:pointer; }

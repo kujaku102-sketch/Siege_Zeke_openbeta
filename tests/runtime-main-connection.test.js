@@ -557,6 +557,29 @@ test('tutorial red step 3: Atto\'s blocked play stays pressable in its popup, na
   assert.doesNotMatch(runtimeGameHtml(moved.model,{...moved,tutorial:session.tutorial().value}),/live-guide-error/,'no note, no line');
   ui.dispose?.();lifecycle.dispose();
 });
+test('guide pages: [次へ] turns pages, [戻る] after the first, the step\'s own button and its highlights only on the last page',()=>{
+  const {lifecycle,session,port}=setup('tutorial');
+  for(let count=0;count<8;count+=1)assert.equal(session.advanceTutorial().ok,true);
+  const ui=createMatchUiController({session,viewerSeat:'a'}).value,read=ui.read().value,value=session.tutorial().value;
+  assert.equal(value.presentation.expect.type,'advance');
+  const html=page=>runtimeGameHtml(read.model,{...read,tutorial:{...value,page}});
+  const first=html({index:0,count:3,text:'一枚目。',last:false,pending:false});
+  assert.match(first,/<p>一枚目。<\/p>/);
+  assert.match(first,/<small class="live-guide-page" aria-label="1ページ目／全3ページ">1\/3<\/small>/);
+  assert.match(first,/data-runtime-guide-next>次へ ▸<\/button>/);
+  assert.doesNotMatch(first,/data-runtime-guide-prev|data-runtime-tutorial-next/,'no back on the first page, no step move before the last');
+  const middle=html({index:1,count:3,text:'二枚目。',last:false,pending:false});
+  assert.match(middle,/data-runtime-guide-prev>◂ 戻る<\/button><button class="live-guide-next" data-runtime-guide-next>/);
+  const last=html({index:2,count:3,text:'三枚目。',last:true,pending:false});
+  assert.match(last,/data-runtime-guide-prev>◂ 戻る<\/button><button class="live-guide-next" data-runtime-tutorial-next>次へ ▸<\/button>/);
+  assert.match(last,/data-guide-page="3\/3"/);
+  const single=runtimeGameHtml(read.model,{...read,tutorial:value});
+  assert.doesNotMatch(single,/live-guide-page|data-runtime-guide-(next|prev)/,'one page: no number, no page buttons');
+  assert.match(single,/aria-live="polite"/);
+  const pending=html({index:0,count:1,text:value.presentation.text,last:false,pending:true});
+  assert.match(pending,/data-paging="pending"/);assert.doesNotMatch(pending,/data-runtime-guide-next|data-runtime-tutorial-next/,'nothing to press until the pages are cut');
+  ui.dispose?.();lifecycle.dispose();
+});
 test('tutorial basics runs start to finish through ports: the script ends with opponent STR 5 to 0 as a locked win, with scripted opponent and no undo',()=>{
   const {lifecycle,session,port}=setup('tutorial');
   const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;

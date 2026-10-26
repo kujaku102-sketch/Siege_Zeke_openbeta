@@ -10,6 +10,8 @@ import { attachHandDock } from './wireframe/hand-dock.js';
 import { createSurfaceTimers } from './surface-timers.js';
 import { createSurfaceLayout } from './surface-layout.js';
 import { patchRegion, syncInteractionClasses, localRegionKeys, createLogSync } from './surface-regions.js';
+import { splitGuidePages } from './guide-pages.js';
+import { createGuideLineCounter } from './guide.js';
 import { createSurfaceScenes } from './surface-scenes.js';
 import { createSurfaceFx } from './surface-fx.js';
 import { routeClick } from './surface-clicks.js';
@@ -55,16 +57,56 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   // A line the surface adds under the guide's text for one step (the reason a tried play failed).
   let tutorialNote = null;
   const noteTutorial = text => { const index = tutorialIndex(); tutorialNote = index === null ? null : { index, text }; };
+  // Guide pages (guide-pages.js): cut per screen by the layout (paginateGuide), turned by [次へ]/[戻る] or the
+  // arrow keys. Until the last page of a step its highlights stay off and the match does not take input.
+  let guidePaging = { key: null, pages: null }, guidePage = { step: null, index: 0 }, guidePageShown = null, fontEpoch = 0;
+  const pageStep = flow => `${flow.tutorialId}:${flow.complete ? 'done' : flow.introComplete ? flow.index : 'intro:' + flow.introIndex}`;
+  const pageFor = value => {
+    const presentation = value.presentation;
+    if (!presentation || presentation.parts) return null;
+    const step = pageStep(value.flow);
+    if (guidePage.step !== step) guidePage = { step, index: 0 };
+    const pages = guidePaging.key?.startsWith(`${presentation.text}\u0000`) ? guidePaging.pages : null;
+    if (!pages) return { index: 0, count: 1, text: presentation.text, last: false, pending: true };
+    const index = Math.min(guidePage.index, pages.length - 1);
+    return { index, count: pages.length, text: pages[index].text, last: index === pages.length - 1, pending: false };
+  };
   const tutorialView = () => {
     const tutorial = session.tutorial();
-    if (!tutorial.ok || tutorialNote?.index !== tutorial.value.flow.index) return tutorial;
-    return { ok: true, value: { ...tutorial.value, note: tutorialNote.text } };
+    if (!tutorial.ok) { guidePageShown = null; return tutorial; }
+    const page = pageFor(tutorial.value);
+    guidePageShown = page;
+    const note = tutorialNote?.index === tutorial.value.flow.index ? { note: tutorialNote.text } : {};
+    return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}) } };
+  };
+  const paginateGuide = (guide, viewport) => {
+    const tutorial = session.tutorial(), presentation = tutorial.ok ? tutorial.value.presentation : null;
+    if (!presentation || presentation.parts) return;
+    const counter = createGuideLineCounter(guide, viewport);
+    if (!counter) return;
+    try {
+      const key = `${presentation.text}\u0000${counter.width}\u0000${fontEpoch}`;
+      if (guidePaging.key === key) return;
+      guidePaging = { key, pages: splitGuidePages(presentation.text, { lineCount: counter.count }) };
+      schedule(() => { if (!disposed) render(ui.read()); }, 0);
+    } finally { counter.dispose(); }
+  };
+  const turnGuidePage = delta => {
+    const shown = guidePageShown;
+    if (!shown || shown.pending) return;
+    const index = Math.max(0, Math.min(shown.count - 1, shown.index + delta));
+    if (index === shown.index) return;
+    const focused = root.ownerDocument.activeElement?.closest?.('.live-guide');
+    guidePage = { ...guidePage, index };
+    act(ui.read());
+    if (focused) root.querySelector('.live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next],[data-runtime-tutorial-finish],[data-runtime-guide-prev])')?.focus();
   };
   const fx = createSurfaceFx({ root, boardStyle });
   const timers = createSurfaceTimers({ root, disposed: () => disposed, motionRemaining: fx.remaining });
   const { schedule } = timers;
   const surfaceLayout = createSurfaceLayout({ root, session, scope, boardStyle, latest: () => latest,
-    requestFrame: timers.requestFrame, disposed: () => disposed });
+    requestFrame: timers.requestFrame, disposed: () => disposed,
+    guideLastPage: () => !guidePageShown || guidePageShown.last, paginateGuide: (guide, viewport) => paginateGuide(guide, viewport) });
   const queueLayout = surfaceLayout.queue;
   const scenes = createSurfaceScenes({ root, boardStyle, renderQuality, latest: () => latest, lowGpu,
     onContextLost: () => { if (!disposed) onContextLost(); } });
@@ -108,6 +150,10 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
         if(list)list.scrollTop=0;
       }
       log.sync(next,shellRebuilt);
+      // Reading a step's earlier pages: the match waits for its last page.
+      const reading = Boolean(guidePageShown && !guidePageShown.last);
+      for (const name of ['board', 'console', 'hand', 'hand-toggle']) { const host = root.querySelector(`[data-live-region="${name}"]`); if (host) host.inert = reading; }
+      root.querySelector('.r2-runtime-view')?.classList.toggle('tutorial-reading', reading);
       handDock?.sync();
       // A new request puts the hand away: a raised hand covers the lit slots and the confirm
       // bar. It can be raised again, and stays up while a hand-card pick is being made.
@@ -168,7 +214,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   });
   const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,
-    onTitle, onTutorialSkip, onTutorialComplete, onRematch, onMenu, onError: reportError, noteTutorial };
+    onTitle, onTutorialSkip, onTutorialComplete, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage };
   listener('click', event => {
     if (disposed || event.target.closest('[data-ability-help]')) return;
     if (suppressedPointerId !== null) {
@@ -191,6 +237,9 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     schedule, cancel: timers.cancel, handDrag, handDock: () => handDock, selectionPeek, scenes, queueLayout,
     suppress: pointerId => { suppressedPointerId = pointerId; } });
   listener('keydown', event => {
+    if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && event.target.closest?.('.live-guide')) {
+      event.preventDefault(); turnGuidePage(event.key === 'ArrowRight' ? 1 : -1); return;
+    }
     if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-wire-hit]')) {
       event.preventDefault(); event.target.dispatchEvent(new MouseEvent('click',{bubbles:true})); return;
     }
@@ -206,7 +255,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     { capture: true, passive: true, signal: lifetime.signal });
   root.addEventListener('load', event => { if (event.target?.tagName === 'IMG') queueLayout(); },
     { capture: true, signal: lifetime.signal });
-  root.ownerDocument?.fonts?.addEventListener?.('loadingdone', queueLayout, { signal: lifetime.signal });
+  root.ownerDocument?.fonts?.addEventListener?.('loadingdone', () => { fontEpoch += 1; queueLayout(); }, { signal: lifetime.signal });
   const sides = createSurfaceOpponents({ session, scope, aiSeat, ui, paced: timers.paced, cancelPaced: timers.cancelPaced,
     current, onError, render });
   if (!sides.ok) { lifetime.abort(); observer?.disconnect(); handDock?.dispose(); ui.dispose(); return sides; }

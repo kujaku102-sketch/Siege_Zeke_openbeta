@@ -223,14 +223,26 @@ test('tutorial try: the blocked play moves the step on and puts its reason in th
   const clicks = await readSource('../src/ui-refresh/surface-clicks.js');
   assert.ok(clicks.includes("['data-tutorial-try', (c, target) => { const next = c.session.advanceTutorial(); if (!next.ok) return c.onError(next.error.code); c.noteTutorial(blockMessage({ code: target.dataset.tutorialTry })); return c.act(c.ui.read()); }],"));
   const surfaceNote = await readSource('../src/ui-refresh/runtime-match-surface.js');
-  assert.ok(surfaceNote.includes('if (!tutorial.ok || tutorialNote?.index !== tutorial.value.flow.index) return tutorial;'), 'the note belongs to one step');
+  assert.ok(surfaceNote.includes('const note = tutorialNote?.index === tutorial.value.flow.index ? { note: tutorialNote.text } : {};'), 'the note belongs to one step');
   const layout = await readSource('../src/ui-refresh/surface-layout.js');
   assert.ok(layout.includes("for (const element of root.querySelectorAll('.live-focus')) { element.classList.remove('live-focus'); delete element.dataset.tutorialFocusLabel; }"), 'last step\'s marks are cleared');
   assert.ok(layout.includes("if (focus.kind === 'ui' && focus.target === 'ability-badge' && scrolledFocus !== key) { scrolledFocus = key; element.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }"), 'a highlighted badge is scrolled into its panel once');
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
   assert.ok(surface.includes('const reportError = code => { noticeStep = tutorialIndex(); onError(code); };'));
   assert.ok(surface.includes('if (noticeStep !== null && tutorial.ok && tutorial.value.flow.index > noticeStep) { noticeStep = null; onNoticeClear(); }'));
-  assert.ok(surface.includes('onMenu, onError: reportError, noteTutorial };'), 'presses in the match are recorded');
+  assert.ok(surface.includes('onMenu, onError: reportError, noteTutorial, turnGuidePage };'), 'presses in the match are recorded');
   const main = await readSource('../src/main.js');
   assert.ok(main.includes("onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}"));
+});
+
+test('guide pages: cut by the layout against the screen, turned by buttons and arrows; earlier pages lock the match and hide highlights', async () => {
+  const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
+  assert.ok(surface.includes("guidePaging = { key, pages: splitGuidePages(presentation.text, { lineCount: counter.count }) };"));
+  assert.ok(surface.includes("const key = `${presentation.text}\\u0000${counter.width}\\u0000${fontEpoch}`;"), 'recut when the screen width or the fonts change');
+  assert.ok(surface.includes("for (const name of ['board', 'console', 'hand', 'hand-toggle']) { const host = root.querySelector(`[data-live-region=\"${name}\"]`); if (host) host.inert = reading; }"));
+  assert.ok(surface.includes("if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && event.target.closest?.('.live-guide')) {"));
+  const layout = await readSource('../src/ui-refresh/surface-layout.js');
+  assert.ok(layout.includes('if (tutorial.ok && !tutorial.value.flow.complete && guideLastPage()) for (const focus of'));
+  const clicks = await readSource('../src/ui-refresh/surface-clicks.js');
+  assert.ok(clicks.includes("['data-runtime-guide-next', c => c.turnGuidePage(1)],") && clicks.includes("['data-runtime-guide-prev', c => c.turnGuidePage(-1)],"));
 });

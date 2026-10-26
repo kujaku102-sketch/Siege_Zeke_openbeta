@@ -34,3 +34,24 @@ export function commitGuideContent(guide, width) {
   delete guide.dataset.measuring;
   // Height is intrinsic: wrapped dialogue and error text expand the frame, never a scroll pane.
 }
+
+// Lines a text takes in the widest speech box this screen allows: a hidden twin of the dialogue line, so the
+// count follows the real font, letter spacing and wrapping (including kinsoku). Pages are cut against it.
+export function createGuideLineCounter(guide, viewport) {
+  const speech = guide.querySelector(".live-guide-speech"), line = guide.querySelector(".live-guide-text p");
+  if (!speech || !line) return null;
+  const style = getComputedStyle(speech);
+  const inset = [style.paddingLeft, style.paddingRight, style.borderLeftWidth, style.borderRightWidth]
+    .reduce((sum, value) => sum + (parseFloat(value) || 0), 0);
+  const width = Math.max(1, Math.floor(viewport.width - 16 - inset));
+  const probe = guide.ownerDocument.createElement("p");
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText = `position:absolute;left:0;top:0;width:${width}px;margin:0;white-space:normal;visibility:hidden;pointer-events:none`;
+  line.parentElement.append(probe);
+  const lineHeight = parseFloat(getComputedStyle(probe).lineHeight) || 1;
+  return {
+    width,
+    count(text) { probe.textContent = text; return Math.max(1, Math.round(probe.getBoundingClientRect().height / lineHeight)); },
+    dispose() { probe.remove(); }
+  };
+}

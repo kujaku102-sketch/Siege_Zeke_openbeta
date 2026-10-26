@@ -5,7 +5,7 @@ import { placeFlow } from './effect-flow.js';
 // Screen geometry of a mounted match: board fit, card popup, floating effect flow,
 // tutorial focus and the guide. It only measures and positions; it never acts.
 // Each queue() starts a new geometry epoch, so a stale frame drops its work.
-export function createSurfaceLayout({ root, session, scope, boardStyle, latest, requestFrame, disposed }) {
+export function createSurfaceLayout({ root, session, scope, boardStyle, latest, requestFrame, disposed, guideLastPage = () => true, paginateGuide = () => {} }) {
   let layoutFrame = null;
   let guideMeasureFrame = null;
   let guidePositionFrame = null;
@@ -89,7 +89,7 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
     const tutorial = session.tutorial();
     // A popup or detail kept open across steps would keep the last step's marks: clear them first.
     for (const element of root.querySelectorAll('.live-focus')) { element.classList.remove('live-focus'); delete element.dataset.tutorialFocusLabel; }
-    if (tutorial.ok && !tutorial.value.flow.complete) for (const focus of tutorial.value.presentation.focus ?? []) {
+    if (tutorial.ok && !tutorial.value.flow.complete && guideLastPage()) for (const focus of tutorial.value.presentation.focus ?? []) {
       const seat = scope.seatIds[focus.owner === 'ai' ? 1 : 0];
       const selectors = {card:`[data-card-id="${focus.cardId}"][data-seat="${seat}"][data-zone="${focus.zone}"]`,
         zone:`.zone[data-seat="${seat}"][data-zone="${focus.zone}"]`,fortress:`[data-fortress="${seat}"]`,
@@ -110,6 +110,7 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
     const guide = root.querySelector('.live-guide');
     if (guide) {
       guideViewport = viewport;
+      paginateGuide(guide,guideViewport);
       prepareGuideContent(guide,guideViewport);
       queueGuideMeasurement(epoch);
     }
