@@ -95,10 +95,10 @@ test("tutorial navigator registry uses a local temporary image with replaceable 
 
 test("tutorial steps declare structured focus targets instead of deriving them from dialogue text", () => {
   const basics = createTutorialFlow("basics");
-  assert.deepEqual(currentTutorialStep(basics).focus.map((item) => item.kind), ["card", "card", "fortress"]);
-  basics.index = 5;
+  assert.deepEqual(currentTutorialStep(basics).focus.map((item) => item.kind), ["card", "card"]);
+  basics.index = 18;
   assert.equal(currentTutorialStep(basics).focus.find((item) => item.kind === "card")?.cardId, "STD-087");
-  basics.index = 6;
+  basics.index = 20;
   assert.deepEqual(currentTutorialStep(basics).focus, [{ kind: "ui", target: "info-button", label: "情報ボタン" }]);
   const vengeance = createTutorialFlow("vengeance");
   vengeance.index = 2;

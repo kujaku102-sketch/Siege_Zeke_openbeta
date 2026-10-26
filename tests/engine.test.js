@@ -3128,8 +3128,9 @@ test("red tutorial (script): the symbol-less Atto is refused, install lights red
   assert.equal(player.memory, 5);
   const accept = (action) => assert.equal(acceptTutorialAction(state, flow, action), true, JSON.stringify(action) + " " + flow.error);
   const hand = (id) => player.hand.find((card) => card.id === id);
-  accept({ type: "advance" }); // Ob / STR
-  accept({ type: "advance" }); // Code and the Junk Parts' +1/+1
+  // One speech bubble per step (47 steps): the data is walked bubble by bubble, so the indices are asserted.
+  const skip = (count, index) => { for (let n = 0; n < count; n += 1) accept({ type: "advance" }); assert.equal(flow.index, index); };
+  skip(11, 11); // Ob / STR / Code / Junk Parts' +1/+1 / "execute", up to "let's play the swordsman"
 
   const soldier = hand("STD-021");
   assert.equal(playCard(state, "player", soldier.uid, { zone: "front" }), true);
@@ -3142,23 +3143,24 @@ test("red tutorial (script): the symbol-less Atto is refused, install lights red
   assert.equal(playCard(state, "player", atto.uid, { zone: "front" }), false);
   assert.equal(hand("STD-091"), atto);
   assert.equal(player.memory, 3);
-  accept({ type: "advance" }); // the attempt and its explanation
-  accept({ type: "advance" }); // "...it won't come out" and the Registry
+  skip(2, 14); // "paid 2 memory", "let's play Atto" (the tried play moves on from here)
+  skip(4, 18); // "it won't come out", "sorry", the Registry, how install lights a symbol
   assert.equal(installCard(state, "player", hand("STD-087").uid), true);
   accept({ type: "install", cardId: "STD-087" });
-  accept({ type: "advance" }); // the info button
+  skip(3, 22); // "now the colour can be used", the info button and the six other symbols
   assert.equal(canPlayCard(state, "player", atto).ok, true, "red is lit now");
   assert.equal(playCard(state, "player", atto.uid, { zone: "front" }), true);
   accept({ type: "play", cardId: "STD-091", zone: "front" });
   assert.equal(player.memory, 1);
   assert.equal(canAttack(state, "player", atto), true, "QA: it can attack the turn it comes out");
   assert.equal(canAttack(state, "player", soldier), false);
-  accept({ type: "advance" }); // the QA badge
+  skip(8, 31); // the green frame, the QA badge and its help, "let's attack", the action menu
 
   assert.equal(attack(state, "player", atto.uid, "ai-fortress"), true);
   accept({ type: "attack", cardId: "STD-091", targetType: "fortress" });
   assert.equal(ai.fortressStr, 2);
   assert.deepEqual(ai.incidentsTriggered, [3]);
+  skip(1, 33); // "attack succeeded"
 
   assert.equal(endTurn(state), true);
   accept({ type: "end-turn" });
@@ -3170,7 +3172,7 @@ test("red tutorial (script): the symbol-less Atto is refused, install lights red
   assert.equal(player.memory, 5, "memory is back to the limit");
   assert.equal(atto.sleep, false, "Atto stood by again");
   assert.deepEqual(getAttackTargets(state, "player", soldier).map((target) => target.uid), [guardman.uid], "the user cannot be reached");
-  accept({ type: "advance" }); // draw / stand by / Security / Junk Parts
+  skip(6, 40); // draw and stand-by, the Security, the STR 4, the Junk Parts in hand, how mounting works
 
   const parts = hand("STD-078");
   assert.equal(playCard(state, "player", parts.uid, { zone: "front", underUid: atto.uid }), true);
@@ -3179,6 +3181,7 @@ test("red tutorial (script): the symbol-less Atto is refused, install lights red
   assert.equal(cardAtk(state, "player", atto), 4);
   assert.equal(cardCurrentStr(state, "player", atto), 2);
   assert.deepEqual(getAttackTargets(state, "player", atto).map((target) => target.uid), [guardman.uid]);
+  skip(1, 42); // "Atto's ATK is 4 now"
 
   assert.equal(attack(state, "player", atto.uid, guardman.uid), true);
   accept({ type: "attack", cardId: "STD-091", targetCardId: "STD-022" });
@@ -3187,7 +3190,7 @@ test("red tutorial (script): the symbol-less Atto is refused, install lights red
   assert.equal(player.front.includes(parts), true, "the Code stays on the field");
   assert.equal(ai.front.length, 0);
   assert.equal(state.winner, null);
-  accept({ type: "advance" }); // battle explanation
+  skip(2, 45); // the battle, the Security gone
 
   assert.equal(canAttack(state, "player", soldier), true);
   assert.deepEqual(getAttackTargets(state, "player", soldier).map((target) => target.type), ["fortress"]);

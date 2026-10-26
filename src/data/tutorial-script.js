@@ -2,7 +2,7 @@
 export const TUTORIAL_SPEAKER = "じぐさぽ";
 // どのチュートリアルも、相手ユーザーのSTR5から始めて0にして勝つ流れで終える。engine.js の初期配置がこの値を使う。
 export const TUTORIAL_OPPONENT_STR = 5;
-// 赤チュートリアルの初手(文豪の台本)。「兵士」は台本の呼び名で、メモリ2・無色の剣士(STD-021)を当てている。
+// 赤チュートリアルの初手(文豪の台本)。台本の「兵士」は剣士(STD-021、メモリ2・3/3・無色)に統一している。
 export const TUTORIAL_SOLDIER_ID = "STD-021";
 export const TUTORIAL_RED_HAND = Object.freeze(["STD-087", TUTORIAL_SOLDIER_ID, "STD-091", "STD-078"]);
 export const TUTORIAL_OPPONENT_SCRIPTS = Object.freeze({
@@ -29,31 +29,109 @@ const INTRO_STEPS = [
 const BASIC_STEPS = [
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "では、まずカードを出してみましょう。ここでは手札のOb(オブジェクト)を使います。Obは他のゲームではモンスター・クリーチャーに分類されるカテゴリです。これらの攻撃で相手の耐久力、つまりSTRを0にすることで勝利します。",
-    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "hand", label: "兵士" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "hand", label: "アツト" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    text: "では、まずカードを出してみましょう。▽ここでは手札のOb(オブジェクト)を使います。",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "hand", label: "剣士" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "hand", label: "アツト" }],
     expect: { type: "advance" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "もう一枚、違うカテゴリのカードがありますよ。これはCode。装備やフィールド、といった分類になるカテゴリです。Obや他のカテゴリのカードと組み合わせることができ、戦略の幅を広げられます！ちなみに、この『ジャンクパーツ』にはスタッツ(ATK/STR)への補正値がついているのでマウントしている限りObに対して『+1/+1』の補正を与えます。",
+    text: "Obは他のゲームではモンスター・クリーチャーに分類されるカテゴリです。",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "hand", label: "剣士" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "hand", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "これらの攻撃で相手の耐久力、つまりSTRを0にすることで勝利します。",
+    focus: [{ kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "もう一枚、違うカテゴリのカードがありますね。",
     focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }],
     expect: { type: "advance" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "では、実際にObを出してみましょう。今はアクティブメモリ(使用可能)が5あるから、メモリ2の『兵士』と『切込隊長アツト』をそれぞれ出してみましょう。この操作を『実行』と呼びます！では『兵士』を出してみましょう。",
-    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "hand", label: "兵士" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }],
+    text: "これはCode。装備やフィールド、といった分類になるカテゴリです。",
+    focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "Obや他のカテゴリのカードと組み合わせることができ、戦略の幅を広げられます！",
+    focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "ちなみに、この『ジャンクパーツ』にはスタッツ(ATK/STR)への補正値がついているので",
+    focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "マウントしている限りObに対して『+1/+1』の補正を与えます。",
+    focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "では、実際にObを出してみましょう",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "hand", label: "剣士" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "hand", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "今はアクティブメモリ(使用可能)が5あるから、▽メモリ2の『剣士』と『切込隊長アツト』をそれぞれ出してみましょう。",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "hand", label: "剣士" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "hand", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "この操作を『実行』と呼びます！",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "hand", label: "剣士" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "では『剣士』を出してみましょう",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "hand", label: "剣士" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }],
     expect: { type: "play", cardId: "STD-021", zone: "front" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "2メモリを支払うことで実行が完了しました。では『アツト』を出してみましょう。",
+    text: "2メモリを支払うことで実行が完了しました。",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "front", label: "剣士" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "では『アツト』を出してみましょう",
     focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "hand", label: "アツト" }, { kind: "button", button: "play", cardId: "STD-091", label: "実行(出せないことを確かめる)" }],
     expect: { type: "advance" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "……あれ、出せませんね？ごめんなさい！『シンボルが点灯』していませんでした！左端のこの領域、『レジストリ』が見えますか？ここにカードをインストールすることで、その色に対応したシンボルが点灯します。こうすることで、その色のカードは使用可能になります！",
+    text: "……あれ、出せませんね？",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "hand", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "ごめんなさい！『シンボルが点灯』していませんでした！",
+    focus: [{ kind: "admin", owner: "player", zone: "registry", label: "レジストリ" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "左端のこの領域、『レジストリ』が見えますか？",
+    focus: [{ kind: "admin", owner: "player", zone: "registry", label: "レジストリ" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "ここにカードをインストールすることで、その色に対応したシンボルが点灯します。",
     focus: [{ kind: "admin", owner: "player", zone: "registry", label: "レジストリ" }],
     expect: { type: "advance" }
   },
@@ -65,7 +143,19 @@ const BASIC_STEPS = [
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "情報ボタンを押してみてください。あと6色分のシンボルが見えますね、他にもいろいろ・・・",
+    text: "こうすることで、その色のカードは使用可能になります！",
+    focus: [{ kind: "admin", owner: "player", zone: "registry", label: "レジストリ" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "情報ボタンを押してみてください",
+    focus: [{ kind: "ui", target: "info-button", label: "情報ボタン" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "あと6色分のシンボルが見えますね、他にもいろいろ・・・",
     focus: [{ kind: "ui", target: "info-button", label: "情報ボタン" }],
     expect: { type: "advance" }
   },
@@ -77,51 +167,139 @@ const BASIC_STEPS = [
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "これで『兵士』と『アツト』が実行されましたね。『アツト』が『兵士』と比べて枠の色が違うのに気づきましたか？そう、緑枠。つまり『攻撃可能』です。通常、Obは配置してから1ターン待たないと攻撃できませんが『アツト』は『QA』を持っています。横のカード詳細から能力バッジを押して解説を見てください。",
+    text: "これで『剣士』と『アツト』が実行されましたね。",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "front", label: "剣士" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "『アツト』が『剣士』と比べて枠の色が違うのに気づきましたか？",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "front", label: "剣士" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "そう、緑枠。つまり『攻撃可能』です。",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "通常、Obは配置してから1ターン待たないと攻撃できませんが『アツト』は『QA』を持っています。",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "横のカード詳細から能力バッジを押して解説を見てください。",
     focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }, { kind: "ui", target: "ability-badge", cardId: "STD-091", badge: "QA", label: "QAバッジ" }],
     expect: { type: "advance" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "これを持っている『アツト』はすぐに攻撃できます！さっそく攻撃してみましょう！Obを押してみると行動のメニューが出てきます。まずは『攻撃』を押してみましょう！攻撃対象が選べます。ここでは、相手ユーザーを選びましょう。",
+    text: "これを持っている『アツト』はすぐに攻撃できます！",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "さっそく攻撃してみましょう！",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "Obを押してみると行動のメニューが出てきます。まずは『攻撃』を押してみましょう！",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "攻撃対象が選べます。ここでは、相手ユーザーを選びましょう。",
     focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
     expect: { type: "attack", cardId: "STD-091", targetType: "fortress" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "攻撃成功！ダメージが通り、相手ユーザーのSTRが削れました。では、ここでターンを終了しましょう。",
+    text: "攻撃成功！ダメージが通り、相手ユーザーのSTRが削れました。",
+    focus: [{ kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "では、ここでターンを終了しましょう",
     focus: [{ kind: "action", action: "end-turn", label: "ターン終了" }],
     expect: { type: "end-turn" },
     after: "guardman-demo"
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "ターンの開始時には1枚ドロー！スリープしていたObのスタンバイが行われ、アクティブメモリも上限まで回復します。そして、相手のエリアには『セキュリティ』を持ったObが配置されています。これがスリープしている間、攻撃対象はスリープしたObだけが可能になります。つまり、相手ユーザーへの攻撃が届きません。しかも、STRは4と高いです。ここでCodeを使ったパワーアップを説明します！手札にある『ジャンクパーツ』をご覧ください！",
-    focus: [{ kind: "card", cardId: "STD-022", owner: "ai", zone: "front", label: "ガードマン" }, { kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }, { kind: "ui", target: "card-detail", cardId: "STD-078", label: "ジャンクパーツの詳細" }],
+    text: "ターンの開始時には1枚ドロー！▽スリープしていたObのスタンバイが行われ、アクティブメモリも上限まで回復します。",
     expect: { type: "advance" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "これをObの下に実行し、マウントすることでそのObはATKとSTRが1ずつ上がります！では、『アツト』の下に『ジャンクパーツ』を実行しましょう！",
+    text: "そして、相手のエリアには『セキュリティ』を持ったObが配置されています。",
+    focus: [{ kind: "card", cardId: "STD-022", owner: "ai", zone: "front", label: "ガードマン" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "これがスリープしている間、攻撃対象はスリープしたObだけが可能になります。▽つまり、相手ユーザーへの攻撃が届きません。",
+    focus: [{ kind: "card", cardId: "STD-022", owner: "ai", zone: "front", label: "ガードマン" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "しかも、STRは4と高いです。ここでCodeを使ったパワーアップを説明します！",
+    focus: [{ kind: "card", cardId: "STD-022", owner: "ai", zone: "front", label: "ガードマン" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "手札にある『ジャンクパーツ』をご覧ください！",
+    focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }, { kind: "ui", target: "card-detail", cardId: "STD-078", label: "ジャンクパーツの詳細" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "これをObの下に実行し、マウントすることでそのObはATKとSTRが1ずつ上がります！",
+    focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "では、『アツト』の下に『ジャンクパーツ』を実行しましょう！",
     focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
     expect: { type: "play", cardId: "STD-078", zone: "front" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "これで『アツト』のATKは4、相手のObを倒せるパワーになりましたね。Obに攻撃してみましょう！",
+    text: "これで『アツト』のATKは4、相手のObを倒せるパワーになりましたね",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "Obに攻撃してみましょう！",
     focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }, { kind: "card", cardId: "STD-022", owner: "ai", zone: "front", label: "ガードマン" }],
     expect: { type: "attack", cardId: "STD-091", targetCardId: "STD-022" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "Obに対して攻撃すると、『戦闘』に入ります。『戦闘』では、お互いにATK分のダメージを与え合います。そして、これでSTRが0になったObは破壊されます。今回の戦闘で相手のObを破壊できました。これで『セキュリティ』がいなくなり、相手ユーザーを攻撃対象に選べるようになりました！",
-    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "front", label: "兵士" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    text: "Obに対して攻撃すると、『戦闘』に入ります。▽『戦闘』では、お互いにATK分のダメージを与え合います。▽そして、これでSTRが0になったObは破壊されます。",
     expect: { type: "advance" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "では、『兵士』で相手ユーザーを攻撃してSTRを0にしてしまいましょう！",
-    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "front", label: "兵士" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    text: "今回の戦闘で相手のObを破壊できました。▽これで『セキュリティ』がいなくなり、相手ユーザーを攻撃対象に選べるようになりました！",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "front", label: "剣士" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "では、『剣士』で相手ユーザーを攻撃してSTRを0にしてしまいましょう！",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "front", label: "剣士" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
     expect: { type: "attack", cardId: "STD-021", targetType: "fortress" }
   },
   {
