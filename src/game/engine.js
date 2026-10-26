@@ -1,5 +1,6 @@
 import { CARD_LIBRARY, LAB_CARD_IDS, NEUTRON_DECK, RED_DECK, USER_CARDS, USERS, VENGEANCE_DECK, YELLOW_DECK } from "../data/cards.js";
 import { START_DECKS } from "../data/start-decks.js";
+import { TUTORIAL_OPPONENT_STR } from "../data/tutorial-script.js";
 import { createRuntimeCard, createRuntimeToken, expandRuntimeDeck, RuntimeError } from "./runtime/factory.js";
 import { nextRng } from "./runtime/rng.js";
 import { compileEffectText, hasKeyword, keywordValue } from "./effect-compiler.js";
@@ -445,6 +446,7 @@ function pullCard(deck, cardId) {
 }
 
 function arrangeTutorial(players) {
+  players.ai.fortressStr = TUTORIAL_OPPONENT_STR;
   players.player.hand = ["STD-076", "STD-075", "STD-090", "STD-086"].map((id) => pullCard(players.player.deck, id));
   players.ai.hand = ["STD-125", "STD-131", "STD-149"].map((id) => pullCard(players.ai.deck, id));
   // 後攻AIの2ドローを固定。末尾が山札上。
@@ -454,6 +456,7 @@ function arrangeTutorial(players) {
 }
 
 function arrangeVengeanceTutorial(players, runtimeContext = null) {
+  players.ai.fortressStr = TUTORIAL_OPPONENT_STR;
   players.player.hand = [
     hydrateCard(createRuntimeCard(runtimeContext, "STD-191", "player", 301)),
     hydrateCard(createRuntimeCard(runtimeContext, "STD-195", "player", 302)),
