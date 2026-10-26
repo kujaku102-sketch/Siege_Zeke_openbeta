@@ -39,14 +39,15 @@ function cards(query) {
   for (const seat of query.observation.seats) for (const zone of ['hand','front','back','registry','trash','ban']) seat[zone].cards?.forEach(visit);
   return output;
 }
-function answerFor(request,query,preference={}) {
+function answerFor(request,query,preference={},hidden=new Set()) {
   const preferred = request.options.filter(option => (!preference.zone || !option.zone || option.zone === preference.zone)
     // A mount destination names its host by hostRef.
     && (!preference.targetId || !(option.cardRef ?? option.hostRef) || cards(query).some(card => card.cardRef === (option.cardRef ?? option.hostRef) && !card.faceDown && card.definition.id === preference.targetId))
     && (!preference.user || option.kind !== 'card')
     && (!preference.cardOnly || Boolean(option.cardRef ?? option.hostRef))
     && (!preference.scope || !option.label || option.label.includes(preference.scope)));
-  const ordered = [...preferred,...request.options.filter(option => !preferred.includes(option))];
+  const others=request.options.filter(option => !preferred.includes(option)),shown=option => !hidden.has(option.optionId);
+  const ordered = [...preferred.filter(shown),...preferred.filter(option => !shown(option)),...others.filter(shown),...others.filter(option => !shown(option))];
   const selected = [];
   const search = (start,count) => {
     if (!count) {const answer={requestId:request.requestId,optionIds:[...selected],allocation:[]};return validSelectionAnswer(request,answer) ? answer : null;}
@@ -66,12 +67,28 @@ async function pick(page,option,query) {
   const listed=page.locator('[data-option-id="'+option.optionId+'"]');
   for (let index=0;index<await listed.count();index+=1) if (await listed.nth(index).isVisible()) return clickVisible(page,'[data-option-id="'+option.optionId+'"]');
   if (option.cardRef ?? option.hostRef) return clickVisible(page,'[data-card-ref="'+(option.cardRef ?? option.hostRef)+'"]');
-  if (option.zone && Number.isSafeInteger(option.slot)) return clickVisible(page,'.board-slot[data-seat="'+(option.seatId ?? query.status.viewerSeat)+'"][data-zone="'+option.zone+'"][data-slot="'+option.slot+'"]');
+  if (option.zone && Number.isSafeInteger(option.slot)) {
+    const selector='.board-slot[data-seat="'+(option.seatId ?? query.status.viewerSeat)+'"][data-zone="'+option.zone+'"][data-slot="'+option.slot+'"]';
+    for (let attempt=0;;attempt+=1) {
+      try {return await clickVisible(page,selector);}
+      catch (error) {if (attempt>=8 || !String(error.message).startsWith('visible target unavailable')) throw error;await page.waitForTimeout(200);}
+    }
+  }
   if (option.kind==='user' || option.targetKind==='user') return clickVisible(page,'[data-fortress="'+option.seatId+'"]');
   throw new Error('no control for option '+JSON.stringify(option));
 }
+const SLOT_POINTS=[[.5,.5],[.5,.18],[.2,.18],[.8,.18],[.18,.5],[.82,.5],[.5,.82],[.2,.82],[.8,.82]];
+async function hiddenSlots(page,request,query) {
+  const slots=request.options.filter(option => option.zone && Number.isSafeInteger(option.slot) && !(option.cardRef ?? option.hostRef))
+    .map(option => ({id:option.optionId,selector:'.board-slot[data-seat="'+(option.seatId ?? query.status.viewerSeat)+'"][data-zone="'+option.zone+'"][data-slot="'+option.slot+'"]'}));
+  if (!slots.length) return new Set();
+  return new Set(await page.evaluate(({slots,points}) => slots.filter(({selector}) => {
+    const node=document.querySelector(selector);if (!node) return true;const rect=node.getBoundingClientRect();
+    return !points.some(([x,y]) => document.elementFromPoint(rect.left+rect.width*x,rect.top+rect.height*y)?.closest(selector)===node);
+  }).map(slot => slot.id),{slots,points:SLOT_POINTS}));
+}
 async function choose(page,request,query,preference) {
-  const answer=answerFor(request,query,preference);
+  const answer=answerFor(request,query,preference,await hiddenSlots(page,request,query));
   for (const id of answer.optionIds) await pick(page,request.options.find(option => option.optionId===id),query);
   for (const row of answer.allocation) await page.locator('[data-allocation-option="'+row.optionId+'"]').fill(String(row.amount));
   const confirm=page.locator('[data-runtime-confirm]').first();
@@ -156,8 +173,8 @@ async function tryBlockedPlay(page,id,cardId) {
   await page.locator('.r2-popup[data-card-id="'+cardId+'"] [data-tutorial-try].live-focus').waitFor({state:'attached',timeout:3000}).catch(() => {throw new Error('the blocked play is not highlighted in its popup');});
   await clickVisible(page,'[data-tutorial-try]');
   await page.waitForFunction(id => document.querySelector('.live-guide')?.dataset.tutorialStep===id+':4',id,{timeout:5000});
-  const notice=await page.locator('.r2-notice').innerText().catch(() => '');
-  if (!notice.includes('シンボル')) throw new Error('the missing symbol is not named: '+notice);
+  const reason=await page.locator('.live-guide .live-guide-error').innerText().catch(() => '');
+  if (!reason.includes('シンボル')) throw new Error('the missing symbol is not named in the guide: '+reason);
 }
 async function intro(page,id) {
   for (let index=0;index<7;index+=1) {
