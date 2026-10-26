@@ -186,6 +186,8 @@ async function tryBlockedPlay(page,id,cardId) {
   await page.locator('.r2-popup[data-card-id="'+cardId+'"] [data-tutorial-try].live-focus').waitFor({state:'attached',timeout:3000}).catch(() => {throw new Error('the blocked play is not highlighted in its popup');});
   await clickVisible(page,'[data-tutorial-try]');
   await page.waitForFunction(id => document.querySelector('.live-guide')?.dataset.tutorialStep===id+':4',id,{timeout:5000});
+  // The guide hides its lines for the frame in which the new step's pages are being cut.
+  await page.waitForFunction(() => !document.querySelector('.live-guide[data-paging="pending"]'),null,{timeout:5000});
   const reason=await page.locator('.live-guide .live-guide-error').innerText().catch(() => '');
   if (!reason.includes('シンボル')) throw new Error('the missing symbol is not named in the guide: '+reason);
 }
