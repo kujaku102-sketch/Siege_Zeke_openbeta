@@ -7,6 +7,7 @@ const BUTTONS = [
   ['data-runtime-title', c => c.onTitle()],
   ['data-runtime-tutorial-skip', c => c.onTutorialSkip()],
   ['data-runtime-tutorial-finish', c => c.onTutorialComplete()],
+  ['data-tutorial-try', (c, target) => { const next = c.session.advanceTutorial(); if (!next.ok) return c.onError(next.error.code); c.act(c.ui.read()); return c.onError(target.dataset.tutorialTry); }],
   ['data-runtime-tutorial-next', c => { const next = c.session.advanceTutorial(); return next.ok ? c.act(c.ui.read()) : c.onError(next.error.code); }],
   ['data-runtime-unique-close', c => c.act(c.ui.closeUnique())],
   ['data-runtime-profile-close', c => c.act(c.ui.closeProfile())],

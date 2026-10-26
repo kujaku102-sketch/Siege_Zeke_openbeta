@@ -523,6 +523,36 @@ test('tutorial vengeance refuses the normal relog cost and a wrong effect target
   submit(port,plan(port,'activateCardEffect',source,option=>option.cardRef===acroia||option.zone==='back'));settleTutorial(session);assert.equal(index(),7);
   lifecycle.dispose();
 });
+test('tutorial red: the Junk Parts go only under Atto; alone in a slot or under the soldier is refused with the reason',()=>{
+  const {lifecycle,session,port}=setup('tutorial');
+  const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;
+  walkRedToEndOfTurnOne(session,port);
+  runScriptedOpponent(session);assert.equal(index(),11);
+  assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),12);
+  const atto=visibleCard(port.query().value,'STD-091',['front']).cardRef,soldier=visibleCard(port.query().value,'STD-021',['front']).cardRef;
+  // Either way Atto stays at ATK 3 and cannot break the Guardman (STR 4): the script would be stuck.
+  refusedFor(session,port,plan(port,'executeCard',hand('STD-078'),option=>option.zone==='front'),/アツト/);
+  refusedFor(session,port,plan(port,'executeCard',hand('STD-078'),option=>option.hostRef===soldier||option.cardRef===soldier),/アツト/);
+  submit(port,plan(port,'executeCard',hand('STD-078'),option=>option.hostRef===atto||option.cardRef===atto));settleTutorial(session);
+  assert.equal(index(),13);assert.equal(session.tutorial().value.flow.error,'');
+  lifecycle.dispose();
+});
+test('tutorial red step 3: Atto\'s blocked play stays pressable in its popup, names the missing symbol, and the step moves on',()=>{
+  const {lifecycle,session,port}=setup('tutorial');
+  const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;
+  for(let count=0;count<9;count+=1)assert.equal(session.advanceTutorial().ok,true);
+  submit(port,plan(port,'executeCard',hand('STD-021'),option=>option.zone==='front'));assert.equal(index(),3);
+  const ui=createMatchUiController({session,viewerSeat:'a'}).value;
+  ui.selectCard(hand('STD-091'));
+  const read=ui.read().value,html=runtimeGameHtml(read.model,{...read,tutorial:session.tutorial().value});
+  assert.match(html,/<aside class="r2-popup" aria-label="カード操作" data-card-id="STD-091">/);
+  assert.match(html,/<button aria-disabled="true" data-tutorial-try="SYMBOL_MISSING" data-route="executeCard" data-block-code="SYMBOL_MISSING" title="シンボル不足で実行できません">実行<\/button>/);
+  // The same card outside such a step is plainly disabled.
+  const later=runtimeGameHtml(read.model,{...read,tutorial:{...session.tutorial().value,presentation:{...session.tutorial().value.presentation,focus:[]}}});
+  assert.match(later,/<button disabled aria-disabled="true" data-route="executeCard" data-block-code="SYMBOL_MISSING"/);
+  assert.equal(session.advanceTutorial().ok,true,'the press moves the step on');assert.equal(index(),4);
+  ui.dispose?.();lifecycle.dispose();
+});
 test('tutorial basics runs start to finish through ports: the script ends with opponent STR 5 to 0 as a locked win, with scripted opponent and no undo',()=>{
   const {lifecycle,session,port}=setup('tutorial');
   const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;

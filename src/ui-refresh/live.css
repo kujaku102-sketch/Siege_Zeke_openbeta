@@ -199,6 +199,8 @@ body[data-view="mobile"] .r2-content .r2-detail {
 .r2-wireframe-view .drag-over .slot, .r2-wireframe-view .drag-over .registry, .r2-wireframe-view .drag-over .card-line { stroke:#ffffff; stroke-width:3; }
 /* Routes the runtime does not allow right now stay visible but inert. */
 .r2-content .r2-popup button:disabled { opacity:.38; filter:grayscale(1); cursor:not-allowed; }
+/* A tutorial lets the player try a blocked play (data-tutorial-try): it looks blocked but takes the press. */
+.r2-content .r2-popup button[data-tutorial-try] { opacity:.6; filter:grayscale(1); cursor:pointer; }
 /* Rejected drop: the card shakes in place, then the reason is shown where board prompts appear. */
 .hand-drag-ghost.rejected { animation:hand-drag-reject .42s ease-in-out; }
 @keyframes hand-drag-reject { 0%,100% { translate:0 0; } 20% { translate:-10px 0; } 40% { translate:9px 0; } 60% { translate:-7px 0; } 80% { translate:5px 0; } }

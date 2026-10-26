@@ -108,7 +108,7 @@ function attachSession(next) {
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
     effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;renderShell();},onTitle:leaveMatch,
     onRematch:() => {const result = lifecycle.rematch();if (result.ok) attachSession(result.value);else notice(result.error.code);},
-    onTutorialSkip:() => replaceTutorial(false),onTutorialComplete:() => replaceTutorial(true)});
+    onTutorialSkip:() => replaceTutorial(false),onTutorialComplete:() => replaceTutorial(true),onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}});
   if (mounted.ok) surface = mounted.value;else notice(mounted.error.code);
 }
 function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.getRandomValues(new Uint32Array(1))[0]) {

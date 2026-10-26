@@ -210,3 +210,22 @@ test('the menu over the flow screens meets the 44 CSS px tap floor in relative u
   const css = await readSource('../src/ui-refresh/flow-screens.css');
   assert.ok(css.includes('.r2-content:has(.r2-flow) .r2-utilities button { min-width:2.75rem; min-height:2.75rem;'));
 });
+
+test('tutorial highlights: HUD info button, the focused card\'s detail and its ability button, and the play route in its popup', async () => {
+  const layout = await readSource('../src/ui-refresh/surface-layout.js');
+  assert.ok(layout.includes("ui:{'info-button':'[data-runtime-counts]','card-detail':`.r2-detail[data-card-id=\"${focus.cardId}\"]`,"));
+  assert.ok(layout.includes("'ability-badge':`.r2-detail[data-card-id=\"${focus.cardId}\"] [data-ability-help]`}[focus.target],"));
+  assert.ok(layout.includes("button:focus.button === 'play' ? `.r2-popup[data-card-id=\"${focus.cardId}\"] :is([data-route=\"executeCard\"],[data-route=\"executeSpell\"])` : null};"));
+  assert.ok(layout.includes('const named = element => !focus.badge ||'), 'a badge focus keeps only the named ability');
+});
+
+test('tutorial try: the blocked play moves the step on, then names the reason; the notice clears once the guide moves past it', async () => {
+  const clicks = await readSource('../src/ui-refresh/surface-clicks.js');
+  assert.ok(clicks.includes("['data-tutorial-try', (c, target) => { const next = c.session.advanceTutorial(); if (!next.ok) return c.onError(next.error.code); c.act(c.ui.read()); return c.onError(target.dataset.tutorialTry); }],"));
+  const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
+  assert.ok(surface.includes('const reportError = code => { noticeStep = tutorialIndex(); onError(code); };'));
+  assert.ok(surface.includes('if (noticeStep !== null && tutorial.ok && tutorial.value.flow.index > noticeStep) { noticeStep = null; onNoticeClear(); }'));
+  assert.ok(surface.includes('onMenu, onError: reportError };'), 'presses in the match are recorded');
+  const main = await readSource('../src/main.js');
+  assert.ok(main.includes("onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}"));
+});

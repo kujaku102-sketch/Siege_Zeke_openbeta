@@ -9,12 +9,10 @@ const failure = code => ({ ok: false, error: { code } });
 // resolves must pass (picking none, or declining, is refused too); `reason` is shown in the guide.
 const LAYER_COST = option => option.kind !== 'value' || String(option.label ?? '').startsWith('レイヤー1枚を破棄');
 export const TUTORIAL_STEP_GUARDS = Object.freeze({
+  // Red (17 steps): the Junk Parts must be mounted under Atto. Alone in a slot, or under the soldier,
+  // Atto stays at ATK 3 and cannot break the Guardman (STR 4), so the soldier never reaches the user.
   basics: Object.freeze({
-    2: Object.freeze({ action: { zone: 'front' }, reason: 'ジャンキーは『フロント』へ実行して。' }),
-    5: Object.freeze({ choose: option => option.kind !== 'destination' || option.label === 'フロント',
-      reason: 'ジャンクパーツの配置先は『フロント』を選んで。カネコの下には重ねない。' }),
-    7: Object.freeze({ choose: option => option.cardId === 'STD-078',
-      reason: '追加効果では自分エリアの『ジャンクパーツ』を選んで。カネコは選ばない。' })
+    12: Object.freeze({ action: { hostCardId: 'STD-091' }, reason: 'ジャンクパーツは『アツト』の下に実行して、マウントして。' })
   }),
   vengeance: Object.freeze({
     3: Object.freeze({ choose: LAYER_COST, reason: '移動コストは『レイヤー1枚を破棄』で払って。' }),
@@ -91,7 +89,8 @@ export function createTutorialModeController(tutorialId = 'basics') {
         cardId: card?.faceDown ? null : card?.definition.id,
         zone: action.destination?.zone ?? action.targetZone ?? action.placement?.zone ?? host?.location?.zone,
         targetType: action.target?.kind === 'user' ? 'fortress' : action.target?.kind,
-        targetCardId: target?.faceDown ? null : target?.definition.id
+        targetCardId: target?.faceDown ? null : target?.definition.id,
+        hostCardId: host?.faceDown ? null : host?.definition.id ?? null
       };
       if (query.status.viewerSeat !== playerSeat) {
         const original = TUTORIAL_OPPONENT_SCRIPTS[opponentScript]?.[opponentIndex];

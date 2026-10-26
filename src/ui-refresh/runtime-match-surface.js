@@ -26,7 +26,7 @@ import { centerIncidentStrip } from './user-detail-view.js';
 // It wires the parts together; each surface-*.js module owns one concern.
 export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSeat = null,
   onTitle = () => {}, onRematch = () => {}, onMenu = null, onError = () => {},
-  onTutorialSkip = () => {}, onTutorialComplete = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY, lowGpu = false, onContextLost = () => {} }) {
+  onTutorialSkip = () => {}, onTutorialComplete = () => {}, onNoticeClear = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY, lowGpu = false, onContextLost = () => {} }) {
   const created = createMatchUiController({ session, viewerSeat });
   if (!created.ok) return created;
   const ui = created.value;
@@ -47,6 +47,11 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   let opponents = null;
   const scope = session.scope();
   const current = () => !disposed && session.scope().matchId === scope.matchId && session.scope().sessionGeneration === scope.sessionGeneration;
+  // A notice raised by a press in a tutorial stays while the player is on that step and clears once the
+  // guide moves past it (a refused move can be retried; a passed step leaves no stale reason behind).
+  let noticeStep = null;
+  const tutorialIndex = () => { const tutorial = session.tutorial(); return tutorial.ok ? tutorial.value.flow.index : null; };
+  const reportError = code => { noticeStep = tutorialIndex(); onError(code); };
   const fx = createSurfaceFx({ root, boardStyle });
   const timers = createSurfaceTimers({ root, disposed: () => disposed, motionRemaining: fx.remaining });
   const { schedule } = timers;
@@ -59,7 +64,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const render = result => {
     if (disposed) return;
     // A move the tutorial refused is redrawn as it stands, so the guide shows why.
-    if (!result.ok) { onError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { const read = ui.read(); if (read.ok) render(read); } return; }
+    if (!result.ok) { reportError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { const read = ui.read(); if (read.ok) render(read); } return; }
     const next = result.value;
     const tutorial = session.tutorial();
     const presentation = { ...next, view, effectsEnabled, boardStyle, tutorial:tutorial.ok ? tutorial.value : null };
@@ -123,6 +128,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       return;
     }
     selectionPeek.hideIfDetached();
+    if (noticeStep !== null && tutorial.ok && tutorial.value.flow.index > noticeStep) { noticeStep = null; onNoticeClear(); }
     if (latest.eventReadError) onError(latest.eventReadError);
   };
   // A step that is already decided needs no confirm: a single pick (board or list,
@@ -154,7 +160,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   });
   const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,
-    onTitle, onTutorialSkip, onTutorialComplete, onRematch, onMenu, onError };
+    onTitle, onTutorialSkip, onTutorialComplete, onRematch, onMenu, onError: reportError };
   listener('click', event => {
     if (disposed || event.target.closest('[data-ability-help]')) return;
     if (suppressedPointerId !== null) {

@@ -186,8 +186,8 @@ test('a hand card always offers its category routes and greys out the ones the e
   const popup = runtimeGameRegions(selected.model,{...selected,boardStyle:'wireframe'}).popup;
   assert.deepEqual(selected.model.actionBlocks.cards.filter(block => block.cardRef === card.cardRef),
     [{ cardRef: card.cardRef, actionType: 'executeCard', code: 'SYMBOL_MISSING', symbol: card.definition.color }]);
-  assert.match(popup,/<button disabled aria-disabled="true" data-block-code="SYMBOL_MISSING" title="シンボル不足で実行できません">実行<\/button>/);
-  assert.match(popup,/<button data-action-id="[^"]+">インストール<\/button>/);
+  assert.match(popup,/<button disabled aria-disabled="true" data-route="executeCard" data-block-code="SYMBOL_MISSING" title="シンボル不足で実行できません">実行<\/button>/);
+  assert.match(popup,/<button data-route="install" data-action-id="[^"]+">インストール<\/button>/);
   ui.dispose(); current.dispose();
 });
 
