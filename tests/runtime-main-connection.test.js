@@ -459,12 +459,12 @@ function walkRedToEndOfTurnOne(session,port,{stopBeforeEnd=true}={}) {
   assert.equal(index(),12);
   skip(2,14);skip(4,18);
   submit(port,plan(port,'install',hand('STD-087')));assert.equal(index(),19);
-  skip(3,22);
-  submit(port,plan(port,'executeCard',hand('STD-091'),option=>option.zone==='front'));assert.equal(index(),23);
-  skip(8,31);
-  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-091',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);assert.equal(index(),32);
+  skip(2,21);
+  submit(port,plan(port,'executeCard',hand('STD-091'),option=>option.zone==='front'));assert.equal(index(),22);
+  skip(7,29);
+  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-091',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);assert.equal(index(),30);
   if(stopBeforeEnd===false)return;
-  skip(1,33);
+  skip(1,31);
   submit(port,{type:'endTurn'});settleTutorial(session);
 }
 function runScriptedOpponent(session) {
@@ -527,14 +527,14 @@ test('tutorial red: the Junk Parts go only under Atto; alone in a slot or under 
   const {lifecycle,session,port}=setup('tutorial');
   const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;
   walkRedToEndOfTurnOne(session,port);
-  runScriptedOpponent(session);assert.equal(index(),34);
-  for(let n=0;n<6;n+=1)assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),40);
+  runScriptedOpponent(session);assert.equal(index(),32);
+  for(let n=0;n<5;n+=1)assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),37);
   const atto=visibleCard(port.query().value,'STD-091',['front']).cardRef,soldier=visibleCard(port.query().value,'STD-021',['front']).cardRef;
   // Either way Atto stays at ATK 3 and cannot break the Guardman (STR 4): the script would be stuck.
   refusedFor(session,port,plan(port,'executeCard',hand('STD-078'),option=>option.zone==='front'),/アツト/);
   refusedFor(session,port,plan(port,'executeCard',hand('STD-078'),option=>option.hostRef===soldier||option.cardRef===soldier),/アツト/);
   submit(port,plan(port,'executeCard',hand('STD-078'),option=>option.hostRef===atto||option.cardRef===atto));settleTutorial(session);
-  assert.equal(index(),41);assert.equal(session.tutorial().value.flow.error,'');
+  assert.equal(index(),38);assert.equal(session.tutorial().value.flow.error,'');
   lifecycle.dispose();
 });
 test('tutorial red step 13: Atto\'s blocked play stays pressable in its popup, names the missing symbol, and the step moves on',()=>{
@@ -585,23 +585,23 @@ test('tutorial basics runs start to finish through ports: the script ends with o
   const {lifecycle,session,port}=setup('tutorial');
   const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;
   walkRedToEndOfTurnOne(session,port);
-  runScriptedOpponent(session);assert.equal(index(),34);
+  runScriptedOpponent(session);assert.equal(index(),32);
   const seat=seatView(port.query().value);
   assert.equal(seatView(port.query().value,'b').front.cards.find(card=>card.definition.id==='STD-022').status.sleep,true);
-  for(let n=0;n<6;n+=1)assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),40);
+  for(let n=0;n<5;n+=1)assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),37);
   const atto=visibleCard(port.query().value,'STD-091',['front']).cardRef;
-  submit(port,plan(port,'executeCard',hand('STD-078'),option=>option.hostRef===atto||option.cardRef===atto));settleTutorial(session);assert.equal(index(),41);
-  assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),42);
+  submit(port,plan(port,'executeCard',hand('STD-078'),option=>option.hostRef===atto||option.cardRef===atto));settleTutorial(session);assert.equal(index(),38);
+  assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),39);
   const guardman=seatView(port.query().value,'b').front.cards.find(card=>!card.faceDown&&card.definition.id==='STD-022').cardRef;
-  submit(port,plan(port,'attack',atto,option=>option.cardRef===guardman));settleTutorial(session);assert.equal(index(),43);
+  submit(port,plan(port,'attack',atto,option=>option.cardRef===guardman));settleTutorial(session);assert.equal(index(),40);
   assert.equal(port.query().value.status.finished,false);
-  for(let n=0;n<2;n+=1)assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),45);
+  for(let n=0;n<2;n+=1)assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),42);
   assert.ok(seat);
   submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-021',['front']).cardRef,option=>option.kind==='user'));
   const done=port.query().value;
   assert.ok(done.status.lockedOutcome||done.status.finished,'reaching STR 0 locks the result');
   assert.equal(done.status.lockedOutcome.winnerSeat,'a');
-  assertClosingLine(session,46,/勝利です/);
+  assertClosingLine(session,43,/勝利です/);
   lifecycle.dispose();
 });
 test('tutorial vengeance runs start to finish through ports: relogged layered Ob and generated Dolls take opponent STR 5 to 0',()=>{

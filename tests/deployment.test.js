@@ -98,7 +98,7 @@ test("tutorial steps declare structured focus targets instead of deriving them f
   assert.deepEqual(currentTutorialStep(basics).focus.map((item) => item.kind), ["card", "card"]);
   basics.index = 18;
   assert.equal(currentTutorialStep(basics).focus.find((item) => item.kind === "card")?.cardId, "STD-087");
-  basics.index = 20;
+  basics.index = 19;
   assert.deepEqual(currentTutorialStep(basics).focus, [{ kind: "ui", target: "info-button", label: "情報ボタン" }]);
   const vengeance = createTutorialFlow("vengeance");
   vengeance.index = 2;

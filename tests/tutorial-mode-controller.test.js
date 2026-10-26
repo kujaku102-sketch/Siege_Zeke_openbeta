@@ -52,12 +52,12 @@ test('tutorial normal play and attack use ports; opponent cannot act before scri
   for (let count = 0; count < 6; count += 1) game.advanceTutorial();
   assert.equal(game.tutorial().value.flow.index, 18);
   submit(player, { type: 'install', cardRef: hand('STD-087').cardRef }, 'install');
-  for (let count = 0; count < 3; count += 1) game.advanceTutorial();
+  for (let count = 0; count < 2; count += 1) game.advanceTutorial();
   const played = submit(player, { type: 'executeCard', cardRef: hand('STD-091').cardRef,
     destination: { zone: 'front', slot: 2 } }, 'play');
   assert.equal(played.value.kind, 'accepted');
-  for (let count = 0; count < 8; count += 1) game.advanceTutorial();
-  assert.equal(game.tutorial().value.flow.index, 31);
+  for (let count = 0; count < 7; count += 1) game.advanceTutorial();
+  assert.equal(game.tutorial().value.flow.index, 29);
   let query = player.query().value;
   const attacker = query.observation.seats[0].front.cards.find(card => card.definition.id === 'STD-091');
   const attacked = submit(player, { type: 'attack', attackerRef: attacker.cardRef,
@@ -72,5 +72,5 @@ test('tutorial normal play and attack use ports; opponent cannot act before scri
     assert.equal(intent.ok, true, JSON.stringify(intent));
     assert.equal(answering.submit(intent.value).ok, true);
   }
-  assert.equal(game.tutorial().value.flow.index, 32);
+  assert.equal(game.tutorial().value.flow.index, 30);
 });

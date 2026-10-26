@@ -143,13 +143,7 @@ const BASIC_STEPS = [
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "こうすることで、その色のカードは使用可能になります！",
-    focus: [{ kind: "admin", owner: "player", zone: "registry", label: "レジストリ" }],
-    expect: { type: "advance" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "情報ボタンを押してみてください",
+    text: "こうすることで、その色のカードは使用可能になります！情報ボタンを押してみてください",
     focus: [{ kind: "ui", target: "info-button", label: "情報ボタン" }],
     expect: { type: "advance" }
   },
@@ -191,14 +185,8 @@ const BASIC_STEPS = [
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "横のカード詳細から能力バッジを押して解説を見てください。",
+    text: "横のカード詳細から能力バッジを押して解説を見てください。これを持っている『アツト』はすぐに攻撃できます！",
     focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }, { kind: "ui", target: "ability-badge", cardId: "STD-091", badge: "QA", label: "QAバッジ" }],
-    expect: { type: "advance" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "これを持っている『アツト』はすぐに攻撃できます！",
-    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
     expect: { type: "advance" }
   },
   {
@@ -263,13 +251,7 @@ const BASIC_STEPS = [
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "これをObの下に実行し、マウントすることでそのObはATKとSTRが1ずつ上がります！",
-    focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
-    expect: { type: "advance" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "では、『アツト』の下に『ジャンクパーツ』を実行しましょう！",
+    text: "これをObの下に実行し、マウントすることでそのObはATKとSTRが1ずつ上がります！では、『アツト』の下に『ジャンクパーツ』を実行しましょう！",
     focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
     expect: { type: "play", cardId: "STD-078", zone: "front" }
   },
