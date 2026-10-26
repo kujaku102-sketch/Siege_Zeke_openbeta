@@ -2,6 +2,26 @@ import { createTutorialFlow, currentTutorialPresentation, currentTutorialStep,
   advanceTutorialIntroduction, tutorialSteps, matches, TUTORIAL_OPPONENT_SCRIPTS } from '../data/tutorial-script.js';
 
 const failure = code => ({ ok: false, error: { code } });
+
+// What a step's own `expect` (tutorial-script.js) leaves open but the script relies on: a different
+// choice there can leave the tutorial unwinnable. Keyed by tutorial and step index. `action` adds
+// fields the step's action must also match; `choose` is the test every option picked while the step
+// resolves must pass (picking none, or declining, is refused too); `reason` is shown in the guide.
+const LAYER_COST = option => option.kind !== 'value' || String(option.label ?? '').startsWith('レイヤー1枚を破棄');
+export const TUTORIAL_STEP_GUARDS = Object.freeze({
+  basics: Object.freeze({
+    2: Object.freeze({ action: { zone: 'front' }, reason: 'ジャンキーは『フロント』へ実行して。' }),
+    5: Object.freeze({ choose: option => option.kind !== 'destination' || option.label === 'フロント',
+      reason: 'ジャンクパーツの配置先は『フロント』を選んで。カネコの下には重ねない。' }),
+    7: Object.freeze({ choose: option => option.cardId === 'STD-078',
+      reason: '追加効果では自分エリアの『ジャンクパーツ』を選んで。カネコは選ばない。' })
+  }),
+  vengeance: Object.freeze({
+    3: Object.freeze({ choose: LAYER_COST, reason: '移動コストは『レイヤー1枚を破棄』で払って。' }),
+    6: Object.freeze({ action: { targetCardId: 'STD-194' }, reason: '効果の対象は『アクロィア』を選んで。' }),
+    8: Object.freeze({ choose: LAYER_COST, reason: '移動コストは『レイヤー1枚を破棄』で払って。' })
+  })
+});
 function visibleCards(query) {
   const cards = [];
   const visit = card => { cards.push(card); if (!card.faceDown) card.mounted.forEach(visit); };
@@ -27,6 +47,17 @@ export function createTutorialModeController(tutorialId = 'basics') {
     flow.complete = flow.index >= tutorialSteps(tutorialId).length - 1;
     acceptedAction = null;
   };
+  // Every tutorial ends by the player's win: once the result is locked for the player and nothing is
+  // left to answer, the guide moves to the closing line (the last step) and the tutorial is complete.
+  const finishOnWin = () => {
+    flow.index = tutorialSteps(tutorialId).length - 1;
+    flow.complete = true;
+    flow.error = '';
+    acceptedAction = null;
+    opponentScript = null;
+  };
+  const guard = () => TUTORIAL_STEP_GUARDS[tutorialId]?.[flow.index] ?? null;
+  const refuse = (code, reason) => { flow.error = reason ?? ''; return failure(code); };
   return Object.freeze({
     presentation() { return structuredClone({ flow, presentation: currentTutorialPresentation(flow), opponentScript, opponentIndex }); },
     advance() {
@@ -38,9 +69,18 @@ export function createTutorialModeController(tutorialId = 'basics') {
     },
     authorize(query, action) {
       if (disposed) return failure('TUTORIAL_DISPOSED');
-      if (['answerChoice', 'declineChoice'].includes(action.type)) return { ok: true, value: null };
       const playerSeat = query.observation.seats[0].seatId;
       const cards = visibleCards(query);
+      if (['answerChoice', 'declineChoice'].includes(action.type)) {
+        const rule = query.status.viewerSeat === playerSeat && flow.introComplete && !flow.complete ? guard() : null;
+        if (!rule?.choose) return { ok: true, value: null };
+        if (action.type === 'declineChoice') return refuse('TUTORIAL_CHOICE_NOT_EXPECTED', rule.reason);
+        const options = (action.optionIds ?? []).map(id => query.requiredInput?.options?.find(option => option.optionId === id));
+        const picked = options.map(option => option && { kind: option.kind, label: option.label,
+          cardId: cards.find(card => card.cardRef === option.cardRef && !card.faceDown)?.definition.id ?? null });
+        return picked.length && picked.every(option => option && rule.choose(option))
+          ? { ok: true, value: null } : refuse('TUTORIAL_CHOICE_NOT_EXPECTED', rule.reason);
+      }
       const card = cards.find(item => item.cardRef === (action.cardRef ?? action.attackerRef));
       const target = cards.find(item => item.cardRef === (action.target?.cardRef ?? action.targets?.[0]?.cardRef));
       const host = cards.find(item => item.cardRef === (action.hostRef ?? action.placement?.hostRef));
@@ -59,13 +99,16 @@ export function createTutorialModeController(tutorialId = 'basics') {
         return expected && !opponentActionPending && matches(expected, semantic)
           ? { ok: true, value: null } : failure('TUTORIAL_ACTION_NOT_EXPECTED');
       }
-      if (!flow.introComplete || acceptedAction || opponentScript) return failure('TUTORIAL_ACTION_NOT_EXPECTED');
-      return matches(currentTutorialStep(flow).expect, semantic)
-        ? { ok: true, value: null } : failure('TUTORIAL_ACTION_NOT_EXPECTED');
+      if (!flow.introComplete || flow.complete || acceptedAction || opponentScript) return failure('TUTORIAL_ACTION_NOT_EXPECTED');
+      if (!matches(currentTutorialStep(flow).expect, semantic)) return failure('TUTORIAL_ACTION_NOT_EXPECTED');
+      const rule = guard();
+      return !rule?.action || matches(rule.action, semantic) ? { ok: true, value: null } : refuse('TUTORIAL_ACTION_NOT_EXPECTED', rule.reason);
     },
     accepted(query, action) {
       if (disposed) return;
       const playerSeat = query.observation.seats[0].seatId;
+      if (query.status.viewerSeat === playerSeat) flow.error = '';
+      if (query.status.lockedOutcome?.winnerSeat === playerSeat && query.requiredInput === null && flow.introComplete && !flow.complete) return finishOnWin();
       if (query.status.viewerSeat !== playerSeat && !['answerChoice', 'declineChoice'].includes(action.type)) opponentActionPending = true;
       if (query.status.viewerSeat === playerSeat && !['answerChoice', 'declineChoice'].includes(action.type)) {
         acceptedAction = structuredClone(action);

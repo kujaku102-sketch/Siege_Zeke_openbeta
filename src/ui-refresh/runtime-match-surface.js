@@ -58,7 +58,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const log = createLogSync(root);
   const render = result => {
     if (disposed) return;
-    if (!result.ok) { onError(result.error.code); return; }
+    // A move the tutorial refused is redrawn as it stands, so the guide shows why.
+    if (!result.ok) { onError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { const read = ui.read(); if (read.ok) render(read); } return; }
     const next = result.value;
     const tutorial = session.tutorial();
     const presentation = { ...next, view, effectsEnabled, boardStyle, tutorial:tutorial.ok ? tutorial.value : null };
@@ -122,7 +123,6 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       return;
     }
     selectionPeek.hideIfDetached();
-    if (tutorial.ok && tutorial.value.flow.complete && latest.model.requiredInput === null) schedule(() => {if (current()) onTutorialComplete();},0);
     if (latest.eventReadError) onError(latest.eventReadError);
   };
   // A step that is already decided needs no confirm: a single pick (board or list,
@@ -154,7 +154,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   });
   const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,
-    onTitle, onTutorialSkip, onRematch, onMenu, onError };
+    onTitle, onTutorialSkip, onTutorialComplete, onRematch, onMenu, onError };
   listener('click', event => {
     if (disposed || event.target.closest('[data-ability-help]')) return;
     if (suppressedPointerId !== null) {

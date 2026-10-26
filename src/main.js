@@ -123,13 +123,15 @@ function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.
   if (result.ok) {host.mode = mode;host.tutorialId = tutorialId;attachSession(result.value);} else notice(result.error.code);
   return result;
 }
-// A finished tutorial is marked in this browser and returns to the list (V092-08 Q4, Q5);
+// A finished tutorial (won, closing line shown) returns to the list on its [一覧へ戻る] (V092-08 Q4);
 // a skipped one stays unfinished and goes on to the sandbox as before.
 function replaceTutorial(complete) {
-  if (complete) {host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);return leaveMatch(nextScreen('game','tutorial-complete'));}
+  if (complete) return leaveMatch(nextScreen('game','tutorial-complete'));
   const result = lifecycle.skipTutorial();
   if (!result.ok) return notice(result.error.code);host.mode = 'sandbox';host.opponentControl = 'manual';attachSession(result.value);}
-function leaveMatch(screen = nextScreen('game','leave')) {lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = screen;host.options = false;host.catalogOpen = false;renderShell(true);
+// Leaving a won tutorial by any way marks it finished in this browser (Q5).
+const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;
+function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = screen;host.options = false;host.catalogOpen = false;renderShell(true);
   if (screen !== 'entry') root.querySelector('[data-flow-back]')?.focus({preventScroll:true});}
 // Entry flow screens move by their own buttons and Escape only, never by the browser history (Q14).
 // Focus follows the move (a re-render drops it to the body, out of reach of Escape): a flow screen

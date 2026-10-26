@@ -184,11 +184,14 @@ function uniqueHtml(model,presentation) {
   const activate = seat.seatId === model.match.viewerSeat && model.legalActions.find(item => item.kind === 'fixed' && item.action.type === 'activateAbility');
   return `<aside class="r2-modal unique-effect-modal" role="dialog" aria-label="ユーザー能力"><section class="cp-panel cp-user">${panelHeadHtml({ eyebrow: 'USER EFFECT', sub: 'ABILITY.SYS', title: esc(seat.user.abilityName), close: 'data-runtime-unique-close', closeLabel: 'ユーザー能力を閉じる' })}<p>${abilityTextHtml(seat.user.abilityText)}</p><dl class="detail-grid"><div><dt>STR</dt><dd>${seat.fortressStr}/${seat.user.maxFortressStr}</dd></div><div><dt>MEM</dt><dd>${seat.memory.current}/${seat.memory.max}</dd></div></dl><section class="detail-section runtime-detail-section"><h3>付与・残数</h3>${runtimeComponentRowsHtml([...(seat.abilityStatus?.protect ? [{label:"プロテクト",value:`残り${seat.abilityStatus.protect}回`,note:"残数",abilityName:"PROTECT",tone:""}] : []),...(seat.abilityStatus?.backup ? [{label:"バックアップ",value:`残り${seat.abilityStatus.backup}回`,note:"付与分",abilityName:"BACKUP",tone:""}] : []),...(seat.user.abilityKey === "turbo" ? [{label:seat.user.abilityName,value:seat.abilityStatus?.turboUsed ? "使用済" : "残り1回",note:seat.turboActive ? "このターン起動中" : "対戦中",abilityName:null,tone:""}] : [])],esc)}</section><section class="detail-section"><h3>インシデント</h3><p>${(seat.user.incidents ?? []).map(value => `${value}${seat.incidents?.includes(value) ? '（使用済）' : ''}`).join(' / ')}</p></section>${activate ? `<button class="unique-effect-button is-available" data-action-id="${esc(activate.actionId)}">起動</button>` : ''}</section></aside>`;
 }
+// A finished tutorial keeps its closing line on screen with one way on: back to the tutorial list.
+// A move refused by the tutorial shows its reason (flow.error) under the line.
 function guideHtml(tutorial) {
-  if (!tutorial?.presentation || tutorial.flow.complete) return '';
+  if (!tutorial?.presentation) return '';
+  const complete = tutorial.flow.complete === true;
   const {presentation,flow} = tutorial, navigator = tutorialNavigator(flow.tutorialId);
   const text = (presentation.parts ?? [presentation.text]).map(part => typeof part === 'string' ? esc(part) : `<ruby>${esc(part.ruby)}<rt>${esc(part.rt)}</rt></ruby>`).join('');
-  return `<aside class="r2-guide live-guide" aria-label="チュートリアル" data-tutorial-step="${flow.introComplete ? `${flow.tutorialId}:${flow.index}` : `intro:${flow.introIndex}`}"><div class="live-guide-cast"><img src="${esc(navigator.src)}" alt="${esc(presentation.speaker)}の立ち絵" style="object-position:${esc(navigator.objectPosition)}"><strong>${esc(presentation.speaker)}</strong></div><div class="live-guide-speech"><div class="live-guide-text" tabindex="0" role="region" aria-label="チュートリアルのセリフ"><p>${text}</p></div><nav><button class="live-guide-skip" data-runtime-tutorial-skip>スキップ</button>${presentation.intro || presentation.expect?.type === 'advance' ? '<button class="live-guide-next" data-runtime-tutorial-next>次へ ▸</button>' : ''}</nav></div></aside>`;
+  return `<aside class="r2-guide live-guide" aria-label="チュートリアル" data-tutorial-step="${flow.introComplete ? `${flow.tutorialId}:${flow.index}` : `intro:${flow.introIndex}`}"><div class="live-guide-cast"><img src="${esc(navigator.src)}" alt="${esc(presentation.speaker)}の立ち絵" style="object-position:${esc(navigator.objectPosition)}"><strong>${esc(presentation.speaker)}</strong></div><div class="live-guide-speech"><div class="live-guide-text" tabindex="0" role="region" aria-label="チュートリアルのセリフ"><p>${text}</p>${flow.error && !complete ? `<p class="live-guide-error" role="alert">${esc(flow.error)}</p>` : ''}</div><nav>${complete ? '<button class="live-guide-next" data-runtime-tutorial-finish>一覧へ戻る ▸</button>' : `<button class="live-guide-skip" data-runtime-tutorial-skip>スキップ</button>${presentation.intro || presentation.expect?.type === 'advance' ? '<button class="live-guide-next" data-runtime-tutorial-next>次へ ▸</button>' : ''}`}</nav></div></aside>`;
 }
 function artHtml(model,presentation) {
   const card = visibleCards(model).find(card => !card.faceDown && card.cardRef === presentation.artRef)
@@ -257,7 +260,8 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
     selection,
     log: wants('log') ? model.ui.logOpen ? runtimeLogHtml(presentation.log ?? [], model.match.viewerSeat) : '' : null,
     menu: wants('menu') ? model.ui.menuOpen ? '<aside class="r2-modal" role="dialog" aria-label="メニュー"><section><button data-runtime-menu>閉じる</button><button data-runtime-rematch>再戦</button><button data-runtime-title>タイトルに戻る</button></section></aside>' : '' : null,
-    result: wants('result') ? presentation.resultDismissed ? '' : runtimeResultHtml(model.match) : null
+    // A tutorial ends in its own closing line (guideHtml), not in the match result window.
+    result: wants('result') ? presentation.resultDismissed || presentation.tutorial ? '' : runtimeResultHtml(model.match) : null
   };
 }
 

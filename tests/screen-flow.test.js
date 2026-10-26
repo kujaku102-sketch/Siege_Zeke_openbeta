@@ -178,14 +178,18 @@ test('main wiring: flow buttons before title modes, Escape and [戻る] through 
     assert.ok(!/pushState|replaceState|popstate|location\.hash/.test(source), 'no history API (Q14)');
 });
 
-test('main wiring: a finished tutorial is marked and returns to the list; a skipped one goes to the sandbox unfinished', async () => {
+test('main wiring: a won tutorial is marked on its way out and its button returns to the list; a skipped one goes to the sandbox unfinished', async () => {
   const main = await readSource('../src/main.js');
-  const replace = main.slice(main.indexOf('function replaceTutorial(complete) {'), main.indexOf('function leaveMatch('));
-  assert.ok(replace.includes("if (complete) {host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);return leaveMatch(nextScreen('game','tutorial-complete'));}"));
+  const replace = main.slice(main.indexOf('function replaceTutorial(complete) {'), main.indexOf('const tutorialWon'));
+  assert.ok(replace.includes("if (complete) return leaveMatch(nextScreen('game','tutorial-complete'));"));
   assert.ok(replace.includes('lifecycle.skipTutorial()') && replace.includes("host.mode = 'sandbox'"));
-  assert.ok(!replace.includes('markTutorialDone(globalThis.localStorage,host.tutorialId);host.mode'), 'skipping marks nothing');
-  assert.ok(main.includes("function leaveMatch(screen = nextScreen('game','leave'))"));
+  assert.ok(!replace.includes('markTutorialDone'), 'skipping marks nothing');
+  assert.ok(main.includes("const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;"));
+  assert.ok(main.includes("function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();"),
+    'marked before the match is left, whichever way out');
   assert.ok(main.includes('tutorialDone:readTutorialDone(globalThis.localStorage)'));
+  const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
+  assert.ok(!surface.includes('flow.complete && latest.model.requiredInput === null) schedule('), 'no automatic exit: the closing line stays until its button');
 });
 
 test('tutorial list: chapters with their old names as subtitles; a mark saved under the old ids still shows', () => {

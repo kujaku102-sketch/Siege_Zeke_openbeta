@@ -458,6 +458,69 @@ function runScriptedOpponent(session) {
   assert.equal(queue.length,0);created.value.dispose();
   assert.equal(session.tutorial().value.opponentScript,null);
 }
+// After the winning attack the guide shows the closing line with one way on (back to the list), no skip,
+// and the match result window stays away: the tutorial ends in its own line.
+function assertClosingLine(session,lastIndex) {
+  const flow=session.tutorial().value.flow;
+  assert.equal(flow.complete,true);assert.equal(flow.index,lastIndex);
+  const ui=createMatchUiController({session,viewerSeat:'a'}).value,read=ui.read().value;
+  const html=runtimeGameHtml(read.model,{...read,tutorial:session.tutorial().value});
+  assert.match(html,/data-runtime-tutorial-finish/);assert.match(html,/勝利。/);
+  assert.doesNotMatch(html,/data-runtime-tutorial-skip/);assert.doesNotMatch(html,/r2-result/);
+  ui.dispose?.();
+}
+const refusedFor=(session,port,action,reason)=>{
+  const before=port.query().value,result=port.submit({commandId:'guard:'+ ++serial,expectedRevision:before.status.revision,action});
+  assert.equal(result.ok,false,JSON.stringify(result));assert.match(result.error.code,/^TUTORIAL_(CHOICE|ACTION)_NOT_EXPECTED$/);
+  assert.equal(port.query().value.status.revision,before.status.revision,'nothing changed');
+  assert.match(session.tutorial().value.flow.error,reason,'the guide says why');
+};
+const answerWith=(port,pick)=>{const input=port.query().value.requiredInput,option=input.options.find(pick);assert.ok(option,'option offered');
+  return {type:'answerChoice',choiceId:input.choiceId,optionIds:[option.optionId],allocation:[]};};
+test('tutorial basics refuses the moves that would leave it unwinnable, says why, and takes the guided one',()=>{
+  const {lifecycle,session,port}=setup('tutorial');
+  for(let index=0;index<8;index+=1)session.advanceTutorial();
+  const hand=id=>visibleCard(port.query().value,id,['hand']).cardRef,index=()=>session.tutorial().value.flow.index;
+  submit(port,plan(port,'install',hand('STD-076')));
+  refusedFor(session,port,plan(port,'executeCard',hand('STD-075'),option=>option.zone==='back'),/フロント/);
+  submit(port,plan(port,'executeCard',hand('STD-075'),option=>option.zone==='front'));assert.equal(session.tutorial().value.flow.error,'');
+  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-075',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);
+  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);assert.equal(index(),5);
+  submit(port,plan(port,'executeCard',hand('STD-090'),option=>option.zone==='front'));
+  submit(port,answerWith(port,option=>option.label==='ジャンクパーツ'));
+  // The reported dead end: placing the Junk Parts as a layer under Kaneko.
+  refusedFor(session,port,answerWith(port,option=>option.label==='レイヤー配置'),/フロント/);
+  refusedFor(session,port,answerWith(port,option=>option.label==='バック'),/フロント/);
+  submit(port,answerWith(port,option=>option.label==='フロント'));settleTutorial(session);assert.equal(index(),6);
+  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);assert.equal(index(),7);
+  const wall=seatView(port.query().value,'b').front.cards.find(card=>!card.faceDown&&card.definition.id==='STD-131').cardRef;
+  submit(port,plan(port,'executeSpell',hand('STD-086'),option=>option.cardRef===wall));
+  const input=port.query().value.requiredInput;assert.equal(input.optional,true);
+  refusedFor(session,port,{type:'declineChoice',choiceId:input.choiceId},/ジャンクパーツ/);
+  const kaneko=visibleCard(port.query().value,'STD-090',['front']).cardRef;
+  refusedFor(session,port,answerWith(port,option=>option.cardRef===kaneko),/ジャンクパーツ/);
+  refusedFor(session,port,{type:'answerChoice',choiceId:input.choiceId,optionIds:[],allocation:[]},/ジャンクパーツ/);
+  const parts=visibleCard(port.query().value,'STD-078',['front']).cardRef;
+  submit(port,answerWith(port,option=>option.cardRef===parts));settleTutorial(session);assert.equal(index(),8);
+  lifecycle.dispose();
+});
+test('tutorial vengeance refuses the normal relog cost and a wrong effect target, says why, and takes the guided ones',()=>{
+  const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),runtime=config('tutorial');runtime.gameOptions.tutorialId='vengeance';
+  const session=lifecycle.start(runtime).value,port=session.port('a').value;
+  for(let index=0;index<8;index+=1)session.advanceTutorial();
+  const hand=id=>visibleCard(port.query().value,id,['hand']).cardRef,index=()=>session.tutorial().value.flow.index;
+  submit(port,plan(port,'install',hand('STD-191')));
+  submit(port,plan(port,'executeLayered',hand('STD-195'),option=>option.zone==='front'));settleTutorial(session);
+  submit(port,plan(port,'redeploy',visibleCard(port.query().value,'STD-195',['front']).cardRef,option=>option.zone==='back'));
+  refusedFor(session,port,answerWith(port,option=>option.label==='通常コストを払う'),/レイヤー1枚を破棄/);
+  submit(port,answerWith(port,option=>String(option.label).startsWith('レイヤー1枚を破棄')));settleTutorial(session);assert.equal(index(),4);
+  submit(port,plan(port,'executeCard',hand('STD-194'),option=>option.zone==='front'));settleTutorial(session);
+  submit(port,plan(port,'executeCard',hand('STD-192'),option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),6);
+  const source=visibleCard(port.query().value,'STD-192',['front']).cardRef,acroia=visibleCard(port.query().value,'STD-194',['front']).cardRef;
+  refusedFor(session,port,plan(port,'activateCardEffect',source,option=>option.cardRef===source||option.zone==='back'),/アクロィア/);
+  submit(port,plan(port,'activateCardEffect',source,option=>option.cardRef===acroia||option.zone==='back'));settleTutorial(session);assert.equal(index(),7);
+  lifecycle.dispose();
+});
 test('tutorial basics runs start to finish through ports: opponent STR 5 to 0 is a locked win, with scripted opponent and no undo',()=>{
   const {lifecycle,session,port}=setup('tutorial');
   for(let index=0;index<8;index+=1)assert.equal(session.advanceTutorial().ok,true);
@@ -493,6 +556,7 @@ test('tutorial basics runs start to finish through ports: opponent STR 5 to 0 is
   const done=port.query().value;
   assert.ok(done.status.lockedOutcome||done.status.finished,'reaching STR 0 locks the result');
   assert.equal(done.status.lockedOutcome.winnerSeat,'a');
+  assertClosingLine(session,11);
   lifecycle.dispose();
 });
 test('tutorial vengeance runs start to finish through ports: relogged layered Ob and generated Dolls take opponent STR 5 to 0',()=>{
@@ -515,6 +579,7 @@ test('tutorial vengeance runs start to finish through ports: relogged layered Ob
   submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-189',['front']).cardRef,option=>option.kind==='user'));
   const done=port.query().value;
   assert.ok(done.status.lockedOutcome||done.status.finished,'reaching STR 0 locks the result');
+  assertClosingLine(session,11);
   lifecycle.dispose();
 });
 
