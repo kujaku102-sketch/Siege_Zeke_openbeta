@@ -19,6 +19,8 @@
   padding:calc(.75rem + env(safe-area-inset-top,0rem)) calc(.75rem + env(safe-area-inset-right,0rem)) calc(.75rem + env(safe-area-inset-bottom,0rem)) calc(.75rem + env(safe-area-inset-left,0rem));
   background:#000; color:#111820; color-scheme:light; font:400 clamp(.875rem,2.6dvh,1.125rem)/1.45 "Yu Gothic UI",sans-serif; }
 .r2-flow-sheet { box-sizing:border-box; width:min(100%,140dvh,64rem); min-height:100%; margin:0 auto; padding:clamp(.75rem,3dvh,2rem) clamp(.75rem,3vw,2.5rem); background:#fff; }
+/* The menu over the flow screens meets the 44 CSS px tap floor (the title draws its own, larger one). */
+.r2-content:has(.r2-flow) .r2-utilities button { min-width:2.75rem; min-height:2.75rem; padding:0 .9em; font-size:clamp(.8125rem,2.4dvh,1rem); }
 .r2-flow-head { display:flex; align-items:center; gap:clamp(.5rem,2vw,1.25rem); padding-inline-end:clamp(4.5rem,12vw,7rem); }
 .r2-flow-head h1 { margin:0; font:400 clamp(1.25rem,5dvh,2rem)/1.2 SZKaiso,"Yu Gothic UI",sans-serif; font-synthesis:none; }
 .r2-flow :is(button,select) { min-height:2.75rem; font:inherit; }

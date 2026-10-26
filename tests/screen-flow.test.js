@@ -195,3 +195,14 @@ test('tutorial list: chapters with their old names as subtitles; a mark saved un
   assert.ok(html.includes('data-tutorial-item="basics" data-done="true"') && html.includes('data-tutorial-item="vengeance" data-done="false"'));
   assert.ok(html.includes('aria-label="チャプター1をはじめる"'));
 });
+
+test('Escape is taken on the document, so it works with the focus on <body> after the options open or the deck builder closes', async () => {
+  const main = await readSource('../src/main.js');
+  assert.ok(main.includes("document.addEventListener('keydown',event => {if (event.key === 'Escape' && !event.target.closest?.('[data-match-root]')) {"));
+  assert.ok(!main.includes("root.addEventListener('keydown'"), 'not only inside #app');
+});
+
+test('the menu over the flow screens meets the 44 CSS px tap floor in relative units', async () => {
+  const css = await readSource('../src/ui-refresh/flow-screens.css');
+  assert.ok(css.includes('.r2-content:has(.r2-flow) .r2-utilities button { min-width:2.75rem; min-height:2.75rem;'));
+});

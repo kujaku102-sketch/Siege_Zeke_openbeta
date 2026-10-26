@@ -44,6 +44,14 @@ async function checkEntryFlow(page) {
   await page.locator('[data-flow-screen="tutorial-select"]').waitFor({ state: "visible" });
   const items = await page.locator("[data-tutorial-item]").evaluateAll(nodes => nodes.map(node => `${node.dataset.tutorialItem}:${node.dataset.done}`));
   if (items.join() !== "basics:false,vengeance:false") throw new Error(`tutorial list is wrong: ${items}`);
+  const menu = await page.locator(".r2-utilities button").boundingBox();
+  if (!menu || menu.width < 44 || menu.height < 44) throw new Error(`flow screen menu is under 44 CSS px: ${JSON.stringify(menu)}`);
+  // The options window leaves the focus on <body>: Escape still closes it, and the next Escape goes back.
+  await page.locator('.r2-utilities [data-live="options"]').click();
+  await page.locator(".r2-title-options").waitFor({ state: "visible" });
+  await page.keyboard.press("Escape");
+  await page.locator(".r2-title-options").waitFor({ state: "detached" });
+  if (!await page.locator('[data-flow-screen="tutorial-select"]').count()) throw new Error("Escape on the options window left the tutorial list");
   await page.keyboard.press("Escape");
   await page.locator(".r2-entry").waitFor({ state: "visible" });
   await page.locator('[data-mode="ai"]').click();
@@ -52,6 +60,13 @@ async function checkEntryFlow(page) {
   if (await page.locator("[data-online-battle]").getAttribute("aria-disabled") !== "true") throw new Error("online battle is not marked unavailable");
   await page.locator("[data-online-battle]").click({ force: true });
   if (!await page.locator('[data-flow-screen="battle-setup"]').count() || await page.locator(".r2-notice").count()) throw new Error("online battle did something");
+  // Right after the deck builder closes by its button, Escape goes back with no Tab in between.
+  await page.locator(".r2-flow [data-deck-open]").click();
+  await page.locator("[data-deck-close]").first().click();
+  await page.locator("[data-deck-close]").waitFor({ state: "detached" });
+  await page.keyboard.press("Escape");
+  await page.locator(".r2-entry").waitFor({ state: "visible", timeout: 3000 }).catch(() => { throw new Error("Escape after closing the deck builder did not go back"); });
+  await page.locator('[data-mode="ai"]').click();
   await page.locator("[data-flow-back]").click();
   await page.locator(".r2-entry").waitFor({ state: "visible" });
 }

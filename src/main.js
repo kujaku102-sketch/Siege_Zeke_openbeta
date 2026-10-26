@@ -231,7 +231,9 @@ root.addEventListener('pointerdown',event => {const tile = event.target.closest(
     suppressDeckClickUntil = performance.now()+800;host.deckBuilder.detailId = tile.dataset.deckCardId ?? tile.dataset.deckSummaryId;renderShell();clearPress();},480)};});
 root.addEventListener('pointermove',event => {if (press && Math.hypot(event.clientX-press.x,event.clientY-press.y)>8) clearPress();});
 for (const name of ['pointerup','pointercancel','pointerleave']) root.addEventListener(name,clearPress);
-root.addEventListener('keydown',event => {if (event.key === 'Escape' && !event.target.closest('[data-match-root]')) {
+// Escape is taken on the document: opening the options or closing the deck builder leaves the focus
+// on <body>, and the key must still close the window or go back from there (V092-08).
+document.addEventListener('keydown',event => {if (event.key === 'Escape' && !event.target.closest?.('[data-match-root]')) {
   const back = escapeScreen(host.screen,{overlayOpen:host.options || host.deckBuilder.open || host.catalogOpen});
   if (back) return goTo(back);
   host.options = false;host.deckBuilder.detailId = null;renderShell();}});
