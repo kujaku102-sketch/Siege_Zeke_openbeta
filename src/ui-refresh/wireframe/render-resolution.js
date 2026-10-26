@@ -1,7 +1,9 @@
 // Drawing pixels only. Never use these dimensions for layout or hit testing.
-export const DEFAULT_RENDER_QUALITY = Object.freeze({ scale: 3, maxPixels: 8_294_400 });
+// The full-mode default is CSS pixels (scale 1, 文豪's decision after the 3 / 1 / 0.5 samples); the
+// pixel cap still bounds a large screen.
+export const DEFAULT_RENDER_QUALITY = Object.freeze({ scale: 1, maxPixels: 8_294_400 });
 // Per render mode (render-mode.js): compat draws its canvases (the life view) at CSS pixels,
-// whatever the DPR; full keeps the supersampled default unless a sample scale (?renderScale=) is given.
+// whatever the DPR; full uses the default unless a sample scale (?renderScale=) is given.
 export const RENDER_QUALITY_PRESETS = Object.freeze({
   compat: Object.freeze({ scale: 1, maxPixels: DEFAULT_RENDER_QUALITY.maxPixels }),
   full: DEFAULT_RENDER_QUALITY

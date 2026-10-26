@@ -32,35 +32,38 @@ test('board camera works without a control panel: wheel, drag, pinch and disposa
   } finally {globalThis.window=oldWindow;globalThis.ResizeObserver=oldObserver;}
 });
 
-test('high quality changes buffer only and is independent of DPR', () => {
+test('the default draws at CSS pixels; a larger scale changes the buffer only; neither follows the DPR', () => {
   for (const dpr of [1, 2, 3]) {
-    assert.deepEqual(renderResolution(800,360,undefined,dpr), {width:2400,height:1080,scale:3});
-    assert.deepEqual(renderResolution(640,288,undefined,dpr), {width:1920,height:864,scale:3});
+    assert.deepEqual(renderResolution(800,360,undefined,dpr), {width:800,height:360,scale:1});
+    assert.deepEqual(renderResolution(800,360,{scale:3},dpr), {width:2400,height:1080,scale:3});
+    assert.deepEqual(renderResolution(640,288,{scale:3},dpr), {width:1920,height:864,scale:3});
   }
   assert.equal(renderResolution(800,360,{scale:'device'},1).width,800);
   assert.equal(renderResolution(800,360,{scale:'device'},3).width,1600);
 });
 test('render quality presets: compat draws at CSS pixels on any DPR, full keeps the default', () => {
   assert.equal(renderQualityFor('full'), DEFAULT_RENDER_QUALITY);
-  assert.deepEqual(RENDER_QUALITY_PRESETS.full, { scale: 3, maxPixels: 8_294_400 });
+  assert.deepEqual(RENDER_QUALITY_PRESETS.full, { scale: 1, maxPixels: 8_294_400 }, 'full defaults to CSS pixels');
+  assert.deepEqual(DEFAULT_RENDER_QUALITY, { scale: 1, maxPixels: 8_294_400 });
   assert.deepEqual(renderQualityFor('compat'), { scale: 1, maxPixels: 8_294_400 });
   for (const mode of [undefined, null, '', 'auto', 'COMPAT']) assert.equal(renderQualityFor(mode), DEFAULT_RENDER_QUALITY);
   assert.ok(Object.isFrozen(RENDER_QUALITY_PRESETS.compat));
   for (const dpr of [1, 2, 3]) {
     assert.deepEqual(renderResolution(64, 26, renderQualityFor('compat'), dpr), { width: 64, height: 26, scale: 1 });
-    assert.deepEqual(renderResolution(64, 26, renderQualityFor('full'), dpr), { width: 192, height: 78, scale: 3 });
+    assert.deepEqual(renderResolution(64, 26, renderQualityFor('full'), dpr), { width: 64, height: 26, scale: 1 });
+    assert.deepEqual(renderResolution(64, 26, renderQualityFor('full', 3), dpr), { width: 192, height: 78, scale: 3 });
   }
 });
 test('render quality: a sample scale replaces the full scale only; compat stays at 1', () => {
   assert.deepEqual(renderQualityFor('full', 0.5), { scale: 0.5, maxPixels: 8_294_400 });
-  assert.deepEqual(renderQualityFor('full', 1), { scale: 1, maxPixels: 8_294_400 });
-  assert.equal(renderQualityFor('full', 3), DEFAULT_RENDER_QUALITY, 'the default scale is the default preset');
+  assert.equal(renderQualityFor('full', 1), DEFAULT_RENDER_QUALITY, 'the default scale is the default preset');
+  assert.deepEqual(renderQualityFor('full', 3), { scale: 3, maxPixels: 8_294_400 }, 'the old supersampled scale stays reachable by URL');
   for (const scale of [null, undefined, 0, -1, NaN, Infinity, '0.5']) assert.equal(renderQualityFor('full', scale), DEFAULT_RENDER_QUALITY, String(scale));
   for (const scale of [0.25, 0.5, 1, 3]) assert.equal(renderQualityFor('compat', scale), RENDER_QUALITY_PRESETS.compat);
   assert.deepEqual(renderResolution(852, 393, renderQualityFor('full', 0.5), 2), { width: 426, height: 196, scale: 0.5 });
   assert.deepEqual(renderResolution(852, 393, renderQualityFor('full', 1), 2), { width: 852, height: 393, scale: 1 });
   // The pixel cap still wins over a large sample scale on a large screen.
-  assert.ok(renderResolution(1920, 1080, renderQualityFor('full', 3), 1).width <= 3840);
+  assert.deepEqual(renderResolution(1920, 1080, renderQualityFor('full', 3), 1), { width: 3840, height: 2160, scale: 2 });
 });
 // A seat's life canvas inside a fake match root, with frames run by hand.
 function lifeHarness() {
@@ -88,8 +91,8 @@ test('life view: a render mode switch resizes the canvas both ways at DPR 3', ()
     const view = attachLifeView(h.root, renderQualityFor('compat'));
     view.sync(h.model, false); h.flush();
     assert.deepEqual([h.canvas.width, h.canvas.height], [64, 26], 'compat: CSS pixels, not DPR 3');
-    view.setQuality(renderQualityFor('full')); h.flush();
-    assert.deepEqual([h.canvas.width, h.canvas.height], [192, 78], 'full: the current x3 default');
+    view.setQuality(renderQualityFor('full', 3)); h.flush();
+    assert.deepEqual([h.canvas.width, h.canvas.height], [192, 78], 'a x3 sample scale');
     view.setQuality(renderQualityFor('compat')); h.flush();
     assert.deepEqual([h.canvas.width, h.canvas.height], [64, 26], 'back to compat shrinks again');
     view.dispose();
@@ -98,7 +101,7 @@ test('life view: a render mode switch resizes the canvas both ways at DPR 3', ()
 test('surface scenes: setRenderQuality reaches the life view made before and after it', () => {
   const h = lifeHarness();
   try {
-    const scenes = createSurfaceScenes({ root: h.root, boardStyle: 'classic', renderQuality: renderQualityFor('full'), latest: () => null, lowGpu: true });
+    const scenes = createSurfaceScenes({ root: h.root, boardStyle: 'classic', renderQuality: renderQualityFor('full', 3), latest: () => null, lowGpu: true });
     scenes.sync({ model: h.model }, false); h.flush();
     assert.equal(h.canvas.width, 192);
     scenes.setRenderQuality(renderQualityFor('compat')); h.flush();
@@ -106,7 +109,7 @@ test('surface scenes: setRenderQuality reaches the life view made before and aft
     scenes.setRenderQuality(null); h.flush();
     assert.equal(h.canvas.width, 64, 'a missing preset changes nothing');
     scenes.dispose();
-    const later = createSurfaceScenes({ root: h.root, boardStyle: 'classic', renderQuality: renderQualityFor('full'), latest: () => null, lowGpu: true });
+    const later = createSurfaceScenes({ root: h.root, boardStyle: 'classic', renderQuality: renderQualityFor('full', 3), latest: () => null, lowGpu: true });
     later.setRenderQuality(renderQualityFor('compat'));
     later.sync({ model: h.model }, false); h.flush();
     assert.equal(h.canvas.width, 64, 'a life view attached after the switch starts at the new quality');
@@ -116,7 +119,7 @@ test('surface scenes: setRenderQuality reaches the life view made before and aft
 test('surface scenes: going to compat shrinks the kept WebGL canvases; staying or going to full leaves them', () => {
   const h = lifeHarness();
   try {
-    const scenes = createSurfaceScenes({ root: h.root, boardStyle: 'classic', renderQuality: renderQualityFor('full'), latest: () => null, lowGpu: false });
+    const scenes = createSurfaceScenes({ root: h.root, boardStyle: 'classic', renderQuality: renderQualityFor('full', 3), latest: () => null, lowGpu: false });
     scenes.setLowGpu(false);
     assert.deepEqual(h.drawn.map(c => [c.width, c.height]), [[2556, 1179], [551, 1002]], 'no mode change, no resize');
     scenes.setLowGpu(true);
@@ -130,11 +133,11 @@ test('surface scenes: going to compat shrinks the kept WebGL canvases; staying o
 });
 test('pixel and hardware limits bound allocations, zero size skips drawing', () => {
   for(const [w,h] of [[1920,1080],[3840,2160],[800,360]]) {
-    const size=renderResolution(w,h);
+    const size=renderResolution(w,h,{scale:3});
     assert.ok(size.width*size.height<=8_294_400);
     assert.ok(Math.abs(size.width/size.height-w/h)<.01);
   }
-  const smallGpu=renderResolution(800,360,undefined,3,1024);
+  const smallGpu=renderResolution(800,360,{scale:3},3,1024);
   assert.equal(smallGpu.width,1024);
   assert.ok(smallGpu.height<=1024);
   for(const [w,h] of [[0,360],[800,0],[-1,2],[Infinity,1]]) assert.equal(renderResolution(w,h),null);
