@@ -17,6 +17,7 @@ export function acceptTutorialAction(state, flow, action) {
   flow.error = "";
   flow.index += 1;
   if (step.after === "yellow-demo") runYellowTutorialTurn(state);
+  if (step.after === "guardman-demo") runGuardmanTutorialTurn(state);
   if (step.after === "yellow-pass" && state.active === "ai") {
     endTurn(state);
     const security = state.players.ai.front.find((card) => card.id === "STD-131" && !card.sleep);
@@ -25,6 +26,19 @@ export function acceptTutorialAction(state, flow, action) {
   }
   if (flow.index >= steps.length - 1) flow.complete = true;
   return true;
+}
+
+// 赤チュートリアルの相手: ガードマン(セキュリティ)を実行し、スリープさせてターンを終える。
+function runGuardmanTutorialTurn(state) {
+  const ai = state.players.ai;
+  const guardman = ai.hand.find((card) => card.id === "STD-022");
+  if (guardman) {
+    playCard(state, "ai", guardman.uid, { force: true });
+    endTurn(state);
+    const fieldGuardman = ai.front.find((card) => card.id === "STD-022");
+    if (fieldGuardman) restSecurity(state, "ai", fieldGuardman.uid);
+  } else endTurn(state);
+  if (state.securityRestWindow === "ai") endTurn(state);
 }
 
 function runYellowTutorialTurn(state) {

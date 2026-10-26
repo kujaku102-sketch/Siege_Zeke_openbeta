@@ -229,21 +229,16 @@ test('user window and area open a read-only user detail; the ability window stay
   assert.equal(ui.closeProfile().value.profileSeat,null);
   lifecycle.dispose();
 });
-test('tutorial opponent performs install/play/pass as individually scheduled normal commands; dispose cancels callbacks',()=>{
+test('tutorial opponent performs play/pass as individually scheduled normal commands; dispose cancels callbacks',()=>{
   const {lifecycle,session,port}=setup('tutorial');
-  for(let index=0;index<8;index+=1)assert.equal(session.advanceTutorial().ok,true);
-  const ownCards=()=>port.query().value.observation.seats[0].hand.cards;
-  submit(port,plan(port,'install',ownCards().find(card=>card.definition.id==='STD-076').cardRef));
-  submit(port,plan(port,'executeCard',ownCards().find(card=>card.definition.id==='STD-075').cardRef,option=>option.zone==='front'));
-  const attacker=port.query().value.observation.seats[0].front.cards.find(card=>card.definition.id==='STD-075').cardRef;
-  submit(port,plan(port,'attack',attacker,option=>option.kind==='user'));submit(port,{type:'endTurn'});drain(port);
+  walkRedToEndOfTurnOne(session,port,{});drain(port);
   const queue=[],controller=createTutorialOpponentController({session,seatId:'b',scheduler:{schedule:task=>{queue.push(task);return task;},cancel:task=>{const index=queue.indexOf(task);if(index>=0)queue.splice(index,1);}}});
   assert.equal(controller.ok,true);
   controller.value.start();assert.equal(queue.length,1);
   const before=port.query().value.status.revision;queue.shift()();assert.equal(port.query().value.status.revision,before+1);
   for(let index=0;index<10 && queue.length;index+=1)queue.shift()();
   assert.equal(session.tutorial().value.opponentScript,null);
-  assert.ok(port.query().value.observation.seats[1].front.cards.some(card=>!card.faceDown&&card.definition.id==='STD-131'&&card.status.sleep));
+  assert.ok(port.query().value.observation.seats[1].front.cards.some(card=>!card.faceDown&&card.definition.id==='STD-022'&&card.status.sleep),'Guardman stands as the sleeping Security');
   controller.value.dispose();assert.equal(queue.length,0);lifecycle.dispose();
 });
 test('fresh tutorial skip replaces required choice and invalidates old match actions; premature completion refuses',()=>{
@@ -450,6 +445,28 @@ function settleTutorial(session,{decline=false}={}) {
   }
   assert.fail('tutorial required input failed to settle');
 }
+// The red tutorial (the author's script), up to the end of the first turn: Ob / Code explanations, the soldier,
+// the Atto that is refused for want of a symbol, Glenn installed, Atto out, its QA attack and the turn end.
+// Steps that only ask the player to look at something (info button, QA badge, detail) are advanced.
+function walkRedToEndOfTurnOne(session,port,{stopBeforeEnd=true}={}) {
+  const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;
+  const next=expected=>{assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),expected);};
+  for(let count=0;count<8;count+=1)assert.equal(session.advanceTutorial().ok,true);
+  assert.equal(index(),1);next(2);
+  submit(port,plan(port,'executeCard',hand('STD-021'),option=>option.zone==='front'));assert.equal(index(),3);
+  const atto=hand('STD-091');
+  const refused=port.submit({commandId:'atto-early:'+ ++serial,expectedRevision:port.query().value.status.revision,action:{type:'executeCard',cardRef:atto,destination:{zone:'front',slot:1}}});
+  assert.ok(!refused.ok||refused.value.kind==='rejected','no red symbol yet: Atto cannot come out');
+  assert.equal(index(),3);
+  next(4);next(5);
+  submit(port,plan(port,'install',hand('STD-087')));assert.equal(index(),6);
+  next(7);
+  submit(port,plan(port,'executeCard',hand('STD-091'),option=>option.zone==='front'));assert.equal(index(),8);
+  next(9);
+  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-091',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);assert.equal(index(),10);
+  if(stopBeforeEnd===false)return;
+  submit(port,{type:'endTurn'});settleTutorial(session);
+}
 function runScriptedOpponent(session) {
   const queue=[],created=createTutorialOpponentController({session,seatId:'b',scheduler:{schedule:task=>{queue.push(task);return task;},cancel:task=>{const index=queue.indexOf(task);if(index>=0)queue.splice(index,1);}}});
   assert.equal(created.ok,true,JSON.stringify(created));
@@ -460,12 +477,12 @@ function runScriptedOpponent(session) {
 }
 // After the winning attack the guide shows the closing line with one way on (back to the list), no skip,
 // and the match result window stays away: the tutorial ends in its own line.
-function assertClosingLine(session,lastIndex) {
+function assertClosingLine(session,lastIndex,closing=/勝利。/) {
   const flow=session.tutorial().value.flow;
   assert.equal(flow.complete,true);assert.equal(flow.index,lastIndex);
   const ui=createMatchUiController({session,viewerSeat:'a'}).value,read=ui.read().value;
   const html=runtimeGameHtml(read.model,{...read,tutorial:session.tutorial().value});
-  assert.match(html,/data-runtime-tutorial-finish/);assert.match(html,/勝利。/);
+  assert.match(html,/data-runtime-tutorial-finish/);assert.match(html,closing);
   assert.doesNotMatch(html,/data-runtime-tutorial-skip/);assert.doesNotMatch(html,/r2-result/);
   ui.dispose?.();
 }
@@ -477,31 +494,16 @@ const refusedFor=(session,port,action,reason)=>{
 };
 const answerWith=(port,pick)=>{const input=port.query().value.requiredInput,option=input.options.find(pick);assert.ok(option,'option offered');
   return {type:'answerChoice',choiceId:input.choiceId,optionIds:[option.optionId],allocation:[]};};
-test('tutorial basics refuses the moves that would leave it unwinnable, says why, and takes the guided one',()=>{
+test('tutorial basics refuses a soldier placed in the back and takes the front',()=>{
   const {lifecycle,session,port}=setup('tutorial');
-  for(let index=0;index<8;index+=1)session.advanceTutorial();
+  for(let index=0;index<9;index+=1)session.advanceTutorial();
   const hand=id=>visibleCard(port.query().value,id,['hand']).cardRef,index=()=>session.tutorial().value.flow.index;
-  submit(port,plan(port,'install',hand('STD-076')));
-  refusedFor(session,port,plan(port,'executeCard',hand('STD-075'),option=>option.zone==='back'),/フロント/);
-  submit(port,plan(port,'executeCard',hand('STD-075'),option=>option.zone==='front'));assert.equal(session.tutorial().value.flow.error,'');
-  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-075',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);
-  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);assert.equal(index(),5);
-  submit(port,plan(port,'executeCard',hand('STD-090'),option=>option.zone==='front'));
-  submit(port,answerWith(port,option=>option.label==='ジャンクパーツ'));
-  // The reported dead end: placing the Junk Parts as a layer under Kaneko.
-  refusedFor(session,port,answerWith(port,option=>option.label==='レイヤー配置'),/フロント/);
-  refusedFor(session,port,answerWith(port,option=>option.label==='バック'),/フロント/);
-  submit(port,answerWith(port,option=>option.label==='フロント'));settleTutorial(session);assert.equal(index(),6);
-  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);assert.equal(index(),7);
-  const wall=seatView(port.query().value,'b').front.cards.find(card=>!card.faceDown&&card.definition.id==='STD-131').cardRef;
-  submit(port,plan(port,'executeSpell',hand('STD-086'),option=>option.cardRef===wall));
-  const input=port.query().value.requiredInput;assert.equal(input.optional,true);
-  refusedFor(session,port,{type:'declineChoice',choiceId:input.choiceId},/ジャンクパーツ/);
-  const kaneko=visibleCard(port.query().value,'STD-090',['front']).cardRef;
-  refusedFor(session,port,answerWith(port,option=>option.cardRef===kaneko),/ジャンクパーツ/);
-  refusedFor(session,port,{type:'answerChoice',choiceId:input.choiceId,optionIds:[],allocation:[]},/ジャンクパーツ/);
-  const parts=visibleCard(port.query().value,'STD-078',['front']).cardRef;
-  submit(port,answerWith(port,option=>option.cardRef===parts));settleTutorial(session);assert.equal(index(),8);
+  assert.equal(index(),2);
+  const before=port.query().value;
+  const result=port.submit({commandId:'guard:'+ ++serial,expectedRevision:before.status.revision,action:plan(port,'executeCard',hand('STD-021'),option=>option.zone==='back')});
+  assert.equal(result.ok,false,JSON.stringify(result));assert.match(result.error.code,/^TUTORIAL_ACTION_NOT_EXPECTED$/);
+  assert.equal(port.query().value.status.revision,before.status.revision,'nothing changed');
+  submit(port,plan(port,'executeCard',hand('STD-021'),option=>option.zone==='front'));assert.equal(index(),3);
   lifecycle.dispose();
 });
 test('tutorial vengeance refuses the normal relog cost and a wrong effect target, says why, and takes the guided ones',()=>{
@@ -521,42 +523,26 @@ test('tutorial vengeance refuses the normal relog cost and a wrong effect target
   submit(port,plan(port,'activateCardEffect',source,option=>option.cardRef===acroia||option.zone==='back'));settleTutorial(session);assert.equal(index(),7);
   lifecycle.dispose();
 });
-test('tutorial basics runs start to finish through ports: opponent STR 5 to 0 is a locked win, with scripted opponent and no undo',()=>{
+test('tutorial basics runs start to finish through ports: the script ends with opponent STR 5 to 0 as a locked win, with scripted opponent and no undo',()=>{
   const {lifecycle,session,port}=setup('tutorial');
-  for(let index=0;index<8;index+=1)assert.equal(session.advanceTutorial().ok,true);
-  assert.equal(session.advanceTutorial().ok,false);
   const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;
-  const reached=expected=>assert.equal(index(),expected);
-  assert.equal(index(),1);
-  submit(port,plan(port,'install',hand('STD-076')));reached(2);
-  submit(port,plan(port,'executeCard',hand('STD-075'),option=>option.zone==='front'));reached(3);
-  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-075',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);reached(4);
-  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);reached(5);
-  submit(port,plan(port,'executeCard',hand('STD-090'),option=>option.zone==='front'));
-  // Access the Junk Parts and place them standalone in the front (not as a layer under Kaneko).
-  while(port.query().value.requiredInput)answerCurrent(port,option=>option.label==='ジャンクパーツ'||option.label==='フロント');
-  settleTutorial(session);reached(6);
-  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);reached(7);
-  const revision=port.query().value.status.revision;
-  assertRefused(port,{type:'endTurn'});assert.equal(port.query().value.status.revision,revision);
-  // The sleeping Security stands in front of the user: break it with Lucky Shot, choosing the Junk Parts as the sacrifice.
-  const target=session.port('b').value.query().value.observation.seats[1];
-  assert.ok(target.front.cards.some(card=>!card.faceDown&&card.definition.id==='STD-131'));
-  const wall=seatView(port.query().value,'b').front.cards.find(card=>!card.faceDown&&card.definition.id==='STD-131').cardRef,parts=visibleCard(port.query().value,'STD-078',['front']).cardRef;
-  submit(port,plan(port,'executeSpell',hand('STD-086'),option=>option.cardRef===wall));
-  const input=port.query().value.requiredInput,choice=input.options.find(option=>option.cardRef===parts);
-  assert.ok(choice,'the Junk Parts are offered as the optional sacrifice');
-  submit(port,{type:'answerChoice',choiceId:input.choiceId,optionIds:[choice.optionId],allocation:[]});
-  settleTutorial(session);reached(8);
-  assert.equal(visibleCard(port.query().value,'STD-078',['front']),undefined,'the Junk Parts were sacrificed');
-  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-090',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);reached(9);
-  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);reached(10);
+  walkRedToEndOfTurnOne(session,port);
+  runScriptedOpponent(session);assert.equal(index(),11);
+  const seat=seatView(port.query().value);
+  assert.equal(seatView(port.query().value,'b').front.cards.find(card=>card.definition.id==='STD-022').status.sleep,true);
+  assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),12);
+  const atto=visibleCard(port.query().value,'STD-091',['front']).cardRef;
+  submit(port,plan(port,'executeCard',hand('STD-078'),option=>option.hostRef===atto||option.cardRef===atto));settleTutorial(session);assert.equal(index(),13);
+  const guardman=seatView(port.query().value,'b').front.cards.find(card=>!card.faceDown&&card.definition.id==='STD-022').cardRef;
+  submit(port,plan(port,'attack',atto,option=>option.cardRef===guardman));settleTutorial(session);assert.equal(index(),14);
   assert.equal(port.query().value.status.finished,false);
-  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-090',['front']).cardRef,option=>option.kind==='user'));
+  assert.equal(session.advanceTutorial().ok,true);assert.equal(index(),15);
+  assert.ok(seat);
+  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-021',['front']).cardRef,option=>option.kind==='user'));
   const done=port.query().value;
   assert.ok(done.status.lockedOutcome||done.status.finished,'reaching STR 0 locks the result');
   assert.equal(done.status.lockedOutcome.winnerSeat,'a');
-  assertClosingLine(session,11);
+  assertClosingLine(session,16,/勝利です/);
   lifecycle.dispose();
 });
 test('tutorial vengeance runs start to finish through ports: relogged layered Ob and generated Dolls take opponent STR 5 to 0',()=>{

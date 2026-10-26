@@ -83,6 +83,21 @@ import { acceptTutorialAction, completeTutorialIntroduction, createTutorialFlow,
 import { evaluatePlacement } from "../src/game/placement-policy.js";
 import { normalizeLayerState } from "../src/game/layer-state.js";
 
+// Several rules tests used the tutorial's first hands as a handy fixture. The red tutorial now follows the script
+// (Glenn / soldier / Atto / Junk Parts vs. Guardman), so the old four-card hands are rebuilt here from the decks.
+function classicTutorialState() {
+  const state = createGame({ mode: "tutorial" });
+  const pull = (deck, id) => deck.splice(deck.findIndex((card) => card.id === id), 1)[0];
+  const { player, ai } = state.players;
+  player.deck.push(...player.hand.splice(0));
+  ai.deck.push(...ai.hand.splice(0));
+  player.hand = ["STD-076", "STD-075", "STD-090", "STD-086"].map((id) => pull(player.deck, id));
+  ai.hand = ["STD-125", "STD-131", "STD-149"].map((id) => pull(ai.deck, id));
+  const george = pull(ai.deck, "STD-129"); const bash = pull(ai.deck, "STD-138");
+  ai.deck.push(george, bash);
+  return state;
+}
+
 test("effect compiler extracts keyword and numeric operation", () => {
   const parsed = compileEffectText("[ログイン] 相手Ob1体に3ダメージ。カードを2枚引く。");
   assert.equal(parsed.status, "supported");
@@ -2988,7 +3003,7 @@ test("previously missing attack-declaration cards use optional common selection"
 });
 
 test("both users are Doors ZX; human is red and AI is yellow", () => {
-  const state = createGame({ mode: "tutorial" });
+  const state = classicTutorialState();
   assert.equal(state.players.player.user.name, "Doors ZX");
   assert.equal(state.players.ai.user.name, "Doors ZX");
   assert.equal(state.players.player.hand.some((card) => card.color === "赤"), true);
@@ -3102,80 +3117,87 @@ test("Doors NT five-Ob damage reduction belongs only to its own user", () => {
   assert.equal(nt.players.ai.fortressStr, ntBefore - 1);
 });
 
-test("basics tutorial: opponent STR 5 is taken to 0 through install, QA, Security, Access and the optional Lucky Shot effect", () => {
+test("red tutorial (script): the symbol-less Atto is refused, install lights red, QA hits for 3, the mounted Atto breaks Guardman and the soldier finishes STR 5", () => {
   const state = createGame({ mode: "tutorial" });
   const flow = createTutorialFlow();
-  assert.equal(currentTutorialPresentation(flow).speaker, "じぐさぽ");
   assert.equal(completeTutorialIntroduction(flow), true);
-  assert.equal(state.players.ai.fortressStr, 5, "the opponent starts at STR 5");
-  assert.equal(state.players.player.fortressStr, 20);
-  assert.equal(acceptTutorialAction(state, flow, { type: "advance" }), true);
+  const player = state.players.player; const ai = state.players.ai;
+  assert.deepEqual(player.hand.map((card) => card.id), ["STD-087", "STD-021", "STD-091", "STD-078"], "Glenn, soldier, Atto, Junk Parts");
+  assert.deepEqual(ai.hand.map((card) => card.id), ["STD-022"], "the opponent holds only Guardman");
+  assert.equal(ai.fortressStr, 5);
+  assert.equal(player.memory, 5);
+  const accept = (action) => assert.equal(acceptTutorialAction(state, flow, action), true, JSON.stringify(action) + " " + flow.error);
+  const hand = (id) => player.hand.find((card) => card.id === id);
+  accept({ type: "advance" }); // Ob / STR
+  accept({ type: "advance" }); // Code and the Junk Parts' +1/+1
 
-  const thief = state.players.player.hand.find((card) => card.id === "STD-076");
-  assert.equal(installCard(state, "player", thief.uid), true);
-  assert.equal(acceptTutorialAction(state, flow, { type: "install", cardId: "STD-076" }), true);
+  const soldier = hand("STD-021");
+  assert.equal(playCard(state, "player", soldier.uid, { zone: "front" }), true);
+  accept({ type: "play", cardId: "STD-021", zone: "front" });
+  assert.equal(player.memory, 3, "the soldier costs 2");
 
-  const junky = state.players.player.hand.find((card) => card.id === "STD-075");
-  assert.equal(playCard(state, "player", junky.uid), true);
-  assert.equal(acceptTutorialAction(state, flow, { type: "play", cardId: "STD-075" }), true);
-  assert.equal(attack(state, "player", junky.uid, "ai-fortress"), true);
-  assert.equal(acceptTutorialAction(state, flow, { type: "attack", cardId: "STD-075", targetType: "fortress" }), true);
-  assert.equal(state.players.ai.fortressStr, 4);
+  // The player tries Atto first: no red symbol is lit, so the engine refuses it with a reason.
+  const atto = hand("STD-091");
+  assert.equal(canPlayCard(state, "player", atto).code, "SYMBOL_MISSING");
+  assert.equal(playCard(state, "player", atto.uid, { zone: "front" }), false);
+  assert.equal(hand("STD-091"), atto);
+  assert.equal(player.memory, 3);
+  accept({ type: "advance" }); // the attempt and its explanation
+  accept({ type: "advance" }); // "...it won't come out" and the Registry
+  assert.equal(installCard(state, "player", hand("STD-087").uid), true);
+  accept({ type: "install", cardId: "STD-087" });
+  accept({ type: "advance" }); // the info button
+  assert.equal(canPlayCard(state, "player", atto).ok, true, "red is lit now");
+  assert.equal(playCard(state, "player", atto.uid, { zone: "front" }), true);
+  accept({ type: "play", cardId: "STD-091", zone: "front" });
+  assert.equal(player.memory, 1);
+  assert.equal(canAttack(state, "player", atto), true, "QA: it can attack the turn it comes out");
+  assert.equal(canAttack(state, "player", soldier), false);
+  accept({ type: "advance" }); // the QA badge
 
-  endTurn(state);
-  assert.equal(acceptTutorialAction(state, flow, { type: "end-turn" }), true);
+  assert.equal(attack(state, "player", atto.uid, "ai-fortress"), true);
+  accept({ type: "attack", cardId: "STD-091", targetType: "fortress" });
+  assert.equal(ai.fortressStr, 2);
+  assert.deepEqual(ai.incidentsTriggered, [3]);
+
+  assert.equal(endTurn(state), true);
+  accept({ type: "end-turn" });
   assert.equal(state.active, "player");
-  const wall = state.players.ai.front.find((card) => card.id === "STD-131");
-  assert.equal(wall.sleep, true);
-  assert.equal(state.players.player.trash.some((card) => card.id === "STD-075"), true);
+  const guardman = ai.front.find((card) => card.id === "STD-022");
+  assert.ok(guardman, "the opponent put Guardman out");
+  assert.equal(guardman.sleep, true, "and rested it as the Security");
+  assert.equal(cardCurrentStr(state, "ai", guardman), 4);
+  assert.equal(player.memory, 5, "memory is back to the limit");
+  assert.equal(atto.sleep, false, "Atto stood by again");
+  assert.deepEqual(getAttackTargets(state, "player", soldier).map((target) => target.uid), [guardman.uid], "the user cannot be reached");
+  accept({ type: "advance" }); // draw / stand by / Security / Junk Parts
 
-  const kaneko = state.players.player.hand.find((card) => card.id === "STD-090");
-  assert.equal(playCard(state, "player", kaneko.uid, { zone: "front" }), true);
-  assert.equal(acceptTutorialAction(state, flow, { type: "play", cardId: "STD-090", zone: "front" }), true);
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [state.pending.request.candidates[0]] }), true);
-  assert.equal(resolveAccessDragPlacement(state, "player", "front"), true);
-  const accessedParts = state.players.player.front.find((card) => card.id === "STD-078");
-  assert.equal(state.players.player.front.includes(accessedParts), true);
-  assert.equal(canAttack(state, "player", kaneko), false);
-  assert.equal(attack(state, "player", kaneko.uid, "ai-fortress"), false);
+  const parts = hand("STD-078");
+  assert.equal(playCard(state, "player", parts.uid, { zone: "front", underUid: atto.uid }), true);
+  accept({ type: "play", cardId: "STD-078", zone: "front" });
+  assert.equal(atto.mounted.includes(parts), true, "mounted under Atto");
+  assert.equal(cardAtk(state, "player", atto), 4);
+  assert.equal(cardCurrentStr(state, "player", atto), 2);
+  assert.deepEqual(getAttackTargets(state, "player", atto).map((target) => target.uid), [guardman.uid]);
 
-  endTurn(state);
-  assert.equal(acceptTutorialAction(state, flow, { type: "end-turn" }), true);
-  assert.equal(state.active, "player");
-  assert.equal(canAttack(state, "player", kaneko), true);
-  assert.deepEqual(getAttackTargets(state, "player", kaneko).map((target) => target.uid), [wall.uid], "the sleeping Security is the only target");
-
-  // Lucky Shot breaks the Security (3 damage on STR 3), then the optional effect sends 2 damage to the user.
-  const shot = state.players.player.hand.find((card) => card.id === "STD-086");
-  assert.equal(playCard(state, "player", shot.uid, { targetUid: wall.uid }), true);
-  assert.equal(state.pending.type, "selection");
-  assert.equal(state.pending.request.mode, "up_to");
-  assert.equal(state.players.ai.fortressStr, 4);
-  assert.equal(acceptTutorialAction(state, flow, { type: "play", cardId: "STD-086", targetCardId: "STD-131" }), true);
-  assert.equal(resolveLuckyShotAdditional(state, "player", accessedParts.uid), true);
-  assert.equal(state.players.player.trash.includes(accessedParts), true);
-  assert.equal(state.players.ai.fortressStr, 2);
-  assert.deepEqual(state.players.ai.incidentsTriggered, [3]);
-  assert.equal(state.players.ai.trash.some((card) => card.id === "STD-131"), true);
-  assert.equal(state.players.ai.front.length, 0);
-  assert.equal(state.pending, null);
-
-  assert.equal(canAttack(state, "player", kaneko), true);
-  assert.equal(attack(state, "player", kaneko.uid, "ai-fortress"), true);
-  assert.equal(acceptTutorialAction(state, flow, { type: "attack", cardId: "STD-090", targetType: "fortress" }), true);
-  assert.equal(state.players.ai.fortressStr, 1);
+  assert.equal(attack(state, "player", atto.uid, guardman.uid), true);
+  accept({ type: "attack", cardId: "STD-091", targetCardId: "STD-022" });
+  assert.equal(ai.trash.some((card) => card.uid === guardman.uid), true, "Guardman (STR 4) takes 4 and is destroyed");
+  assert.equal(player.trash.some((card) => card.uid === atto.uid), true, "Atto (STR 2) takes Guardman's 2 and is destroyed as well");
+  assert.equal(player.front.includes(parts), true, "the Code stays on the field");
+  assert.equal(ai.front.length, 0);
   assert.equal(state.winner, null);
+  accept({ type: "advance" }); // battle explanation
 
-  endTurn(state);
-  assert.equal(acceptTutorialAction(state, flow, { type: "end-turn" }), true);
-  assert.equal(state.active, "player");
-  assert.equal(attack(state, "player", kaneko.uid, "ai-fortress"), true);
-  assert.equal(acceptTutorialAction(state, flow, { type: "attack", cardId: "STD-090", targetType: "fortress" }), true);
-  assert.equal(state.players.ai.fortressStr, 0);
+  assert.equal(canAttack(state, "player", soldier), true);
+  assert.deepEqual(getAttackTargets(state, "player", soldier).map((target) => target.type), ["fortress"]);
+  assert.equal(attack(state, "player", soldier.uid, "ai-fortress"), true);
+  accept({ type: "attack", cardId: "STD-021", targetType: "fortress" });
+  assert.equal(ai.fortressStr, 0);
   assert.equal(state.winner, "player");
-  assert.deepEqual(state.victory, { lockedOutcome: "player", lockedAtEffectId: state.victory.lockedAtEffectId, finished: true });
+  assert.equal(state.victory.finished, true);
   assert.equal(flow.complete, true);
-  assert.equal(currentTutorialPresentation(flow).expect, null, "the last step is the victory message");
+  assert.equal(currentTutorialPresentation(flow).expect, null, "the last step is the closing line");
 });
 
 test("only the two tutorials start the opponent at STR 5; every other mode keeps the user's own STR", () => {
@@ -3251,7 +3273,7 @@ test("vengeance tutorial: opponent STR 5 is taken to 0 with a relogged layered O
 });
 
 test("Code remains in its square when the upper Ob relogs", () => {
-  const state = createGame({ mode: "tutorial" });
+  const state = classicTutorialState();
   const thief = state.players.player.hand.find((card) => card.id === "STD-076");
   assert.equal(installCard(state, "player", thief.uid), true);
   const kaneko = state.players.player.hand.find((card) => card.id === "STD-090");
@@ -3293,7 +3315,7 @@ test("layered material follows layer 1 while ordinary mounted Code remains in th
 });
 
 test("Code may execute directly under an existing Ob and remains after it leaves", () => {
-  const state = createGame({ mode: "tutorial" });
+  const state = classicTutorialState();
   const thief = state.players.player.hand.find((card) => card.id === "STD-076");
   installCard(state, "player", thief.uid);
   const kaneko = state.players.player.hand.find((card) => card.id === "STD-090");
@@ -3308,7 +3330,7 @@ test("Code may execute directly under an existing Ob and remains after it leaves
 });
 
 test("an Ob may execute over standalone Code and trigger Sam login", () => {
-  const state = createGame({ mode: "tutorial" });
+  const state = classicTutorialState();
   const thief = state.players.player.hand.find((card) => card.id === "STD-076");
   installCard(state, "player", thief.uid);
   state.players.player.memory = 20;
@@ -3331,7 +3353,7 @@ test("an Ob may execute over standalone Code and trigger Sam login", () => {
 });
 
 test("effect text without front restriction can target a back Ob", () => {
-  const state = createGame({ mode: "tutorial" });
+  const state = classicTutorialState();
   const thief = state.players.player.hand.find((card) => card.id === "STD-076");
   installCard(state, "player", thief.uid);
   const target = state.players.ai.deck.find((card) => card.id === "STD-127");
@@ -3355,7 +3377,7 @@ test("damage remains on surviving cards at turn start", () => {
 });
 
 test("QA attacks normally while same-turn Contact can only attack sleeping Ob", () => {
-  const state = createGame({ mode: "tutorial" });
+  const state = classicTutorialState();
   const thief = state.players.player.hand.find((card) => card.id === "STD-076");
   installCard(state, "player", thief.uid);
   const junky = state.players.player.hand.find((card) => card.id === "STD-075");
@@ -3377,7 +3399,7 @@ test("QA attacks normally while same-turn Contact can only attack sleeping Ob", 
 });
 
 test("Backup without a number replaces destruction only once per turn", () => {
-  const state = createGame({ mode: "tutorial" });
+  const state = classicTutorialState();
   const thief = state.players.player.hand.find((card) => card.id === "STD-076");
   assert.equal(playCard(state, "player", thief.uid, { free: true, ignoreColor: true }), true);
   assert.equal(destroyCard(state, "player", thief.uid, { source: "test" }), true);
@@ -3498,7 +3520,7 @@ test("registry permits exactly one install or recovery action per own turn", () 
 });
 
 test("sleeping Ob still deals its ATK as simultaneous combat damage", () => {
-  const state = createGame({ mode: "tutorial" });
+  const state = classicTutorialState();
   const attacker = state.players.player.hand.find((card) => card.id === "STD-075");
   const defender = state.players.ai.hand.find((card) => card.id === "STD-131");
   state.players.player.front.push(attacker);

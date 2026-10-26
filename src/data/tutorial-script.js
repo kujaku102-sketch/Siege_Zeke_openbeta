@@ -2,9 +2,14 @@
 export const TUTORIAL_SPEAKER = "じぐさぽ";
 // どのチュートリアルも、相手ユーザーのSTR5から始めて0にして勝つ流れで終える。engine.js の初期配置がこの値を使う。
 export const TUTORIAL_OPPONENT_STR = 5;
+// 赤チュートリアルの初手(文豪の台本)。「兵士」は台本の呼び名で、メモリ2・無色の剣士(STD-021)を当てている。
+export const TUTORIAL_SOLDIER_ID = "STD-021";
+export const TUTORIAL_RED_HAND = Object.freeze(["STD-087", TUTORIAL_SOLDIER_ID, "STD-091", "STD-078"]);
 export const TUTORIAL_OPPONENT_SCRIPTS = Object.freeze({
   'yellow-demo': Object.freeze([{type:'install',cardId:'STD-125'}, {type:'executeCard',cardId:'STD-131',zone:'front'}, {type:'endTurn'}]),
-  'yellow-pass': Object.freeze([{type:'endTurn'}])
+  'yellow-pass': Object.freeze([{type:'endTurn'}]),
+  // 赤チュートリアル: 相手はセキュリティのObガードマンを実行し、スリープさせてターンを終える。
+  'guardman-demo': Object.freeze([{type:'executeCard',cardId:'STD-022',zone:'front'}, {type:'endTurn'}])
 });
 
 const INTRO_STEPS = [
@@ -24,76 +29,104 @@ const INTRO_STEPS = [
 const BASIC_STEPS = [
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "赤デッキを渡す。今回は相手Doors ZXのSTR5を0にして勝つ。まずDoors ZXを起動してみる。『開始』を押して。",
-    focus: [{ kind: "action", action: "tutorial-advance", label: "開始" }, { kind: "fortress", owner: "player", label: "自分のDoors ZX" }],
+    text: "では、まずカードを出してみましょう。ここでは手札のOb(オブジェクト)を使います。Obは他のゲームではモンスター・クリーチャーに分類されるカテゴリです。これらの攻撃で相手の耐久力、つまりSTRを0にすることで勝利します。",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "hand", label: "兵士" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "hand", label: "アツト" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
     expect: { type: "advance" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "赤カードを使うには赤シンボルが要る。手札の『こそ泥』を選び、レジストリへインストール。",
-    focus: [{ kind: "card", cardId: "STD-076", owner: "player", zone: "hand", label: "こそ泥" }, { kind: "admin", owner: "player", zone: "registry", label: "レジストリ" }],
-    expect: { type: "install", cardId: "STD-076" }
+    text: "もう一枚、違うカテゴリのカードがありますよ。これはCode。装備やフィールド、といった分類になるカテゴリです。Obや他のカテゴリのカードと組み合わせることができ、戦略の幅を広げられます！ちなみに、この『ジャンクパーツ』にはスタッツ(ATK/STR)への補正値がついているのでマウントしている限りObに対して『+1/+1』の補正を与えます。",
+    focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }],
+    expect: { type: "advance" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "メモリ1で『ジャンキー』をフロントへ実行。[QA]だから今すぐ殴れる。",
-    focus: [{ kind: "card", cardId: "STD-075", owner: "player", zone: "hand", label: "ジャンキー" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }],
-    expect: { type: "play", cardId: "STD-075" }
+    text: "では、実際にObを出してみましょう。今はアクティブメモリ(使用可能)が5あるから、メモリ2の『兵士』と『切込隊長アツト』をそれぞれ出してみましょう。この操作を『実行』と呼びます！では『兵士』を出してみましょう。",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "hand", label: "兵士" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }],
+    expect: { type: "play", cardId: "STD-021", zone: "front" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "ジャンキーで相手のDoors ZXを攻撃。相手フロントに壁はいない。相手のSTRは5から4になる。",
-    focus: [{ kind: "card", cardId: "STD-075", owner: "player", zone: "front", label: "ジャンキー" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
-    expect: { type: "attack", cardId: "STD-075", targetType: "fortress" }
+    text: "2メモリを支払うことで実行が完了しました。では『アツト』を出してみましょう。",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "hand", label: "アツト" }, { kind: "button", button: "play", cardId: "STD-091", label: "実行(出せないことを確かめる)" }],
+    expect: { type: "advance" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "ターン終了。攻撃したジャンキーは終了時効果で自壊する。黄側の準備は自動で進める。",
-    focus: [{ kind: "card", cardId: "STD-075", owner: "player", zone: "front", label: "ジャンキー" }, { kind: "action", action: "end-turn", label: "ターン終了" }],
+    text: "……あれ、出せませんね？ごめんなさい！『シンボルが点灯』していませんでした！左端のこの領域、『レジストリ』が見えますか？ここにカードをインストールすることで、その色に対応したシンボルが点灯します。こうすることで、その色のカードは使用可能になります！",
+    focus: [{ kind: "admin", owner: "player", zone: "registry", label: "レジストリ" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "手札の『グレン』を選んで、レジストリへインストールしてみましょう。",
+    focus: [{ kind: "card", cardId: "STD-087", owner: "player", zone: "hand", label: "グレン" }, { kind: "admin", owner: "player", zone: "registry", label: "レジストリ" }],
+    expect: { type: "install", cardId: "STD-087" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "情報ボタンを押してみてください。あと6色分のシンボルが見えますね、他にもいろいろ・・・",
+    focus: [{ kind: "ui", target: "info-button", label: "情報ボタン" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "話が逸れました！『アツト』を実行しましょう！",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "hand", label: "アツト" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }],
+    expect: { type: "play", cardId: "STD-091", zone: "front" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "これで『兵士』と『アツト』が実行されましたね。『アツト』が『兵士』と比べて枠の色が違うのに気づきましたか？そう、緑枠。つまり『攻撃可能』です。通常、Obは配置してから1ターン待たないと攻撃できませんが『アツト』は『QA』を持っています。横のカード詳細から能力バッジを押して解説を見てください。",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }, { kind: "ui", target: "ability-badge", cardId: "STD-091", badge: "QA", label: "QAバッジ" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "これを持っている『アツト』はすぐに攻撃できます！さっそく攻撃してみましょう！Obを押してみると行動のメニューが出てきます。まずは『攻撃』を押してみましょう！攻撃対象が選べます。ここでは、相手ユーザーを選びましょう。",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "attack", cardId: "STD-091", targetType: "fortress" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "攻撃成功！ダメージが通り、相手ユーザーのSTRが削れました。では、ここでターンを終了しましょう。",
+    focus: [{ kind: "action", action: "end-turn", label: "ターン終了" }],
     expect: { type: "end-turn" },
-    after: "yellow-demo"
+    after: "guardman-demo"
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "黄側は『華守り』をスリープして[セキュリティ]を構えた。『サプライヤー・カネコ』をフロントへ実行。アクセスしたジャンクパーツの配置先は、カネコの下に重ねず『フロント』を選んで単体で置く。Codeは単体で場に残る。",
-    focus: [{ kind: "card", cardId: "STD-090", owner: "player", zone: "hand", label: "カネコ" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }, { kind: "card", cardId: "STD-131", owner: "ai", zone: "front", label: "華守り" }],
-    expect: { type: "play", cardId: "STD-090", zone: "front" }
+    text: "ターンの開始時には1枚ドロー！スリープしていたObのスタンバイが行われ、アクティブメモリも上限まで回復します。そして、相手のエリアには『セキュリティ』を持ったObが配置されています。これがスリープしている間、攻撃対象はスリープしたObだけが可能になります。つまり、相手ユーザーへの攻撃が届きません。しかも、STRは4と高いです。ここでCodeを使ったパワーアップを説明します！手札にある『ジャンクパーツ』をご覧ください！",
+    focus: [{ kind: "card", cardId: "STD-022", owner: "ai", zone: "front", label: "ガードマン" }, { kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }, { kind: "ui", target: "card-detail", cardId: "STD-078", label: "ジャンクパーツの詳細" }],
+    expect: { type: "advance" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "QAも[コンタクト]もないカネコは、実行したターンには攻撃できない。ターンを終了して黄側を自動でパスさせる。",
-    focus: [{ kind: "card", cardId: "STD-090", owner: "player", zone: "front", label: "カネコ" }, { kind: "action", action: "end-turn", label: "ターン終了" }],
-    expect: { type: "end-turn" },
-    after: "yellow-pass"
+    text: "これをObの下に実行し、マウントすることでそのObはATKとSTRが1ずつ上がります！では、『アツト』の下に『ジャンクパーツ』を実行しましょう！",
+    focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }, { kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
+    expect: { type: "play", cardId: "STD-078", zone: "front" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "次の自ターンになった。華守りは[セキュリティ]で、立っている間は攻撃が相手Doors ZXに届かない。『グレンのラッキー☆ショット』を華守りへ実行して壁を壊す。3ダメージの後、追加効果で自分エリアの『ジャンクパーツ』を選ぶ（カネコは選ばない）と、相手ユーザーにも2ダメージ。相手のSTRは4から2になる。",
-    focus: [{ kind: "card", cardId: "STD-086", owner: "player", zone: "hand", label: "ラッキー☆ショット" }, { kind: "card", cardId: "STD-131", owner: "ai", zone: "front", label: "華守り" }, { kind: "card", cardId: "STD-078", owner: "player", zone: "front", label: "ジャンクパーツ" }],
-    expect: { type: "play", cardId: "STD-086", targetCardId: "STD-131" }
+    text: "これで『アツト』のATKは4、相手のObを倒せるパワーになりましたね。Obに攻撃してみましょう！",
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }, { kind: "card", cardId: "STD-022", owner: "ai", zone: "front", label: "ガードマン" }],
+    expect: { type: "attack", cardId: "STD-091", targetCardId: "STD-022" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "壁は消えた。カネコで相手のDoors ZXを攻撃。相手のSTRは2から1になる。",
-    focus: [{ kind: "card", cardId: "STD-090", owner: "player", zone: "front", label: "カネコ" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
-    expect: { type: "attack", cardId: "STD-090", targetType: "fortress" }
+    text: "Obに対して攻撃すると、『戦闘』に入ります。『戦闘』では、お互いにATK分のダメージを与え合います。そして、これでSTRが0になったObは破壊されます。今回の戦闘で相手のObを破壊できました。これで『セキュリティ』がいなくなり、相手ユーザーを攻撃対象に選べるようになりました！",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "front", label: "兵士" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "advance" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "ターン終了。黄側は自動でパスさせる。カネコは次の自ターンにスタンバイへ戻る。",
-    focus: [{ kind: "card", cardId: "STD-090", owner: "player", zone: "front", label: "カネコ" }, { kind: "action", action: "end-turn", label: "ターン終了" }],
-    expect: { type: "end-turn" },
-    after: "yellow-pass"
+    text: "では、『兵士』で相手ユーザーを攻撃してSTRを0にしてしまいましょう！",
+    focus: [{ kind: "card", cardId: "STD-021", owner: "player", zone: "front", label: "兵士" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "attack", cardId: "STD-021", targetType: "fortress" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "最後。もう一度カネコで相手のDoors ZXを攻撃。STR1が0になれば勝ち。",
-    focus: [{ kind: "card", cardId: "STD-090", owner: "player", zone: "front", label: "カネコ" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
-    expect: { type: "attack", cardId: "STD-090", targetType: "fortress" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "勝利。インストール、QA、セキュリティ、アクセス、任意追加効果を使って、相手のSTRを0にした。",
+    text: "やりましたね！これで私達の勝利です！",
     expect: null
   }
 ];

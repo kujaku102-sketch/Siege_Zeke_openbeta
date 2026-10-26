@@ -1,6 +1,6 @@
 import { CARD_LIBRARY, LAB_CARD_IDS, NEUTRON_DECK, RED_DECK, USER_CARDS, USERS, VENGEANCE_DECK, YELLOW_DECK } from "../data/cards.js";
 import { START_DECKS } from "../data/start-decks.js";
-import { TUTORIAL_OPPONENT_STR } from "../data/tutorial-script.js";
+import { TUTORIAL_OPPONENT_STR, TUTORIAL_RED_HAND } from "../data/tutorial-script.js";
 import { createRuntimeCard, createRuntimeToken, expandRuntimeDeck, RuntimeError } from "./runtime/factory.js";
 import { nextRng } from "./runtime/rng.js";
 import { compileEffectText, hasKeyword, keywordValue } from "./effect-compiler.js";
@@ -445,14 +445,12 @@ function pullCard(deck, cardId) {
   return deck.splice(index, 1)[0];
 }
 
-function arrangeTutorial(players) {
+// 赤(基本操作)。台本どおりの初手: グレン(インストール用)・兵士(無色)・切込隊長アツト・ジャンクパーツ。
+// 相手は黄の席だが手札はセキュリティのObガードマン1枚だけ(山札の並びや引きには頼らない)。
+function arrangeTutorial(players, runtimeContext = null) {
   players.ai.fortressStr = TUTORIAL_OPPONENT_STR;
-  players.player.hand = ["STD-076", "STD-075", "STD-090", "STD-086"].map((id) => pullCard(players.player.deck, id));
-  players.ai.hand = ["STD-125", "STD-131", "STD-149"].map((id) => pullCard(players.ai.deck, id));
-  // 後攻AIの2ドローを固定。末尾が山札上。
-  const george = pullCard(players.ai.deck, "STD-129");
-  const bash = pullCard(players.ai.deck, "STD-138");
-  players.ai.deck.push(george, bash);
+  players.player.hand = TUTORIAL_RED_HAND.map((id, index) => hydrateCard(createRuntimeCard(runtimeContext, id, "player", 501 + index)));
+  players.ai.hand = [hydrateCard(createRuntimeCard(runtimeContext, "STD-022", "ai", 511))];
 }
 
 function arrangeVengeanceTutorial(players, runtimeContext = null) {
@@ -670,7 +668,7 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
     player: buildPlayer("player", { ...playerUser, color: selectedPlayerDeck.color }, mode === "tutorial" ? red : shuffle(red, rng)),
     ai: buildPlayer("ai", { ...aiUser, color: selectedAiDeck.color }, mode === "tutorial" ? yellow : shuffle(yellow, rng))
   };
-  if (mode === "tutorial") isVengeanceTutorial ? arrangeVengeanceTutorial(players, runtimeContext) : arrangeTutorial(players);
+  if (mode === "tutorial") isVengeanceTutorial ? arrangeVengeanceTutorial(players, runtimeContext) : arrangeTutorial(players, runtimeContext);
   else if (mode === "lab") arrangeLab(players, runtimeContext);
   else if (mode === "sandbox") arrangeSandbox(players, { useConfiguredDecks: sandboxDeckSetup }, runtimeContext);
   else {

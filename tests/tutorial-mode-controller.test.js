@@ -17,24 +17,26 @@ function submit(port, action, commandId) {
 test('tutorial rejects before engine, intro only affects policy, accepted retry does not advance twice', () => {
   const game = setup();
   const port = game.port('a').value;
-  const earlyCard = port.query().value.observation.seats[0].hand.cards.find(card => card.definition.id === 'STD-076');
+  const earlyCard = port.query().value.observation.seats[0].hand.cards.find(card => card.definition.id === 'STD-087');
   const early = submit(port, { type: 'install', cardRef: earlyCard.cardRef }, 'early-install');
   assert.equal(early.error.code, 'TUTORIAL_ACTION_NOT_EXPECTED');
   assert.equal(submit(port, { type: 'endTurn' }, 'unexpected').error.code, 'TUTORIAL_ACTION_NOT_EXPECTED');
   assert.equal(port.query().value.status.revision, 0);
-  for (let count = 0; count < 8; count += 1) assert.equal(game.advanceTutorial().ok, true);
-  assert.equal(game.tutorial().value.flow.index, 1);
+  for (let count = 0; count < 9; count += 1) assert.equal(game.advanceTutorial().ok, true);
+  assert.equal(game.tutorial().value.flow.index, 2);
   assert.equal(port.query().value.status.revision, 0);
+  // Step 2 asks for the soldier in the front; installing Glenn now is not what the guide wants.
+  assert.equal(submit(port, { type: 'install', cardRef: earlyCard.cardRef }, 'too-early-install').error.code, 'TUTORIAL_ACTION_NOT_EXPECTED');
   const query = port.query().value;
-  const card = query.observation.seats[0].hand.cards.find(card => card.definition.id === 'STD-076');
+  const card = query.observation.seats[0].hand.cards.find(card => card.definition.id === 'STD-021');
   assert.ok(card);
-  const intent = { commandId: 'install', expectedRevision: 0, action: { type: 'install', cardRef: card.cardRef } };
+  const intent = { commandId: 'soldier', expectedRevision: 0, action: { type: 'executeCard', cardRef: card.cardRef, destination: { zone: 'front', slot: 1 } } };
   const accepted = port.submit(intent);
   assert.equal(accepted.ok, true, JSON.stringify(accepted));
   assert.equal(accepted.value.kind, 'accepted');
-  assert.equal(game.tutorial().value.flow.index, 2);
+  assert.equal(game.tutorial().value.flow.index, 3);
   assert.deepEqual(port.submit(intent), accepted);
-  assert.equal(game.tutorial().value.flow.index, 2);
+  assert.equal(game.tutorial().value.flow.index, 3);
   game.dispose();
   assert.equal(game.advanceTutorial().ok, false);
 });
@@ -42,17 +44,21 @@ test('tutorial normal play and attack use ports; opponent cannot act before scri
   const game = setup();
   const player = game.port('a').value, opponent = game.port('b').value;
   assert.equal(submit(opponent, { type: 'endTurn' }, 'early-ai').error.code, 'TUTORIAL_ACTION_NOT_EXPECTED');
-  for (let count = 0; count < 8; count += 1) game.advanceTutorial();
-  const card = player.query().value.observation.seats[0].hand.cards.find(card => card.definition.id === 'STD-076');
-  submit(player, { type: 'install', cardRef: card.cardRef }, 'install');
-  let query = player.query().value;
-  const junky = query.observation.seats[0].hand.cards.find(card => card.definition.id === 'STD-075');
-  const played = submit(player, { type: 'executeCard', cardRef: junky.cardRef,
-    destination: { zone: 'front', slot: 1 } }, 'play');
+  for (let count = 0; count < 9; count += 1) game.advanceTutorial();
+  const hand = id => player.query().value.observation.seats[0].hand.cards.find(card => card.definition.id === id);
+  const soldier = submit(player, { type: 'executeCard', cardRef: hand('STD-021').cardRef, destination: { zone: 'front', slot: 1 } }, 'soldier');
+  assert.equal(soldier.value.kind, 'accepted');
+  game.advanceTutorial(); game.advanceTutorial();
+  assert.equal(game.tutorial().value.flow.index, 5);
+  submit(player, { type: 'install', cardRef: hand('STD-087').cardRef }, 'install');
+  game.advanceTutorial();
+  const played = submit(player, { type: 'executeCard', cardRef: hand('STD-091').cardRef,
+    destination: { zone: 'front', slot: 2 } }, 'play');
   assert.equal(played.value.kind, 'accepted');
-  assert.equal(game.tutorial().value.flow.index, 3);
-  query = player.query().value;
-  const attacker = query.observation.seats[0].front.cards.find(card => card.definition.id === 'STD-075');
+  game.advanceTutorial();
+  assert.equal(game.tutorial().value.flow.index, 9);
+  let query = player.query().value;
+  const attacker = query.observation.seats[0].front.cards.find(card => card.definition.id === 'STD-091');
   const attacked = submit(player, { type: 'attack', attackerRef: attacker.cardRef,
     target: { kind: 'user', seatId: 'b' } }, 'attack');
   assert.equal(attacked.ok, true, JSON.stringify(attacked));
@@ -65,5 +71,5 @@ test('tutorial normal play and attack use ports; opponent cannot act before scri
     assert.equal(intent.ok, true, JSON.stringify(intent));
     assert.equal(answering.submit(intent.value).ok, true);
   }
-  assert.equal(game.tutorial().value.flow.index, 4);
+  assert.equal(game.tutorial().value.flow.index, 10);
 });
