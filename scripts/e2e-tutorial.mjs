@@ -55,7 +55,7 @@ function answerFor(request,query,preference={}) {
     const option=ordered[0];const answer={requestId:request.requestId,optionIds:option ? [option.optionId] : [],allocation:option ? [{optionId:option.optionId,amount:request.constraints.total}] : []};
     if (validSelectionAnswer(request,answer)) return answer;
   }
-  for (let count=request.constraints.minimum ?? 0;count<=Math.min(request.constraints.maximum ?? 0,ordered.length);count+=1) {const found=search(0,count);if(found)return found;}
+  for (let count=Math.max(request.constraints.minimum ?? 0,preference.pick ? 1 : 0);count<=Math.min(request.constraints.maximum ?? 0,ordered.length);count+=1) {const found=search(0,count);if(found)return found;}
   throw new Error('no valid safe selection: '+request.presentationKey);
 }
 // A single pick is made on the board itself (the lit slot, card or user) and decides the step; a list or
@@ -76,11 +76,19 @@ async function choose(page,request,query,preference) {
   if (await confirm.count() && await confirm.isVisible() && await confirm.isEnabled()) await clickVisible(page,'[data-runtime-confirm]');
   return answer;
 }
-async function settle(page,{decline=false,checkBack=false}={}) {
+// The tutorial refuses an off-script answer that would leave it unwinnable: the same choice stays open
+// and the guide says why (tutorial-mode-controller.js, TUTORIAL_STEP_GUARDS).
+async function refusedAnswer(page,input,query,label,reason) {
+  const option=input.options.find(option => option.label===label);
+  if (!option) throw new Error('off-script option missing: '+label);
+  await pick(page,option,query);
+  await page.locator('.live-guide .live-guide-error').waitFor({state:'visible',timeout:5000}).catch(() => {throw new Error('refusal reason not shown for '+label);});
+  const text=await page.locator('.live-guide .live-guide-error').innerText(),after=(await read(page)).value;
+  if (!text.includes(reason) || after.requiredInput?.choiceId!==input.choiceId || after.status.revision!==query.status.revision) throw new Error('off-script answer not refused: '+JSON.stringify({text,after:after.requiredInput?.choiceId}));
+}
+async function settle(page,{decline=false,checkBack=false,preference={scope:'レイヤー'},refuse=null}={}) {
   for (let index=0;index<50;index+=1) {
     const result=await read(page);
-    // The last step finishes the tutorial, which leaves the match for the list (checked by completionReturnsToList).
-    if (!result.ok && result.error?.code==='MATCH_UNAVAILABLE' && await page.locator('[data-flow-screen="tutorial-select"]').count()) return;
     if (!result.ok) throw new Error(JSON.stringify(result));
     const query=result.value,input=query.requiredInput;
     if (!input) return;
@@ -92,14 +100,17 @@ async function settle(page,{decline=false,checkBack=false}={}) {
       await clickVisible(page,'[data-selection-collapse]');checkBack=false;
     }
     if (decline && input.optional) {await clickVisible(page,'[data-runtime-decline]');continue;}
-    await choose(page,{...input,requestId:input.choiceId},query,{scope:'レイヤー'});
+    if (refuse && input.options.some(option => option.label===refuse.label)) {await refusedAnswer(page,input,query,refuse.label,refuse.reason);refuse=null;}
+    await choose(page,{...input,requestId:input.choiceId},(await read(page)).value,preference);
   }
   throw new Error('required input failed to settle');
 }
 async function action(page,type,id,preference={}) {
   const query=(await read(page)).value;
-  const card=id && cards(query).find(card => !card.faceDown && card.definition.id === id && (type === 'attack' || type === 'redeploy' || type === 'activateCardEffect' ? ['front','back'].includes(card.location?.zone) : card.location?.zone === 'hand'));
-  const entry=query.legalActions.find(entry => (entry.actionType ?? entry.action?.type) === type && (!id || (entry.base?.cardRef ?? entry.base?.attackerRef ?? entry.action?.cardRef) === card?.cardRef));
+  const entryFor=card => query.legalActions.find(entry => (entry.actionType ?? entry.action?.type) === type && (!id || (entry.base?.cardRef ?? entry.base?.attackerRef ?? entry.action?.cardRef) === card?.cardRef));
+  // A layer under another card has the same id: take the copy that has the action.
+  const card=id && cards(query).find(card => !card.faceDown && card.definition.id === id && (type === 'attack' || type === 'redeploy' || type === 'activateCardEffect' ? ['front','back'].includes(card.location?.zone) : card.location?.zone === 'hand') && entryFor(card));
+  const entry=entryFor(card);
   if (!entry) throw new Error('legal action missing: '+type+' '+id);
   if (card) {
     const cardSelector='[data-card-ref="'+card.cardRef+'"]';
@@ -109,8 +120,7 @@ async function action(page,type,id,preference={}) {
   }
   await clickVisible(page,'[data-action-id="'+entry.actionId+'"]');
   if (entry.kind === 'fixed') return;
-  // No match left also counts as moved: the last step finishes the tutorial and leaves for the list.
-  const selections=[],moved=async () => {const result=await read(page);return !result.ok || result.value.status.revision!==query.status.revision;};
+  const selections=[],moved=async () => (await read(page)).value.status.revision!==query.status.revision;
   for (let index=0;index<6;index+=1) {
     // A finished plan is submitted by the UI itself; a pick that completes it ends the action.
     if (await moved()) return;
@@ -144,8 +154,14 @@ async function step(page,id,index) {
   // The focus marks are placed by the frame-coalesced layout, one frame after the guide text changes.
   await page.locator('.live-focus[data-tutorial-focus-label]').first().waitFor({state:'attached',timeout:3000}).catch(() => {throw new Error('tutorial focus missing at '+id+':'+index);});
 }
-// V092-08 Q4/Q5: a finished tutorial leaves the match for the tutorial list, marked done in this browser.
+// V092-08 Q4/Q5: the winning attack ends the tutorial on its closing line (no result window); its button
+// leaves the match for the tutorial list, marked done in this browser.
 async function completionReturnsToList(page,id) {
+  await page.locator('.live-guide [data-runtime-tutorial-finish]').waitFor({state:'visible',timeout:10000});
+  const closing=await page.evaluate(() => ({text:document.querySelector('.live-guide-text')?.innerText ?? '',skip:Boolean(document.querySelector('[data-runtime-tutorial-skip]')),
+    result:Boolean(document.querySelector('.r2-result')),won:window.__SIMPLE_ZEKE_E2E__.query().value?.status.lockedOutcome?.winnerSeat}));
+  if (!closing.text.startsWith('勝利。') || closing.skip || closing.result || closing.won!=='player') throw new Error('closing line wrong: '+JSON.stringify(closing));
+  await clickVisible(page,'[data-runtime-tutorial-finish]');
   await page.locator('[data-flow-screen="tutorial-select"]').waitFor({state:'visible',timeout:10000});
   const state=await page.evaluate(id => ({scope:window.__SIMPLE_ZEKE_E2E__.scope(),done:document.querySelector(`[data-tutorial-item="${id}"]`)?.dataset.done,
     saved:JSON.parse(localStorage.getItem('sz-tutorial-done') ?? '[]'),board:Boolean(document.querySelector('[data-live-region="board"]'))}),id);
@@ -161,12 +177,15 @@ async function run(page,id) {
   if (id==='basics') {
     await step(page,id,1);await action(page,'install','STD-076');
     await step(page,id,2);await action(page,'executeCard','STD-075',{zone:'front'});
-    await step(page,id,3);await action(page,'attack','STD-075',{user:true});
+    await step(page,id,3);await action(page,'attack','STD-075',{user:true});await settle(page);
     await step(page,id,4);await action(page,'endTurn');await settle(page);
-    await step(page,id,5);await action(page,'executeCard','STD-090',{zone:'front'});await settle(page);
+    // Kaneko's Junk Parts go standalone to the front; a layer under Kaneko would leave the script unwinnable.
+    await step(page,id,5);await action(page,'executeCard','STD-090',{zone:'front'});await settle(page,{preference:{scope:'フロント'},refuse:{label:'レイヤー配置',reason:'フロント'}});
     await step(page,id,6);await action(page,'endTurn');await settle(page);
-    await step(page,id,7);await action(page,'attack','STD-090',{user:true});await settle(page);
-    await step(page,id,8);await action(page,'executeSpell','STD-086',{targetId:'STD-131'});await settle(page,{decline:true});
+    await step(page,id,7);await action(page,'executeSpell','STD-086',{targetId:'STD-131'});await settle(page,{preference:{targetId:'STD-078',pick:true}});
+    await step(page,id,8);await action(page,'attack','STD-090',{user:true});await settle(page);
+    await step(page,id,9);await action(page,'endTurn');await settle(page);
+    await step(page,id,10);await action(page,'attack','STD-090',{user:true});await settle(page);
   } else {
     await step(page,id,1);await action(page,'install','STD-191');
     await step(page,id,2);await action(page,'executeLayered','STD-195',{zone:'front'});await settle(page);
@@ -176,6 +195,10 @@ async function run(page,id) {
     await step(page,id,4);await action(page,'executeCard','STD-194',{zone:'front'});await settle(page);
     await step(page,id,5);await action(page,'executeCard','STD-192',{zone:'front'});await settle(page);
     await step(page,id,6);await action(page,'activateCardEffect','STD-192',{targetId:'STD-194',zone:'back'});await settle(page);
+    await step(page,id,7);await action(page,'endTurn');await settle(page);
+    await step(page,id,8);await action(page,'redeploy','STD-195',{zone:'front'});await settle(page);
+    await step(page,id,9);await action(page,'attack','STD-195',{user:true});await settle(page);
+    await step(page,id,10);await action(page,'attack','STD-189',{user:true});await settle(page);
   }
   await completionReturnsToList(page,id);
 }
@@ -201,5 +224,5 @@ try {
     await page.close();
   }
   if (errors.length) throw new Error('tutorial page errors: '+errors.join(' | '));
-  console.log(JSON.stringify({suite:'tutorial',runs,completionReturnsToList:true,freshSkip:true,requiredBackPreserves:true,keyboardMode,ok:true}));
+  console.log(JSON.stringify({suite:'tutorial',runs,completionReturnsToList:true,offScriptRefused:true,freshSkip:true,requiredBackPreserves:true,keyboardMode,ok:true}));
 } finally {await browser.close();}
