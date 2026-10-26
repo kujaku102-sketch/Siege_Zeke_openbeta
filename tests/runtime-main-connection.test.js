@@ -551,6 +551,10 @@ test('tutorial red step 3: Atto\'s blocked play stays pressable in its popup, na
   const later=runtimeGameHtml(read.model,{...read,tutorial:{...session.tutorial().value,presentation:{...session.tutorial().value.presentation,focus:[]}}});
   assert.match(later,/<button disabled aria-disabled="true" data-route="executeCard" data-block-code="SYMBOL_MISSING"/);
   assert.equal(session.advanceTutorial().ok,true,'the press moves the step on');assert.equal(index(),4);
+  // The reason shows as a line in the guide (the surface holds it as the step's note).
+  const moved=ui.read().value,noted={...session.tutorial().value,note:'シンボル不足で実行できません'};
+  assert.match(runtimeGameHtml(moved.model,{...moved,tutorial:noted}),/<p class="live-guide-error" role="alert">シンボル不足で実行できません<\/p>/);
+  assert.doesNotMatch(runtimeGameHtml(moved.model,{...moved,tutorial:session.tutorial().value}),/live-guide-error/,'no note, no line');
   ui.dispose?.();lifecycle.dispose();
 });
 test('tutorial basics runs start to finish through ports: the script ends with opponent STR 5 to 0 as a locked win, with scripted opponent and no undo',()=>{

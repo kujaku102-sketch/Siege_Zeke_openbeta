@@ -10,6 +10,7 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
   let guideMeasureFrame = null;
   let guidePositionFrame = null;
   let guideViewport = null;
+  let scrolledFocus = null;
   let geometryEpoch = 0;
   const queueGuidePosition = epoch => {
     if (disposed() || guidePositionFrame !== null) return;
@@ -86,6 +87,8 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       flow.style.left = `${position.left}px`; flow.style.top = `${position.top}px`;
     }
     const tutorial = session.tutorial();
+    // A popup or detail kept open across steps would keep the last step's marks: clear them first.
+    for (const element of root.querySelectorAll('.live-focus')) { element.classList.remove('live-focus'); delete element.dataset.tutorialFocusLabel; }
     if (tutorial.ok && !tutorial.value.flow.complete) for (const focus of tutorial.value.presentation.focus ?? []) {
       const seat = scope.seatIds[focus.owner === 'ai' ? 1 : 0];
       const selectors = {card:`[data-card-id="${focus.cardId}"][data-seat="${seat}"][data-zone="${focus.zone}"]`,
@@ -99,6 +102,9 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       const named = element => !focus.badge || [element.getAttribute('aria-label'), element.getAttribute('title'), element.textContent].some(text => text?.includes(focus.badge));
       for (const element of [...root.querySelectorAll(selectors[focus.kind] ?? ':not(*)')].filter(named)) {
         element.classList.add('live-focus');element.dataset.tutorialFocusLabel = focus.label;
+        // The card detail scrolls; on a short screen its ability buttons sit below the fold.
+        const key = `${tutorial.value.flow.index}:${focus.target}`;
+        if (focus.kind === 'ui' && focus.target === 'ability-badge' && scrolledFocus !== key) { scrolledFocus = key; element.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
       }
     }
     const guide = root.querySelector('.live-guide');

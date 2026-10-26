@@ -1,5 +1,6 @@
 import { resolveInteractionTarget } from '../adapters/interaction-targets.js';
 import { isBoardPick } from './choice-read-view.js';
+import { blockMessage } from './runtime-read-view.js';
 
 // Buttons that do one thing whatever the game state. Order matters: the first
 // attribute the clicked button carries wins.
@@ -7,7 +8,8 @@ const BUTTONS = [
   ['data-runtime-title', c => c.onTitle()],
   ['data-runtime-tutorial-skip', c => c.onTutorialSkip()],
   ['data-runtime-tutorial-finish', c => c.onTutorialComplete()],
-  ['data-tutorial-try', (c, target) => { const next = c.session.advanceTutorial(); if (!next.ok) return c.onError(next.error.code); c.act(c.ui.read()); return c.onError(target.dataset.tutorialTry); }],
+  // The tried play moves the step on and its reason shows in the guide for that step (not a shell notice).
+  ['data-tutorial-try', (c, target) => { const next = c.session.advanceTutorial(); if (!next.ok) return c.onError(next.error.code); c.noteTutorial(blockMessage({ code: target.dataset.tutorialTry })); return c.act(c.ui.read()); }],
   ['data-runtime-tutorial-next', c => { const next = c.session.advanceTutorial(); return next.ok ? c.act(c.ui.read()) : c.onError(next.error.code); }],
   ['data-runtime-unique-close', c => c.act(c.ui.closeUnique())],
   ['data-runtime-profile-close', c => c.act(c.ui.closeProfile())],

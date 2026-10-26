@@ -52,6 +52,14 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   let noticeStep = null;
   const tutorialIndex = () => { const tutorial = session.tutorial(); return tutorial.ok ? tutorial.value.flow.index : null; };
   const reportError = code => { noticeStep = tutorialIndex(); onError(code); };
+  // A line the surface adds under the guide's text for one step (the reason a tried play failed).
+  let tutorialNote = null;
+  const noteTutorial = text => { const index = tutorialIndex(); tutorialNote = index === null ? null : { index, text }; };
+  const tutorialView = () => {
+    const tutorial = session.tutorial();
+    if (!tutorial.ok || tutorialNote?.index !== tutorial.value.flow.index) return tutorial;
+    return { ok: true, value: { ...tutorial.value, note: tutorialNote.text } };
+  };
   const fx = createSurfaceFx({ root, boardStyle });
   const timers = createSurfaceTimers({ root, disposed: () => disposed, motionRemaining: fx.remaining });
   const { schedule } = timers;
@@ -66,7 +74,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     // A move the tutorial refused is redrawn as it stands, so the guide shows why.
     if (!result.ok) { reportError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { const read = ui.read(); if (read.ok) render(read); } return; }
     const next = result.value;
-    const tutorial = session.tutorial();
+    const tutorial = tutorialView();
     const presentation = { ...next, view, effectsEnabled, boardStyle, tutorial:tutorial.ok ? tutorial.value : null };
     const nextScope = `${next.model.match.matchId}:${next.sync?.sessionGeneration ?? scope.sessionGeneration}:${next.model.match.viewerSeat}:${next.model.match.revision}:${next.sync?.modeEpoch ?? 0}:${view}:${effectsEnabled ? 1 : 0}`;
     // Decorative work (anchors, scenes, effects) may fail without stopping the match,
@@ -160,7 +168,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   });
   const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,
-    onTitle, onTutorialSkip, onTutorialComplete, onRematch, onMenu, onError: reportError };
+    onTitle, onTutorialSkip, onTutorialComplete, onRematch, onMenu, onError: reportError, noteTutorial };
   listener('click', event => {
     if (disposed || event.target.closest('[data-ability-help]')) return;
     if (suppressedPointerId !== null) {

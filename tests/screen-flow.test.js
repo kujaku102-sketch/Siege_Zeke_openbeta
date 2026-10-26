@@ -219,13 +219,18 @@ test('tutorial highlights: HUD info button, the focused card\'s detail and its a
   assert.ok(layout.includes('const named = element => !focus.badge ||'), 'a badge focus keeps only the named ability');
 });
 
-test('tutorial try: the blocked play moves the step on, then names the reason; the notice clears once the guide moves past it', async () => {
+test('tutorial try: the blocked play moves the step on and puts its reason in the guide for that step; notices clear once the guide moves past them', async () => {
   const clicks = await readSource('../src/ui-refresh/surface-clicks.js');
-  assert.ok(clicks.includes("['data-tutorial-try', (c, target) => { const next = c.session.advanceTutorial(); if (!next.ok) return c.onError(next.error.code); c.act(c.ui.read()); return c.onError(target.dataset.tutorialTry); }],"));
+  assert.ok(clicks.includes("['data-tutorial-try', (c, target) => { const next = c.session.advanceTutorial(); if (!next.ok) return c.onError(next.error.code); c.noteTutorial(blockMessage({ code: target.dataset.tutorialTry })); return c.act(c.ui.read()); }],"));
+  const surfaceNote = await readSource('../src/ui-refresh/runtime-match-surface.js');
+  assert.ok(surfaceNote.includes('if (!tutorial.ok || tutorialNote?.index !== tutorial.value.flow.index) return tutorial;'), 'the note belongs to one step');
+  const layout = await readSource('../src/ui-refresh/surface-layout.js');
+  assert.ok(layout.includes("for (const element of root.querySelectorAll('.live-focus')) { element.classList.remove('live-focus'); delete element.dataset.tutorialFocusLabel; }"), 'last step\'s marks are cleared');
+  assert.ok(layout.includes("if (focus.kind === 'ui' && focus.target === 'ability-badge' && scrolledFocus !== key) { scrolledFocus = key; element.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }"), 'a highlighted badge is scrolled into its panel once');
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
   assert.ok(surface.includes('const reportError = code => { noticeStep = tutorialIndex(); onError(code); };'));
   assert.ok(surface.includes('if (noticeStep !== null && tutorial.ok && tutorial.value.flow.index > noticeStep) { noticeStep = null; onNoticeClear(); }'));
-  assert.ok(surface.includes('onMenu, onError: reportError };'), 'presses in the match are recorded');
+  assert.ok(surface.includes('onMenu, onError: reportError, noteTutorial };'), 'presses in the match are recorded');
   const main = await readSource('../src/main.js');
   assert.ok(main.includes("onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}"));
 });
