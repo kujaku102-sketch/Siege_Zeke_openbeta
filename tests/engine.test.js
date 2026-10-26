@@ -3102,24 +3102,13 @@ test("Doors NT five-Ob damage reduction belongs only to its own user", () => {
   assert.equal(nt.players.ai.fortressStr, ntBefore - 1);
 });
 
-test("only the two tutorials start the opponent at STR 5; every other mode keeps the user's own STR", () => {
-  for (const options of [{ mode: "tutorial" }, { mode: "tutorial", tutorialId: "vengeance" }]) {
-    const state = createGame(options);
-    assert.equal(state.players.ai.fortressStr, 5, options.tutorialId ?? "basics");
-    assert.equal(state.players.player.fortressStr, 20, "the player keeps full STR");
-  }
-  for (const mode of ["ai", "lab", "sandbox"]) {
-    const state = createGame({ mode });
-    assert.equal(state.players.ai.fortressStr, state.players.ai.user.maxStr, mode);
-    assert.equal(state.players.player.fortressStr, state.players.player.user.maxStr, mode);
-  }
-});
-
-test("tutorial applies mount choice, attack delay and optional Lucky Shot", () => {
+test("basics tutorial: opponent STR 5 is taken to 0 through install, QA, Security, Access and the optional Lucky Shot effect", () => {
   const state = createGame({ mode: "tutorial" });
   const flow = createTutorialFlow();
   assert.equal(currentTutorialPresentation(flow).speaker, "じぐさぽ");
   assert.equal(completeTutorialIntroduction(flow), true);
+  assert.equal(state.players.ai.fortressStr, 5, "the opponent starts at STR 5");
+  assert.equal(state.players.player.fortressStr, 20);
   assert.equal(acceptTutorialAction(state, flow, { type: "advance" }), true);
 
   const thief = state.players.player.hand.find((card) => card.id === "STD-076");
@@ -3154,10 +3143,9 @@ test("tutorial applies mount choice, attack delay and optional Lucky Shot", () =
   assert.equal(acceptTutorialAction(state, flow, { type: "end-turn" }), true);
   assert.equal(state.active, "player");
   assert.equal(canAttack(state, "player", kaneko), true);
-  assert.equal(attack(state, "player", kaneko.uid, "ai-fortress"), true);
-  assert.equal(acceptTutorialAction(state, flow, { type: "attack", cardId: "STD-090" }), true);
-  assert.equal(wall.damage, 1);
+  assert.deepEqual(getAttackTargets(state, "player", kaneko).map((target) => target.uid), [wall.uid], "the sleeping Security is the only target");
 
+  // Lucky Shot breaks the Security (3 damage on STR 3), then the optional effect sends 2 damage to the user.
   const shot = state.players.player.hand.find((card) => card.id === "STD-086");
   assert.equal(playCard(state, "player", shot.uid, { targetUid: wall.uid }), true);
   assert.equal(state.pending.type, "selection");
@@ -3166,12 +3154,100 @@ test("tutorial applies mount choice, attack delay and optional Lucky Shot", () =
   assert.equal(acceptTutorialAction(state, flow, { type: "play", cardId: "STD-086", targetCardId: "STD-131" }), true);
   assert.equal(resolveLuckyShotAdditional(state, "player", accessedParts.uid), true);
   assert.equal(state.players.player.trash.includes(accessedParts), true);
-  assert.equal(flow.complete, true);
   assert.equal(state.players.ai.fortressStr, 2);
   assert.deepEqual(state.players.ai.incidentsTriggered, [3]);
   assert.equal(state.players.ai.trash.some((card) => card.id === "STD-131"), true);
-  assert.equal(state.players.ai.hand.some((card) => card.id === "STD-131"), false);
+  assert.equal(state.players.ai.front.length, 0);
   assert.equal(state.pending, null);
+
+  assert.equal(canAttack(state, "player", kaneko), true);
+  assert.equal(attack(state, "player", kaneko.uid, "ai-fortress"), true);
+  assert.equal(acceptTutorialAction(state, flow, { type: "attack", cardId: "STD-090", targetType: "fortress" }), true);
+  assert.equal(state.players.ai.fortressStr, 1);
+  assert.equal(state.winner, null);
+
+  endTurn(state);
+  assert.equal(acceptTutorialAction(state, flow, { type: "end-turn" }), true);
+  assert.equal(state.active, "player");
+  assert.equal(attack(state, "player", kaneko.uid, "ai-fortress"), true);
+  assert.equal(acceptTutorialAction(state, flow, { type: "attack", cardId: "STD-090", targetType: "fortress" }), true);
+  assert.equal(state.players.ai.fortressStr, 0);
+  assert.equal(state.winner, "player");
+  assert.deepEqual(state.victory, { lockedOutcome: "player", lockedAtEffectId: state.victory.lockedAtEffectId, finished: true });
+  assert.equal(flow.complete, true);
+  assert.equal(currentTutorialPresentation(flow).expect, null, "the last step is the victory message");
+});
+
+test("only the two tutorials start the opponent at STR 5; every other mode keeps the user's own STR", () => {
+  for (const options of [{ mode: "tutorial" }, { mode: "tutorial", tutorialId: "vengeance" }]) {
+    const state = createGame(options);
+    assert.equal(state.players.ai.fortressStr, 5, options.tutorialId ?? "basics");
+    assert.equal(state.players.player.fortressStr, 20, "the player keeps full STR");
+  }
+  for (const mode of ["ai", "lab", "sandbox"]) {
+    const state = createGame({ mode });
+    assert.equal(state.players.ai.fortressStr, state.players.ai.user.maxStr, mode);
+    assert.equal(state.players.player.fortressStr, state.players.player.user.maxStr, mode);
+  }
+});
+
+test("vengeance tutorial: opponent STR 5 is taken to 0 with a relogged layered Ob and the generated Dolls", () => {
+  const state = createGame({ mode: "tutorial", tutorialId: "vengeance" });
+  const flow = createTutorialFlow("vengeance");
+  assert.equal(completeTutorialIntroduction(flow), true);
+  assert.equal(state.players.ai.fortressStr, 5);
+  const player = state.players.player;
+  const accept = (action) => assert.equal(acceptTutorialAction(state, flow, action), true, JSON.stringify(action));
+  accept({ type: "advance" });
+  assert.equal(installCard(state, "player", player.hand.find((card) => card.id === "STD-191").uid), true);
+  accept({ type: "install", cardId: "STD-191" });
+  const tripvia = player.hand.find((card) => card.id === "STD-195");
+  const dolls = getLayeredCandidates(state, "player", tripvia);
+  assert.equal(playLayeredCard(state, "player", tripvia.uid, dolls.map(({ card }) => card.uid), "front"), true);
+  accept({ type: "layered", cardId: "STD-195", zone: "front" });
+  assert.equal(relogCard(state, "player", tripvia.uid, "back"), true);
+  setSelectionScope(state.pending.request, "レイヤー1枚を破棄して1メモリ");
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+  toggleSelection(state.pending.request, tripvia.mounted[0].uid);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+  accept({ type: "relog", cardId: "STD-195", zone: "back" });
+  const acryia = player.hand.find((card) => card.id === "STD-194");
+  assert.equal(playCard(state, "player", acryia.uid, { zone: "front" }), true);
+  accept({ type: "play", cardId: "STD-194", zone: "front" });
+  const tanaforia = player.hand.find((card) => card.id === "STD-192");
+  assert.equal(playCard(state, "player", tanaforia.uid, { zone: "front" }), true);
+  accept({ type: "play", cardId: "STD-192", zone: "front" });
+  const update = getActivatableEffects(state, "player", tanaforia)[0];
+  assert.equal(activateCardEffect(state, "player", tanaforia.uid, update.id, { targetUid: acryia.uid, targetZone: "back" }), true);
+  accept({ type: "activate-effect", cardId: "STD-192", zone: "back" });
+  assert.equal(state.players.ai.fortressStr, 5);
+  assert.equal(player.front.filter((card) => card.id === "STD-189").length, 1, "the moved Acryia left a Dolls behind");
+
+  assert.equal(endTurn(state), true);
+  accept({ type: "end-turn" });
+  assert.equal(state.active, "player");
+  assert.equal(state.turnNumber, 3);
+  assert.equal(relogCard(state, "player", tripvia.uid, "front"), true);
+  setSelectionScope(state.pending.request, "レイヤー1枚を破棄して1メモリ");
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+  toggleSelection(state.pending.request, tripvia.mounted[0].uid);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+  accept({ type: "relog", cardId: "STD-195", zone: "front" });
+  assert.equal(canAttack(state, "player", tripvia), true, "the relogged Ob stands by and can attack at once");
+  assert.equal(attack(state, "player", tripvia.uid, "ai-fortress"), true);
+  accept({ type: "attack", cardId: "STD-195", targetType: "fortress" });
+  assert.equal(state.players.ai.fortressStr, 1);
+  assert.equal(state.winner, null);
+
+  const doll = player.front.find((card) => card.id === "STD-189");
+  assert.equal(canAttack(state, "player", doll), true);
+  assert.equal(attack(state, "player", doll.uid, "ai-fortress"), true);
+  accept({ type: "attack", cardId: "STD-189", targetType: "fortress" });
+  assert.equal(state.players.ai.fortressStr, 0);
+  assert.equal(state.winner, "player");
+  assert.equal(state.victory.finished, true);
+  assert.equal(flow.complete, true);
+  assert.equal(currentTutorialPresentation(flow).expect, null);
 });
 
 test("Code remains in its square when the upper Ob relogs", () => {

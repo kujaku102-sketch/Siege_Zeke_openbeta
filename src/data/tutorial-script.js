@@ -24,7 +24,7 @@ const INTRO_STEPS = [
 const BASIC_STEPS = [
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "赤デッキを渡す。まずDoors ZXを起動してみる。『開始』を押して。",
+    text: "赤デッキを渡す。今回は相手Doors ZXのSTR5を0にして勝つ。まずDoors ZXを起動してみる。『開始』を押して。",
     focus: [{ kind: "action", action: "tutorial-advance", label: "開始" }, { kind: "fortress", owner: "player", label: "自分のDoors ZX" }],
     expect: { type: "advance" }
   },
@@ -42,7 +42,7 @@ const BASIC_STEPS = [
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "ジャンキーで相手のDoors ZXを攻撃。相手フロントに壁はいない。",
+    text: "ジャンキーで相手のDoors ZXを攻撃。相手フロントに壁はいない。相手のSTRは5から4になる。",
     focus: [{ kind: "card", cardId: "STD-075", owner: "player", zone: "front", label: "ジャンキー" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
     expect: { type: "attack", cardId: "STD-075", targetType: "fortress" }
   },
@@ -55,7 +55,7 @@ const BASIC_STEPS = [
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "黄側は『華守り』をスリープして[セキュリティ]を構えた。『サプライヤー・カネコ』をフロントへ実行して、アクセスしたジャンクパーツの配置先も選んで。Codeは単体で場に残る。",
+    text: "黄側は『華守り』をスリープして[セキュリティ]を構えた。『サプライヤー・カネコ』をフロントへ実行して、アクセスしたジャンクパーツの配置先は『フロント』を選んで、カネコの下に重ねず単体で置く。Codeは単体で場に残る。",
     focus: [{ kind: "card", cardId: "STD-090", owner: "player", zone: "hand", label: "カネコ" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }, { kind: "card", cardId: "STD-131", owner: "ai", zone: "front", label: "華守り" }],
     expect: { type: "play", cardId: "STD-090", zone: "front" }
   },
@@ -68,19 +68,32 @@ const BASIC_STEPS = [
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "次の自ターンになった。カネコで相手Doors ZXへ攻撃してみろ。対象はスリープ中のセキュリティへ変更される。",
-    focus: [{ kind: "card", cardId: "STD-090", owner: "player", zone: "front", label: "カネコ" }, { kind: "card", cardId: "STD-131", owner: "ai", zone: "front", label: "セキュリティ" }, { kind: "fortress", owner: "ai", label: "攻撃宣言先" }],
-    expect: { type: "attack", cardId: "STD-090" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "最後。『グレンのラッキー☆ショット』を華守りへ実行。3ダメージ後のダイアログで任意追加効果を選べる。使うなら自分エリアのカードも選択。",
-    focus: [{ kind: "card", cardId: "STD-086", owner: "player", zone: "hand", label: "ラッキー☆ショット" }, { kind: "card", cardId: "STD-131", owner: "ai", zone: "front", label: "華守り" }],
+    text: "次の自ターンになった。華守りは[セキュリティ]で、立っている間は攻撃が相手Doors ZXに届かない。『グレンのラッキー☆ショット』を華守りへ実行して壁を壊す。3ダメージの後、追加効果で自分エリアの『ジャンクパーツ』を選ぶ（カネコは選ばない）と、相手ユーザーにも2ダメージ。相手のSTRは4から2になる。",
+    focus: [{ kind: "card", cardId: "STD-086", owner: "player", zone: "hand", label: "ラッキー☆ショット" }, { kind: "card", cardId: "STD-131", owner: "ai", zone: "front", label: "華守り" }, { kind: "card", cardId: "STD-078", owner: "player", zone: "front", label: "ジャンクパーツ" }],
     expect: { type: "play", cardId: "STD-086", targetCardId: "STD-131" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "ここまで。実行先選択、QA、セキュリティ、マウント、任意追加効果まで動いた。以降は自由操作。カードを選べば左の詳細欄からリログもできる。",
+    text: "壁は消えた。カネコで相手のDoors ZXを攻撃。相手のSTRは2から1になる。",
+    focus: [{ kind: "card", cardId: "STD-090", owner: "player", zone: "front", label: "カネコ" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "attack", cardId: "STD-090", targetType: "fortress" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "ターン終了。黄側は自動でパスさせる。カネコは次の自ターンにスタンバイへ戻る。",
+    focus: [{ kind: "card", cardId: "STD-090", owner: "player", zone: "front", label: "カネコ" }, { kind: "action", action: "end-turn", label: "ターン終了" }],
+    expect: { type: "end-turn" },
+    after: "yellow-pass"
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "最後。もう一度カネコで相手のDoors ZXを攻撃。STR1が0になれば勝ち。",
+    focus: [{ kind: "card", cardId: "STD-090", owner: "player", zone: "front", label: "カネコ" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "attack", cardId: "STD-090", targetType: "fortress" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "勝利。インストール、QA、セキュリティ、アクセス、任意追加効果を使って、相手のSTRを0にした。",
     expect: null
   }
 ];
@@ -88,7 +101,7 @@ const BASIC_STEPS = [
 const VENGEANCE_STEPS = [
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "ヴェンジェンスはObの移動とレイヤードを使う。まず『開始』を押して盤面を確認。",
+    text: "ヴェンジェンスはObの移動とレイヤードを使う。今回は相手Doors ZXのSTR5を0にして勝つ。まず『開始』を押して盤面を確認。",
     focus: [{ kind: "action", action: "tutorial-advance", label: "開始" }, { kind: "zone", owner: "player", zone: "front", label: "ドールズ2体" }],
     expect: { type: "advance" }
   },
@@ -130,7 +143,32 @@ const VENGEANCE_STEPS = [
   },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "終了。ヴェンジェンスの基本は、生成したドールズを素材・移動元の穴埋め・攻撃役へ使い回すこと。以降は自由操作。",
+    text: "ここまでで、動かしたObは次のターンから攻撃に使える。ターンを終了して黄側を自動でパスさせる。",
+    focus: [{ kind: "action", action: "end-turn", label: "ターン終了" }, { kind: "card", cardId: "STD-195", owner: "player", zone: "back", label: "トライプビア" }],
+    expect: { type: "end-turn" },
+    after: "yellow-pass"
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "次の自ターン。『マーダードールズ=トライプビア』を選び、フロントへリログ。レイヤー1枚を破棄すれば移動コストは1で、移動後はスタンバイするからそのまま攻撃できる。",
+    focus: [{ kind: "card", cardId: "STD-195", owner: "player", zone: "back", label: "トライプビア" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }],
+    expect: { type: "relog", cardId: "STD-195", zone: "front" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "トライプビアで相手のDoors ZXを攻撃。ATK4で、相手のSTRは5から1になる。",
+    focus: [{ kind: "card", cardId: "STD-195", owner: "player", zone: "front", label: "トライプビア" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "attack", cardId: "STD-195", targetType: "fortress" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "最後は、アクロィアの移動で生成された『ドールズ』。これで相手のDoors ZXを攻撃して、STR1を0にすれば勝ち。",
+    focus: [{ kind: "card", cardId: "STD-189", owner: "player", zone: "front", label: "ドールズ" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "attack", cardId: "STD-189", targetType: "fortress" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "勝利。ヴェンジェンスの基本は、生成したドールズを素材・移動元の穴埋め・攻撃役へ使い回すこと。",
     expect: null
   }
 ];

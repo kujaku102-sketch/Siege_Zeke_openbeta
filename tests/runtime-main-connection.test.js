@@ -458,7 +458,7 @@ function runScriptedOpponent(session) {
   assert.equal(queue.length,0);created.value.dispose();
   assert.equal(session.tutorial().value.opponentScript,null);
 }
-test('tutorial basics runs start to finish through ports with scripted opponent and no undo',()=>{
+test('tutorial basics runs start to finish through ports: opponent STR 5 to 0 is a locked win, with scripted opponent and no undo',()=>{
   const {lifecycle,session,port}=setup('tutorial');
   for(let index=0;index<8;index+=1)assert.equal(session.advanceTutorial().ok,true);
   assert.equal(session.advanceTutorial().ok,false);
@@ -469,19 +469,33 @@ test('tutorial basics runs start to finish through ports with scripted opponent 
   submit(port,plan(port,'executeCard',hand('STD-075'),option=>option.zone==='front'));reached(3);
   submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-075',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);reached(4);
   submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);reached(5);
-  submit(port,plan(port,'executeCard',hand('STD-090'),option=>option.zone==='front'));settleTutorial(session);reached(6);
+  submit(port,plan(port,'executeCard',hand('STD-090'),option=>option.zone==='front'));
+  // Access the Junk Parts and place them standalone in the front (not as a layer under Kaneko).
+  while(port.query().value.requiredInput)answerCurrent(port,option=>option.label==='ジャンクパーツ'||option.label==='フロント');
+  settleTutorial(session);reached(6);
   submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);reached(7);
   const revision=port.query().value.status.revision;
   assertRefused(port,{type:'endTurn'});assert.equal(port.query().value.status.revision,revision);
-  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-090',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);reached(8);
+  // The sleeping Security stands in front of the user: break it with Lucky Shot, choosing the Junk Parts as the sacrifice.
   const target=session.port('b').value.query().value.observation.seats[1];
   assert.ok(target.front.cards.some(card=>!card.faceDown&&card.definition.id==='STD-131'));
-  submit(port,plan(port,'executeSpell',hand('STD-086'),option=>option.cardRef&&visibleCard(port.query().value,'STD-131',['front']).cardRef===option.cardRef));
-  settleTutorial(session,{decline:true});reached(9);
-  assert.equal(session.tutorial().value.flow.complete,true);
+  const wall=seatView(port.query().value,'b').front.cards.find(card=>!card.faceDown&&card.definition.id==='STD-131').cardRef,parts=visibleCard(port.query().value,'STD-078',['front']).cardRef;
+  submit(port,plan(port,'executeSpell',hand('STD-086'),option=>option.cardRef===wall));
+  const input=port.query().value.requiredInput,choice=input.options.find(option=>option.cardRef===parts);
+  assert.ok(choice,'the Junk Parts are offered as the optional sacrifice');
+  submit(port,{type:'answerChoice',choiceId:input.choiceId,optionIds:[choice.optionId],allocation:[]});
+  settleTutorial(session);reached(8);
+  assert.equal(visibleCard(port.query().value,'STD-078',['front']),undefined,'the Junk Parts were sacrificed');
+  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-090',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);reached(9);
+  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);reached(10);
+  assert.equal(port.query().value.status.finished,false);
+  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-090',['front']).cardRef,option=>option.kind==='user'));
+  const done=port.query().value;
+  assert.ok(done.status.lockedOutcome||done.status.finished,'reaching STR 0 locks the result');
+  assert.equal(done.status.lockedOutcome.winnerSeat,'a');
   lifecycle.dispose();
 });
-test('tutorial vengeance runs start to finish through ports including layered, relog and effect activation',()=>{
+test('tutorial vengeance runs start to finish through ports: relogged layered Ob and generated Dolls take opponent STR 5 to 0',()=>{
   const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),runtime=config('tutorial');runtime.gameOptions.tutorialId='vengeance';
   const created=lifecycle.start(runtime);assert.equal(created.ok,true,JSON.stringify(created));
   const session=created.value,port=session.port('a').value;
@@ -493,8 +507,14 @@ test('tutorial vengeance runs start to finish through ports including layered, r
   submit(port,plan(port,'executeCard',hand('STD-194'),option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),5);
   submit(port,plan(port,'executeCard',hand('STD-192'),option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),6);
   const source=visibleCard(port.query().value,'STD-192',['front']).cardRef,moved=visibleCard(port.query().value,'STD-194',['front']).cardRef;
-  submit(port,plan(port,'activateCardEffect',source,option=>option.cardRef===moved||option.zone==='back'));settleTutorial(session);
-  assert.equal(session.tutorial().value.flow.complete,true);
+  submit(port,plan(port,'activateCardEffect',source,option=>option.cardRef===moved||option.zone==='back'));settleTutorial(session);assert.equal(index(),7);
+  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);assert.equal(index(),8);
+  submit(port,plan(port,'redeploy',visibleCard(port.query().value,'STD-195',['back']).cardRef,option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),9);
+  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-195',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);assert.equal(index(),10);
+  assert.equal(port.query().value.status.finished,false);
+  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-189',['front']).cardRef,option=>option.kind==='user'));
+  const done=port.query().value;
+  assert.ok(done.status.lockedOutcome||done.status.finished,'reaching STR 0 locks the result');
   lifecycle.dispose();
 });
 
