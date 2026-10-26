@@ -177,15 +177,16 @@ async function readPages(page) {
   throw new Error('guide pages never reached the last one');
 }
 const next = async page => {await readPages(page);await clickVisible(page,'[data-runtime-tutorial-next]');};
-// Red step 3: Atto's play button is highlighted in its popup; pressing it names the missing red symbol and the step moves on.
+// Red step 13: Atto's play button is highlighted in its popup; pressing it names the missing red symbol and the step moves on.
 async function tryBlockedPlay(page,id,cardId) {
+  const after=Number((await page.locator('.live-guide').getAttribute('data-tutorial-step')).split(':')[1])+1;
   const card=cards((await read(page)).value).find(card => !card.faceDown && card.definition.id===cardId && card.location?.zone==='hand');
   const selector='[data-card-ref="'+card.cardRef+'"]';
   if (!await page.locator(selector).first().isVisible()) await clickVisible(page,'[data-runtime-hand]');
   await clickVisible(page,selector);
   await page.locator('.r2-popup[data-card-id="'+cardId+'"] [data-tutorial-try].live-focus').waitFor({state:'attached',timeout:3000}).catch(() => {throw new Error('the blocked play is not highlighted in its popup');});
   await clickVisible(page,'[data-tutorial-try]');
-  await page.waitForFunction(id => document.querySelector('.live-guide')?.dataset.tutorialStep===id+':4',id,{timeout:5000});
+  await page.waitForFunction(step => document.querySelector('.live-guide')?.dataset.tutorialStep===step,id+':'+after,{timeout:5000});
   // The guide hides its lines for the frame in which the new step's pages are being cut.
   await page.waitForFunction(() => !document.querySelector('.live-guide[data-paging="pending"]'),null,{timeout:5000});
   const reason=await page.locator('.live-guide .live-guide-error').innerText().catch(() => '');
@@ -206,6 +207,8 @@ async function step(page,id,index) {
   const audit=await page.locator('.live-guide').evaluate(node => {const rect=node.getBoundingClientRect();return {left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,w:innerWidth,h:innerHeight};});
   if (audit.left<0 || audit.top<0 || audit.right>audit.w+1 || audit.bottom>audit.h+1) throw new Error('guide clipped: '+JSON.stringify(audit));
   // The focus marks are placed by the frame-coalesced layout, one frame after the guide text changes.
+  // A line with nothing to point at (the opponent's turn, the battle explanation) has none.
+  if (!(await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.tutorial().value?.presentation?.focus?.length))) return;
   await page.locator('.live-focus[data-tutorial-focus-label]').first().waitFor({state:'attached',timeout:3000}).catch(() => {throw new Error('tutorial focus missing at '+id+':'+index);});
 }
 // V092-08 Q4/Q5: the winning attack ends the tutorial on its closing line (no result window); its button
@@ -232,27 +235,34 @@ async function run(page,id) {
   await page.evaluate(id => window.__SIMPLE_ZEKE_E2E__.start('tutorial',id,1),id);
   await intro(page,id);
   if (id==='basics') {
-    // The author's 17-step red script: soldier, Atto (QA), Glenn for the red symbol, Junk Parts under Atto vs the Guardman.
-    await step(page,id,1);await next(page);
-    await step(page,id,2);await action(page,'executeCard','STD-021',{zone:'front'});
-    await step(page,id,3);await tryBlockedPlay(page,id,'STD-091');
-    await step(page,id,4);await next(page);
-    await step(page,id,5);await action(page,'install','STD-087');
-    await step(page,id,6);
-    if (!await page.locator('[data-runtime-counts].live-focus').count()) throw new Error('the info button is not highlighted');
-    await next(page);
-    await step(page,id,7);await action(page,'executeCard','STD-091',{zone:'front'});
-    await step(page,id,8);await next(page);
-    await step(page,id,9);await action(page,'attack','STD-091',{user:true});await settle(page);
-    await step(page,id,10);await action(page,'endTurn');await settle(page);
-    await step(page,id,11);await next(page);
+    // The author's red script, one speech bubble per "‐" line (44 steps): swordsman, Atto (QA), Glenn for the
+    // red symbol, Junk Parts under Atto vs the Guardman.
+    const talk=async (from,to) => {for (let index=from;index<=to;index+=1) {await step(page,id,index);await next(page);}};
+    await talk(1,10);
+    await step(page,id,11);await action(page,'executeCard','STD-021',{zone:'front'});
+    await talk(12,12);
+    await step(page,id,13);await tryBlockedPlay(page,id,'STD-091');
+    await talk(14,17);
+    await step(page,id,18);await action(page,'install','STD-087');
+    for (const index of [19,20]) {
+      await step(page,id,index);
+      if (!await page.locator('[data-runtime-counts].live-focus').count()) throw new Error('the info button is not highlighted at '+index);
+      await next(page);
+    }
+    await step(page,id,21);await action(page,'executeCard','STD-091',{zone:'front'});
+    await talk(22,28);
+    await step(page,id,29);await action(page,'attack','STD-091',{user:true});await settle(page);
+    await talk(30,30);
+    await step(page,id,31);await action(page,'endTurn');await settle(page);
+    await talk(32,36);
     // Alone in a slot the Junk Parts leave Atto too weak for the Guardman: refused, with the reason in the guide.
-    await step(page,id,12);await action(page,'executeCard','STD-078',{zone:'front',refused:true});
+    await step(page,id,37);await action(page,'executeCard','STD-078',{zone:'front',refused:true});
     if (!(await page.locator('.live-guide .live-guide-error').innerText().catch(() => '')).includes('アツト')) throw new Error('the Junk Parts refusal reason is not shown');
     await action(page,'executeCard','STD-078',{targetId:'STD-091',cardOnly:true});await settle(page);
-    await step(page,id,13);await action(page,'attack','STD-091',{targetId:'STD-022'});await settle(page);
-    await step(page,id,14);await next(page);
-    await step(page,id,15);await action(page,'attack','STD-021',{user:true});await settle(page);
+    await talk(38,38);
+    await step(page,id,39);await action(page,'attack','STD-091',{targetId:'STD-022'});await settle(page);
+    await talk(40,41);
+    await step(page,id,42);await action(page,'attack','STD-021',{user:true});await settle(page);
   } else {
     await step(page,id,1);await action(page,'install','STD-191');
     await step(page,id,2);await action(page,'executeLayered','STD-195',{zone:'front'});await settle(page);
