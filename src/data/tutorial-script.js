@@ -1,5 +1,7 @@
 
 export const TUTORIAL_SPEAKER = "じぐさぽ";
+// どのチュートリアルも、相手ユーザーのSTR5から始めて0にして勝つ流れで終える。engine.js の初期配置がこの値を使う。
+export const TUTORIAL_OPPONENT_STR = 5;
 export const TUTORIAL_OPPONENT_SCRIPTS = Object.freeze({
   'yellow-demo': Object.freeze([{type:'install',cardId:'STD-125'}, {type:'executeCard',cardId:'STD-131',zone:'front'}, {type:'endTurn'}]),
   'yellow-pass': Object.freeze([{type:'endTurn'}])

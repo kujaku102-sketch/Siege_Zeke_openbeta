@@ -3102,6 +3102,19 @@ test("Doors NT five-Ob damage reduction belongs only to its own user", () => {
   assert.equal(nt.players.ai.fortressStr, ntBefore - 1);
 });
 
+test("only the two tutorials start the opponent at STR 5; every other mode keeps the user's own STR", () => {
+  for (const options of [{ mode: "tutorial" }, { mode: "tutorial", tutorialId: "vengeance" }]) {
+    const state = createGame(options);
+    assert.equal(state.players.ai.fortressStr, 5, options.tutorialId ?? "basics");
+    assert.equal(state.players.player.fortressStr, 20, "the player keeps full STR");
+  }
+  for (const mode of ["ai", "lab", "sandbox"]) {
+    const state = createGame({ mode });
+    assert.equal(state.players.ai.fortressStr, state.players.ai.user.maxStr, mode);
+    assert.equal(state.players.player.fortressStr, state.players.player.user.maxStr, mode);
+  }
+});
+
 test("tutorial applies mount choice, attack delay and optional Lucky Shot", () => {
   const state = createGame({ mode: "tutorial" });
   const flow = createTutorialFlow();
@@ -3118,7 +3131,7 @@ test("tutorial applies mount choice, attack delay and optional Lucky Shot", () =
   assert.equal(acceptTutorialAction(state, flow, { type: "play", cardId: "STD-075" }), true);
   assert.equal(attack(state, "player", junky.uid, "ai-fortress"), true);
   assert.equal(acceptTutorialAction(state, flow, { type: "attack", cardId: "STD-075", targetType: "fortress" }), true);
-  assert.equal(state.players.ai.fortressStr, 19);
+  assert.equal(state.players.ai.fortressStr, 4);
 
   endTurn(state);
   assert.equal(acceptTutorialAction(state, flow, { type: "end-turn" }), true);
@@ -3149,13 +3162,13 @@ test("tutorial applies mount choice, attack delay and optional Lucky Shot", () =
   assert.equal(playCard(state, "player", shot.uid, { targetUid: wall.uid }), true);
   assert.equal(state.pending.type, "selection");
   assert.equal(state.pending.request.mode, "up_to");
-  assert.equal(state.players.ai.fortressStr, 19);
+  assert.equal(state.players.ai.fortressStr, 4);
   assert.equal(acceptTutorialAction(state, flow, { type: "play", cardId: "STD-086", targetCardId: "STD-131" }), true);
   assert.equal(resolveLuckyShotAdditional(state, "player", accessedParts.uid), true);
   assert.equal(state.players.player.trash.includes(accessedParts), true);
   assert.equal(flow.complete, true);
-  assert.equal(state.players.ai.fortressStr, 17);
-  assert.deepEqual(state.players.ai.incidentsTriggered, []);
+  assert.equal(state.players.ai.fortressStr, 2);
+  assert.deepEqual(state.players.ai.incidentsTriggered, [3]);
   assert.equal(state.players.ai.trash.some((card) => card.id === "STD-131"), true);
   assert.equal(state.players.ai.hand.some((card) => card.id === "STD-131"), false);
   assert.equal(state.pending, null);
