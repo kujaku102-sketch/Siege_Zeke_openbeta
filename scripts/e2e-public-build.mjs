@@ -71,6 +71,20 @@ async function checkEntryFlow(page) {
   await page.locator(".r2-entry").waitFor({ state: "visible" });
 }
 
+// A guide line may run over several pages, depending on the screen: press [次へ] up to its last page,
+// where the step's highlights and its own button appear.
+async function readGuidePages(page) {
+  await page.waitForFunction(() => !document.querySelector(".live-guide[data-paging='pending']"), null, { timeout: 5000 }).catch(() => {});
+  for (let turn = 0; turn < 12; turn += 1) {
+    const forward = page.locator(".live-guide [data-runtime-guide-next]");
+    if (!await forward.count()) return;
+    const before = await page.locator(".live-guide").getAttribute("data-guide-page");
+    await forward.click();
+    await page.waitForFunction(before => document.querySelector(".live-guide")?.dataset.guidePage !== before, before, { timeout: 3000 });
+  }
+  throw new Error("guide pages never reached the last one");
+}
+
 async function advanceTutorialIntroduction(page) {
   for (let index = 0; index < 7; index += 1) {
     const guide = page.locator(".live-guide");
@@ -81,11 +95,14 @@ async function advanceTutorialIntroduction(page) {
     if (step !== `intro:${index}` || speaker !== "じぐさぽ") throw new Error(`tutorial introduction mismatch: ${JSON.stringify({ index, step, speaker })}`);
     if (/\bTUTORIAL\b|\bFOCUS\b/.test(visibleText)) throw new Error(`temporary tutorial label remained: ${visibleText}`);
     if (index === 3 && (await guide.locator("ruby rt").textContent())?.trim() !== "ベータテスト") throw new Error("tutorial beta ruby is missing");
+    await readGuidePages(page);
     await guide.locator('[data-runtime-tutorial-next]').click();
   }
 }
 
 async function tutorialFocusLabels(page) {
+  // The marks are placed by the frame-coalesced layout once the step's pages are cut.
+  await page.locator(".live-focus[data-tutorial-focus-label]").first().waitFor({ state: "attached", timeout: 3000 }).catch(() => {});
   return page.locator(".live-focus[data-tutorial-focus-label]").evaluateAll(nodes => [...new Set(nodes.map(node => node.dataset.tutorialFocusLabel))]);
 }
 
@@ -123,6 +140,7 @@ try {
 
   await startMode(page, "tutorial");
   await advanceTutorialIntroduction(page);
+  await readGuidePages(page);
   const guide = page.locator(".live-guide");
   const guideAudit = await guide.evaluate(node => {
     const rect = node.getBoundingClientRect();
@@ -133,6 +151,7 @@ try {
   if (guideAudit.step !== "basics:0" || guideAudit.left < 0 || guideAudit.top < 0 || guideAudit.right > guideAudit.viewportWidth || guideAudit.bottom > guideAudit.viewportHeight || guideAudit.imageWidth !== 1081 || guideAudit.imageHeight !== 1280 || guideAudit.speaker !== "じぐさぽ" || !guideAudit.text || !basicsZeroLabels.includes("兵士") || !basicsZeroLabels.includes("アツト")) throw new Error(`desktop live tutorial guide is invalid: ${JSON.stringify({ guideAudit, basicsZeroLabels })}`);
   await page.locator('[data-runtime-tutorial-next]').click();
   if (await guide.getAttribute("data-tutorial-step") !== "basics:1") throw new Error("tutorial did not advance to basics:1");
+  await readGuidePages(page);
   const basicsOneLabels = await tutorialFocusLabels(page);
   if (!basicsOneLabels.includes("ジャンクパーツ")) throw new Error(`tutorial focus did not follow basics:1: ${basicsOneLabels.join(", ")}`);
 
@@ -166,6 +185,7 @@ try {
   });
   if (mobileGuideAudit.left < 0 || mobileGuideAudit.top < 0 || mobileGuideAudit.right > mobileGuideAudit.viewportWidth || mobileGuideAudit.bottom > mobileGuideAudit.viewportHeight || mobileGuideAudit.speechPointerEvents !== "none") throw new Error(`mobile guide is clipped or blocks board input: ${JSON.stringify(mobileGuideAudit)}`);
   await advanceTutorialIntroduction(mobilePage);
+  await readGuidePages(mobilePage);
   const startButton = mobilePage.locator('[data-runtime-tutorial-next]');
   const startHit = await startButton.evaluate(node => { const rect = node.getBoundingClientRect(); return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)?.closest?.('[data-runtime-tutorial-next]') === node; });
   if (!startHit) throw new Error("mobile tutorial guide blocks the focused start action");
