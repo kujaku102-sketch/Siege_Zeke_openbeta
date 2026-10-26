@@ -99,7 +99,9 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     const focused = root.ownerDocument.activeElement?.closest?.('.live-guide');
     guidePage = { ...guidePage, index };
     act(ui.read());
-    if (focused) root.querySelector('.live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next],[data-runtime-tutorial-finish],[data-runtime-guide-prev])')?.focus();
+    // Keep the keyboard on the button pressed: back stays on [戻る] until the first page, otherwise [次へ].
+    const forward = '.live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next],[data-runtime-tutorial-finish])';
+    if (focused) (root.querySelector(delta < 0 && index > 0 ? '.live-guide [data-runtime-guide-prev]' : forward) ?? root.querySelector(forward))?.focus();
   };
   const fx = createSurfaceFx({ root, boardStyle });
   const timers = createSurfaceTimers({ root, disposed: () => disposed, motionRemaining: fx.remaining });

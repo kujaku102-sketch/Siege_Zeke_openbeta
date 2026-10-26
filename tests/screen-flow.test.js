@@ -241,6 +241,7 @@ test('guide pages: cut by the layout against the screen, turned by buttons and a
   assert.ok(surface.includes("const key = `${presentation.text}\\u0000${counter.width}\\u0000${fontEpoch}`;"), 'recut when the screen width or the fonts change');
   assert.ok(surface.includes("for (const name of ['board', 'console', 'hand', 'hand-toggle']) { const host = root.querySelector(`[data-live-region=\"${name}\"]`); if (host) host.inert = reading; }"));
   assert.ok(surface.includes("if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && event.target.closest?.('.live-guide')) {"));
+  assert.ok(surface.includes("if (focused) (root.querySelector(delta < 0 && index > 0 ? '.live-guide [data-runtime-guide-prev]' : forward) ?? root.querySelector(forward))?.focus();"), 'focus follows the button pressed, [次へ] on the next page');
   const layout = await readSource('../src/ui-refresh/surface-layout.js');
   assert.ok(layout.includes('if (tutorial.ok && !tutorial.value.flow.complete && guideLastPage()) for (const focus of'));
   const clicks = await readSource('../src/ui-refresh/surface-clicks.js');
