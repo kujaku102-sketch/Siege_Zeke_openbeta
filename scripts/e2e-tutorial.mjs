@@ -217,7 +217,8 @@ async function completionReturnsToList(page,id) {
   await page.waitForFunction(() => window.__SIMPLE_ZEKE_E2E__.tutorial().value?.flow.complete,null,{timeout:10000});
   await readPages(page);
   await page.locator('.live-guide [data-runtime-tutorial-finish]').waitFor({state:'visible',timeout:10000});
-  const closing=await page.evaluate(() => ({text:document.querySelector('.live-guide-text')?.innerText ?? '',skip:Boolean(document.querySelector('[data-runtime-tutorial-skip]')),
+  // The closing line may run over pages on a narrow screen: read it whole.
+  const closing=await page.evaluate(() => ({text:window.__SIMPLE_ZEKE_E2E__.tutorial().value?.presentation?.text ?? '',skip:Boolean(document.querySelector('[data-runtime-tutorial-skip]')),
     result:Boolean(document.querySelector('.r2-result')),won:window.__SIMPLE_ZEKE_E2E__.query().value?.status.lockedOutcome?.winnerSeat,
     opponentStr:window.__SIMPLE_ZEKE_E2E__.query().value?.observation.seats.find(seat => seat.seatId!=='player')?.fortressStr}));
   if (!closing.text.includes('勝利') || closing.skip || closing.result || closing.won!=='player' || closing.opponentStr!==0) throw new Error('closing line wrong: '+JSON.stringify(closing));
