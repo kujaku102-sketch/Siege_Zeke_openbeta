@@ -1,6 +1,6 @@
-import { fitBoard, placePopup, placePopupClear } from './model.js';
+import { fitBoard, placePopup } from './model.js';
 import { applyGuideBand, GUIDE_PORTRAIT_ASPECT } from './guide.js';
-import { chooseGuideBand, guideCover, guideLayout } from './guide-band.js';
+import { chooseGuideBand } from './guide-band.js';
 import { placeFlow } from './effect-flow.js';
 import { screenUnit } from './screen-unit.js';
 
@@ -41,7 +41,7 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       popup.style.maxHeight = `${Math.max(0,popupBounds.height-margin*2)}px`;
     }
     const popupMeasure = popup && anchor ? {
-      popup, anchor: anchor.getBoundingClientRect(), position: placePopup(anchor.getBoundingClientRect(), popup.getBoundingClientRect(), popupBounds, margin)
+      popup, position: placePopup(anchor.getBoundingClientRect(), popup.getBoundingClientRect(), popupBounds, margin)
     } : null;
     if (popupMeasure) {
       const height = popup.getBoundingClientRect().height;
@@ -96,21 +96,10 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       // What a pick asks the player to press is kept clear as well as the step's highlights.
       const picks = [...root.querySelectorAll('.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline]')];
       const rects = [...pointed, ...picks].map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
-      // A card's popup on screen, left open across steps, can still be pressed (文豪, 2026-10-27): under the guide it
-      // moves beside its card off the guide (never over what the step asks to press), and the band keeps clear of
-      // where it can go when the step allows.
-      const popupRect = popupMeasure?.popup.getBoundingClientRect();
-      const moved = group => {
-        const now = guideCover(group, popupRect), place = now > 0 ? placePopupClear(popupMeasure.anchor, popupRect, popupBounds, margin, [group.portrait, group.frame], rects) : null;
-        return place && place.covered < now - 1 ? place : null;
-      };
-      const giveWay = popupMeasure ? group => moved(group)?.covered ?? guideCover(group, popupRect) : undefined;
-      const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${popupMeasure ? 'popup' : ''}`;
-      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, giveWay }) };
+      const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}`;
+      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT }) };
       applyGuideBand(view, guideBand.band, viewport);
       paginateGuide(guide);
-      const place = popupMeasure && moved(guideLayout(guideBand.band, viewport, GUIDE_PORTRAIT_ASPECT));
-      if (place) { popupMeasure.popup.style.left = `${place.left}px`; popupMeasure.popup.style.top = `${place.top}px`; }
     }
   };
   const queueLayout = () => {

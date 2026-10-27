@@ -264,12 +264,10 @@ test('guide pages: cut by the layout against the screen, turned by buttons and a
 
 test('guide band: the guide fills one of three bands, chosen once a step against what it points at; compat mode marked for the skin', async () => {
   const layout = await readSource('../src/ui-refresh/surface-layout.js');
-  assert.ok(layout.includes("const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${popupMeasure ? 'popup' : ''}`;"), 'kept while the pages turn');
-  assert.ok(layout.includes('if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, giveWay }) };'), 'judged by the group: the portrait and the frame');
+  assert.ok(layout.includes("const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}`;"), 'kept while the pages turn');
+  assert.ok(layout.includes('if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT }) };'), 'judged by the group: the portrait and the frame');
   assert.ok(layout.includes('applyGuideBand(view, guideBand.band, viewport);\n      paginateGuide(guide);'), 'pages are cut in the band as placed');
   assert.ok(layout.includes("const picks = [...root.querySelectorAll('.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline]')];"), "a pick's options count as covered");
-  assert.ok(layout.includes('const giveWay = popupMeasure ? group => moved(group)?.covered ?? guideCover(group, popupRect) : undefined;'), 'a card\'s popup left open across steps gives way (文豪, 2026-10-27)');
-  assert.ok(layout.includes('const place = popupMeasure && moved(guideLayout(guideBand.band, viewport, GUIDE_PORTRAIT_ASPECT));'), 'and moves off the guide where the band cannot keep clear of it');
   const guide = await readSource('../src/ui-refresh/guide.js');
   assert.ok(guide.includes('view.dataset.guideBand = band;'));
   assert.ok(guide.includes('const { frame, portrait, box } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT);'), 'placed as the group: frame and portrait together');
