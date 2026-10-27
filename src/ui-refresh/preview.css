@@ -10,7 +10,7 @@ button[aria-pressed="true"] { border-color:#fafafa; }
 [hidden] { display:none!important; }
 h1,h2,p { margin:0; }
 small { color:var(--muted); }
-.r2-entry { max-width:calc(var(--u) * 70); padding:clamp(calc(var(--u) * 1.25),6vh,calc(var(--u) * 4.375)) calc(var(--u) * 1.5) calc(var(--u) * 3.75); margin:auto; }
+.r2-entry { max-width:calc(var(--u) * 70); padding:clamp(calc(var(--u) * 1.25),6dvh,calc(var(--u) * 4.375)) calc(var(--u) * 1.5) calc(var(--u) * 3.75); margin:auto; }
 .r2-intro { margin-bottom:calc(var(--u) * 2.25); }
 .r2-intro h1 { margin:calc(var(--u) * 1) 0 calc(var(--u) * .5); font-size:clamp(calc(var(--u) * 2.25),6vw,calc(var(--u) * 4.75)); letter-spacing:calc(var(--u) * -.1875); line-height:1; }
 .r2-intro h1 span { color:#a1a1aa; font-weight:300; margin:0 calc(var(--u) * .5); }
