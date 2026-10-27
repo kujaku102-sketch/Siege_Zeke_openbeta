@@ -579,6 +579,7 @@ test('guide pages: [次へ] turns pages, [戻る] after the first, the step\'s o
   assert.match(single,/aria-live="polite"/);
   const pending=html({index:0,count:1,text:value.presentation.text,last:false,pending:true});
   assert.match(pending,/data-paging="pending"/);assert.doesNotMatch(pending,/data-runtime-guide-next|data-runtime-tutorial-next/,'nothing to press until the pages are cut');
+  assert.ok(pending.includes(`<p>${value.presentation.text}</p>`),'the whole line shows while the pages are cut: the guide is never empty');
   ui.dispose?.();lifecycle.dispose();
 });
 test('tutorial basics runs start to finish through ports: the script ends with opponent STR 5 to 0 as a locked win, with scripted opponent and no undo',()=>{

@@ -55,10 +55,11 @@ body { overflow:hidden; }
 .r2-content .r2-guide.live-guide .live-guide-skip { grid-area:skip; border-color:transparent; background:transparent; color:var(--gd-dim); }
 .r2-content .r2-guide.live-guide .live-guide-error { margin:.15em 0 0; color:#ffe066; }
 .r2-content .r2-guide.live-guide .live-guide-next { min-width:5em; border-color:var(--gd-a); background:#0f3a24; color:var(--gd-a); text-shadow:0 0 .4em #00ff0088; }
-/* Guide pages: the number beside [スキップ], [戻る] beside [次へ]; text hidden until the screen's pages are cut. */
+/* Guide pages: the number beside [スキップ], [戻る] beside [次へ]. Until the screen's pages are cut (one frame, longer
+   on a busy device) the whole line shows, clipped to the frame, so the guide is never empty. */
 .live-guide-turn { grid-area:turn; display:flex; gap:.4em; }
 .r2-content .r2-guide.live-guide .live-guide-page { grid-area:page; color:var(--gd-dim); font-size:.75em; letter-spacing:.12em; }
-.live-guide[data-paging="pending"] .live-guide-text p { visibility:hidden; }
+.live-guide[data-paging="pending"] .live-guide-text { overflow:hidden; }
 /* Compat render mode: no blur (heavy on WebKit), a nearly opaque glass instead. */
 .live-low-gpu .r2-guide.live-guide { --gd-alpha:95%; }
 .live-low-gpu .r2-guide.live-guide .live-guide-speech { -webkit-backdrop-filter:none; backdrop-filter:none; }

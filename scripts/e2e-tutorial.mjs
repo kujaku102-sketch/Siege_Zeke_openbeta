@@ -233,8 +233,22 @@ async function run(page,id) {
   const target=new URL(url);target.searchParams.set('e2e','1');
   await page.goto(target.toString(),{waitUntil:'networkidle'});
   await page.waitForFunction(() => document.body.classList.contains('boot-done') && !document.querySelector('#boot-splash'), null, {timeout:10000});
+  // Every frame from the opening on: a shown guide always has its line on screen (also while its pages are cut).
+  await page.evaluate(() => {
+    window.__guideBlank=[];
+    const tick=() => {
+      const guide=document.querySelector('.live-guide'),line=guide?.querySelector('.live-guide-text p');
+      if (guide && !(line && line.textContent.trim() && getComputedStyle(line).visibility!=='hidden' && line.getBoundingClientRect().height>0)) window.__guideBlank.push(guide.dataset.tutorialStep);
+      if (!window.__guideBlankStop) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
   await page.evaluate(id => window.__SIMPLE_ZEKE_E2E__.start('tutorial',id,1),id);
   await intro(page,id);
+  // A resize recuts the pages: the line stays on screen meanwhile.
+  const size=page.viewportSize();
+  await page.setViewportSize({width:size.width-40,height:size.height});await page.waitForTimeout(300);
+  await page.setViewportSize(size);await page.waitForTimeout(300);
   if (id==='basics') {
     // The author's red script, one speech bubble per "‐" line (44 steps): swordsman, Atto (QA), Glenn for the
     // red symbol, Junk Parts under Atto vs the Guardman.
@@ -278,6 +292,8 @@ async function run(page,id) {
     await step(page,id,9);await action(page,'attack','STD-195',{user:true});await settle(page);
     await step(page,id,10);await action(page,'attack','STD-189',{user:true});await settle(page);
   }
+  const blank=await page.evaluate(() => {window.__guideBlankStop=true;return window.__guideBlank;});
+  if (blank.length) throw new Error('guide shown without its line on '+blank.length+' frames: '+[...new Set(blank)].join(','));
   await completionReturnsToList(page,id);
 }
 const playwright=await loadPlaywright(),{chromium}=playwright.default ?? playwright;

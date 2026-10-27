@@ -272,7 +272,9 @@ test('guide band: the guide fills one of three bands, chosen once a step against
   assert.ok(guide.includes('view.dataset.guideBand = band;'));
   assert.ok(guide.includes('const { frame, portrait, box } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT);'), 'placed as the group: frame and portrait together');
   const css = await readSource('../src/ui-refresh/live.css');
-  assert.ok(!css.includes('[data-guide-band="top"] .r2-guide.live-guide .live-guide-cast'), 'the portrait stands on the frame in every band');  assert.ok(guide.includes('lines: Math.max(1, fits - 1),'), "one line kept for a refused move's reason");
+  assert.ok(!css.includes('[data-guide-band="top"] .r2-guide.live-guide .live-guide-cast'), 'the portrait stands on the frame in every band');
+  assert.ok(css.includes('.live-guide[data-paging="pending"] .live-guide-text { overflow:hidden; }') && !/data-paging="pending"\][^{]*\{[^}]*visibility:hidden/.test(css), 'the line shows while the pages are cut');
+  assert.ok(guide.includes('lines: Math.max(1, fits - 1),'), "one line kept for a refused move's reason");
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
   assert.ok(surface.includes("root.querySelector('.r2-runtime-view')?.classList.toggle('live-low-gpu', lowGpu);"));
   const view = await readSource('../src/ui-refresh/runtime-read-view.js');
