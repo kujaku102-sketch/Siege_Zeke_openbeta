@@ -50,6 +50,28 @@ export function placePopup(anchor, popup, viewport, margin = 8) {
   return { left, top, side, overflow: popup.width > rightEdge - leftEdge || top + popup.height > bottomEdge };
 }
 
+// A card's popup keeps clear of what sits over it (the tutorial guide, 文豪 2026-10-27): beside its card, tried
+// above, below, left, then right, each inside the bounds and never over `keep` (what the player is asked to press).
+// The first clear place wins; with none clear, the one covered least (ties keep that order). Null when no side fits.
+export function placePopupClear(anchor, popup, viewport, margin = 8, obstacles = [], keep = []) {
+  const x0 = (viewport.left ?? 0) + margin, y0 = (viewport.top ?? 0) + margin;
+  const x1 = (viewport.left ?? 0) + viewport.width - margin - popup.width, y1 = (viewport.top ?? 0) + viewport.height - margin - popup.height;
+  const left = Math.max(x0, Math.min(anchor.left + (anchor.width - popup.width) / 2, x1));
+  const top = Math.max(y0, Math.min(anchor.top + (anchor.height - popup.height) / 2, y1));
+  const places = [{ side: 'above', left, top: anchor.top - popup.height - margin }, { side: 'below', left, top: anchor.bottom + margin },
+    { side: 'left', left: anchor.left - popup.width - margin, top }, { side: 'right', left: anchor.right + margin, top }]
+    .filter(place => place.left >= x0 - .5 && place.left <= x1 + .5 && place.top >= y0 - .5 && place.top <= y1 + .5);
+  const over = (place, rects) => rects.reduce((sum, rect) => sum + Math.max(0, Math.min(place.left + popup.width, rect.right) - Math.max(place.left, rect.left))
+    * Math.max(0, Math.min(place.top + popup.height, rect.bottom) - Math.max(place.top, rect.top)), 0);
+  let best = null;
+  for (const place of places.filter(place => over(place, keep) === 0)) {
+    const covered = over(place, obstacles);
+    if (covered === 0) return { ...place, covered };
+    if (!best || covered < best.covered - 1) best = { ...place, covered };
+  }
+  return best;
+}
+
 export function cardSelection(selection, uid, { inspect = false, blocked = false } = {}) {
   if (blocked || !uid) return selection;
   return inspect ? { ...selection, detailUid: uid }

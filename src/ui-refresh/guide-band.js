@@ -45,20 +45,25 @@ export function guideLayout(band, viewport, aspect = 1) {
 
 const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
   * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+// How much of a rectangle the group ({ portrait, frame }) covers.
+export const guideCover = ({ portrait, frame }, target) => overlap(portrait, target) + overlap(frame, target);
 
 // targets: the screen rectangles of the step's highlights and controls. A band covers them with what the group
 // actually takes: the portrait and the frame (not the empty corner above the frame beside the portrait). With
 // every band covering something, the band covering least wins (ties keep the order).
-export function chooseGuideBand(viewport, targets = [], preferred = null, { aspect = 1 } = {}) {
+// giveWay: what may give way, a card's popup left open (文豪, 2026-10-27), as how much of it the band's group
+// ({ portrait, frame }) still covers once it has moved off the guide (placePopupClear). Kept clear when the targets
+// allow, never at their cost.
+export function chooseGuideBand(viewport, targets = [], preferred = null, { aspect = 1, giveWay = () => 0 } = {}) {
   if (GUIDE_BAND_ORDER.includes(preferred)) return preferred;
   const visible = targets.filter(t => t && t.right > t.left && t.bottom > t.top);
   let best = null;
   for (const band of GUIDE_BAND_ORDER) {
-    const { portrait, frame } = guideLayout(band, viewport, aspect);
-    const covered = visible.reduce((sum, target) => sum + overlap(portrait, target) + overlap(frame, target), 0);
-    if (covered === 0) return band;
+    const group = guideLayout(band, viewport, aspect);
+    const covered = visible.reduce((sum, target) => sum + guideCover(group, target), 0), yielded = giveWay(group);
+    if (covered === 0 && yielded === 0) return band;
     // Less than a square pixel apart is a tie (the bands' sums differ only by rounding).
-    if (!best || covered < best.covered - 1) best = { band, covered };
+    if (!best || covered < best.covered - 1 || (covered <= best.covered + 1 && yielded < best.yielded - 1)) best = { band, covered, yielded };
   }
   return best.band;
 }

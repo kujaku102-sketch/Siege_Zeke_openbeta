@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { GUIDE_BAND_ORDER, GUIDE_BAND_RATIO, GUIDE_INSET_RATIO, GUIDE_PORTRAIT_SCALE, guideBandHeight, guideLayout, chooseGuideBand } from '../src/ui-refresh/guide-band.js';
+import { placePopupClear } from '../src/ui-refresh/model.js';
 
 const phone = { width: 852, height: 393 }, phoneMax = { width: 932, height: 430 }, pc = { width: 1280, height: 720 }, hd = { width: 1920, height: 1080 };
 const SCREENS = [hd, pc, phone, phoneMax];
@@ -63,4 +64,29 @@ test('guide band: with every band covered, the one covering least; a step that n
   assert.equal(chooseGuideBand(phone, [tall, box(500, 100, 200, 40)], null, { aspect: ASPECT }), 'bottom');
   assert.equal(chooseGuideBand(phone, [box(500, 100, 60, 40)], 'top', { aspect: ASPECT }), 'top', 'named by the step');
   assert.equal(chooseGuideBand(phone, [box(500, 100, 60, 40)], 'side', { aspect: ASPECT }), 'bottom', 'an unknown name is ignored');
+});
+
+test('guide band: a popup left open gives way — kept clear when the step allows, never at the cost of what the step points at (文豪, 2026-10-27)', () => {
+  // 852×393 basics:12 — the swordsman's popup above its card on the front row, under the top band's frame.
+  const sized = (left, top, width, height) => ({ ...box(left, top, width, height), width, height });
+  const swordsman = sized(281, 202, 60, 56), popup = sized(272, 112, 78, 86), screen = { left: 0, top: 0, ...phone };
+  const giveWay = group => placePopupClear(swordsman, popup, screen, 4, [group.portrait, group.frame])?.covered ?? 0;
+  const stays = group => [group.portrait, group.frame].reduce((sum, part) => sum + Math.max(0, Math.min(popup.right, part.right) - Math.max(popup.left, part.left)) * Math.max(0, Math.min(popup.bottom, part.bottom) - Math.max(popup.top, part.top)), 0);
+  assert.equal(chooseGuideBand(phone, [], null, { aspect: ASPECT, giveWay: stays }), 'bottom', 'a popup that cannot move: the band leaves it');
+  assert.equal(chooseGuideBand(phone, [], null, { aspect: ASPECT, giveWay }), 'top', 'one that can: the band stays, the popup goes under its card');
+  // basics:13 — Atto pointed at in the hand: the middle band would leave the popup no clear side.
+  assert.equal(chooseGuideBand(phone, [box(330, 340, 200, 50)], null, { aspect: ASPECT, giveWay }), 'top');
+  // With the top and bottom bands over what the step points at, the middle band, over the popup.
+  assert.equal(chooseGuideBand(phone, [box(500, 100, 60, 40), box(330, 340, 200, 50)], null, { aspect: ASPECT, giveWay }), 'middle', 'never at the cost of what is pointed at');
+});
+
+test('popup: moves beside its card off the guide — above, below, left, right; the first clear side', () => {
+  const sized = (left, top, width, height) => ({ ...box(left, top, width, height), width, height });
+  const { portrait, frame } = guideLayout('top', phone, ASPECT), card = sized(281, 202, 60, 56), size = { width: 78, height: 86 };
+  const place = placePopupClear(card, size, { left: 0, top: 0, ...phone }, 4, [portrait, frame]);
+  assert.equal(place.side, 'below');
+  assert.equal(place.covered, 0);
+  near(place.top, card.bottom + 4, 'just under the card');
+  assert.equal(placePopupClear(card, size, { left: 0, top: 0, ...phone }, 4, []).side, 'above', 'nothing over it: above, as placed');
+  assert.equal(placePopupClear(sized(0, 0, 852, 393), size, { left: 0, top: 0, ...phone }, 4, [frame]), null, 'no side fits on the screen');
 });
