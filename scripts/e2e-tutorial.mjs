@@ -63,9 +63,38 @@ async function guideClear(page,moment) {
 const KNOWN_COVERED={
   'page@vengeance:2':['素材ドールズ'],'popup@vengeance:2':['素材ドールズ'],
   'pick@vengeance:2':['トライプビア','素材ドールズ','ドールズOb','次へ','戻る'],'pick@vengeance:3':['トライプビア'],
-  'pick@vengeance:6':['アクロィア','タナフォリア','[アップデート:2]','戻る'],'page@vengeance:7':['ターン終了','トライプビア'],
-  'popup@vengeance:8':['再実行']
+  'pick@vengeance:6':['アクロィア','タナフォリア','[アップデート:2]','戻る','back'],'page@vengeance:7':['ターン終了','トライプビア'],
+  'popup@vengeance:8':['再実行'],
+  // Since a long 「」 grows the frame (2026-10-28, also pending): up to 49% of a PC screen's height, the top band's frame
+  // growing up over the pick bar.
+  'pick@basics:37':['戻る'],'page@basics:41':['剣士'],'page@vengeance:3':['トライプビア'],'popup@vengeance:3':['トライプビア'],
+  'page@vengeance:6':['効果起動','アクロィア','タナフォリア'],'popup@vengeance:6':['効果起動','アクロィア','タナフォリア'],
+  'pick@vengeance:8':['戻る'],'page@vengeance:10':['ドールズ'],'popup@vengeance:10':['ドールズ'],'pick@vengeance:10':['ドールズ']
 };
+// One page a 「」 of the script (pages cut at ▽ only), its text inside the frame (one line kept free for a refused
+// move's reason), the frame and the portrait on screen (文豪, 2026-10-28). Checked on every page.
+const pageIssues=[];let frameMax=0;
+async function guidePage(page) {
+  await page.waitForFunction(() => !document.querySelector('.live-guide[data-paging="pending"]'),null,{timeout:5000}).catch(() => {});
+  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+  const m=await page.evaluate(() => {
+    const guide=document.querySelector('.live-guide');if (!guide) return null;
+    const presentation=window.__SIMPLE_ZEKE_E2E__.tutorial().value?.presentation;
+    const frame=guide.querySelector('.live-guide-speech').getBoundingClientRect(),text=guide.querySelector('.live-guide-text'),line=text.querySelector('p');
+    const portrait=guide.querySelector('.live-guide-cast img,.live-guide-noportrait')?.getBoundingClientRect();
+    const height=parseFloat(getComputedStyle(line).lineHeight),textBottom=text.getBoundingClientRect().bottom;
+    return {step:guide.dataset.tutorialStep,page:guide.dataset.guidePage,shown:line.textContent,ruby:Boolean(presentation?.parts),
+      pieces:String(presentation?.text ?? '').split('▽').map(piece => piece.trim()).filter(Boolean),
+      spare:(textBottom-line.getBoundingClientRect().bottom)/height,frame:frame.height/innerHeight,
+      onScreen:frame.top>=-.5 && frame.bottom<=innerHeight+.5 && (!portrait || (portrait.top>=-.5 && Math.abs(portrait.bottom-frame.bottom)<1.5))};
+  });
+  if (!m) return;
+  const at=`${profileLabel} ${m.step} ${m.page}`,[index,count]=m.page.split('/').map(Number);
+  frameMax=Math.max(frameMax,m.frame);
+  if (!m.ruby && (count!==m.pieces.length || m.shown!==m.pieces[index-1])) pageIssues.push(`${at}: not one 「」 a page (${m.pieces.length} in the line)`);
+  if (m.spare<.99) pageIssues.push(`${at}: ${m.spare<0 ? 'text out of the frame' : 'no free line for a reason'} (${m.spare.toFixed(2)} lines spare)`);
+  if (!m.onScreen) pageIssues.push(`${at}: the frame or the portrait off the screen`);
+}
 const knownCovered=hit => (KNOWN_COVERED[hit.at] ?? []).some(name => hit.name.startsWith(name));
 function cards(query) {
   const output=[];const visit=card => {output.push(card);if (!card.faceDown) card.mounted.forEach(visit);};
@@ -211,6 +240,7 @@ async function readPages(page) {
     if (!await page.locator('.live-guide [data-runtime-guide-next]').first().isVisible().catch(() => false)) return;
     await clickVisible(page,'.live-guide [data-runtime-guide-next]');
     await page.waitForFunction(before => document.querySelector('.live-guide')?.dataset.guidePage!==before,before,{timeout:3000});
+    await guidePage(page);
   }
   throw new Error('guide pages never reached the last one');
 }
@@ -242,6 +272,7 @@ async function intro(page,id) {
 }
 async function step(page,id,index) {
   await page.waitForFunction(({id,index}) => document.querySelector('.live-guide')?.dataset.tutorialStep === id+':'+index && window.__SIMPLE_ZEKE_E2E__.tutorial().value?.opponentScript === null,{id,index});
+  await guidePage(page);
   await readPages(page);
   const audit=await page.locator('.live-guide').evaluate(node => {const rect=node.getBoundingClientRect();return {left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,w:innerWidth,h:innerHeight};});
   if (audit.left<0 || audit.top<0 || audit.right>audit.w+1 || audit.bottom>audit.h+1) throw new Error('guide clipped: '+JSON.stringify(audit));
@@ -366,7 +397,9 @@ try {
   // Enforced on the --screens sizes; the other runs only count it.
   const unknown=covered.filter(hit => !knownCovered(hit)),known=[...new Set(covered.filter(knownCovered).map(hit => hit.line.replace(/ \d+px²$/,'')))];
   if (screensMode && unknown.length) throw new Error('the guide covers what can be pressed ('+unknown.length+'):\n'+[...new Set(unknown.map(hit => hit.line))].join('\n'));
+  if (screensMode && pageIssues.length) throw new Error('guide pages ('+pageIssues.length+'):\n'+[...new Set(pageIssues)].join('\n'));
   console.log(JSON.stringify({suite:'tutorial',runs,completionReturnsToList:true,offScriptRefused:true,freshSkip:true,requiredBackPreserves:true,
     guideCovers:screensMode ? {unknown:0,known:known.length} : {counted:new Set(covered.map(hit => hit.line)).size},
-    leftOpenCovered:[...new Set(leftOpen.map(hit => hit.line.replace(/ \d+px²$/,'')))],keyboardMode,screensMode,ok:true}));
+    leftOpenCovered:[...new Set(leftOpen.map(hit => hit.line.replace(/ \d+px²$/,'')))],guidePages:screensMode ? {issues:0} : {issues:[...new Set(pageIssues)]},
+    frameMax:Math.round(frameMax*1000)/10+'%',keyboardMode,screensMode,ok:true}));
 } finally {await browser.close();}
