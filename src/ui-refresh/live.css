@@ -14,26 +14,27 @@ body { overflow:hidden; }
 .live-catalog { position:fixed; inset:calc(var(--u) * 3.75) calc(var(--u) * .625) calc(var(--u) * 1.875); z-index:42; background:#18181b; overflow:auto; padding:calc(var(--u) * .75); }
 .live-catalog .card-catalog { display:block; margin:0; }
 .live-catalog .catalog-scroll { max-height:none; }
-/* Tutorial guide: it fills one of the screen bands (guide-band.js) edge to edge, in the title's CRT look (文豪's
-   choice, 2026-10-27): green dot type on a dark teal glass with faint scanlines. The portrait stands at its left
-   at 1.6 times the band's height (PORTRAIT_SCALE in guide.js), out of the band (down from the top band, up from the others), its own background
-   let through; the speech frame starts after it. The band and portrait sizes come from the layout
-   (applyGuideBand), so the box never follows its text. Type scales with the screen height. */
+/* Tutorial guide: one group in one of the screen bands (guide-band.js), in the title's CRT look (文豪's choice,
+   2026-10-27): green dot type on a dark teal glass with faint scanlines. The speech frame runs across the screen;
+   the portrait (GUIDE_PORTRAIT_SCALE × the frame's height) stands on the frame's bottom edge at its left and
+   reaches up out of it, its own background let through; the frame's text starts after it. Position and sizes
+   come from the layout (applyGuideBand, ratios of the screen), so the box never follows its text. Type scales
+   with the screen height. */
 .r2-content .r2-guide.live-guide { --gd-a:#00ff00; --gd-ink:#d6ffd6; --gd-dim:#7fcf8f; --gd-face:#071015; --gd-alpha:84%;
   --guide-font:clamp(.9375rem,4.2dvh,1.125rem);
   /* One width for the button column on every page ([戻る] + [次へ]), so the text column, and the pages cut to
      it, stay the same while the pages turn. */
-  --guide-nav-width:10em; --guide-height:calc(var(--guide-band-height,33.333dvh) - 2 * var(--guide-inset,1dvh));
-  position:fixed; left:max(var(--guide-inset,1dvh),env(safe-area-inset-left,0px)); right:max(var(--guide-inset,1dvh),env(safe-area-inset-right,0px)); bottom:auto;
-  top:calc(var(--guide-band-top,0px) + var(--guide-inset,1dvh)); width:auto; height:var(--guide-height); max-height:none;
+  --guide-nav-width:10em;
+  position:fixed; left:max(var(--guide-left,1dvh),env(safe-area-inset-left,0px)); right:max(var(--guide-left,1dvh),env(safe-area-inset-right,0px)); bottom:auto;
+  top:var(--guide-top,1dvh); width:auto; height:var(--guide-height,31.333dvh); max-height:none;
   display:grid; grid-template-columns:var(--guide-portrait-width,0px) minmax(0,1fr); grid-template-rows:minmax(0,1fr); gap:0;
   padding:0; border:0; border-radius:0; background:none; box-shadow:none; overflow:visible; z-index:calc(var(--z-modal) + 1); pointer-events:none;
   font:400 var(--guide-font)/1.55 SZDotGothic,"Yu Gothic UI",sans-serif; }
 .live-guide-cast { display:contents; }
-/* The portrait never takes a tap: what it stands over stays pressable. */
+/* The portrait stands on the frame's bottom edge in every band and never takes a tap: what it stands over stays
+   pressable. */
 .r2-content .r2-guide.live-guide .live-guide-cast :is(img,.live-guide-noportrait) { position:absolute; left:0; bottom:0; width:var(--guide-portrait-width); height:var(--guide-portrait-height);
   object-fit:contain; object-position:center bottom; mask-image:none; border:0; background:transparent; pointer-events:none; z-index:2; }
-.r2-runtime-view[data-guide-band="top"] .r2-guide.live-guide .live-guide-cast :is(img,.live-guide-noportrait) { top:0; bottom:auto; object-position:center top; }
 .r2-content .r2-guide.live-guide .live-guide-noportrait { display:grid; place-items:center; color:var(--gd-a); font-size:calc(var(--guide-portrait-width) * .5); line-height:1; text-shadow:0 0 .75em #00ff0088; }
 .r2-content .r2-guide.live-guide .live-guide-cast strong { position:relative; z-index:1; grid-column:2; grid-row:1; align-self:start; justify-self:start; margin:.4em 0 0 .9em; padding:0;
   color:var(--gd-a); font-size:1.05em; line-height:1.3; letter-spacing:.12em; text-shadow:0 0 .4em #00ff0099,0 .06em .2em #000; }

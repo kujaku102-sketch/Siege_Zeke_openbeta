@@ -265,13 +265,14 @@ test('guide pages: cut by the layout against the screen, turned by buttons and a
 test('guide band: the guide fills one of three bands, chosen once a step against what it points at; compat mode marked for the skin', async () => {
   const layout = await readSource('../src/ui-refresh/surface-layout.js');
   assert.ok(layout.includes("const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}`;"), 'kept while the pages turn');
-  assert.ok(layout.includes('if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { portrait: guidePortraitSize(viewport) }) };'), 'the portrait standing out of the band counts');
+  assert.ok(layout.includes('if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT }) };'), 'judged by the group: the portrait and the frame');
   assert.ok(layout.includes('applyGuideBand(view, guideBand.band, viewport);\n      paginateGuide(guide);'), 'pages are cut in the band as placed');
   assert.ok(layout.includes("const picks = [...root.querySelectorAll('.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline]')];"), "a pick's options count as covered");
   const guide = await readSource('../src/ui-refresh/guide.js');
   assert.ok(guide.includes('view.dataset.guideBand = band;'));
-  assert.ok(guide.includes('const PORTRAIT_SCALE = 1.6;'), 'the portrait at 1.6 times the band (文豪), one constant');
-  assert.ok(guide.includes('lines: Math.max(1, fits - 1),'), "one line kept for a refused move's reason");
+  assert.ok(guide.includes('const { frame, portrait, box } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT);'), 'placed as the group: frame and portrait together');
+  const css = await readSource('../src/ui-refresh/live.css');
+  assert.ok(!css.includes('[data-guide-band="top"] .r2-guide.live-guide .live-guide-cast'), 'the portrait stands on the frame in every band');  assert.ok(guide.includes('lines: Math.max(1, fits - 1),'), "one line kept for a refused move's reason");
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
   assert.ok(surface.includes("root.querySelector('.r2-runtime-view')?.classList.toggle('live-low-gpu', lowGpu);"));
   const view = await readSource('../src/ui-refresh/runtime-read-view.js');

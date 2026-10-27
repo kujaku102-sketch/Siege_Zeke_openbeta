@@ -1,25 +1,18 @@
-import { guideBandRect, guideBandHeight } from "./guide-band.js";
+import { guideLayout } from "./guide-band.js";
 
-// The guide fills one of the screen bands (guide-band.js): the speech frame across, the portrait at its left
-// standing out of the band at PORTRAIT_SCALE times the band's height (文豪, 2026-10-27: 1.6), its own background let through.
-// The gap around the guide, as a share of the screen height.
-const INSET_RATIO = .01;
-const PORTRAIT_SCALE = 1.6;
+// The guide is one group (guide-band.js): the speech frame across the screen and the portrait at its left,
+// standing on the frame's bottom edge and reaching up out of it, its own background let through.
 // The navigator art's shape (540×640); other art is fitted inside this box.
-const PORTRAIT_ASPECT = 540 / 640;
+export const GUIDE_PORTRAIT_ASPECT = 540 / 640;
 
-export function guidePortraitSize(viewport) {
-  const height = (guideBandHeight(viewport) - 2 * viewport.height * INSET_RATIO) * PORTRAIT_SCALE;
-  return { width: Math.round(height * PORTRAIT_ASPECT), height };
-}
-
-// The band's geometry goes on the match view, not on the guide: a guide redrawn for its next page keeps it.
+// The group's geometry goes on the match view, not on the guide: a guide redrawn for its next page keeps it.
+// Every value is a ratio of the screen (guideLayout), written as px for this screen.
 export function applyGuideBand(view, band, viewport) {
-  const rect = guideBandRect(band, viewport), portrait = guidePortraitSize(viewport);
+  const { frame, portrait, box } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT);
   view.dataset.guideBand = band;
-  view.style.setProperty("--guide-band-top", `${rect.top}px`);
-  view.style.setProperty("--guide-band-height", `${rect.height}px`);
-  view.style.setProperty("--guide-inset", `${viewport.height * INSET_RATIO}px`);
+  view.style.setProperty("--guide-top", `${box.top}px`);
+  view.style.setProperty("--guide-left", `${box.left}px`);
+  view.style.setProperty("--guide-height", `${frame.height}px`);
   view.style.setProperty("--guide-portrait-width", `${portrait.width}px`);
   view.style.setProperty("--guide-portrait-height", `${portrait.height}px`);
 }

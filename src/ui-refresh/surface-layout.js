@@ -1,5 +1,5 @@
 import { fitBoard, placePopup } from './model.js';
-import { applyGuideBand, guidePortraitSize } from './guide.js';
+import { applyGuideBand, GUIDE_PORTRAIT_ASPECT } from './guide.js';
 import { chooseGuideBand } from './guide-band.js';
 import { placeFlow } from './effect-flow.js';
 import { screenUnit } from './screen-unit.js';
@@ -98,7 +98,7 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       const picks = [...root.querySelectorAll('.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline]')];
       const rects = [...pointed, ...picks].map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
       const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}`;
-      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { portrait: guidePortraitSize(viewport) }) };
+      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT }) };
       applyGuideBand(view, guideBand.band, viewport);
       paginateGuide(guide);
     }
