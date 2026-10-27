@@ -3,7 +3,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 // Shapes kept on every screen (文豪, 2026-10-27): what is drawn keeps its box's shape, boxes sized from two bases
-// keep a fixed ratio, and nothing moves when Safari's toolbar comes or goes. Playwright cannot show the toolbar, so
+// keep a fixed ratio, nothing moves when Safari's toolbar comes or goes, and the tutorial guide takes the same
+// share of every screen. Playwright cannot show the toolbar, so
 // it is emulated: the viewport is the visible height (dvh), and in the page every `vh` is rewritten to the
 // toolbar-hidden height and every `svh` to the toolbar-shown one, as Safari resolves them; on the phones the notch
 // safe areas (landscape: 59px left and right, 21px bottom) go into env().
@@ -73,7 +74,7 @@ const measure = page => page.evaluate(() => {
 
 const playwright = await loadPlaywright(), { chromium } = playwright.default ?? playwright;
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
-const failures = [], checked = [];
+const failures = [], checked = [], guides = [];
 try {
   for (const [label, width, large, small, dpr, phone] of SCREENS) for (const toolbar of large === small ? ['none'] : ['hidden', 'shown']) {
     const height = toolbar === 'shown' ? small : large;
@@ -107,9 +108,25 @@ try {
     await check('match');
     await page.evaluate(() => document.querySelector('[data-runtime-log]')?.click());
     await check('battle log');
+    // The tutorial guide takes the same share of every screen: its band a third of the height, its text 4.2%.
+    await page.goto(target.toString(), { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => document.body.classList.contains('boot-done'), null, { timeout: 30000 });
+    await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.start('tutorial', 'basics', 1));
+    await page.locator('.live-guide').waitFor({ state: 'visible', timeout: 20000 });
+    await emulateSafari(page, large, small, phone);
+    await check('tutorial guide');
+    const guide = await page.evaluate(() => {
+      const frame = document.querySelector('.live-guide').getBoundingClientRect(), text = document.querySelector('.live-guide p');
+      return { band: (frame.height + innerHeight * .02) / innerHeight, text: parseFloat(getComputedStyle(text).fontSize) / innerHeight, height: innerHeight };
+    });
+    if (Math.abs(guide.band - 1 / 3) * guide.height > 1) failures.push(`${label} toolbar ${toolbar}: guide band ${(guide.band * 100).toFixed(2)}% of the height, not a third`);
+    // 4.2% of the height, or the 15px floor that keeps it readable (an 852×393 phone with the toolbar shown).
+    const text = Math.max(15, guide.height * .042) / guide.height;
+    if (Math.abs(guide.text - text) * guide.height > .5) failures.push(`${label} toolbar ${toolbar}: guide text ${(guide.text * 100).toFixed(2)}% of the height, not ${(text * 100).toFixed(2)}%`);
+    guides.push(`${label}/${toolbar}: band ${(guide.band * 100).toFixed(2)}% text ${(guide.text * 100).toFixed(2)}%`);
     for (const error of errors) failures.push(`${label} toolbar ${toolbar}: page error ${error}`);
     await context.close();
   }
 } finally { await browser.close(); }
 if (failures.length) { console.error(failures.join('\n')); process.exit(1); }
-console.log(JSON.stringify({ suite: 'aspect', checked: checked.length, screens: SCREENS.map(s => s[0]), ok: true }));
+console.log(JSON.stringify({ suite: 'aspect', checked: checked.length, screens: SCREENS.map(s => s[0]), guides, ok: true }));
