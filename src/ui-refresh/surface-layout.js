@@ -17,7 +17,9 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
     if (disposed() || epoch !== geometryEpoch) return;
     const stage = root.querySelector('.r2-stage'), board = root.querySelector('.r2-board');
     const canvas = root.querySelector('.r2-board-fit'), contents = root.querySelector('.battle-board');
-    const viewport = {left:0,top:0,width:root.ownerDocument.documentElement.clientWidth,height:root.ownerDocument.documentElement.clientHeight};
+    const html = root.ownerDocument.documentElement;
+    // rem: the root font size, for sizes kept in relative units (the guide band's cap).
+    const viewport = {left:0,top:0,width:html.clientWidth,height:html.clientHeight,rem:parseFloat(getComputedStyle(html).fontSize) || 16};
     const boardMeasure = stage && board && canvas && contents ? {
       size: fitBoard(stage.clientWidth, stage.clientHeight),
       height: Math.max(1, contents.offsetHeight)

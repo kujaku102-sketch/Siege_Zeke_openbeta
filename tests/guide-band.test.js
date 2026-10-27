@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GUIDE_BAND_ORDER, GUIDE_BAND_MAX_PX, GUIDE_BAND_MAX_RATIO, guideBandHeight, guideBandRect, guidePortraitRect, chooseGuideBand } from '../src/ui-refresh/guide-band.js';
+import { GUIDE_BAND_ORDER, GUIDE_BAND_MAX_REM, GUIDE_BAND_MAX_RATIO, guideBandHeight, guideBandRect, guidePortraitRect, chooseGuideBand } from '../src/ui-refresh/guide-band.js';
 
 const phone = { width: 852, height: 393 }, pc = { width: 1280, height: 720 };
 const box = (left, top, width, height) => ({ left, top, right: left + width, bottom: top + height });
 
-test('guide band: thirds on a phone, capped on a PC (仮: 25% of the height or 180px, the smaller)', () => {
-  assert.deepEqual([GUIDE_BAND_MAX_PX, GUIDE_BAND_MAX_RATIO], [180, .25]);
+test('guide band: thirds on a phone, capped on a PC (仮: 25% of the height or 11.25rem, the smaller)', () => {
+  assert.deepEqual([GUIDE_BAND_MAX_REM, GUIDE_BAND_MAX_RATIO], [11.25, .25]);
+  assert.equal(guideBandHeight({ width: 1280, height: 720, rem: 20 }), 180, 'a larger root font raises the cap: a quarter wins');
   assert.equal(guideBandHeight(phone), 131);
   assert.equal(guideBandHeight({ width: 640, height: 360 }), 120);
   assert.equal(guideBandHeight(pc), 180);

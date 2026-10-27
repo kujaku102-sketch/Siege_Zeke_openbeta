@@ -2,13 +2,14 @@ import { guideBandRect, guideBandHeight } from "./guide-band.js";
 
 // The guide fills one of the screen bands (guide-band.js): the speech frame across, the portrait at its left
 // standing out of the band at PORTRAIT_SCALE times the band's height (文豪, 2026-10-27: 1.6), its own background let through.
-const INSET = 4;
+// The gap around the guide, as a share of the screen height.
+const INSET_RATIO = .01;
 const PORTRAIT_SCALE = 1.6;
 // The navigator art's shape (540×640); other art is fitted inside this box.
 const PORTRAIT_ASPECT = 540 / 640;
 
 export function guidePortraitSize(viewport) {
-  const height = (guideBandHeight(viewport) - 2 * INSET) * PORTRAIT_SCALE;
+  const height = (guideBandHeight(viewport) - 2 * viewport.height * INSET_RATIO) * PORTRAIT_SCALE;
   return { width: Math.round(height * PORTRAIT_ASPECT), height };
 }
 
@@ -18,7 +19,7 @@ export function applyGuideBand(view, band, viewport) {
   view.dataset.guideBand = band;
   view.style.setProperty("--guide-band-top", `${rect.top}px`);
   view.style.setProperty("--guide-band-height", `${rect.height}px`);
-  view.style.setProperty("--guide-inset", `${INSET}px`);
+  view.style.setProperty("--guide-inset", `${viewport.height * INSET_RATIO}px`);
   view.style.setProperty("--guide-portrait-width", `${portrait.width}px`);
   view.style.setProperty("--guide-portrait-height", `${portrait.height}px`);
 }

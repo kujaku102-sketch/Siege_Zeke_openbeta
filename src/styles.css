@@ -47,6 +47,10 @@
   --z-tutorial-dialogue: 70;
   --z-popover: 80;
   --z-modal: 90;
+  /* The UI's size unit (文豪, 2026-10-27: sizes are ratios, not fixed px): 1/80 of the screen width or 1/45 of
+     its height, whichever is smaller — 16px at 1280×720, 24px at 1920×1080, about 8.7px at 852×393. Sizes are
+     multiples of it; text keeps a rem floor so it stays readable on a phone. Only 1px hairlines stay in px. */
+  --u: min(1.25vw, 2.2222dvh);
   --red: var(--accent-red);
   --yellow: var(--accent-yellow);
   --cyan: var(--accent-cyan);

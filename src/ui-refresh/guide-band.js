@@ -4,15 +4,16 @@
 // ('top' | 'middle' | 'bottom') and is then placed there as written. DOM-free: rectangles in, a band out.
 //
 // 仮置き (sz-ui の推奨、文豪の返事待ち): the order starts at the top, and a tall screen's band is capped at
-// GUIDE_BAND_MAX_RATIO of its height or GUIDE_BAND_MAX_PX, whichever is smaller.
+// GUIDE_BAND_MAX_RATIO of its height or GUIDE_BAND_MAX_REM root ems, whichever is smaller (sizes are ratios or
+// relative units, never fixed px: viewport.rem is the root font size the screen uses).
 export const GUIDE_BAND_ORDER = Object.freeze(['top', 'bottom', 'middle']);
-export const GUIDE_BAND_MAX_PX = 180;
+export const GUIDE_BAND_MAX_REM = 11.25;
 export const GUIDE_BAND_MAX_RATIO = .25;
 
 // A third of the screen, unless that is more than the cap (a PC screen): then the cap.
 export function guideBandHeight(viewport) {
-  const third = viewport.height / 3;
-  return third > GUIDE_BAND_MAX_PX ? Math.min(viewport.height * GUIDE_BAND_MAX_RATIO, GUIDE_BAND_MAX_PX) : third;
+  const third = viewport.height / 3, cap = GUIDE_BAND_MAX_REM * (viewport.rem ?? 16);
+  return third > cap ? Math.min(viewport.height * GUIDE_BAND_MAX_RATIO, cap) : third;
 }
 
 // Top band at the top edge, bottom band at the bottom edge, middle band centred.
