@@ -63,19 +63,15 @@ async function guideClear(page,moment) {
 const KNOWN_COVERED={
   'page@vengeance:2':['素材ドールズ'],'popup@vengeance:2':['素材ドールズ'],
   'pick@vengeance:2':['トライプビア','素材ドールズ','ドールズOb','次へ','戻る'],'pick@vengeance:3':['トライプビア'],
-  'pick@vengeance:6':['アクロィア','タナフォリア','[アップデート:2]','戻る','back'],'page@vengeance:7':['ターン終了','トライプビア'],
+  'pick@vengeance:6':['アクロィア','タナフォリア','[アップデート:2]','戻る'],'page@vengeance:7':['ターン終了','トライプビア'],
   'popup@vengeance:8':['再実行'],
-  // Since a long 「」 grows the frame (2026-10-28, also pending): up to 49% of a PC screen's height, the top band's frame
-  // growing up over the pick bar.
-  'pick@basics:37':['戻る'],'page@basics:41':['剣士'],'page@vengeance:3':['トライプビア'],'popup@vengeance:3':['トライプビア'],
-  'page@vengeance:6':['効果起動','アクロィア','タナフォリア'],'popup@vengeance:6':['効果起動','アクロィア','タナフォリア'],
-  'pick@vengeance:8':['戻る'],'page@vengeance:10':['ドールズ'],'popup@vengeance:10':['ドールズ'],'pick@vengeance:10':['ドールズ'],
-  // Since the PC buttons sit in a row under the text (2026-10-28): the row costs a line, so a two-line page grows too.
-  'page@basics:42':['剣士'],'popup@basics:42':['剣士'],'pick@basics:42':['剣士'],
-  'page@vengeance:9':['トライプビア'],'popup@vengeance:9':['トライプビア'],'pick@vengeance:9':['トライプビア']
+  // Since a long 「」 grows the frame (2026-10-28, also pending): the top band's frame growing up over the pick bar.
+  'pick@basics:37':['戻る'],'page@vengeance:6':['効果起動','アクロィア','タナフォリア'],'popup@vengeance:6':['効果起動','アクロィア','タナフォリア'],
+  'pick@vengeance:8':['戻る']
 };
 // One page a 「」 of the script (pages cut at ▽ only), its text inside the frame (one line kept free for a refused
-// move's reason), the frame and the portrait on screen (文豪, 2026-10-28). Checked on every page.
+// move's reason), the frame and the portrait on screen, the guide's buttons clear of the text (文豪, 2026-10-28).
+// Checked on every page.
 const pageIssues=[];let frameMax=0;
 async function guidePage(page) {
   await page.waitForFunction(() => !document.querySelector('.live-guide[data-paging="pending"]'),null,{timeout:5000}).catch(() => {});
@@ -85,8 +81,10 @@ async function guidePage(page) {
     const presentation=window.__SIMPLE_ZEKE_E2E__.tutorial().value?.presentation;
     const frame=guide.querySelector('.live-guide-speech').getBoundingClientRect(),text=guide.querySelector('.live-guide-text'),line=text.querySelector('p');
     const portrait=guide.querySelector('.live-guide-cast img,.live-guide-noportrait')?.getBoundingClientRect();
-    const height=parseFloat(getComputedStyle(line).lineHeight),textBottom=text.getBoundingClientRect().bottom;
-    return {step:guide.dataset.tutorialStep,page:guide.dataset.guidePage,shown:line.textContent,ruby:Boolean(presentation?.parts),
+    const height=parseFloat(getComputedStyle(line).lineHeight),textBottom=text.getBoundingClientRect().bottom,said=line.getBoundingClientRect();
+    const overText=[...guide.querySelectorAll('nav :is(button,.live-guide-page)')].map(node => node.getBoundingClientRect())
+      .some(b => b.width>0 && Math.min(b.right,said.right)-Math.max(b.left,said.left)>=1 && Math.min(b.bottom,said.bottom)-Math.max(b.top,said.top)>=1);
+    return {step:guide.dataset.tutorialStep,page:guide.dataset.guidePage,shown:line.textContent,ruby:Boolean(presentation?.parts),overText,
       pieces:String(presentation?.text ?? '').split('▽').map(piece => piece.trim()).filter(Boolean),
       spare:(textBottom-line.getBoundingClientRect().bottom)/height,frame:frame.height/innerHeight,
       onScreen:frame.top>=-.5 && frame.bottom<=innerHeight+.5 && (!portrait || (portrait.top>=-.5 && Math.abs(portrait.bottom-frame.bottom)<1.5))};
@@ -97,6 +95,7 @@ async function guidePage(page) {
   if (!m.ruby && (count!==m.pieces.length || m.shown!==m.pieces[index-1])) pageIssues.push(`${at}: not one 「」 a page (${m.pieces.length} in the line)`);
   if (m.spare<.99) pageIssues.push(`${at}: ${m.spare<0 ? 'text out of the frame' : 'no free line for a reason'} (${m.spare.toFixed(2)} lines spare)`);
   if (!m.onScreen) pageIssues.push(`${at}: the frame or the portrait off the screen`);
+  if (m.overText) pageIssues.push(`${at}: a guide button over the text`);
 }
 const knownCovered=hit => (KNOWN_COVERED[hit.at] ?? []).some(name => hit.name.startsWith(name));
 function cards(query) {
