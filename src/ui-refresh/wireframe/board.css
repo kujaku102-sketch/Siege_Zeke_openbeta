@@ -101,7 +101,7 @@ body[data-view] .r2-content .r2-wireframe-view .r2-tools-host { inset:0; width:1
 body[data-view] .r2-content .r2-wireframe-view .wf-unique.r2-console { position:absolute; inset:auto 0 calc(100% + 1cqh); width:100%; padding:0; border:0; background:none; box-shadow:none; overflow:visible; }
 body[data-view] .r2-content .r2-wireframe-view .wf-unique .unique-effect-name { margin:0; font-size:2.3cqh; }
 .r2-content .r2-wireframe-view .r2-popup { background:#242c31f5; border:1px solid #adb8be; border-radius:0; }
-.r2-content .r2-wireframe-view .r2-popup button,.r2-content .r2-wireframe-view .effect-modal>nav button { background:#39434a; color:#f1f4f5; border:1px solid #a4b2bb; border-radius:0; font-size:clamp(12px,2.2cqh,22px); }
+.r2-content .r2-wireframe-view .r2-popup button,.r2-content .r2-wireframe-view .effect-modal>nav button { background:#39434a; color:#f1f4f5; border:1px solid #a4b2bb; border-radius:0; font-size:clamp(calc(var(--u) * .75),2.2cqh,calc(var(--u) * 1.375)); }
 .r2-content .r2-wireframe-view .r2-popup button::before,.r2-content .r2-wireframe-view .r2-popup button::after { content:none; }
 .r2-content .r2-wireframe-view .r2-popup button:hover:not(:disabled) { background:#52616a; }
 

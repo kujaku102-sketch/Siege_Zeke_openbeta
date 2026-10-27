@@ -62,8 +62,8 @@
 
 /* Card detail: card-colored frame, shared inside. */
 .r2-content .r2-detail.cp-card { --detail-base:#08111a; padding:0; }
-.r2-content .r2-detail.cp-card > .cp-head { position:sticky; top:0; z-index:5; margin:0; padding:8px 10px 9px; background:linear-gradient(#061019f0,#06101999); }
-.r2-content .r2-detail.cp-card > .cp-head h2 { font-size:18px; }
+.r2-content .r2-detail.cp-card > .cp-head { position:sticky; top:0; z-index:5; margin:0; padding:calc(var(--u) * .5) calc(var(--u) * .625) calc(var(--u) * .5625); background:linear-gradient(#061019f0,#06101999); }
+.r2-content .r2-detail.cp-card > .cp-head h2 { font-size:max(.625rem, calc(var(--u) * 1.125)); }
 .r2-content .r2-detail.cp-card .detail-art::before { background:linear-gradient(to bottom,transparent 40%,#08111a99 65%,var(--detail-base) 100%); }
 .r2-content .r2-detail.cp-card .detail-heading span { border-radius:0; background:color-mix(in srgb,var(--cp-frame) 22%,#0a1822); color:var(--cp-ink); }
 .r2-content .r2-detail.cp-card .detail-section { background:transparent; }
