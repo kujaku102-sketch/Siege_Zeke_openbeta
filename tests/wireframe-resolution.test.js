@@ -60,7 +60,7 @@ test('render quality: a sample scale replaces the full scale only; compat stays 
   assert.deepEqual(renderQualityFor('full', 3), { scale: 3, maxPixels: 8_294_400 }, 'the old supersampled scale stays reachable by URL');
   for (const scale of [null, undefined, 0, -1, NaN, Infinity, '0.5']) assert.equal(renderQualityFor('full', scale), DEFAULT_RENDER_QUALITY, String(scale));
   for (const scale of [0.25, 0.5, 1, 3]) assert.equal(renderQualityFor('compat', scale), RENDER_QUALITY_PRESETS.compat);
-  assert.deepEqual(renderResolution(852, 393, renderQualityFor('full', 0.5), 2), { width: 426, height: 196, scale: 0.5 });
+  assert.deepEqual(renderResolution(852, 393, renderQualityFor('full', 0.5), 2), { width: 426, height: 197, scale: 0.5 });
   assert.deepEqual(renderResolution(852, 393, renderQualityFor('full', 1), 2), { width: 852, height: 393, scale: 1 });
   // The pixel cap still wins over a large sample scale on a large screen.
   assert.deepEqual(renderResolution(1920, 1080, renderQualityFor('full', 3), 1), { width: 3840, height: 2160, scale: 2 });
@@ -130,6 +130,15 @@ test('surface scenes: going to compat shrinks the kept WebGL canvases; staying o
     assert.equal(h.drawn[0].width, 2556, 'full: the next scene sizes its own canvas');
     scenes.dispose();
   } finally { h.restore(); }
+});
+test('a drawing buffer keeps its box\'s shape: each side within half a drawing pixel of the box at one scale (rounded, not floored)', () => {
+  // Fractional CSS boxes as laid out by ratios: the life view's 356.4×67 and 144×26.7 strips, a 2.168 board, a 7:5 title.
+  for (const [w, h] of [[356.4, 67], [237.6, 44.6], [144, 26.7], [852, 393], [550.19, 392.98], [1741.8, 696.7]]) for (const scale of [1, .5, 1.5, 3]) {
+    const size = renderResolution(w, h, { scale });
+    const off = Math.max(Math.abs(size.width - w * size.scale), Math.abs(size.height - h * size.scale));
+    assert.ok(off <= .5, `${w}×${h} at ${scale}: ${size.width}×${size.height} is ${off.toFixed(2)} drawing pixels off`);
+  }
+  assert.deepEqual(renderResolution(356.4, 67), { width: 356, height: 67, scale: 1 }, 'the strip that drew 356×66 and stretched');
 });
 test('pixel and hardware limits bound allocations, zero size skips drawing', () => {
   for(const [w,h] of [[1920,1080],[3840,2160],[800,360]]) {

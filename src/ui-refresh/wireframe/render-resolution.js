@@ -21,7 +21,12 @@ export function renderResolution(width, height, quality = DEFAULT_RENDER_QUALITY
   const scale = Math.min(requested > 0 ? requested : 1,
     Math.sqrt((quality.maxPixels || DEFAULT_RENDER_QUALITY.maxPixels) / (width * height)),
     maxDimension / width, maxDimension / height);
-  return { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)), scale };
+  // Each side rounded, not floored, so the buffer keeps the box's shape within half a drawing pixel per side
+  // (a floored 356.4×67 box drew 356×66 and stretched); floored again only where rounding would pass a limit.
+  const cap = quality.maxPixels || DEFAULT_RENDER_QUALITY.maxPixels;
+  let w = Math.round(width * scale), h = Math.round(height * scale);
+  if (w * h > cap || w > maxDimension || h > maxDimension) { w = Math.floor(width * scale); h = Math.floor(height * scale); }
+  return { width: Math.max(1, w), height: Math.max(1, h), scale };
 }
 
 // Coalesce resize / DPR changes; listeners do not survive the owning surface.
