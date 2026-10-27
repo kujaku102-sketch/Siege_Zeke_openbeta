@@ -4,8 +4,8 @@ import { guideBandRect, guideBandHeight } from "./guide-band.js";
 // standing out of the band at PORTRAIT_SCALE times the band's height (文豪, 2026-10-27: 1.6), its own background let through.
 const INSET = 4;
 const PORTRAIT_SCALE = 1.6;
-// The navigator art's shape (1081×1280); other art is fitted inside this box.
-const PORTRAIT_ASPECT = 1081 / 1280;
+// The navigator art's shape (540×640); other art is fitted inside this box.
+const PORTRAIT_ASPECT = 540 / 640;
 
 export function guidePortraitSize(viewport) {
   const height = (guideBandHeight(viewport) - 2 * INSET) * PORTRAIT_SCALE;

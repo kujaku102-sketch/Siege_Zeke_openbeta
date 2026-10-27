@@ -148,7 +148,7 @@ try {
     return { step: node.dataset.tutorialStep, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, viewportWidth: innerWidth, viewportHeight: innerHeight, imageWidth: image.naturalWidth, imageHeight: image.naturalHeight, speaker: node.querySelector("strong")?.textContent?.trim(), text: node.querySelector(".live-guide-text")?.textContent?.trim() };
   });
   const basicsZeroLabels = await tutorialFocusLabels(page);
-  if (guideAudit.step !== "basics:0" || guideAudit.left < 0 || guideAudit.top < 0 || guideAudit.right > guideAudit.viewportWidth || guideAudit.bottom > guideAudit.viewportHeight || guideAudit.imageWidth !== 1081 || guideAudit.imageHeight !== 1280 || guideAudit.speaker !== "じぐさぽ" || !guideAudit.text || !basicsZeroLabels.includes("剣士") || !basicsZeroLabels.includes("アツト")) throw new Error(`desktop live tutorial guide is invalid: ${JSON.stringify({ guideAudit, basicsZeroLabels })}`);
+  if (guideAudit.step !== "basics:0" || guideAudit.left < 0 || guideAudit.top < 0 || guideAudit.right > guideAudit.viewportWidth || guideAudit.bottom > guideAudit.viewportHeight || guideAudit.imageWidth !== 540 || guideAudit.imageHeight !== 640 || guideAudit.speaker !== "じぐさぽ" || !guideAudit.text || !basicsZeroLabels.includes("剣士") || !basicsZeroLabels.includes("アツト")) throw new Error(`desktop live tutorial guide is invalid: ${JSON.stringify({ guideAudit, basicsZeroLabels })}`);
   // Steps 1–2 still talk about Obs; step 3 turns to the Code in the hand.
   for (const index of [1, 2, 3]) {
     await page.locator('[data-runtime-tutorial-next]').click();

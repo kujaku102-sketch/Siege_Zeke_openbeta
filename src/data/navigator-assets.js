@@ -1,4 +1,5 @@
-const monochromePlaceholder = new URL("../assets/navigator/monochrome-placeholder.jpg", import.meta.url).href;
+// Background cut out to transparency (文豪 approved, 2026-10-27): only the character shows.
+const monochromePlaceholder = new URL("../assets/navigator/monochrome-navigator.png", import.meta.url).href;
 
 const MONOCHROME_PLACEHOLDER = Object.freeze({
   id: "monochrome-placeholder",

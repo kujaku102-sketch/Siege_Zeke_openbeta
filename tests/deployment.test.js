@@ -89,8 +89,10 @@ test("tutorial navigator registry uses a local temporary image with replaceable 
   const basics = tutorialNavigator("basics");
   assert.equal(basics, NAVIGATOR_ASSETS.vengeance);
   assert.equal(tutorialNavigator("unknown"), NAVIGATOR_ASSETS.default);
-  assert.match(basics.src, /monochrome-placeholder\.jpg$/);
-  assert.equal((await readFile(fileURLToPath(basics.src))).length, 82868);
+  assert.match(basics.src, /monochrome-navigator\.png$/);
+  const art = await readFile(fileURLToPath(basics.src));
+  assert.equal(art.length, 356157);
+  assert.deepEqual([art.readUInt32BE(16), art.readUInt32BE(20), art[25]], [540, 640, 6], '540×640 RGBA: the background is transparent');
 });
 
 test("tutorial steps declare structured focus targets instead of deriving them from dialogue text", () => {
