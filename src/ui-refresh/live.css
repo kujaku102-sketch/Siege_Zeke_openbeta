@@ -60,6 +60,14 @@ body { overflow:hidden; }
 .live-guide-turn { grid-area:turn; display:flex; gap:.4em; }
 .r2-content .r2-guide.live-guide .live-guide-page { grid-area:page; color:var(--gd-dim); font-size:.75em; letter-spacing:.12em; }
 .live-guide[data-paging="pending"] .live-guide-text { overflow:hidden; }
+/* PC (文豪, 2026-10-28): the buttons in one row under the text, so the text runs the frame's full width and a long
+   「」 grows the frame less. The row is the frame's last; the line kept free for a refused move's reason stays above
+   it, in the text's own row. The row keeps to the right, its left open: a click there reaches the board under the
+   frame, as through the rest of it. Sizes in em of the guide's text (4.2dvh). */
+body[data-view="pc"] .r2-content .r2-guide.live-guide .live-guide-speech { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) auto; }
+body[data-view="pc"] .r2-content .r2-guide.live-guide nav { grid-column:1; grid-row:2; grid-template-columns:minmax(0,1fr) auto auto auto; grid-template-rows:auto;
+  grid-template-areas:". page skip turn"; justify-items:end; gap:0 .6em; margin:0; }
+body[data-view="pc"] .r2-content .r2-guide.live-guide button { min-height:1.9em; min-width:1.9em; }
 /* Compat render mode: no blur (heavy on WebKit), a nearly opaque glass instead. */
 .live-low-gpu .r2-guide.live-guide { --gd-alpha:95%; }
 .live-low-gpu .r2-guide.live-guide .live-guide-speech { -webkit-backdrop-filter:none; backdrop-filter:none; }
