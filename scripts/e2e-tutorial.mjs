@@ -36,11 +36,12 @@ async function clickVisible(page,selector) {
   throw new Error('visible target unavailable: '+selector);
 }
 const read = page => page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.query());
-// The guide (its portrait and speech frame) never covers what can be pressed: the step's highlights, a pick's
-// choices and a card's popup left open across steps (文豪, 2026-10-27). Checked once the screen stops moving, at every
-// step's last page, every popup and every pick; all overlaps are listed when the run ends. Edges meeting within a
-// pixel only touch (852×393: the frame's top 0.19px over the pick bar's [戻る]).
-const covered=[];let profileLabel='';
+// The guide (its portrait and speech frame) never covers what it asks the player to press: the step's highlights
+// (the popup button its move needs among them, 文豪 2026-10-28) and a pick's choices. Checked once the screen stops
+// moving, at every step's last page, every popup and every pick; all overlaps are listed when the run ends. Edges
+// meeting within a pixel only touch (852×393: the frame's top 0.19px over the pick bar's [戻る]). A popup merely
+// left open is not avoided; its covered buttons are only counted.
+const covered=[],leftOpen=[];let profileLabel='';
 async function guideClear(page,moment) {
   const probe=() => page.evaluate(() => [...document.querySelectorAll('.live-guide,.r2-popup')].map(node => {const r=node.getBoundingClientRect();return [r.left,r.top,r.width,r.height].map(Math.round).join(',');}).join('|'));
   for (let last=null,quiet=0,turn=0;turn<30 && quiet<3;turn+=1) {const now=await probe();quiet=now===last ? quiet+1 : 0;last=now;await page.waitForTimeout(100);}
@@ -51,18 +52,19 @@ async function guideClear(page,moment) {
     return [...document.querySelectorAll('.live-focus,.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline],.r2-popup button')]
       .filter(node => !node.closest('.live-guide') && getComputedStyle(node).visibility!=='hidden' && node.getBoundingClientRect().width>0)
       .map(node => ({name:(node.dataset.tutorialFocusLabel || node.getAttribute('aria-label') || node.textContent || node.className).toString().trim().slice(0,24),
-        area:Math.round(parts.reduce((sum,part) => sum+area(part,node.getBoundingClientRect()),0))}))
+        leftOpen:node.matches('.r2-popup button:not(.live-focus)'),area:Math.round(parts.reduce((sum,part) => sum+area(part,node.getBoundingClientRect()),0))}))
       .filter(hit => hit.area>1).map(hit => ({...hit,step:guide.dataset.tutorialStep,band:document.querySelector('.r2-runtime-view')?.dataset.guideBand}));
   });
-  for (const hit of hits) covered.push({at:`${moment}@${hit.step}`,name:hit.name,line:`${profileLabel} ${moment}@${hit.step} (${hit.band}): ${hit.name} ${hit.area}px²`});
+  for (const hit of hits) (hit.leftOpen ? leftOpen : covered).push({at:`${moment}@${hit.step}`,name:hit.name,line:`${profileLabel} ${moment}@${hit.step} (${hit.band}): ${hit.name} ${hit.area}px²`});
 }
 // Known on the --screens sizes, 文豪's call pending (2026-10-28): with the guide a third of the height, what these
-// vengeance steps point at spans all three bands (the TURN gauge, the hand, the layered pick's sheet), so every band
-// covers some of it. Anything else covered fails.
+// vengeance steps point at spans all three bands (the TURN gauge, the hand, the layered pick's sheet, the back row
+// and its popup on 852×393), so every band covers some of it. Anything else covered fails.
 const KNOWN_COVERED={
   'page@vengeance:2':['素材ドールズ'],'popup@vengeance:2':['素材ドールズ'],
   'pick@vengeance:2':['トライプビア','素材ドールズ','ドールズOb','次へ','戻る'],'pick@vengeance:3':['トライプビア'],
-  'pick@vengeance:6':['アクロィア','タナフォリア','[アップデート:2]','戻る'],'page@vengeance:7':['ターン終了','トライプビア','再実行','効果起動']
+  'pick@vengeance:6':['アクロィア','タナフォリア','[アップデート:2]','戻る'],'page@vengeance:7':['ターン終了','トライプビア'],
+  'popup@vengeance:8':['再実行']
 };
 const knownCovered=hit => (KNOWN_COVERED[hit.at] ?? []).some(name => hit.name.startsWith(name));
 function cards(query) {
@@ -169,6 +171,9 @@ async function action(page,type,id,preference={}) {
     if (['front','back'].includes(card.location?.zone) && await page.locator('[data-layer="hand"]:not([hidden])').count()) await clickVisible(page,'[data-runtime-hand]');
     await clickVisible(page,cardSelector);
     await guideClear(page,'popup');
+    // The popup button the step's move needs is highlighted (文豪, 2026-10-28).
+    if (await page.evaluate(() => ['play','install','attack','layered','relog','activate-effect'].includes(window.__SIMPLE_ZEKE_E2E__.tutorial().value?.presentation?.expect?.type))
+      && !await page.locator('.r2-popup [data-route].live-focus').count()) throw new Error('the popup button the step expects is not highlighted: '+type+' '+id);
   }
   await clickVisible(page,'[data-action-id="'+entry.actionId+'"]');
   if (entry.kind === 'fixed') return;
@@ -362,5 +367,6 @@ try {
   const unknown=covered.filter(hit => !knownCovered(hit)),known=[...new Set(covered.filter(knownCovered).map(hit => hit.line.replace(/ \d+px²$/,'')))];
   if (screensMode && unknown.length) throw new Error('the guide covers what can be pressed ('+unknown.length+'):\n'+[...new Set(unknown.map(hit => hit.line))].join('\n'));
   console.log(JSON.stringify({suite:'tutorial',runs,completionReturnsToList:true,offScriptRefused:true,freshSkip:true,requiredBackPreserves:true,
-    guideCovers:screensMode ? {unknown:0,known:known.length} : {counted:new Set(covered.map(hit => hit.line)).size},keyboardMode,screensMode,ok:true}));
+    guideCovers:screensMode ? {unknown:0,known:known.length} : {counted:new Set(covered.map(hit => hit.line)).size},
+    leftOpenCovered:[...new Set(leftOpen.map(hit => hit.line.replace(/ \d+px²$/,'')))],keyboardMode,screensMode,ok:true}));
 } finally {await browser.close();}
