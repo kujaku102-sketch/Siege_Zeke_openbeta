@@ -260,7 +260,7 @@ body[data-view] .r2-content .r2-wireframe-view :is(.effect-modal>nav button,.eff
 body[data-view] .r2-content .r2-wireframe-view .r2-popup { position:fixed; z-index:28; overflow:auto; box-sizing:border-box; padding:.5rem; }
 .r2-content .r2-wireframe-view .r2-popup>strong { font:var(--wf-font)/1.35 var(--wf-control-font); }
 .r2-wireframe-view .card-line.art-frame { fill:none; }
-.r2-wireframe-view .card-caption.on-art { font-weight:700; stroke:#0b141c; stroke-width:3px; paint-order:stroke fill; }
+.r2-wireframe-view .card-caption.on-art { font-weight:700; stroke:#0b141c; stroke-width:calc(var(--u) * .1875); paint-order:stroke fill; }
 .r2-wireframe-view .symbol-lamps { pointer-events:none; }
 .r2-wireframe-view .symbol-lamp circle { fill:none; stroke:var(--lamp); stroke-width:1.2; opacity:.55; }
 .r2-wireframe-view .symbol-lamp:not(.lit) { visibility:hidden; }

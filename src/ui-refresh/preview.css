@@ -32,7 +32,7 @@ small { color:var(--muted); }
 /* Preserve the existing desktop board composition, then scale the whole surface.
    Only these geometry rules are pinned; card artwork, stats, colours and chrome
    come from the original stylesheet and sideHtml renderer. */
-.r2-board .battle-board { --desktop-board-slot:calc(var(--u) * 7.5); width:calc(var(--u) * 62.5); height:auto; min-height:0; max-height:none; aspect-ratio:auto; margin:0; overflow:visible; justify-content:center; transform:perspective(1500px) rotateX(24deg) scale(.92); transform-origin:50% 50%; }
+.r2-board .battle-board { --desktop-board-slot:calc(var(--u) * 7.5); width:calc(var(--u) * 62.5); height:auto; min-height:0; max-height:none; aspect-ratio:auto; margin:0; overflow:visible; justify-content:center; transform:perspective(calc(var(--u) * 93.75)) rotateX(24deg) scale(.92); transform-origin:50% 50%; }
 .r2-board .side { flex:0 0 auto; }
 .r2-board .battle-board,.r2-board .side,.r2-board .zone-cards,.r2-board .board-slot { pointer-events:none; }
 .r2-board button { pointer-events:auto; }
@@ -42,13 +42,13 @@ small { color:var(--muted); }
 .r2-board .zone { height:auto; min-height:calc(var(--u) * 9.125); padding:calc(var(--u) * .4375) calc(var(--u) * .625) calc(var(--u) * .75); pointer-events:none; }
 .r2-board .zone>header { height:auto; margin-bottom:calc(var(--u) * .375); font:700 max(.625rem, calc(var(--u) * .625)) monospace; line-height:normal; }
 .r2-board .zone-cards { grid-template-columns:repeat(var(--zone-capacity),calc(var(--u) * 7.5)); height:auto; min-height:calc(var(--u) * 7.5); gap:calc(var(--u) * 2.1875); padding:calc(var(--u) * .1875) calc(var(--u) * .625) calc(var(--u) * .4375); }
-.r2-board .opponent .zone-cards { transform:rotateX(-5deg) translateZ(-3px); }
+.r2-board .opponent .zone-cards { transform:rotateX(-5deg) translateZ(calc(var(--u) * -.1875)); }
 .r2-board .battle-board .opponent .zone-back .zone-cards { height:auto; align-items:start; }
-.r2-board .human .zone-cards { transform:rotateX(5deg) translateZ(3px); }
+.r2-board .human .zone-cards { transform:rotateX(5deg) translateZ(calc(var(--u) * .1875)); }
 .r2-board .board-slot { width:calc(var(--u) * 7.5); height:calc(var(--u) * 7.5); aspect-ratio:1; place-items:center; }
 .r2-board .board-slot>.card { width:calc(calc(var(--u) * 7.5) * 5 / 7); height:calc(var(--u) * 7.5); padding:calc(var(--u) * .25) calc(var(--u) * .3125) calc(var(--u) * .3125); place-self:center; }
-.r2-board .human .board-slot>.card.sleep,.r2-board .human .board-slot>.card[data-category="Code"] { transform:rotate(90deg) translateZ(8px); }
-.r2-board .opponent .board-slot>.card.sleep,.r2-board .opponent .board-slot>.card[data-category="Code"] { transform:rotate(270deg) translateZ(8px); }
+.r2-board .human .board-slot>.card.sleep,.r2-board .human .board-slot>.card[data-category="Code"] { transform:rotate(90deg) translateZ(calc(var(--u) * .5)); }
+.r2-board .opponent .board-slot>.card.sleep,.r2-board .opponent .board-slot>.card[data-category="Code"] { transform:rotate(270deg) translateZ(calc(var(--u) * .5)); }
 .r2-board .card-name { font-size:calc(var(--u) * .5625); }.r2-board .slot-label { font-size:max(.625rem, calc(var(--u) * .625)); }.r2-board .slot-label small { font-size:calc(var(--u) * .4375); margin-top:calc(var(--u) * .3125); }
 .r2-board .admin-row { height:auto; grid-template-columns:calc(var(--u) * 10) minmax(calc(var(--u) * 15.625),calc(var(--u) * 22.5)) calc(var(--u) * 11.875) calc(var(--u) * 4.375); gap:calc(var(--u) * .5); padding:calc(var(--u) * .3125) calc(var(--u) * .625); }
 .r2-board .admin-zone-button,.r2-board .compact-fortress { min-height:calc(var(--u) * 3.375); height:auto; padding:calc(var(--u) * .375) calc(var(--u) * .75); }
@@ -62,8 +62,8 @@ small { color:var(--muted); }
 .r2-console button { font-size:max(.625rem, calc(var(--u) * .75)); }
 .r2-console>small { font-size:calc(var(--u) * .5625); text-align:center; }
 :where([data-layout="desktop"]) .r2-hand-host { position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:min(calc(var(--u) * 47.5),65vw); }
-.r2-hand { padding:0; border:0; background:transparent; box-shadow:none; perspective:1050px; perspective-origin:50% 115%; }
-.r2-hand-scroll { display:flex; align-items:flex-end; gap:0; padding:calc(var(--u) * 1.5) calc(var(--u) * 1.375) calc(var(--u) * 1.125); overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; touch-action:pan-x; scrollbar-width:none; scroll-padding-inline:22px; }
+.r2-hand { padding:0; border:0; background:transparent; box-shadow:none; perspective:calc(var(--u) * 65.625); perspective-origin:50% 115%; }
+.r2-hand-scroll { display:flex; align-items:flex-end; gap:0; padding:calc(var(--u) * 1.5) calc(var(--u) * 1.375) calc(var(--u) * 1.125); overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; touch-action:pan-x; scrollbar-width:none; scroll-padding-inline:calc(var(--u) * 1.375); }
 .r2-hand-scroll::-webkit-scrollbar { display:none; }
 .r2-hand .hand-card { transition:none; }
 .r2-hand .hand-card>.card { width:calc(var(--u) * 6.875); height:calc(var(--u) * 9.625); }

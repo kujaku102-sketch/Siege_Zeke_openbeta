@@ -15,7 +15,7 @@
 .cp-panel.cp-card[data-card-color=black] { --cp-frame:#c8ccd4; }
 
 .r2-content .cp-panel.cp-panel { position:relative; box-sizing:border-box; color:var(--cp-ink); border:1px solid var(--cp-frame); border-radius:0;
-  background:var(--cp-bg); clip-path:polygon(0 0,calc(100% - 22px) 0,100% 22px,100% 100%,22px 100%,0 calc(100% - 22px));
+  background:var(--cp-bg); clip-path:polygon(0 0,calc(100% - calc(var(--u) * 1.375)) 0,100% calc(var(--u) * 1.375),100% 100%,calc(var(--u) * 1.375) 100%,0 calc(100% - calc(var(--u) * 1.375)));
   box-shadow:inset 0 0 0 1px #0a2a33,inset 0 0 40px color-mix(in srgb,var(--cp-a) 8%,transparent); }
 .r2-content .cp-panel.cp-panel::before { content:""; position:absolute; inset:0; z-index:4; pointer-events:none; background:repeating-linear-gradient(0deg,#ffffff07 0 1px,transparent 1px 3px); }
 .r2-content .cp-panel.cp-panel::after { content:""; position:absolute; right:0; top:0; z-index:4; width:calc(var(--u) * 1.9375); height:calc(var(--u) * 1.9375); pointer-events:none; background:linear-gradient(225deg,var(--cp-frame) 0 50%,transparent 50%); opacity:.85; }
@@ -34,7 +34,7 @@
 
 /* Controls inside a panel: dark faces, accent borders, a lit face when chosen. */
 .r2-content .cp-panel :is(button,select):not(.card):not(.cp-close):not(.detail-art) { border:1px solid color-mix(in srgb,var(--cp-a) 55%,transparent); border-radius:0; background:var(--cp-face); color:var(--cp-ink);
-  clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%); }
+  clip-path:polygon(0 0,calc(100% - calc(var(--u) * .5)) 0,100% calc(var(--u) * .5),100% 100%,0 100%); }
 .r2-content .cp-panel :is(button):not(.card):not(.cp-close):not(.detail-art):hover:not(:disabled) { background:var(--cp-face-on); }
 .r2-content .cp-panel :is(button):not(.card):not(.cp-close):not(.detail-art)[aria-pressed=true] { background:var(--cp-face-on) !important; border-color:var(--cp-a) !important; box-shadow:inset 3px 0 var(--cp-a); }
 .r2-content .cp-panel :is(button,select):disabled { opacity:.45; }
@@ -138,7 +138,7 @@ body[data-view] .r2-content .r2-detail.cp-card > .detail-art:not(.has-art)::afte
   background:linear-gradient(#ff3fa80d,#3ff4ff0d); color:#ff9fd0; font:max(.625rem, calc(var(--u) * .75)) SZMakinas,monospace; letter-spacing:.2em; }
 .ud-panel .ud-effect { --cp-a:#ffd84a; --cp-b:#ff9f2e; border-color:#e8c36f88; background:#120f0888; }
 .ud-panel .ud-banner { display:inline-flex; flex-direction:column; gap:calc(var(--u) * .125); padding:calc(var(--u) * .4375) calc(var(--u) * 1.375) calc(var(--u) * .5) calc(var(--u) * .75); border:1px solid #f6d77a; filter:drop-shadow(0 0 5px #e2b14b55);
-  background:linear-gradient(90deg,#42301999,transparent),linear-gradient(110deg,#4b341a,#8d612b 70%,#332335); clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%); }
+  background:linear-gradient(90deg,#42301999,transparent),linear-gradient(110deg,#4b341a,#8d612b 70%,#332335); clip-path:polygon(0 0,calc(100% - calc(var(--u) * .75)) 0,100% calc(var(--u) * .75),100% 100%,0 100%); }
 .ud-panel .ud-banner small { color:#f6d77a; font:700 calc(var(--u) * .5625)/1 SZMakinas,monospace; letter-spacing:.14em; }
 .ud-panel .ud-banner strong { color:#fff2c5; font:400 max(.625rem, calc(var(--u) * 1.3125))/1.15 SZKaiso,"Yu Gothic UI",sans-serif; -webkit-text-stroke:1px #242321; paint-order:stroke fill; text-shadow:1px 0 #efc469,-1px 0 #c08a4b; }
 .r2-content .ud-panel .ud-effect p { margin:calc(var(--u) * .625) calc(var(--u) * .125) 0; color:#fff1cfdd; font:max(.625rem, calc(var(--u) * .875))/1.7 "Yu Gothic UI",sans-serif; overflow-wrap:anywhere; }
@@ -154,7 +154,7 @@ body[data-view] .r2-content .r2-detail.cp-card > .detail-art:not(.has-art)::afte
 .ud-panel .ud-str b { color:#967e7e; font:400 max(.625rem, calc(var(--u) * 1.875))/1 Georgia,serif; -webkit-text-stroke:1px #777; paint-order:stroke fill; }
 .ud-panel .ud-str.is-lost b { color:#4a4040; -webkit-text-stroke:0; }
 .ud-panel .ud-str.is-now { border:1px solid var(--cp-a); background:linear-gradient(#3ff4ff00,#3ff4ff22); box-shadow:inset 0 0 14px #3ff4ff55; }
-.ud-panel .ud-str.is-now b { color:#fff; font-size:max(.625rem, calc(var(--u) * 2.375)); -webkit-text-stroke:1.2px #111; text-shadow:0 0 12px var(--cp-a); }
+.ud-panel .ud-str.is-now b { color:#fff; font-size:max(.625rem, calc(var(--u) * 2.375)); -webkit-text-stroke:calc(var(--u) * .075) #111; text-shadow:0 0 12px var(--cp-a); }
 .ud-panel .ud-str i { position:absolute; top:calc(var(--u) * .5); left:50%; transform:translateX(-50%); color:#f1df3d; font:normal max(.625rem, calc(var(--u) * 1.25))/1 sans-serif; }
 .ud-panel .ud-str i.is-used { color:#736a43; }
 @media (max-width:720px) {
