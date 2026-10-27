@@ -24,7 +24,7 @@ small { color:var(--muted); }
 .r2-mode-grid>button>span { color:#a1a1aa; font-size:12px; }
 .r2-mode-grid>button>b { position:absolute; right:20px; top:20px; color:#a1a1aa; font-weight:400; }
 .r2-mode-grid>.r2-deck-entry { grid-column:1/-1; min-height:80px; flex-direction:row; align-items:center; padding:20px 24px; }
-.r2-mode-grid>.r2-deck-entry strong { font-size:18px; }
+.r2-mode-grid>.r2-deck-entry strong { font-size:max(.625rem, calc(var(--u) * 1.125)); }
 [data-layout] { width:100%; margin:0; position:relative; height:calc(100svh - 92px); overflow:hidden; }
 .r2-stage { position:absolute; inset:12px 16px 12px; display:grid; place-items:center; }
 .r2-board { position:relative; overflow:hidden; border:1px solid #52525b; border-radius:6px; background:#09090b; }
