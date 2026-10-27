@@ -1,5 +1,6 @@
 import { ABILITY_GLOSSARY } from '../data/ability-glossary.js';
 import { abilityBadgeDefinition } from '../data/ability-badges.js';
+import { screenUnit } from '../ui-refresh/screen-unit.js';
 
 const esc = value => String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const byAlias = new Map(ABILITY_GLOSSARY.flatMap(a=>a.aliases.map(name=>[name.toUpperCase(),a])));
@@ -45,10 +46,11 @@ export function installAbilityHelp(root) {
   close();anchor=button;panel.querySelector('h3').textContent=ability.name;panel.querySelector('p').textContent=ability.description;
   button.setAttribute('aria-expanded','true');button.setAttribute('aria-controls',panel.id);
   if(native)panel.showPopover();else panel.hidden=false;
-  const r=button.getBoundingClientRect(),box=panel.getBoundingClientRect();
-  panel.style.left=`${Math.max(8,Math.min(r.left,innerWidth-box.width-8))}px`;
-  const above=r.top-box.height-6;
-  panel.style.top=`${above>=8?above:Math.max(8,Math.min(r.bottom+6,innerHeight-box.height-8))}px`;
+  // Edge margin and gap in the screen unit (--u), not fixed px.
+  const r=button.getBoundingClientRect(),box=panel.getBoundingClientRect(),u=screenUnit(document),edge=u*.5,gap=u*.375;
+  panel.style.left=`${Math.max(edge,Math.min(r.left,innerWidth-box.width-edge))}px`;
+  const above=r.top-box.height-gap;
+  panel.style.top=`${above>=edge?above:Math.max(edge,Math.min(r.bottom+gap,innerHeight-box.height-edge))}px`;
  },true);
  document.addEventListener('pointerdown',e=>{if(anchor&&!panel.contains(e.target)&&!e.target.closest('[data-ability-help]'))close();},true);
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&anchor){e.stopImmediatePropagation();e.preventDefault();const previous=anchor;close();previous?.focus({preventScroll:true});}},true);

@@ -251,7 +251,7 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
     : requiredInputHtml(model.requiredInput, visibleCards(model)));
   const hand = includeRuntime ? viewer.hand.cards.map((card, index) => {
     const offset = index - (viewer.hand.count - 1) / 2;
-    return `<div class="hand-card" style="--hand-rotate:${offset * 5}deg;--hand-sink:${Math.abs(offset) * 5}px">${runtimeCardHtml(card, 'hand')}</div>`;
+    return `<div class="hand-card" style="--hand-rotate:${offset * 5}deg;--hand-sink:calc(var(--u) * ${Math.abs(offset) * .3125})">${runtimeCardHtml(card, 'hand')}</div>`;
   }).join('') : '';
   return {
     layout,

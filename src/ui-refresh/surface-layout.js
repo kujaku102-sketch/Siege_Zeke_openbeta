@@ -2,6 +2,7 @@ import { fitBoard, placePopup } from './model.js';
 import { applyGuideBand, guidePortraitSize } from './guide.js';
 import { chooseGuideBand } from './guide-band.js';
 import { placeFlow } from './effect-flow.js';
+import { screenUnit } from './screen-unit.js';
 
 // Screen geometry of a mounted match: board fit, card popup, floating effect flow,
 // tutorial focus and the guide. It only measures and positions; it never acts.
@@ -34,16 +35,18 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
     if (popup) popup.style.visibility = anchor ? '' : 'hidden';
     const referenceList = anchor?.closest('.wf-drawer .admin-card-list');
     const popupBounds = referenceList?.getBoundingClientRect() ?? root.getBoundingClientRect();
+    // The popup keeps half a screen unit (--u) from the edges.
+    const margin = popup ? screenUnit(root.ownerDocument) * .5 : 0;
     if (popup) {
-      popup.style.maxWidth = `${Math.max(0,popupBounds.width-16)}px`;
-      popup.style.maxHeight = `${Math.max(0,popupBounds.height-16)}px`;
+      popup.style.maxWidth = `${Math.max(0,popupBounds.width-margin*2)}px`;
+      popup.style.maxHeight = `${Math.max(0,popupBounds.height-margin*2)}px`;
     }
     const popupMeasure = popup && anchor ? {
-      popup, position: placePopup(anchor.getBoundingClientRect(), popup.getBoundingClientRect(), popupBounds)
+      popup, position: placePopup(anchor.getBoundingClientRect(), popup.getBoundingClientRect(), popupBounds, margin)
     } : null;
     if (popupMeasure) {
       const height = popup.getBoundingClientRect().height;
-      popupMeasure.position.top = Math.max(popupBounds.top+8,Math.min(popupMeasure.position.top,popupBounds.bottom-height-8));
+      popupMeasure.position.top = Math.max(popupBounds.top+margin,Math.min(popupMeasure.position.top,popupBounds.bottom-height-margin));
     }
     if (boardMeasure) {
       const {size,height} = boardMeasure;

@@ -1,4 +1,6 @@
 // Presentation only: public events + visible board geometry. Never delays a command.
+import { screenUnit } from '../screen-unit.js';
+
 const NS = 'http://www.w3.org/2000/svg';
 const valid = r => r && [r.left,r.top,r.width,r.height].every(Number.isFinite) && r.width > 0 && r.height > 0;
 const center = r => [r.left+r.width/2,r.top+r.height/2];
@@ -84,7 +86,7 @@ export function createBattleFx(root) {
         const path=node('path',{d:`M${x} ${y} L${tx} ${ty}`,fill:'none',stroke:'#b8ffff','stroke-width':3,pathLength:1,'stroke-dasharray':'0.22 0.78'},group);
         animate(path,[{strokeDashoffset:1},{strokeDashoffset:0}],duration,entry);
       } else {
-        const [x,y]=center(cue.at),size=Math.max(12,Math.min(cue.at.width,cue.at.height)*.45);
+        const [x,y]=center(cue.at),size=Math.max(screenUnit(doc)*.75,Math.min(cue.at.width,cue.at.height)*.45),unit=screenUnit(doc);
         const color=cue.kind==='deploy'?'#81fff0':cue.kind==='damage'?'#ffcf70':'#a1eaff';
         const ring=node('path',{d:`M${x} ${y-size} L${x+size} ${y} L${x} ${y+size} L${x-size} ${y} Z`,fill:'none',stroke:color,'stroke-width':2},group);
         ring.style.transformOrigin=`${x}px ${y}px`;
@@ -96,9 +98,9 @@ export function createBattleFx(root) {
           animate(shard,[{transform:'translate(0px,0px) rotate(0deg)'},{transform:`translate(${dx}px,${dy}px) rotate(${i%2?95:-95}deg)`}],duration,entry);
         }
         if(cue.kind==='damage') {
-          const text=node('text',{x,y,'text-anchor':'middle','dominant-baseline':'central',fill:'#fff4d6',stroke:'#180f08','stroke-width':3,'paint-order':'stroke','font-family':'Georgia,serif','font-size':Math.max(20,Math.min(40,cue.at.height*.4)),'font-weight':'bold'},group);
+          const text=node('text',{x,y,'text-anchor':'middle','dominant-baseline':'central',fill:'#fff4d6',stroke:'#180f08','stroke-width':3,'paint-order':'stroke','font-family':'Georgia,serif','font-size':Math.max(unit*1.25,Math.min(unit*2.5,cue.at.height*.4)),'font-weight':'bold'},group);
           text.textContent=`−${cue.amount}`;
-          animate(text,[{transform:'translateY(0px)'},{transform:'translateY(-24px)'}],duration,entry);
+          animate(text,[{transform:'translateY(0px)'},{transform:`translateY(${-unit*1.5}px)`}],duration,entry);
         }
       }
     }
