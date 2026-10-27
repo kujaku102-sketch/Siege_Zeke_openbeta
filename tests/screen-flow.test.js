@@ -269,6 +269,7 @@ test('guide band: the guide fills one of three bands, chosen once a step against
   assert.ok(layout.includes('applyGuideBand(view, guideBand.band, viewport);\n      paginateGuide(guide);'), 'pages are cut in the band as placed');
   const guide = await readSource('../src/ui-refresh/guide.js');
   assert.ok(guide.includes('view.dataset.guideBand = band;'));
+  assert.ok(guide.includes('const PORTRAIT_SCALE = 1.6;'), 'the portrait at 1.6 times the band (文豪), one constant');
   assert.ok(guide.includes('lines: Math.max(1, fits - 1),'), "one line kept for a refused move's reason");
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
   assert.ok(surface.includes("root.querySelector('.r2-runtime-view')?.classList.toggle('live-low-gpu', lowGpu);"));

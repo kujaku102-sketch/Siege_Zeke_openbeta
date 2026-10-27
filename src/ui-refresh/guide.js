@@ -1,9 +1,9 @@
 import { guideBandRect, guideBandHeight } from "./guide-band.js";
 
 // The guide fills one of the screen bands (guide-band.js): the speech frame across, the portrait at its left
-// standing out of the band at twice the band's height (文豪, 2026-10-27), its own background let through.
+// standing out of the band at PORTRAIT_SCALE times the band's height (文豪, 2026-10-27: 1.6), its own background let through.
 const INSET = 4;
-const PORTRAIT_SCALE = 2;
+const PORTRAIT_SCALE = 1.6;
 // The navigator art's shape (1081×1280); other art is fitted inside this box.
 const PORTRAIT_ASPECT = 1081 / 1280;
 

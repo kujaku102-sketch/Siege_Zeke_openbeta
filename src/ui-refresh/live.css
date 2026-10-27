@@ -16,7 +16,7 @@ body { overflow:hidden; }
 .live-catalog .catalog-scroll { max-height:none; }
 /* Tutorial guide: it fills one of the screen bands (guide-band.js) edge to edge, in the title's CRT look (文豪's
    choice, 2026-10-27): green dot type on a dark teal glass with faint scanlines. The portrait stands at its left
-   at twice the band's height, out of the band (down from the top band, up from the others), its own background
+   at 1.6 times the band's height (PORTRAIT_SCALE in guide.js), out of the band (down from the top band, up from the others), its own background
    let through; the speech frame starts after it. The band and portrait sizes come from the layout
    (applyGuideBand), so the box never follows its text. Type scales with the screen height. */
 .r2-content .r2-guide.live-guide { --gd-a:#00ff00; --gd-ink:#d6ffd6; --gd-dim:#7fcf8f; --gd-face:#071015; --gd-alpha:84%;
