@@ -1,8 +1,8 @@
-.r2-result { position:fixed; inset:0; z-index:90; display:grid; place-items:center; isolation:isolate; overflow:hidden; padding:20px; color:#f6f8fc; background:rgba(4,8,17,.92); }
+.r2-result { position:fixed; inset:0; z-index:90; display:grid; place-items:center; isolation:isolate; overflow:hidden; padding:calc(var(--u) * 1.25); color:#f6f8fc; background:rgba(4,8,17,.92); }
 .r2-result-fx { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 .r2-result-fx.is-dots { image-rendering:pixelated; }
 /* PS1 tone: the dot font with hard stepped shadows, no blur. */
-.r2-result h2 { position:relative; margin:0; font-family:SZDotGothic,"Yu Gothic UI",sans-serif; font-weight:400; font-synthesis:none; font-size:clamp(52px,11vw,168px); line-height:1; letter-spacing:.06em; color:var(--result-ink,#f6f8fc); text-shadow:.04em .04em 0 var(--result-shade,#123), .08em .08em 0 #050a14; }
+.r2-result h2 { position:relative; margin:0; font-family:SZDotGothic,"Yu Gothic UI",sans-serif; font-weight:400; font-synthesis:none; font-size:clamp(calc(var(--u) * 3.25),11vw,calc(var(--u) * 10.5)); line-height:1; letter-spacing:.06em; color:var(--result-ink,#f6f8fc); text-shadow:.04em .04em 0 var(--result-shade,#123), .08em .08em 0 #050a14; }
 .r2-result.is-win { --result-ink:#ffd23f; --result-shade:#1c8fb0; }
 .r2-result.is-defeat { --result-ink:#ff3d5a; --result-shade:#4a0c1c; }
 .r2-result.is-draw { --result-ink:#ffbf45; --result-shade:#5a3a08; }

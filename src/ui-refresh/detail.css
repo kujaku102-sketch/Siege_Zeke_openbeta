@@ -1,6 +1,6 @@
 /* Full artwork behind a compact, readable inspector. No changes to game actions. */
 .r2-content .r2-detail {
-  --detail-width:276px;
+  --detail-width:calc(var(--u) * 17.25);
   --detail-base:#18181b;
   /* 1920 CSS px reference: info 10pt, body 11pt, title 16px.
      Below 8pt, readability takes priority over a fixed viewport ratio. */
@@ -8,7 +8,7 @@
   --detail-body-font:max(8pt, calc(100vw * 11 / 1440));
   --detail-title-font:max(8pt, calc(100vw / 120));
   box-sizing:border-box; display:flex; flex-direction:column; width:var(--detail-width); padding:0; border:0;
-  border-radius:8px; background:var(--detail-base); isolation:isolate;
+  border-radius:calc(var(--u) * .5); background:var(--detail-base); isolation:isolate;
   box-shadow:0 8px 28px #0006; overflow:hidden; scrollbar-width:thin;
 }
 body[data-view="mobile"] .r2-content .r2-detail { --detail-width:calc(var(--u) * 11.5); }
@@ -19,7 +19,7 @@ body[data-view="mobile"] .r2-content .r2-detail { padding:0; }
 }
 .r2-content .r2-detail>.card-inspector {
   position:relative; top:auto; z-index:1; flex:0 1 auto; min-height:0; width:100%; max-height:none;
-  margin:0; padding:calc(var(--detail-width) * .58) 10px 12px; overflow-y:auto;
+  margin:0; padding:calc(var(--detail-width) * .58) calc(var(--u) * .625) calc(var(--u) * .75); overflow-y:auto;
   border:0; background:transparent; box-shadow:none; scrollbar-width:thin;
 }
 .r2-content .r2-detail .detail-art {
@@ -38,13 +38,13 @@ body[data-view="mobile"] .r2-content .r2-detail { padding:0; }
   background:linear-gradient(to bottom,transparent 40%,#18181b99 65%,var(--detail-base) 100%);
 }
 .r2-content .r2-detail .detail-art>span,.r2-content .r2-detail .detail-art>small { display:none; }
-.r2-content .r2-detail .detail-art:focus-visible { outline:2px solid #fafafa; outline-offset:-2px; }
+.r2-content .r2-detail .detail-art:focus-visible { outline:calc(var(--u) * .125) solid #fafafa; outline-offset:calc(var(--u) * -.125); }
 .r2-content .r2-detail>button:not(.detail-art) {
-  position:sticky; top:6px; float:right; z-index:3; margin:6px -4px 0 0;
-  width:34px; height:34px; min-height:34px; padding:0; border:0; border-radius:50%;
+  position:sticky; top:calc(var(--u) * .375); float:right; z-index:3; margin:calc(var(--u) * .375) calc(var(--u) * -.25) 0 0;
+  width:calc(var(--u) * 2.125); height:calc(var(--u) * 2.125); min-height:calc(var(--u) * 2.125); padding:0; border:0; border-radius:50%;
   background:#18181bba; color:#fff; font-size:0; backdrop-filter:blur(8px);
 }
-.r2-content .r2-detail>button:not(.detail-art)::after { content:"×" / ""; font:24px/1 sans-serif; }
+.r2-content .r2-detail>button:not(.detail-art)::after { content:"×" / ""; font:max(.625rem, calc(var(--u) * 1.5))/1 sans-serif; }
 .r2-content .r2-detail .detail-heading {
   position:relative; margin-top:0; padding:0 0 calc(var(--u) * .375);
   border:0; text-shadow:0 1px 4px #000,0 1px 10px #000;
@@ -68,7 +68,7 @@ body[data-view="mobile"] .r2-content .r2-detail { padding:0; }
 }
 .r2-content .r2-detail .detail-grid dt { color:#bcbcc5; }
 .r2-content .r2-detail .detail-location dt,.r2-content .r2-detail .detail-state dt {
-  position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%);
+  position:absolute; width:calc(var(--u) * .0625); height:calc(var(--u) * .0625); overflow:hidden; clip-path:inset(50%);
 }
 .r2-content .r2-detail dl.detail-grid>.detail-class { flex-basis:100%; align-items:baseline; padding:0; background:none; color:#fff; text-shadow:none; }
 .r2-content .r2-detail .detail-class dt,.r2-content .r2-detail .detail-class dd { color:#fff; }
