@@ -227,7 +227,9 @@ test('tutorial highlights: HUD info button, the focused card\'s detail and its a
   const layout = await readSource('../src/ui-refresh/surface-layout.js');
   assert.ok(layout.includes("ui:{'info-button':'[data-runtime-counts]','card-detail':`.r2-detail[data-card-id=\"${focus.cardId}\"]`,"));
   assert.ok(layout.includes("'ability-badge':`.r2-detail[data-card-id=\"${focus.cardId}\"] [data-ability-help]`}[focus.target],"));
-  assert.ok(layout.includes("button:focus.button === 'play' ? `.r2-popup[data-card-id=\"${focus.cardId}\"] :is([data-route=\"executeCard\"],[data-route=\"executeSpell\"])` : null};"));
+  assert.ok(layout.includes("button:focus.button === 'play' ? `.r2-popup[data-card-id=\"${focus.cardId}\"] :is([data-route=\"executeCard\"],[data-route=\"executeSpell\"])` : null,"));
+  assert.ok(layout.includes("route:focus.routes ? `.r2-popup[data-card-id=\"${focus.cardId}\"] :is(${focus.routes.map(route => `[data-route=\"${route}\"]`).join(',')})` : null};"), 'the popup button the step expects (文豪, 2026-10-28)');
+  assert.ok(layout.includes('for (const focus of [...tutorial.value.presentation.focus ?? [], ...expectedButton(tutorial.value.presentation.expect)])'), 'pointed at with the step\'s own highlights, so the band keeps clear of it');
   assert.ok(layout.includes('const named = element => !focus.badge ||'), 'a badge focus keeps only the named ability');
 });
 

@@ -7,6 +7,14 @@ import { screenUnit } from './screen-unit.js';
 // Screen geometry of a mounted match: board fit, card popup, floating effect flow,
 // tutorial focus and the guide. It only measures and positions; it never acts.
 // Each queue() starts a new geometry epoch, so a stale frame drops its work.
+
+// The popup button a tutorial step asks the player to press (its expect), by route (文豪, 2026-10-28): pointed at
+// once the card's popup is open, so the guide keeps clear of it like any other highlight. A popup merely left open
+// is not pointed at.
+const EXPECTED_ROUTES = Object.freeze({ play: ['executeCard', 'executeSpell', 'mountCard', 'setScript'], install: ['install'],
+  attack: ['attack'], layered: ['executeLayered'], relog: ['redeploy'], 'activate-effect': ['activateCardEffect'] });
+const expectedButton = expect => EXPECTED_ROUTES[expect?.type] && expect.cardId ? [{ kind: 'route', cardId: expect.cardId, routes: EXPECTED_ROUTES[expect.type] }] : [];
+
 export function createSurfaceLayout({ root, session, scope, boardStyle, latest, requestFrame, disposed, guideLastPage = () => true, paginateGuide = () => {}, guideStep = () => null }) {
   let layoutFrame = null;
   let scrolledFocus = null;
@@ -70,7 +78,7 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
     for (const element of root.querySelectorAll('.live-focus')) { element.classList.remove('live-focus'); delete element.dataset.tutorialFocusLabel; }
     // What the step points at is found on every page (the guide keeps clear of it), but marked only on the last.
     const pointed = [];
-    if (tutorial.ok && !tutorial.value.flow.complete) for (const focus of tutorial.value.presentation.focus ?? []) {
+    if (tutorial.ok && !tutorial.value.flow.complete) for (const focus of [...tutorial.value.presentation.focus ?? [], ...expectedButton(tutorial.value.presentation.expect)]) {
       const seat = scope.seatIds[focus.owner === 'ai' ? 1 : 0];
       const selectors = {card:`[data-card-id="${focus.cardId}"][data-seat="${seat}"][data-zone="${focus.zone}"]`,
         zone:`.zone[data-seat="${seat}"][data-zone="${focus.zone}"]`,fortress:`[data-fortress="${seat}"]`,
@@ -79,12 +87,13 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
         ui:{'info-button':'[data-runtime-counts]','card-detail':`.r2-detail[data-card-id="${focus.cardId}"]`,
           'ability-badge':`.r2-detail[data-card-id="${focus.cardId}"] [data-ability-help]`}[focus.target],
         // A route button in the popup of the focused card (play = execute).
-        button:focus.button === 'play' ? `.r2-popup[data-card-id="${focus.cardId}"] :is([data-route="executeCard"],[data-route="executeSpell"])` : null};
+        button:focus.button === 'play' ? `.r2-popup[data-card-id="${focus.cardId}"] :is([data-route="executeCard"],[data-route="executeSpell"])` : null,
+        route:focus.routes ? `.r2-popup[data-card-id="${focus.cardId}"] :is(${focus.routes.map(route => `[data-route="${route}"]`).join(',')})` : null};
       const named = element => !focus.badge || [element.getAttribute('aria-label'), element.getAttribute('title'), element.textContent].some(text => text?.includes(focus.badge));
       for (const element of [...root.querySelectorAll(selectors[focus.kind] ?? ':not(*)')].filter(named)) {
         pointed.push(element);
         if (!guideLastPage()) continue;
-        element.classList.add('live-focus');element.dataset.tutorialFocusLabel = focus.label;
+        element.classList.add('live-focus');element.dataset.tutorialFocusLabel = focus.label ?? element.textContent.trim();
         // The card detail scrolls; on a short screen its ability buttons sit below the fold. Centred, so the
         // highlight's outline is not cut by the panel's edge.
         const key = `${tutorial.value.flow.index}:${focus.target}`;

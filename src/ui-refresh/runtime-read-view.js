@@ -180,7 +180,8 @@ function operationsHtml(model, presentation) {
     const tryIt = tryFocus && ['executeCard', 'executeSpell'].includes(type) && block?.code;
     return `<button ${tryIt ? `aria-disabled="true" data-tutorial-try="${esc(block.code)}"` : 'disabled aria-disabled="true"'} data-route="${type}" data-block-code="${esc(block?.code ?? '')}" title="${esc(blockMessage(block))}">${esc(ACTION_LABELS[type])}</button>`;
   }).join('');
-  const extra = actions.filter(action => !routes.includes(actionTypeOf(action))).map(live).join('');
+  // Every button names its route, so a tutorial step can point at the one it asks for (surface-layout.js).
+  const extra = actions.filter(action => !routes.includes(actionTypeOf(action))).map(action => live(action).replace('<button ', `<button data-route="${esc(actionTypeOf(action))}" `)).join('');
   return `<aside class="r2-popup" aria-label="カード操作" data-card-id="${esc(card.faceDown ? '' : card.definition.id)}"><strong>${esc(card.faceDown ? '裏向きカード' : card.definition.name)}</strong><div>${fixed}${extra}</div></aside>`;
 }
 
