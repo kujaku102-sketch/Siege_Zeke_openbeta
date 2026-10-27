@@ -1,43 +1,18 @@
-import { fitBoard, placePopup, avoidFocus } from './model.js';
-import { prepareGuideContent, measureGuideContent, commitGuideContent } from './guide.js';
+import { fitBoard, placePopup } from './model.js';
+import { applyGuideBand } from './guide.js';
+import { chooseGuideBand } from './guide-band.js';
 import { placeFlow } from './effect-flow.js';
 
 // Screen geometry of a mounted match: board fit, card popup, floating effect flow,
 // tutorial focus and the guide. It only measures and positions; it never acts.
 // Each queue() starts a new geometry epoch, so a stale frame drops its work.
-export function createSurfaceLayout({ root, session, scope, boardStyle, latest, requestFrame, disposed, guideLastPage = () => true, paginateGuide = () => {}, guidePageTexts = () => [] }) {
+export function createSurfaceLayout({ root, session, scope, boardStyle, latest, requestFrame, disposed, guideLastPage = () => true, paginateGuide = () => {}, guideStep = () => null }) {
   let layoutFrame = null;
-  let guideMeasureFrame = null;
-  let guidePositionFrame = null;
-  let guideViewport = null;
   let scrolledFocus = null;
   let geometryEpoch = 0;
-  const queueGuidePosition = epoch => {
-    if (disposed() || guidePositionFrame !== null) return;
-    guidePositionFrame = requestFrame(() => {
-      guidePositionFrame = null;
-      if (disposed() || epoch !== geometryEpoch) return;
-      const guide = root.querySelector('.live-guide');
-      if (!guide) return;
-      const viewport = {left:0,top:0,width:root.ownerDocument.documentElement.clientWidth,height:root.ownerDocument.documentElement.clientHeight};
-      const targets = [...root.querySelectorAll('.live-focus,.r2-detail,.r2-console,.r2-popup')].map(element => element.getBoundingClientRect());
-      const position = avoidFocus(guide.getBoundingClientRect(),targets,viewport);
-      guide.style.left = `${position.left}px`;guide.style.top = `${position.top}px`;
-    });
-  };
-  const queueGuideMeasurement = epoch => {
-    if (disposed() || guideMeasureFrame !== null) return;
-    guideMeasureFrame = requestFrame(() => {
-      guideMeasureFrame = null;
-      if (disposed()) return;
-      if (epoch !== geometryEpoch) { queueGuideMeasurement(geometryEpoch); return; }
-      const guide = root.querySelector('.live-guide');
-      if (!guide || !guideViewport) return;
-      const width = measureGuideContent(guide,guideViewport,guidePageTexts());
-      commitGuideContent(guide,width);
-      queueGuidePosition(epoch);
-    });
-  };
+  // The guide's band is chosen once a step and kept while its pages turn; it is chosen again only when the
+  // step changes or what the step points at appears or goes (a card detail or a popup opened for it).
+  let guideBand = { key: null, band: null };
   const layout = epoch => {
     if (disposed() || epoch !== geometryEpoch) return;
     const stage = root.querySelector('.r2-stage'), board = root.querySelector('.r2-board');
@@ -89,7 +64,9 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
     const tutorial = session.tutorial();
     // A popup or detail kept open across steps would keep the last step's marks: clear them first.
     for (const element of root.querySelectorAll('.live-focus')) { element.classList.remove('live-focus'); delete element.dataset.tutorialFocusLabel; }
-    if (tutorial.ok && !tutorial.value.flow.complete && guideLastPage()) for (const focus of tutorial.value.presentation.focus ?? []) {
+    // What the step points at is found on every page (the guide keeps clear of it), but marked only on the last.
+    const pointed = [];
+    if (tutorial.ok && !tutorial.value.flow.complete) for (const focus of tutorial.value.presentation.focus ?? []) {
       const seat = scope.seatIds[focus.owner === 'ai' ? 1 : 0];
       const selectors = {card:`[data-card-id="${focus.cardId}"][data-seat="${seat}"][data-zone="${focus.zone}"]`,
         zone:`.zone[data-seat="${seat}"][data-zone="${focus.zone}"]`,fortress:`[data-fortress="${seat}"]`,
@@ -101,6 +78,8 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
         button:focus.button === 'play' ? `.r2-popup[data-card-id="${focus.cardId}"] :is([data-route="executeCard"],[data-route="executeSpell"])` : null};
       const named = element => !focus.badge || [element.getAttribute('aria-label'), element.getAttribute('title'), element.textContent].some(text => text?.includes(focus.badge));
       for (const element of [...root.querySelectorAll(selectors[focus.kind] ?? ':not(*)')].filter(named)) {
+        pointed.push(element);
+        if (!guideLastPage()) continue;
         element.classList.add('live-focus');element.dataset.tutorialFocusLabel = focus.label;
         // The card detail scrolls; on a short screen its ability buttons sit below the fold. Centred, so the
         // highlight's outline is not cut by the panel's edge.
@@ -108,12 +87,13 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
         if (focus.kind === 'ui' && focus.target === 'ability-badge' && scrolledFocus !== key) { scrolledFocus = key; element.scrollIntoView({ block: 'center', inline: 'nearest' }); }
       }
     }
-    const guide = root.querySelector('.live-guide');
-    if (guide) {
-      guideViewport = viewport;
-      paginateGuide(guide,guideViewport);
-      prepareGuideContent(guide,guideViewport);
-      queueGuideMeasurement(epoch);
+    const guide = root.querySelector('.live-guide'), view = root.querySelector('.r2-runtime-view');
+    if (guide && view) {
+      const rects = pointed.map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
+      const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}`;
+      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null) };
+      applyGuideBand(view, guideBand.band, viewport);
+      paginateGuide(guide);
     }
   };
   const queueLayout = () => {
@@ -123,6 +103,6 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
   };
   return Object.freeze({
     queue: queueLayout,
-    dispose() { geometryEpoch += 1; layoutFrame = null; guideMeasureFrame = null; guidePositionFrame = null; }
+    dispose() { geometryEpoch += 1; layoutFrame = null; }
   });
 }

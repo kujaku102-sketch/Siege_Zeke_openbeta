@@ -249,24 +249,29 @@ test('tutorial try: the blocked play moves the step on and puts its reason in th
 
 test('guide pages: cut by the layout against the screen, turned by buttons and arrows; earlier pages lock the match and hide highlights', async () => {
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
-  assert.ok(surface.includes("guidePaging = { key, pages: splitGuidePages(presentation.text, { lineCount: counter.count }) };"));
-  assert.ok(surface.includes("const key = `${presentation.text}\\u0000${counter.width}\\u0000${fontEpoch}`;"), 'recut when the screen width or the fonts change');
+  assert.ok(surface.includes("guidePaging = { key, pages: splitGuidePages(presentation.text, { lineCount: counter.count, maxLines }) };"));
+  assert.ok(surface.includes("const maxLines = Math.min(GUIDE_MAX_LINES, counter.lines);"), 'no more lines than the band holds');
+  assert.ok(surface.includes("const key = `${presentation.text}\\u0000${counter.width}\\u0000${maxLines}\\u0000${fontEpoch}`;"), 'recut when the screen or the fonts change');
   assert.ok(surface.includes("for (const name of ['board', 'console', 'hand', 'hand-toggle']) { const host = root.querySelector(`[data-live-region=\"${name}\"]`); if (host) host.inert = reading; }"));
   assert.ok(surface.includes("if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && event.target.closest?.('.live-guide')) {"));
   assert.ok(surface.includes("if (focused) (root.querySelector(delta < 0 && index > 0 ? '.live-guide [data-runtime-guide-prev]' : forward) ?? root.querySelector(forward))?.focus();"), 'focus follows the button pressed, [次へ] on the next page');
   const layout = await readSource('../src/ui-refresh/surface-layout.js');
-  assert.ok(layout.includes('if (tutorial.ok && !tutorial.value.flow.complete && guideLastPage()) for (const focus of'));
+  assert.ok(layout.includes('if (tutorial.ok && !tutorial.value.flow.complete) for (const focus of'));
+  assert.ok(layout.includes("pointed.push(element);\n        if (!guideLastPage()) continue;\n        element.classList.add('live-focus');"), 'found on every page, marked on the last');
   const clicks = await readSource('../src/ui-refresh/surface-clicks.js');
   assert.ok(clicks.includes("['data-runtime-guide-next', c => c.turnGuidePage(1)],") && clicks.includes("['data-runtime-guide-prev', c => c.turnGuidePage(-1)],"));
 });
 
-test('guide box: one width across a step\'s pages (the widest page), and the compat render mode marked for the guide skin', async () => {
-  const guide = await readSource('../src/ui-refresh/guide.js');
-  assert.ok(guide.includes('export function measureGuideContent(guide, viewport, pageTexts = []) {'));
-  assert.ok(guide.includes('for (const page of pageTexts) { probe.textContent = page; naturalWidth = Math.max(naturalWidth, probe.getBoundingClientRect().width); }'));
+test('guide band: the guide fills one of three bands, chosen once a step against what it points at; compat mode marked for the skin', async () => {
   const layout = await readSource('../src/ui-refresh/surface-layout.js');
-  assert.ok(layout.includes('const width = measureGuideContent(guide,guideViewport,guidePageTexts());'));
+  assert.ok(layout.includes("const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}`;"), 'kept while the pages turn');
+  assert.ok(layout.includes('if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null) };'));
+  assert.ok(layout.includes('applyGuideBand(view, guideBand.band, viewport);\n      paginateGuide(guide);'), 'pages are cut in the band as placed');
+  const guide = await readSource('../src/ui-refresh/guide.js');
+  assert.ok(guide.includes('view.dataset.guideBand = band;'));
+  assert.ok(guide.includes('lines: Math.max(1, fits - 1),'), "one line kept for a refused move's reason");
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
-  assert.ok(surface.includes("guidePageTexts: () => guidePageShown?.count > 1 && guidePaging.pages ? guidePaging.pages.map(page => page.text) : [] });"));
   assert.ok(surface.includes("root.querySelector('.r2-runtime-view')?.classList.toggle('live-low-gpu', lowGpu);"));
+  const view = await readSource('../src/ui-refresh/runtime-read-view.js');
+  assert.ok(view.includes('<span class="live-guide-noportrait" aria-hidden="true">'), 'a speaker with no portrait');
 });

@@ -10,7 +10,7 @@ import { attachHandDock } from './wireframe/hand-dock.js';
 import { createSurfaceTimers } from './surface-timers.js';
 import { createSurfaceLayout } from './surface-layout.js';
 import { patchRegion, syncInteractionClasses, localRegionKeys, createLogSync } from './surface-regions.js';
-import { splitGuidePages } from './guide-pages.js';
+import { GUIDE_MAX_LINES, splitGuidePages } from './guide-pages.js';
 import { createGuideLineCounter } from './guide.js';
 import { createSurfaceScenes } from './surface-scenes.js';
 import { createSurfaceFx } from './surface-fx.js';
@@ -79,15 +79,16 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     const note = tutorialNote?.index === tutorial.value.flow.index ? { note: tutorialNote.text } : {};
     return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}) } };
   };
-  const paginateGuide = (guide, viewport) => {
+  const paginateGuide = guide => {
     const tutorial = session.tutorial(), presentation = tutorial.ok ? tutorial.value.presentation : null;
     if (!presentation || presentation.parts) return;
-    const counter = createGuideLineCounter(guide, viewport);
+    const counter = createGuideLineCounter(guide);
     if (!counter) return;
     try {
-      const key = `${presentation.text}\u0000${counter.width}\u0000${fontEpoch}`;
+      const maxLines = Math.min(GUIDE_MAX_LINES, counter.lines);
+      const key = `${presentation.text}\u0000${counter.width}\u0000${maxLines}\u0000${fontEpoch}`;
       if (guidePaging.key === key) return;
-      guidePaging = { key, pages: splitGuidePages(presentation.text, { lineCount: counter.count }) };
+      guidePaging = { key, pages: splitGuidePages(presentation.text, { lineCount: counter.count, maxLines }) };
       schedule(() => { if (!disposed) render(ui.read()); }, 0);
     } finally { counter.dispose(); }
   };
@@ -108,8 +109,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const { schedule } = timers;
   const surfaceLayout = createSurfaceLayout({ root, session, scope, boardStyle, latest: () => latest,
     requestFrame: timers.requestFrame, disposed: () => disposed,
-    guideLastPage: () => !guidePageShown || guidePageShown.last, paginateGuide: (guide, viewport) => paginateGuide(guide, viewport),
-    guidePageTexts: () => guidePageShown?.count > 1 && guidePaging.pages ? guidePaging.pages.map(page => page.text) : [] });
+    guideLastPage: () => !guidePageShown || guidePageShown.last, paginateGuide: guide => paginateGuide(guide),
+    guideStep: () => guidePage.step });
   const queueLayout = surfaceLayout.queue;
   const scenes = createSurfaceScenes({ root, boardStyle, renderQuality, latest: () => latest, lowGpu,
     onContextLost: () => { if (!disposed) onContextLost(); } });
