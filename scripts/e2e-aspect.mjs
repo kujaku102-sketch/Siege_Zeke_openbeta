@@ -108,11 +108,17 @@ try {
     await check('match');
     await page.evaluate(() => document.querySelector('[data-runtime-log]')?.click());
     await check('battle log');
-    // The tutorial guide takes the same share of every screen: its band a third of the height, its text 4.2%.
+    // The tutorial guide takes the same share of every screen: its band a third of the height, its text 4.2%. Measured
+    // on a one-line page (intro:5): a longer 「」 grows its frame (2026-10-28).
     await page.goto(target.toString(), { waitUntil: 'networkidle' });
     await page.waitForFunction(() => document.body.classList.contains('boot-done'), null, { timeout: 30000 });
     await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.start('tutorial', 'basics', 1));
     await page.locator('.live-guide').waitFor({ state: 'visible', timeout: 20000 });
+    for (let turn = 0; turn < 12 && await page.locator('.live-guide').getAttribute('data-tutorial-step') !== 'intro:5'; turn += 1) {
+      const step = await page.locator('.live-guide').getAttribute('data-tutorial-step');
+      await page.locator('.live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next])').first().click();
+      await page.waitForFunction(step => document.querySelector('.live-guide')?.dataset.tutorialStep !== step || document.querySelector('.live-guide')?.dataset.guidePage !== '1/1', step);
+    }
     await emulateSafari(page, large, small, phone);
     await check('tutorial guide');
     const guide = await page.evaluate(() => {

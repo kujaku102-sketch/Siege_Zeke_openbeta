@@ -69,7 +69,10 @@ const KNOWN_COVERED={
   // growing up over the pick bar.
   'pick@basics:37':['戻る'],'page@basics:41':['剣士'],'page@vengeance:3':['トライプビア'],'popup@vengeance:3':['トライプビア'],
   'page@vengeance:6':['効果起動','アクロィア','タナフォリア'],'popup@vengeance:6':['効果起動','アクロィア','タナフォリア'],
-  'pick@vengeance:8':['戻る'],'page@vengeance:10':['ドールズ'],'popup@vengeance:10':['ドールズ'],'pick@vengeance:10':['ドールズ']
+  'pick@vengeance:8':['戻る'],'page@vengeance:10':['ドールズ'],'popup@vengeance:10':['ドールズ'],'pick@vengeance:10':['ドールズ'],
+  // Since the PC buttons sit in a row under the text (2026-10-28): the row costs a line, so a two-line page grows too.
+  'page@basics:42':['剣士'],'popup@basics:42':['剣士'],'pick@basics:42':['剣士'],
+  'page@vengeance:9':['トライプビア'],'popup@vengeance:9':['トライプビア'],'pick@vengeance:9':['トライプビア']
 };
 // One page a 「」 of the script (pages cut at ▽ only), its text inside the frame (one line kept free for a refused
 // move's reason), the frame and the portrait on screen (文豪, 2026-10-28). Checked on every page.
