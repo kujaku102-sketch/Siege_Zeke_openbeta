@@ -5,7 +5,7 @@ import { placeFlow } from './effect-flow.js';
 // Screen geometry of a mounted match: board fit, card popup, floating effect flow,
 // tutorial focus and the guide. It only measures and positions; it never acts.
 // Each queue() starts a new geometry epoch, so a stale frame drops its work.
-export function createSurfaceLayout({ root, session, scope, boardStyle, latest, requestFrame, disposed, guideLastPage = () => true, paginateGuide = () => {} }) {
+export function createSurfaceLayout({ root, session, scope, boardStyle, latest, requestFrame, disposed, guideLastPage = () => true, paginateGuide = () => {}, guidePageTexts = () => [] }) {
   let layoutFrame = null;
   let guideMeasureFrame = null;
   let guidePositionFrame = null;
@@ -33,7 +33,7 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       if (epoch !== geometryEpoch) { queueGuideMeasurement(geometryEpoch); return; }
       const guide = root.querySelector('.live-guide');
       if (!guide || !guideViewport) return;
-      const width = measureGuideContent(guide,guideViewport);
+      const width = measureGuideContent(guide,guideViewport,guidePageTexts());
       commitGuideContent(guide,width);
       queueGuidePosition(epoch);
     });

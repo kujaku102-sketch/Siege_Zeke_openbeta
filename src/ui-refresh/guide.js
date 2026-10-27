@@ -17,14 +17,24 @@ export function prepareGuideContent(guide, viewport) {
   guide.dataset.measuring = "true";
 }
 
-export function measureGuideContent(guide, viewport) {
+export function measureGuideContent(guide, viewport, pageTexts = []) {
   const speech = guide.querySelector(".live-guide-speech");
   const text = guide.querySelector(".live-guide-text");
   const style = getComputedStyle(speech);
   const inset = [style.paddingLeft, style.paddingRight, style.borderLeftWidth, style.borderRightWidth]
     .reduce((sum, value) => sum + (parseFloat(value) || 0), 0);
   // Measure the actual rendered font (including ruby), not an estimated character count.
-  const naturalWidth = text.getBoundingClientRect().width;
+  let naturalWidth = text.getBoundingClientRect().width;
+  // A line over several pages takes its widest page, so the box keeps one width while the pages turn.
+  const line = text.querySelector("p");
+  if (line && pageTexts.length > 1) {
+    const probe = line.cloneNode(false);
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:absolute;left:0;top:0;width:max-content;white-space:nowrap;visibility:hidden;pointer-events:none";
+    text.append(probe);
+    for (const page of pageTexts) { probe.textContent = page; naturalWidth = Math.max(naturalWidth, probe.getBoundingClientRect().width); }
+    probe.remove();
+  }
   const base = guideSize(viewport);
   return Math.min(Math.max(1, viewport.width - 16), Math.max(base.width, Math.ceil(naturalWidth + inset)));
 }

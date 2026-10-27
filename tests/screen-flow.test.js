@@ -259,3 +259,14 @@ test('guide pages: cut by the layout against the screen, turned by buttons and a
   const clicks = await readSource('../src/ui-refresh/surface-clicks.js');
   assert.ok(clicks.includes("['data-runtime-guide-next', c => c.turnGuidePage(1)],") && clicks.includes("['data-runtime-guide-prev', c => c.turnGuidePage(-1)],"));
 });
+
+test('guide box: one width across a step\'s pages (the widest page), and the compat render mode marked for the guide skin', async () => {
+  const guide = await readSource('../src/ui-refresh/guide.js');
+  assert.ok(guide.includes('export function measureGuideContent(guide, viewport, pageTexts = []) {'));
+  assert.ok(guide.includes('for (const page of pageTexts) { probe.textContent = page; naturalWidth = Math.max(naturalWidth, probe.getBoundingClientRect().width); }'));
+  const layout = await readSource('../src/ui-refresh/surface-layout.js');
+  assert.ok(layout.includes('const width = measureGuideContent(guide,guideViewport,guidePageTexts());'));
+  const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
+  assert.ok(surface.includes("guidePageTexts: () => guidePageShown?.count > 1 && guidePaging.pages ? guidePaging.pages.map(page => page.text) : [] });"));
+  assert.ok(surface.includes("root.querySelector('.r2-runtime-view')?.classList.toggle('live-low-gpu', lowGpu);"));
+});

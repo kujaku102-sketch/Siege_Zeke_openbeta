@@ -108,7 +108,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const { schedule } = timers;
   const surfaceLayout = createSurfaceLayout({ root, session, scope, boardStyle, latest: () => latest,
     requestFrame: timers.requestFrame, disposed: () => disposed,
-    guideLastPage: () => !guidePageShown || guidePageShown.last, paginateGuide: (guide, viewport) => paginateGuide(guide, viewport) });
+    guideLastPage: () => !guidePageShown || guidePageShown.last, paginateGuide: (guide, viewport) => paginateGuide(guide, viewport),
+    guidePageTexts: () => guidePageShown?.count > 1 && guidePaging.pages ? guidePaging.pages.map(page => page.text) : [] });
   const queueLayout = surfaceLayout.queue;
   const scenes = createSurfaceScenes({ root, boardStyle, renderQuality, latest: () => latest, lowGpu,
     onContextLost: () => { if (!disposed) onContextLost(); } });
@@ -156,6 +157,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       const reading = Boolean(guidePageShown && !guidePageShown.last);
       for (const name of ['board', 'console', 'hand', 'hand-toggle']) { const host = root.querySelector(`[data-live-region="${name}"]`); if (host) host.inert = reading; }
       root.querySelector('.r2-runtime-view')?.classList.toggle('tutorial-reading', reading);
+      // Compat render mode: the guide drops its backdrop blur (heavy on WebKit) and keeps an opaque face.
+      root.querySelector('.r2-runtime-view')?.classList.toggle('live-low-gpu', lowGpu);
       handDock?.sync();
       // A new request puts the hand away: a raised hand covers the lit slots and the confirm
       // bar. It can be raised again, and stays up while a hand-card pick is being made.
