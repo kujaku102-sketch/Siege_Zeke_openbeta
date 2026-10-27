@@ -4,23 +4,20 @@
 // (their bottoms line up), taller than the frame, so it reaches up only. A band whose group would cover what the
 // step points at is skipped, in GUIDE_BAND_ORDER; a step may name its band ('top' | 'middle' | 'bottom') and is
 // then placed there as written. DOM-free: rectangles in, rectangles and a band out. Sizes are ratios of the
-// screen (or rem for the PC cap), never fixed px.
+// screen, never fixed px: the guide takes the same share of every screen, a PC's as a phone's (文豪, 2026-10-27).
 //
-// 仮置き (sz-ui の推奨、文豪の返事待ち): the order starts at the top, and a tall screen's band is capped at
-// GUIDE_BAND_MAX_RATIO of its height or GUIDE_BAND_MAX_REM root ems, whichever is smaller (viewport.rem is the
-// root font size the screen uses).
+// 仮置き (sz-ui の推奨、文豪の返事待ち): the order starts at the top.
 export const GUIDE_BAND_ORDER = Object.freeze(['top', 'bottom', 'middle']);
-export const GUIDE_BAND_MAX_REM = 11.25;
-export const GUIDE_BAND_MAX_RATIO = .25;
+// The band's height over the screen's height, on every screen.
+export const GUIDE_BAND_RATIO = 1 / 3;
 // The gap between the group and the screen's edges, as a share of the screen height.
 export const GUIDE_INSET_RATIO = .01;
 // The portrait's height over the frame's height (文豪, 2026-10-27: 1.6).
 export const GUIDE_PORTRAIT_SCALE = 1.6;
 
-// A third of the screen, unless that is more than the cap (a PC screen): then the cap.
+// A third of the screen, on a phone and on a PC alike.
 export function guideBandHeight(viewport) {
-  const third = viewport.height / 3, cap = GUIDE_BAND_MAX_REM * (viewport.rem ?? 16);
-  return third > cap ? Math.min(viewport.height * GUIDE_BAND_MAX_RATIO, cap) : third;
+  return viewport.height * GUIDE_BAND_RATIO;
 }
 
 const rect = (left, top, width, height) => ({ left, top, right: left + width, bottom: top + height, width, height });

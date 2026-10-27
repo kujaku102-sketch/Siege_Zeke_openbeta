@@ -1,24 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GUIDE_BAND_ORDER, GUIDE_BAND_MAX_REM, GUIDE_BAND_MAX_RATIO, GUIDE_INSET_RATIO, GUIDE_PORTRAIT_SCALE, guideBandHeight, guideLayout, chooseGuideBand } from '../src/ui-refresh/guide-band.js';
+import { readFileSync } from 'node:fs';
+import { GUIDE_BAND_ORDER, GUIDE_BAND_RATIO, GUIDE_INSET_RATIO, GUIDE_PORTRAIT_SCALE, guideBandHeight, guideLayout, chooseGuideBand } from '../src/ui-refresh/guide-band.js';
 
-const phone = { width: 852, height: 393 }, small = { width: 640, height: 360 }, pc = { width: 1280, height: 720 };
+const phone = { width: 852, height: 393 }, phoneMax = { width: 932, height: 430 }, pc = { width: 1280, height: 720 }, hd = { width: 1920, height: 1080 };
+const SCREENS = [hd, pc, phone, phoneMax];
 const box = (left, top, width, height) => ({ left, top, right: left + width, bottom: top + height });
 const near = (a, b, message) => assert.ok(Math.abs(a - b) < 1e-6, `${message}: ${a} vs ${b}`);
 const ASPECT = 540 / 640;
 
-test('guide band: thirds on a phone, capped on a PC (仮: 25% of the height or 11.25rem, the smaller)', () => {
-  assert.deepEqual([GUIDE_BAND_MAX_REM, GUIDE_BAND_MAX_RATIO, GUIDE_INSET_RATIO, GUIDE_PORTRAIT_SCALE], [11.25, .25, .01, 1.6]);
-  assert.equal(guideBandHeight(phone), 131);
-  assert.equal(guideBandHeight(small), 120);
-  assert.equal(guideBandHeight(pc), 180);
-  assert.equal(guideBandHeight({ width: 1920, height: 1080 }), 180);
-  assert.equal(guideBandHeight({ width: 1024, height: 600 }), 150, '200 is over the cap; a quarter is 150');
-  assert.equal(guideBandHeight({ width: 1280, height: 720, rem: 20 }), 180, 'a larger root font raises the cap: a quarter wins');
+test('guide band: a third of the height on every screen, a PC\'s as a phone\'s (文豪, 2026-10-27)', () => {
+  assert.deepEqual([GUIDE_BAND_RATIO, GUIDE_INSET_RATIO, GUIDE_PORTRAIT_SCALE], [1 / 3, .01, 1.6]);
+  for (const screen of SCREENS) near(guideBandHeight(screen) / screen.height, 1 / 3, `${screen.width}×${screen.height} band / height`);
+  assert.equal(guideBandHeight(hd), 360, 'no cap on a tall screen');
+});
+
+test('guide text: 4.2% of the height on every screen; the floor (15px at the default root size) only keeps it readable', () => {
+  const css = readFileSync(new URL('../src/ui-refresh/live.css', import.meta.url), 'utf8');
+  assert.match(css, /--guide-font:max\(\.9375rem,4\.2dvh\);/);
+  const font = height => Math.max(.9375 * 16, height * .042);
+  for (const screen of SCREENS) near(font(screen.height) / screen.height, .042, `${screen.width}×${screen.height} text / height`);
 });
 
 test('guide group: the portrait stands on the frame\'s bottom edge; bottom band on the screen\'s bottom, top band from the screen\'s top, middle centred', () => {
-  for (const screen of [phone, small, pc]) {
+  for (const screen of SCREENS) {
     const inset = screen.height * GUIDE_INSET_RATIO, frameHeight = guideBandHeight(screen) - 2 * inset;
     for (const band of ['top', 'middle', 'bottom']) {
       const { frame, portrait, group } = guideLayout(band, screen, ASPECT);

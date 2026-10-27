@@ -19,9 +19,9 @@ body { overflow:hidden; }
    the portrait (GUIDE_PORTRAIT_SCALE × the frame's height) stands on the frame's bottom edge at its left and
    reaches up out of it, its own background let through; the frame's text starts after it. Position and sizes
    come from the layout (applyGuideBand, ratios of the screen), so the box never follows its text. Type scales
-   with the screen height. */
+   with the screen height, the same share of every screen (文豪, 2026-10-27); the floor only keeps it readable. */
 .r2-content .r2-guide.live-guide { --gd-a:#00ff00; --gd-ink:#d6ffd6; --gd-dim:#7fcf8f; --gd-face:#071015; --gd-alpha:84%;
-  --guide-font:clamp(.9375rem,4.2dvh,1.125rem);
+  --guide-font:max(.9375rem,4.2dvh);
   /* One width for the button column on every page ([戻る] + [次へ]), so the text column, and the pages cut to
      it, stay the same while the pages turn. */
   --guide-nav-width:10em;
