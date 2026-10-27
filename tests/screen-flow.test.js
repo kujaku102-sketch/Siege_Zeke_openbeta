@@ -277,10 +277,10 @@ test('guide band: the guide fills one of three bands, chosen once a step against
   assert.ok(!css.includes('[data-guide-band="top"] .r2-guide.live-guide .live-guide-cast'), 'the portrait stands on the frame in every band');
   assert.ok(css.includes('.live-guide[data-paging="pending"] .live-guide-text { overflow:hidden; }') && !/data-paging="pending"\][^{]*\{[^}]*visibility:hidden/.test(css), 'the line shows while the pages are cut');
   assert.ok(guide.includes('frameHeight(value) { return Math.ceil(chrome + (count(value) + 1) * lineHeight); },'), "one line kept for a refused move's reason");
-  // PC (文豪, 2026-10-28): the buttons in one row under the text, the text across the frame; phones keep the column.
-  assert.ok(css.includes('body[data-view="pc"] .r2-content .r2-guide.live-guide .live-guide-speech { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) auto; }'));
-  assert.ok(css.includes('body[data-view="pc"] .r2-content .r2-guide.live-guide nav { grid-column:1; grid-row:2;'), 'the row under the text (the free line for a reason above it)');
-  assert.ok(css.includes('grid-template-areas:". page skip turn"; justify-items:end;'), 'kept to the right, its left open to the board');
+  // PC (文豪, 2026-10-28): the buttons in one row on the speaker-name line, the text across the frame; phones keep the column.
+  assert.ok(css.includes('body[data-view="pc"] .r2-content .r2-guide.live-guide .live-guide-speech { grid-template-columns:minmax(0,1fr); }'));
+  assert.ok(css.includes('body[data-view="pc"] .r2-content .r2-guide.live-guide nav { position:absolute; top:.3em; right:.45em; grid-column:1;'), 'on the name line, top right: no line of the frame for them; placed in the frame\'s one column, not a zero-width second');
+  assert.ok(css.includes('grid-template-areas:"page skip turn"; gap:0 .6em; margin:0; }'), 'one row');
   assert.ok(!/body\[data-view="pc"\][^{]*\{[^}]*\d+px/.test(css), 'sized as ratios, no px');
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
   assert.ok(surface.includes("root.querySelector('.r2-runtime-view')?.classList.toggle('live-low-gpu', lowGpu);"));
