@@ -15,6 +15,7 @@
     "test:boundary": "node --test tests/boundary.test.js",
     "e2e:public": "node scripts/e2e-public-build.mjs",
     "e2e:tutorial": "node scripts/e2e-tutorial.mjs",
+    "e2e:tutorial:screens": "node scripts/e2e-tutorial.mjs --screens",
     "e2e:layered": "node scripts/e2e-layered.mjs",
     "e2e:partial-batch-a": "node scripts/e2e-partial-batch-a.mjs",
     "e2e:pwa": "node scripts/e2e-pwa-cache.mjs",
