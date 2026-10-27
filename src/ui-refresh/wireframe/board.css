@@ -29,8 +29,8 @@ body[data-view] .r2-content .r2-wireframe-view .wire-board-host { position:absol
 .r2-wireframe-view .selected .card-line { stroke:#e6dd8c; stroke-width:3; }
 .r2-wireframe-view .request-target .slot,.r2-wireframe-view .request-target .user-target { stroke:#ecc987; stroke-width:3; fill:#e9b33b33; }
 .r2-wireframe-view [data-wire-hit]:focus-visible .slot,.r2-wireframe-view [data-wire-hit]:focus-visible .user-target { stroke:white; stroke-width:4; }
-.r2-wireframe-view .board-label { fill:#91a9b8; font:12px system-ui; letter-spacing:1px; pointer-events:none; }
-.r2-wireframe-view .card-caption { fill:#dae5ec; font:11px system-ui; pointer-events:none; }
+.r2-wireframe-view .board-label { fill:#91a9b8; font:max(.625rem, calc(var(--u) * .75)) system-ui; letter-spacing:calc(var(--u) * .0625); pointer-events:none; }
+.r2-wireframe-view .card-caption { fill:#dae5ec; font:max(.625rem, calc(var(--u) * .6875)) system-ui; pointer-events:none; }
 .r2-wireframe-view .registry { fill:#d79b3822; stroke:#b49155; stroke-width:1.2; }
 .r2-wireframe-view .pile { fill:#151e25; stroke:#aaa; }
 .r2-wireframe-view .trash-pile { fill:#39243b; stroke:#d392c6; stroke-width:1.2; }

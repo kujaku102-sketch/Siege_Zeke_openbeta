@@ -5,14 +5,14 @@ button,input { font:inherit; }
 button { color:inherit; background:#242427; border:1px solid var(--line); border-radius:4px; padding:9px 12px; cursor:pointer; }
 button:hover:not(:disabled) { background:#36363b; border-color:#a1a1aa; }
 button:disabled { opacity:.5; cursor:not-allowed; }
-button:focus-visible,input:focus-visible,[tabindex]:focus-visible,summary:focus-visible { outline:2px solid #fafafa; outline-offset:3px; }
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible,summary:focus-visible { outline:calc(var(--u) * .125) solid #fafafa; outline-offset:calc(var(--u) * .1875); }
 button[aria-pressed="true"] { border-color:#fafafa; }
 [hidden] { display:none!important; }
 h1,h2,p { margin:0; }
 small { color:var(--muted); }
-.r2-entry { max-width:1120px; padding:clamp(20px,6vh,70px) 24px 60px; margin:auto; }
+.r2-entry { max-width:calc(var(--u) * 70); padding:clamp(calc(var(--u) * 1.25),6vh,calc(var(--u) * 4.375)) calc(var(--u) * 1.5) calc(var(--u) * 3.75); margin:auto; }
 .r2-intro { margin-bottom:36px; }
-.r2-intro h1 { margin:16px 0 8px; font-size:clamp(36px,6vw,76px); letter-spacing:-3px; line-height:1; }
+.r2-intro h1 { margin:calc(var(--u) * 1) 0 calc(var(--u) * .5); font-size:clamp(calc(var(--u) * 2.25),6vw,calc(var(--u) * 4.75)); letter-spacing:calc(var(--u) * -.1875); line-height:1; }
 .r2-intro h1 span { color:#a1a1aa; font-weight:300; margin:0 8px; }
 .r2-intro p { color:#a1a1aa; font-size:14px; letter-spacing:2px; }
 .r2-mode-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
@@ -25,9 +25,9 @@ small { color:var(--muted); }
 .r2-mode-grid>button>b { position:absolute; right:20px; top:20px; color:#a1a1aa; font-weight:400; }
 .r2-mode-grid>.r2-deck-entry { grid-column:1/-1; min-height:80px; flex-direction:row; align-items:center; padding:20px 24px; }
 .r2-mode-grid>.r2-deck-entry strong { font-size:max(.625rem, calc(var(--u) * 1.125)); }
-[data-layout] { width:100%; margin:0; position:relative; height:calc(100svh - 92px); overflow:hidden; }
+[data-layout] { width:100%; margin:0; position:relative; height:calc(100svh - calc(var(--u) * 5.75)); overflow:hidden; }
 .r2-stage { position:absolute; inset:12px 16px 12px; display:grid; place-items:center; }
-.r2-board { position:relative; overflow:hidden; border:1px solid #52525b; border-radius:6px; background:#09090b; }
+.r2-board { position:relative; overflow:hidden; border:1px solid #52525b; border-radius:calc(var(--u) * .375); background:#09090b; }
 .r2-board-fit { position:absolute; top:50%; left:50%; width:1000px; transform-origin:50% 50%; }
 /* Preserve the existing desktop board composition, then scale the whole surface.
    Only these geometry rules are pinned; card artwork, stats, colours and chrome
@@ -57,7 +57,7 @@ small { color:var(--muted); }
 .r2-board .fortress:disabled { opacity:1; }
 .r2-hand .card { --card-name-base:calc(var(--u) * 1.375); min-width:0; grid-template-rows:calc(var(--u) * .875) minmax(0,1fr) calc(var(--u) * 1.375) calc(var(--u) * 1); touch-action:pan-x; user-select:none; -webkit-touch-callout:none; }
 :where([data-layout="desktop"]) .r2-tools-host { position:absolute; right:24px; top:24px; width:164px; }
-.r2-console { display:flex; flex-direction:column; gap:8px; padding:14px; background:#141416f5; border:1px solid #52525b; border-radius:6px; box-shadow:0 8px 25px #0008; }
+.r2-console { display:flex; flex-direction:column; gap:calc(var(--u) * .5); padding:calc(var(--u) * .875); background:#141416f5; border:1px solid #52525b; border-radius:calc(var(--u) * .375); box-shadow:0 8px 25px #0008; }
 .r2-console strong { font-size:16px; }
 .r2-console button { font-size:12px; }
 .r2-console>small { font-size:9px; text-align:center; }
@@ -81,7 +81,7 @@ small { color:var(--muted); }
 .r2-modal { position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:12px; background:#000a; backdrop-filter:blur(5px); }.r2-modal section { width:min(460px,100%); max-height:calc(100svh - 24px); overflow:auto; padding:24px; border:1px solid #71717a; border-radius:10px; background:#18181b; }.r2-modal header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }.r2-modal h2 { font-size:20px; }.r2-modal p { margin:12px 0; line-height:1.6; font-size:13px; }.r2-modal small { display:block; font-size:11px; line-height:1.7; }.r2-modal label { display:flex; gap:8px; font-size:13px; align-items:center; margin:18px 0 8px; }.r2-view-options { display:flex; gap:10px; }.r2-view-options>button { flex:1; }
 .r2-rotate { position:fixed; z-index:100; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:20px; padding:32px; text-align:center; background:#111114; }.r2-rotate>span { font-size:70px; }.r2-rotate h1 { font-size:22px; }.r2-rotate p { font-size:14px; color:#a1a1aa; line-height:1.8; }.r2-portrait-blocked { visibility:hidden; }
 /* Dedicated mobile shell. PC markup is not rearranged into this structure. */
-[data-layout="mobile"] { height:calc(100svh - 64px); }
+[data-layout="mobile"] { height:calc(100svh - calc(var(--u) * 4)); }
 [data-layout="mobile"] .r2-stage { inset:4px 12px; }
 :where([data-layout="mobile"]) .r2-tools-host { position:absolute; right:8px; top:8px; width:108px; }[data-layout="mobile"] .r2-console { padding:8px; gap:5px; }[data-layout="mobile"] .r2-console strong { font-size:12px; }[data-layout="mobile"] .r2-console button { font-size:10px; min-height:32px; padding:5px; }[data-layout="mobile"] .r2-console small { font-size:7px; }
 :where([data-layout="mobile"]) .r2-hand-host { position:absolute; bottom:0; left:50%; width:54vw; transform:translateX(-50%); }[data-layout="mobile"] .r2-hand-scroll { padding:20px 18px 14px; }[data-layout="mobile"] .r2-hand .hand-card>.card { width:calc(var(--u) * 4.5); height:calc(var(--u) * 6.3125); }[data-layout="mobile"] .r2-hand-scroll .card-name { font-size:calc(var(--u) * .5); }[data-layout="mobile"] .r2-hand-scroll .card-top { font-size:7px; }[data-layout="mobile"] .r2-hand-scroll .stat { width:calc(var(--u) * 1.125); height:calc(var(--u) * 1.125); }[data-layout="mobile"] .r2-hand-scroll .stat small { font-size:calc(var(--u) * .1875); }[data-layout="mobile"] .r2-hand-scroll .stat b { font-size:calc(var(--u) * .4375); }
