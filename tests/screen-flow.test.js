@@ -267,6 +267,7 @@ test('guide band: the guide fills one of three bands, chosen once a step against
   assert.ok(layout.includes("const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}`;"), 'kept while the pages turn');
   assert.ok(layout.includes('if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { portrait: guidePortraitSize(viewport) }) };'), 'the portrait standing out of the band counts');
   assert.ok(layout.includes('applyGuideBand(view, guideBand.band, viewport);\n      paginateGuide(guide);'), 'pages are cut in the band as placed');
+  assert.ok(layout.includes("const picks = [...root.querySelectorAll('.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline]')];"), "a pick's options count as covered");
   const guide = await readSource('../src/ui-refresh/guide.js');
   assert.ok(guide.includes('view.dataset.guideBand = band;'));
   assert.ok(guide.includes('const PORTRAIT_SCALE = 1.6;'), 'the portrait at 1.6 times the band (文豪), one constant');

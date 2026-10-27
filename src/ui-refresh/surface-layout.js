@@ -91,7 +91,9 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
     }
     const guide = root.querySelector('.live-guide'), view = root.querySelector('.r2-runtime-view');
     if (guide && view) {
-      const rects = pointed.map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
+      // What a pick asks the player to press is kept clear as well as the step's highlights.
+      const picks = [...root.querySelectorAll('.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline]')];
+      const rects = [...pointed, ...picks].map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
       const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}`;
       if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { portrait: guidePortraitSize(viewport) }) };
       applyGuideBand(view, guideBand.band, viewport);
