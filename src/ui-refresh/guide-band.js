@@ -14,6 +14,9 @@ export const GUIDE_BAND_RATIO = 1 / 3;
 export const GUIDE_INSET_RATIO = .01;
 // The portrait's height over the frame's height (文豪, 2026-10-27: 1.6).
 export const GUIDE_PORTRAIT_SCALE = 1.6;
+// A page too long for the frame grows it, that page only (文豪, 2026-10-28), up to this share of the screen height:
+// two thirds, so the frame stays on the screen in every band and a third of the board stays in sight.
+export const GUIDE_FRAME_MAX_RATIO = 2 / 3;
 
 // A third of the screen, on a phone and on a PC alike.
 export function guideBandHeight(viewport) {
@@ -23,20 +26,22 @@ export function guideBandHeight(viewport) {
 const rect = (left, top, width, height) => ({ left, top, right: left + width, bottom: top + height, width, height });
 
 // The group on this screen in this band. Bottom band: the frame's bottom on the screen's bottom edge, the portrait
-// reaching up. Top band: the portrait's top on the screen's top edge, the frame below it ending where the portrait
-// does. Middle band: the group centred on the screen. The group never leaves the screen.
-// aspect: the portrait art's width over its height.
-export function guideLayout(band, viewport, aspect = 1) {
+// reaching up. Top band: the group's top on the screen's top edge, the frame ending where the portrait does.
+// Middle band: the group centred on the screen. The group never leaves the screen.
+// aspect: the portrait art's width over its height. grow: how much taller this page needs the frame (px); the
+// portrait keeps its size and stands on the grown frame's bottom edge.
+export function guideLayout(band, viewport, aspect = 1, grow = 0) {
   const inset = viewport.height * GUIDE_INSET_RATIO;
-  const frameHeight = guideBandHeight(viewport) - 2 * inset;
-  const portraitHeight = Math.min(frameHeight * GUIDE_PORTRAIT_SCALE, viewport.height - 2 * inset);
-  const portraitWidth = portraitHeight * aspect;
-  const groupTop = { top: inset, middle: (viewport.height - portraitHeight) / 2, bottom: viewport.height - inset - portraitHeight }[band] ?? inset;
-  const groupBottom = groupTop + portraitHeight;
+  const baseHeight = guideBandHeight(viewport) - 2 * inset;
+  const frameHeight = Math.min(baseHeight + Math.max(0, grow), viewport.height * GUIDE_FRAME_MAX_RATIO);
+  const portraitHeight = Math.min(baseHeight * GUIDE_PORTRAIT_SCALE, viewport.height - 2 * inset);
+  const portraitWidth = portraitHeight * aspect, groupHeight = Math.max(portraitHeight, frameHeight);
+  const groupTop = { top: inset, middle: (viewport.height - groupHeight) / 2, bottom: viewport.height - inset - groupHeight }[band] ?? inset;
+  const groupBottom = groupTop + groupHeight;
   return {
     band, inset,
-    group: rect(inset, groupTop, viewport.width - 2 * inset, portraitHeight),
-    portrait: rect(inset, groupTop, portraitWidth, portraitHeight),
+    group: rect(inset, groupTop, viewport.width - 2 * inset, groupHeight),
+    portrait: rect(inset, groupBottom - portraitHeight, portraitWidth, portraitHeight),
     frame: rect(inset + portraitWidth, groupBottom - frameHeight, Math.max(0, viewport.width - 2 * inset - portraitWidth), frameHeight),
     // The guide box: the frame's band across the whole width (the portrait column on its left).
     box: rect(inset, groupBottom - frameHeight, viewport.width - 2 * inset, frameHeight)
@@ -49,12 +54,13 @@ const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.le
 // targets: the screen rectangles of the step's highlights and controls. A band covers them with what the group
 // actually takes: the portrait and the frame (not the empty corner above the frame beside the portrait). With
 // every band covering something, the band covering least wins (ties keep the order).
-export function chooseGuideBand(viewport, targets = [], preferred = null, { aspect = 1 } = {}) {
+// grow: the frame as its tallest page in the step needs it (the band is kept while the pages turn).
+export function chooseGuideBand(viewport, targets = [], preferred = null, { aspect = 1, grow = 0 } = {}) {
   if (GUIDE_BAND_ORDER.includes(preferred)) return preferred;
   const visible = targets.filter(t => t && t.right > t.left && t.bottom > t.top);
   let best = null;
   for (const band of GUIDE_BAND_ORDER) {
-    const { portrait, frame } = guideLayout(band, viewport, aspect);
+    const { portrait, frame } = guideLayout(band, viewport, aspect, grow);
     const covered = visible.reduce((sum, target) => sum + overlap(portrait, target) + overlap(frame, target), 0);
     if (covered === 0) return band;
     // Less than a square pixel apart is a tie (the bands' sums differ only by rounding).

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { GUIDE_BAND_ORDER, GUIDE_BAND_RATIO, GUIDE_INSET_RATIO, GUIDE_PORTRAIT_SCALE, guideBandHeight, guideLayout, chooseGuideBand } from '../src/ui-refresh/guide-band.js';
+import { GUIDE_BAND_ORDER, GUIDE_BAND_RATIO, GUIDE_FRAME_MAX_RATIO, GUIDE_INSET_RATIO, GUIDE_PORTRAIT_SCALE, guideBandHeight, guideLayout, chooseGuideBand } from '../src/ui-refresh/guide-band.js';
 
 const phone = { width: 852, height: 393 }, phoneMax = { width: 932, height: 430 }, pc = { width: 1280, height: 720 }, hd = { width: 1920, height: 1080 };
 const SCREENS = [hd, pc, phone, phoneMax];
@@ -44,6 +44,30 @@ test('guide group: the portrait stands on the frame\'s bottom edge; bottom band 
   // On 852×393: frame 123.14 tall, portrait 197.02 tall — the top band's frame ends 201 down.
   const top = guideLayout('top', phone, ASPECT);
   assert.deepEqual([top.frame.top, top.frame.bottom].map(Math.round), [78, 201]);
+});
+
+test('guide frame: a long page grows it, that page only; the portrait stands on its bottom edge; never past two thirds of the screen (文豪, 2026-10-28)', () => {
+  assert.equal(GUIDE_FRAME_MAX_RATIO, 2 / 3);
+  for (const screen of SCREENS) {
+    const base = guideLayout('bottom', screen, ASPECT), inset = base.inset;
+    for (const band of ['top', 'middle', 'bottom']) for (const grow of [0, 40, screen.height * .2, screen.height]) {
+      const { frame, portrait, group } = guideLayout(band, screen, ASPECT, grow);
+      near(frame.height, Math.min(base.frame.height + grow, screen.height * 2 / 3), `${band} +${grow}: frame height`);
+      near(portrait.height, base.portrait.height, `${band} +${grow}: the portrait keeps its size`);
+      near(portrait.bottom, frame.bottom, `${band} +${grow}: the portrait on the frame's bottom edge`);
+      assert.ok(group.top >= inset - 1e-9 && group.bottom <= screen.height - inset + 1e-9 && frame.top >= 0, `${band} +${grow}: on screen`);
+    }
+    // Top band: while the frame is shorter than the portrait it grows up beside it, its bottom edge kept.
+    const top = guideLayout('top', screen, ASPECT), grown = guideLayout('top', screen, ASPECT, 20);
+    near(grown.frame.bottom, top.frame.bottom, 'top band: the bottom edge kept');
+    near(grown.frame.top, top.frame.top - 20, 'top band: grown upward');
+    near(guideLayout('bottom', screen, ASPECT, 20).frame.bottom, screen.height - inset, 'bottom band: still on the bottom edge');
+  }
+  // The band is chosen with the grown frame: a card just above the bottom band's frame is covered once it grows
+  // (852×393: grown by 40px the bottom band covers 35px of it, the top band all 30px of a card high up).
+  const card = box(500, guideLayout('bottom', phone, ASPECT).frame.top - 45, 60, 40), high = box(500, 60, 60, 30);
+  assert.equal(chooseGuideBand(phone, [high, card], null, { aspect: ASPECT }), 'bottom');
+  assert.equal(chooseGuideBand(phone, [high, card], null, { aspect: ASPECT, grow: 40 }), 'top');
 });
 
 test('guide band: chosen against what the group takes — the portrait and the frame, not the free corner above the frame', () => {

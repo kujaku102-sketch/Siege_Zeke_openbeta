@@ -15,7 +15,7 @@ const EXPECTED_ROUTES = Object.freeze({ play: ['executeCard', 'executeSpell', 'm
   attack: ['attack'], layered: ['executeLayered'], relog: ['redeploy'], 'activate-effect': ['activateCardEffect'] });
 const expectedButton = expect => EXPECTED_ROUTES[expect?.type] && expect.cardId ? [{ kind: 'route', cardId: expect.cardId, routes: EXPECTED_ROUTES[expect.type] }] : [];
 
-export function createSurfaceLayout({ root, session, scope, boardStyle, latest, requestFrame, disposed, guideLastPage = () => true, paginateGuide = () => {}, guideStep = () => null }) {
+export function createSurfaceLayout({ root, session, scope, boardStyle, latest, requestFrame, disposed, guideLastPage = () => true, paginateGuide = () => {}, guideStep = () => null, guideGrow = () => ({ page: 0, step: 0 }) }) {
   let layoutFrame = null;
   let scrolledFocus = null;
   let geometryEpoch = 0;
@@ -105,9 +105,12 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       // What a pick asks the player to press is kept clear as well as the step's highlights.
       const picks = [...root.querySelectorAll('.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline]')];
       const rects = [...pointed, ...picks].map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
-      const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}`;
-      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT }) };
-      applyGuideBand(view, guideBand.band, viewport);
+      // A page too long for a third of the screen grows the frame (文豪, 2026-10-28): the band keeps clear with the
+      // step's tallest page, and the page shown gets its own height.
+      const grow = guideGrow();
+      const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}`;
+      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step }) };
+      applyGuideBand(view, guideBand.band, viewport, grow.page);
       paginateGuide(guide);
     }
   };

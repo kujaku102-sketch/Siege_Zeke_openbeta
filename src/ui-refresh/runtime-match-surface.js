@@ -10,8 +10,9 @@ import { attachHandDock } from './wireframe/hand-dock.js';
 import { createSurfaceTimers } from './surface-timers.js';
 import { createSurfaceLayout } from './surface-layout.js';
 import { patchRegion, syncInteractionClasses, localRegionKeys, createLogSync } from './surface-regions.js';
-import { GUIDE_MAX_LINES, splitGuidePages } from './guide-pages.js';
+import { splitGuidePages } from './guide-pages.js';
 import { createGuideLineCounter } from './guide.js';
+import { guideLayout } from './guide-band.js';
 import { createSurfaceScenes } from './surface-scenes.js';
 import { createSurfaceFx } from './surface-fx.js';
 import { routeClick } from './surface-clicks.js';
@@ -57,8 +58,9 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   // A line the surface adds under the guide's text for one step (the reason a tried play failed).
   let tutorialNote = null;
   const noteTutorial = text => { const index = tutorialIndex(); tutorialNote = index === null ? null : { index, text }; };
-  // Guide pages (guide-pages.js): cut per screen by the layout (paginateGuide), turned by [次へ]/[戻る] or the
-  // arrow keys. Until the last page of a step its highlights stay off and the match does not take input.
+  // Guide pages (guide-pages.js): one per 「」 of the script, each with how much taller than a third of the screen
+  // its frame must be on this screen (paginateGuide), turned by [次へ]/[戻る] or the arrow keys. Until the last page
+  // of a step its highlights stay off and the match does not take input.
   let guidePaging = { key: null, pages: null }, guidePage = { step: null, index: 0 }, guidePageShown = null, fontEpoch = 0;
   const pageStep = flow => `${flow.tutorialId}:${flow.complete ? 'done' : flow.introComplete ? flow.index : 'intro:' + flow.introIndex}`;
   const pageFor = value => {
@@ -85,12 +87,18 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     const counter = createGuideLineCounter(guide);
     if (!counter) return;
     try {
-      const maxLines = Math.min(GUIDE_MAX_LINES, counter.lines);
-      const key = `${presentation.text}\u0000${counter.width}\u0000${maxLines}\u0000${fontEpoch}`;
+      const html = root.ownerDocument.documentElement, viewport = { width: html.clientWidth, height: html.clientHeight };
+      const key = `${presentation.text}\u0000${counter.width}\u0000${viewport.height}\u0000${fontEpoch}`;
       if (guidePaging.key === key) return;
-      guidePaging = { key, pages: splitGuidePages(presentation.text, { lineCount: counter.count, maxLines }) };
+      const base = guideLayout('bottom', viewport).frame.height;
+      guidePaging = { key, pages: splitGuidePages(presentation.text).map(page => ({ ...page, grow: Math.max(0, counter.frameHeight(page.text) - base) })) };
       schedule(() => { if (!disposed) render(ui.read()); }, 0);
     } finally { counter.dispose(); }
+  };
+  // How much the frame grows (px): for the page shown, and for the step's tallest page (the band is chosen for it).
+  const guideGrow = () => {
+    const pages = guidePageShown && !guidePageShown.pending ? guidePaging.pages : null;
+    return pages ? { page: pages[guidePageShown.index]?.grow ?? 0, step: Math.max(0, ...pages.map(page => page.grow ?? 0)) } : { page: 0, step: 0 };
   };
   const turnGuidePage = delta => {
     const shown = guidePageShown;
@@ -110,7 +118,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const surfaceLayout = createSurfaceLayout({ root, session, scope, boardStyle, latest: () => latest,
     requestFrame: timers.requestFrame, disposed: () => disposed,
     guideLastPage: () => !guidePageShown || guidePageShown.last, paginateGuide: guide => paginateGuide(guide),
-    guideStep: () => guidePage.step });
+    guideStep: () => guidePage.step, guideGrow: () => guideGrow() });
   const queueLayout = surfaceLayout.queue;
   const scenes = createSurfaceScenes({ root, boardStyle, renderQuality, latest: () => latest, lowGpu,
     onContextLost: () => { if (!disposed) onContextLost(); } });
