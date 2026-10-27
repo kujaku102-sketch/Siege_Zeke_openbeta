@@ -19,6 +19,7 @@
     "e2e:partial-batch-a": "node scripts/e2e-partial-batch-a.mjs",
     "e2e:pwa": "node scripts/e2e-pwa-cache.mjs",
     "e2e:release-audit": "node scripts/e2e-release-audit.mjs",
+    "e2e:aspect": "node scripts/e2e-aspect.mjs",
     "release:gate": "node scripts/release-gate.mjs",
     "logs:pull": "node scripts/pull-match-logs.mjs"
   },
