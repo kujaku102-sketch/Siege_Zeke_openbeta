@@ -152,8 +152,9 @@ async function choose(page,request,query,preference) {
   const answer=answerFor(request,query,preference,await hiddenSlots(page,request,query));
   for (const id of answer.optionIds) await pick(page,request.options.find(option => option.optionId===id),query);
   for (const row of answer.allocation) await page.locator('[data-allocation-option="'+row.optionId+'"]').fill(String(row.amount));
+  // A pick that completes a refused plan brings the guide back: the confirm bar waits with the match.
   const confirm=page.locator('[data-runtime-confirm]').first();
-  if (await confirm.count() && await confirm.isVisible() && await confirm.isEnabled()) await clickVisible(page,'[data-runtime-confirm]');
+  if (!await page.locator('.live-guide').count() && await confirm.count() && await confirm.isVisible() && await confirm.isEnabled()) await clickVisible(page,'[data-runtime-confirm]');
   return answer;
 }
 // The tutorial refuses an off-script answer that would leave it unwinnable: the same choice stays open
@@ -214,10 +215,16 @@ async function action(page,type,id,preference={}) {
     if (!planned.ok) {if (await moved()) return;throw new Error(JSON.stringify(planned));}
     if (planned.value.completion) {
       const confirm=page.locator('[data-runtime-confirm]').first();
-      if (await confirm.count() && await confirm.isVisible()) await clickVisible(page,'[data-runtime-confirm]');
-      // A refused plan stays on its confirm bar; the player backs out of it with [戻る].
+      if (!await page.locator('.live-guide').count() && await confirm.count() && await confirm.isVisible()) await clickVisible(page,'[data-runtime-confirm]');
+      // A refused plan stays on its confirm bar; the guide comes back with the reason and the match waits again, the
+      // same reason as before too. Once it is put away the player backs out of the plan with [戻る].
       if (preference.refused) {
         await page.waitForTimeout(600);if (await moved()) throw new Error('off-script '+type+' '+id+' was accepted');
+        await page.locator('.live-guide').waitFor({state:'visible',timeout:3000}).catch(() => {throw new Error('the guide did not come back on the refused '+preference.label);});
+        const reason=await page.locator('.live-guide .live-guide-error').innerText().catch(() => '');
+        if (!reason.includes(preference.refused)) throw new Error('the refusal reason is not shown for '+preference.label+': '+reason);
+        await tapWhileSpeaking(page,'refused '+preference.label);
+        await putAway(page);
         for (let back=0;back<4 && await page.locator('[data-runtime-back]').first().isVisible().catch(() => false);back+=1) await clickVisible(page,'[data-runtime-back]');
         return;
       }
@@ -246,7 +253,7 @@ async function readPages(page) {
 }
 const next = async page => {await readPages(page);await clickVisible(page,'[data-runtime-tutorial-next]');};
 // While the guide speaks the match takes no input; on a step that asks for a move a tap on its line puts it away
-// until the next step or a refused move's reason (文豪, 2026-10-28). A step pointing at a button to press is one
+// until the next step or a refused move (文豪, 2026-10-28). A step pointing at a button to press is one
 // such step, though the script moves it on by [次へ].
 async function putAway(page) {
   const press=await page.evaluate(() => Boolean(window.__SIMPLE_ZEKE_E2E__.tutorial().value?.presentation?.focus?.some(focus => focus.kind==='button')));
@@ -256,6 +263,38 @@ async function putAway(page) {
   await page.waitForFunction(() => !document.querySelector('.live-guide'),null,{timeout:3000});
   if (await page.evaluate(() => document.querySelector('[data-live-region="board"]')?.inert)) throw new Error('the match still waits with the guide put away');
   if (!await page.locator('.live-guide-away [data-runtime-tutorial-skip]').isVisible()) throw new Error('[スキップ] not kept with the guide put away');
+}
+// While the guide speaks a real click (a tap on a phone) on what it does not cover changes nothing: cards, popup and
+// pick buttons, slots, the user, the hand button (a phone tap on a card fell on a popup's button left open).
+async function tapWhileSpeaking(page,label) {
+  const state=() => page.evaluate(() => {const query=window.__SIMPLE_ZEKE_E2E__.query().value,flow=window.__SIMPLE_ZEKE_E2E__.tutorial().value.flow;
+    return JSON.stringify({revision:query.status.revision,input:query.requiredInput?.choiceId ?? null,step:flow.index,guide:Boolean(document.querySelector('.live-guide')),
+      popups:document.querySelectorAll('.r2-popup').length,details:document.querySelectorAll('.r2-detail').length,hand:document.querySelector('[data-layer="hand"]:not([hidden])') !== null,
+      pick:document.querySelectorAll('[data-runtime-confirm],[data-runtime-back],[data-option-id]').length});});
+  const touch=await page.evaluate(() => navigator.maxTouchPoints>0);
+  // The frame grows a line for a refused move's reason: the points are taken once it has settled.
+  await page.waitForTimeout(400);
+  const points=await page.evaluate(() => [...document.querySelectorAll('[data-card-ref],[data-action-id],[data-runtime-confirm],[data-runtime-back],[data-option-id],.board-slot,[data-fortress],[data-runtime-hand]')]
+    .map(node => {const rect=node.getBoundingClientRect();return {x:rect.left+rect.width/2,y:rect.top+rect.height/2,shown:rect.width>0};})
+    .filter(({x,y,shown}) => shown && x>=0 && y>=0 && x<innerWidth && y<innerHeight));
+  const before=await state();
+  if (!JSON.parse(before).guide) throw new Error('the guide is not speaking at '+label);
+  let pressed=0;
+  for (const point of points) {
+    // A tap on the guide's own line puts it away: only what lies clear of the guide is pressed (a phone's touch
+    // adjustment takes a tap just beside the line for the line).
+    const hit=await page.evaluate(({x,y}) => {const node=document.elementFromPoint(x,y),margin=innerHeight*.06;
+      const near=[...document.querySelectorAll('.live-guide-speech,.live-guide-away button')].some(guide => {const rect=guide.getBoundingClientRect();
+        return x>rect.left-margin && x<rect.right+margin && y>rect.top-margin && y<rect.bottom+margin;});
+      return near || node?.closest('.live-guide,.live-guide-away') ? null : node?.outerHTML.slice(0,80) ?? '';},point);
+    if (hit===null) continue;
+    if (touch) await page.touchscreen.tap(point.x,point.y);else await page.mouse.click(point.x,point.y);
+    await page.waitForTimeout(60);
+    const after=await state();
+    if (after!==before) throw new Error('a tap while the guide speaks changed the match at '+label+' (pressed '+hit+'): '+before+' -> '+after);
+    if ((pressed+=1)>=16) break;
+  }
+  if (!pressed) throw new Error('nothing outside the guide to press at '+label);
 }
 // A step that asks to press something to see it moves on once it is open; the next line waits until it is closed
 // (文豪, 2026-10-28): the info button (held, let go), Atto's QA badge in its detail, the Junk Parts' detail.
@@ -384,9 +423,12 @@ async function run(page,id) {
     await step(page,id,31);await action(page,'endTurn');await settle(page);
     await talk(32,35);
     await pressAsked(page,id,36,() => tapCard(page,'STD-078','hand'),() => clickVisible(page,'[data-close-detail]'));
-    // Alone in a slot the Junk Parts leave Atto too weak for the Guardman: refused, with the reason in the guide.
-    await step(page,id,37);await action(page,'executeCard','STD-078',{zone:'front',refused:true});
-    if (!(await page.locator('.live-guide .live-guide-error').innerText().catch(() => '')).includes('アツト')) throw new Error('the Junk Parts refusal reason is not shown');
+    // Alone in a slot, under the soldier or alone in the back the Junk Parts leave Atto too weak for the Guardman:
+    // each is refused, with the reason in the guide.
+    await step(page,id,37);await tapWhileSpeaking(page,'step 37');
+    await action(page,'executeCard','STD-078',{zone:'front',refused:'アツト',label:'alone in the front'});
+    await action(page,'executeCard','STD-078',{targetId:'STD-021',cardOnly:true,refused:'アツト',label:'under the soldier'});
+    await action(page,'executeCard','STD-078',{zone:'back',refused:'アツト',label:'alone in the back'});
     await action(page,'executeCard','STD-078',{targetId:'STD-091',cardOnly:true});await settle(page);
     await talk(38,38);
     await step(page,id,39);await action(page,'attack','STD-091',{targetId:'STD-022'});await settle(page);
