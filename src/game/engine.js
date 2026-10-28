@@ -1,6 +1,6 @@
 import { CARD_LIBRARY, LAB_CARD_IDS, NEUTRON_DECK, RED_DECK, USER_CARDS, USERS, VENGEANCE_DECK, YELLOW_DECK } from "../data/cards.js";
 import { START_DECKS } from "../data/start-decks.js";
-import { TUTORIAL_OPPONENT_STR, TUTORIAL_RED_HAND } from "../data/tutorial-script.js";
+import { TUTORIAL_BLUE_DECK, TUTORIAL_BLUE_HAND, TUTORIAL_OPPONENT_STR, TUTORIAL_RED_HAND, TUTORIAL_SANDBAG_DECK } from "../data/tutorial-script.js";
 import { createRuntimeCard, createRuntimeToken, expandRuntimeDeck, RuntimeError } from "./runtime/factory.js";
 import { nextRng } from "./runtime/rng.js";
 import { compileEffectText, hasKeyword, keywordValue } from "./effect-compiler.js";
@@ -474,6 +474,16 @@ function arrangeVengeanceTutorial(players, runtimeContext = null) {
   players.ai.hand = ["STD-125", "STD-131", "STD-149"].map((id) => pullCard(players.ai.deck, id));
 }
 
+// 青(セキュリティ・ハッキング・暗号化)。手札はルチル・漣・フラウ・セキュリティウォールの4枚、場・レジストリは空。
+// 山札(オフェンスプロトコル1枚とアサルトプログラム)の並びには頼らない: ルチルのアクセスで山札は混ぜられるが、
+// 手札に移るのはオフェンスプロトコルだけなので、残りはすべてアサルトプログラムになる。
+// 相手は無色のサンドバッグデッキで、手札は装甲兵 メルク(STD-043)1枚だけ。
+function arrangeBlueTutorial(players, runtimeContext = null) {
+  players.ai.fortressStr = TUTORIAL_OPPONENT_STR;
+  players.player.hand = TUTORIAL_BLUE_HAND.map((id, index) => hydrateCard(createRuntimeCard(runtimeContext, id, "player", 401 + index)));
+  players.ai.hand = [hydrateCard(createRuntimeCard(runtimeContext, "STD-043", "ai", 411))];
+}
+
 function arrangeSandbox(players, { useConfiguredDecks = false } = {}, runtimeContext = null) {
   if (useConfiguredDecks) {
     for (const player of Object.values(players)) {
@@ -651,14 +661,17 @@ export const DECK_OPTIONS = Object.freeze({
   red: { label: "レッドパンクス・赤", color: "赤", recipe: RED_DECK, hidden: true },
   yellow: { label: "NOM・黄", color: "黄", recipe: YELLOW_DECK, hidden: true },
   vengeance: { label: "ヴェンジェンス・紫", color: "紫", recipe: VENGEANCE_DECK, hidden: true },
-  neutron: { label: "ニュートロン・セキュリティ・青", color: "青", recipe: NEUTRON_DECK, hidden: true }
+  neutron: { label: "ニュートロン・セキュリティ・青", color: "青", recipe: NEUTRON_DECK, hidden: true },
+  "tutorial-blue": { label: "青チュートリアル・青", color: "青", recipe: TUTORIAL_BLUE_DECK, hidden: true },
+  "tutorial-sandbag": { label: "サンドバッグ・無色", color: "無", recipe: TUTORIAL_SANDBAG_DECK, hidden: true }
 });
 
 export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = "red", aiDeckId = "yellow", playerDeckRecipe = null, aiDeckRecipe = null, playerUserId = "doors_zx", aiUserId = "doors_zx", sandboxDeckSetup = false, rng = Math.random, runtimeContext = null, openingProtocol = "legacy" } = {}) {
   if (runtimeContext !== null) rng = runtimeRng(runtimeContext);
   const isVengeanceTutorial = mode === "tutorial" && tutorialId === "vengeance";
-  const selectedPlayerDeck = isVengeanceTutorial ? DECK_OPTIONS.vengeance : (DECK_OPTIONS[playerDeckId] ?? DECK_OPTIONS.red);
-  const selectedAiDeck = DECK_OPTIONS[aiDeckId] ?? DECK_OPTIONS.yellow;
+  const isBlueTutorial = mode === "tutorial" && tutorialId === "blue";
+  const selectedPlayerDeck = isVengeanceTutorial ? DECK_OPTIONS.vengeance : isBlueTutorial ? DECK_OPTIONS["tutorial-blue"] : (DECK_OPTIONS[playerDeckId] ?? DECK_OPTIONS.red);
+  const selectedAiDeck = isBlueTutorial ? DECK_OPTIONS["tutorial-sandbag"] : (DECK_OPTIONS[aiDeckId] ?? DECK_OPTIONS.yellow);
   const skipInitialDecks = runtimeContext !== null && (mode === "lab" || (mode === "sandbox" && !sandboxDeckSetup));
   const red = skipInitialDecks ? [] : expandRuntimeDeck(runtimeContext, playerDeckRecipe ?? selectedPlayerDeck.recipe, "player");
   const yellow = skipInitialDecks ? [] : expandRuntimeDeck(runtimeContext, aiDeckRecipe ?? selectedAiDeck.recipe, "ai");
@@ -668,7 +681,11 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
     player: buildPlayer("player", { ...playerUser, color: selectedPlayerDeck.color }, mode === "tutorial" ? red : shuffle(red, rng)),
     ai: buildPlayer("ai", { ...aiUser, color: selectedAiDeck.color }, mode === "tutorial" ? yellow : shuffle(yellow, rng))
   };
-  if (mode === "tutorial") isVengeanceTutorial ? arrangeVengeanceTutorial(players, runtimeContext) : arrangeTutorial(players, runtimeContext);
+  if (mode === "tutorial") {
+    if (isVengeanceTutorial) arrangeVengeanceTutorial(players, runtimeContext);
+    else if (isBlueTutorial) arrangeBlueTutorial(players, runtimeContext);
+    else arrangeTutorial(players, runtimeContext);
+  }
   else if (mode === "lab") arrangeLab(players, runtimeContext);
   else if (mode === "sandbox") arrangeSandbox(players, { useConfiguredDecks: sandboxDeckSetup }, runtimeContext);
   else {
@@ -680,8 +697,8 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
     ...(runtimeContext === null ? {} : { runtimeContext }),
     mode,
     tutorialId,
-    playerDeckId: isVengeanceTutorial ? "vengeance" : playerDeckId,
-    aiDeckId,
+    playerDeckId: isVengeanceTutorial ? "vengeance" : isBlueTutorial ? "tutorial-blue" : playerDeckId,
+    aiDeckId: isBlueTutorial ? "tutorial-sandbag" : aiDeckId,
     playerUserId,
     aiUserId,
     players,

@@ -80,6 +80,7 @@ import { accessPolicy, deckMovePolicy, destructionOutcome, resultCountGate } fro
 import { parseDynamicThresholdSelectionModule, parseLookSelectRemainderModule, parseSelectAllocateFollowUpModule } from "../src/game/effect-selection-modules.js";
 import { collectActivationWindows, createEventContext, createTriggerSpec, scriptConditionMatches } from "../src/game/activation-windows.js";
 import { acceptTutorialAction, completeTutorialIntroduction, createTutorialFlow, currentTutorialPresentation } from "../src/data/tutorial.js";
+import { TUTORIAL_OPPONENT_SCRIPTS, tutorialSteps } from "../src/data/tutorial-script.js";
 import { evaluatePlacement } from "../src/game/placement-policy.js";
 import { normalizeLayerState } from "../src/game/layer-state.js";
 
@@ -3203,8 +3204,8 @@ test("red tutorial (script): the symbol-less Atto is refused, install lights red
   assert.equal(currentTutorialPresentation(flow).expect, null, "the last step is the closing line");
 });
 
-test("only the two tutorials start the opponent at STR 5; every other mode keeps the user's own STR", () => {
-  for (const options of [{ mode: "tutorial" }, { mode: "tutorial", tutorialId: "vengeance" }]) {
+test("only the three tutorials start the opponent at STR 5; every other mode keeps the user's own STR", () => {
+  for (const options of [{ mode: "tutorial" }, { mode: "tutorial", tutorialId: "vengeance" }, { mode: "tutorial", tutorialId: "blue" }]) {
     const state = createGame(options);
     assert.equal(state.players.ai.fortressStr, 5, options.tutorialId ?? "basics");
     assert.equal(state.players.player.fortressStr, 20, "the player keeps full STR");
@@ -3214,6 +3215,158 @@ test("only the two tutorials start the opponent at STR 5; every other mode keeps
     assert.equal(state.players.ai.fortressStr, state.players.ai.user.maxStr, mode);
     assert.equal(state.players.player.fortressStr, state.players.player.user.maxStr, mode);
   }
+});
+
+test("blue tutorial (script): Rutile's access takes the Offensive Protocol, Frau hacks past Merc (5 to 1), Encryption keeps Merc off the Obs, Assault finishes STR 1 to 0", () => {
+  const state = createGame({ mode: "tutorial", tutorialId: "blue", rng: () => .5 });
+  const flow = createTutorialFlow("blue");
+  assert.equal(completeTutorialIntroduction(flow), true);
+  const player = state.players.player; const ai = state.players.ai;
+  assert.equal(state.playerDeckId, "tutorial-blue");
+  assert.equal(state.aiDeckId, "tutorial-sandbag");
+  assert.equal(player.user.color, "青");
+  assert.deepEqual(player.hand.map((card) => card.id), ["STD-107", "STD-117", "STD-109", "STD-110"], "Rutile, Nami, Frau, Security Wall");
+  assert.deepEqual(ai.hand.map((card) => card.id), ["STD-043"], "the opponent holds only Merc");
+  assert.deepEqual([player.front.length, player.back.length, player.registry.length, ai.front.length], [0, 0, 0, 0]);
+  assert.equal(ai.fortressStr, 5);
+  assert.equal(player.fortressStr, 20);
+  assert.equal(player.memory, 5);
+  assert.equal(ai.deck.length, 40, "the sandbag deck is 40 cards");
+  assert.ok(ai.deck.every((card) => card.color == null), "and colourless");
+  const accept = (action) => assert.equal(acceptTutorialAction(state, flow, action), true, JSON.stringify(action) + " " + flow.error);
+  const hand = (id) => player.hand.find((card) => card.id === id);
+  const skip = (count, index) => { for (let n = 0; n < count; n += 1) accept({ type: "advance" }); assert.equal(flow.index, index); };
+  const pick = (request, id) => {
+    for (const uid of request.candidates) if (findCard(state, uid)?.card.id === id) toggleSelection(request, uid);
+    return resolveCardSelection(state, request.continuation, confirmSelection(request));
+  };
+  skip(1, 1);
+
+  // 2 install Nami (the blue symbol)
+  assert.equal(canPlayCard(state, "player", hand("STD-107")).code, "SYMBOL_MISSING", "blue is not lit yet");
+  assert.equal(installCard(state, "player", hand("STD-117").uid), true);
+  accept({ type: "install", cardId: "STD-117" });
+  assert.equal(flow.index, 2);
+
+  // 3 Rutile (memory 1): the login access lists the Offensive Protocol AND the Assaults; the script takes the Protocol
+  const rutile = hand("STD-107");
+  assert.equal(playCard(state, "player", rutile.uid, { zone: "front" }), true);
+  accept({ type: "play", cardId: "STD-107", zone: "front" });
+  assert.equal(player.memory, 4);
+  const request = state.pending.request;
+  assert.deepEqual([...new Set(request.candidates.map((uid) => findCard(state, uid).card.id))].sort(), ["STD-111", "STD-116"]);
+  skip(3, 6); // the explanation, "login", "oh, it fired": the access is still open
+  assert.ok(state.pending, "the choice waits for the guide");
+  assert.equal(pick(request, "STD-111"), true);
+  accept({ type: "answerChoice", cardId: "STD-111" });
+  assert.equal(state.pending, null);
+  assert.ok(hand("STD-111"), "the Offensive Protocol is in hand");
+  assert.deepEqual([...new Set(player.deck.map((card) => card.id))], ["STD-116"], "only Assaults are left, in any order");
+  assert.equal(player.deck.length, 6);
+  assert.equal(flow.index, 7);
+
+  // 4 Frau (memory 2): no Hacking or Encryption yet, so 2/2
+  const frau = hand("STD-109");
+  assert.equal(playCard(state, "player", frau.uid, { zone: "front" }), true);
+  accept({ type: "play", cardId: "STD-109", zone: "front" });
+  assert.equal(player.memory, 2, "memory used on turn one: 1 + 2");
+  assert.deepEqual([cardAtk(state, "player", frau), cardCurrentStr(state, "player", frau)], [2, 2]);
+  skip(1, 9);
+
+  // 5 end of turn: Merc comes out and rests as the Security
+  assert.equal(endTurn(state), true);
+  accept({ type: "end-turn" });
+  assert.equal(state.active, "player");
+  assert.equal(state.turnNumber, 3);
+  const merc = ai.front.find((card) => card.id === "STD-043");
+  assert.ok(merc, "the opponent put Merc out");
+  assert.equal(merc.sleep, true, "and rested it as the Security");
+  assert.equal(player.memory, 5, "memory is back to the limit");
+  assert.ok(hand("STD-116"), "the draw is an Assault");
+  skip(2, 12); // Merc's rest, "our turn"
+
+  // 7 the Offensive Protocol on Frau (memory 2): +1/+0 and Hacking, and Frau's own +1/+1: 4/3
+  const protocol = hand("STD-111");
+  assert.equal(canPlayCard(state, "player", protocol).ok, true);
+  assert.equal(playCard(state, "player", protocol.uid, { targetUid: frau.uid }), true);
+  accept({ type: "play", cardId: "STD-111", targetCardId: "STD-109" });
+  assert.equal(state.pending, null, "the target was given with the play");
+  assert.equal(player.memory, 3, "memory used on turn two: 2 + 1");
+  assert.equal(cardHasKeyword(state, "player", frau, "HACKING"), true);
+  assert.deepEqual([cardAtk(state, "player", frau), cardCurrentStr(state, "player", frau)], [4, 3]);
+  skip(3, 16);
+  assert.deepEqual(getAttackTargets(state, "player", frau).map((target) => target.type).sort(), ["card", "fortress"], "Hacking can choose the user past Merc");
+  assert.equal(attack(state, "player", frau.uid, "ai-fortress"), true);
+  accept({ type: "attack", cardId: "STD-109", targetType: "fortress" });
+  assert.equal(ai.fortressStr, 1, "STR 5 to 1");
+  skip(1, 18);
+
+  // 8 Rutile has no Hacking: Merc is the only target, and Rutile (1/1) is destroyed by Merc's ATK 1
+  assert.deepEqual(getAttackTargets(state, "player", rutile).map((target) => target.uid), [merc.uid]);
+  assert.equal(attack(state, "player", rutile.uid, merc.uid), true);
+  accept({ type: "attack", cardId: "STD-107", targetCardId: "STD-043" });
+  assert.equal(player.trash.some((card) => card.uid === rutile.uid), true, "Rutile is destroyed");
+  assert.equal(cardCurrentStr(state, "ai", merc), 3);
+  assert.equal(ai.fortressStr, 1);
+  skip(2, 21); // "too bad", "Encryption"
+
+  // 9 Encryption: the Security Wall (memory 1)
+  assert.equal(playCard(state, "player", hand("STD-110").uid, {}), true);
+  accept({ type: "play", cardId: "STD-110" });
+  assert.equal(player.memory, 2, "memory used on turn two: 2 + 1 = 3");
+  assert.equal(cardHasKeyword(state, "player", frau, "ENCRYPTION"), true);
+  assert.equal(flow.index, 22);
+
+  // 10 end of turn: Merc's attack reaches only the user, and the Encryption lasts past it
+  const strBefore = player.fortressStr;
+  assert.equal(endTurn(state), true);
+  accept({ type: "end-turn" });
+  assert.equal(state.active, "player");
+  assert.equal(state.turnNumber, 5);
+  assert.equal(player.fortressStr, strBefore - 1, "Merc (ATK 1) hit the user");
+  assert.equal(player.front.includes(frau), true);
+  assert.equal(cardCurrentStr(state, "player", frau), 2, "Frau was not attacked (2/2 again: Hacking and Encryption have ended)");
+  assert.equal(player.memory, 5);
+  skip(2, 25);
+
+  // 11 the third turn: the drawn Assault (memory 5, all of it) gives Frau Hacking again, 3/3
+  const assault = hand("STD-116");
+  assert.ok(assault);
+  assert.equal(playCard(state, "player", assault.uid, {}), true);
+  accept({ type: "play", cardId: "STD-116" });
+  assert.equal(player.memory, 0, "memory used on turn three: 5");
+  assert.equal(cardHasKeyword(state, "player", frau, "HACKING"), true);
+  assert.deepEqual([cardAtk(state, "player", frau), cardCurrentStr(state, "player", frau)], [3, 3]);
+  assert.equal(state.winner, null);
+  assert.equal(attack(state, "player", frau.uid, "ai-fortress"), true);
+  accept({ type: "attack", cardId: "STD-109", targetType: "fortress" });
+  assert.equal(ai.fortressStr, 0, "STR 1 to 0");
+  assert.equal(state.winner, "player");
+  assert.equal(state.victory.finished, true);
+  assert.equal(state.victory.lockedOutcome, "player");
+  assert.equal(state.pending, null, "Assault's own draw and damage leave nothing open");
+  assert.ok(player.deck.length >= 1, "the draw after the win does not run the deck dry");
+  assert.equal(flow.complete, true);
+  assert.equal(currentTutorialPresentation(flow).expect, null, "the last step is the closing line");
+});
+
+test("blue tutorial deck: every draw after the access is an Assault, however the deck is shuffled", () => {
+  for (const seed of [0, .13, .5, .87, .999]) {
+    const state = createGame({ mode: "tutorial", tutorialId: "blue", rng: () => seed });
+    const player = state.players.player;
+    assert.equal(installCard(state, "player", player.hand.find((card) => card.id === "STD-117").uid), true);
+    assert.equal(playCard(state, "player", player.hand.find((card) => card.id === "STD-107").uid, { zone: "front" }), true);
+    const request = state.pending.request;
+    for (const uid of request.candidates) if (findCard(state, uid)?.card.id === "STD-111") toggleSelection(request, uid);
+    assert.equal(resolveCardSelection(state, request.continuation, confirmSelection(request)), true);
+    assert.ok(player.deck.length > 0 && player.deck.every((card) => card.id === "STD-116"), String(seed));
+  }
+});
+
+test("blue tutorial opponent scripts: Merc is put out and rested, then attacks only the user", () => {
+  assert.deepEqual(tutorialSteps("blue").filter((step) => step.after).map((step) => step.after), ["sandbag-1", "sandbag-2"]);
+  assert.deepEqual(TUTORIAL_OPPONENT_SCRIPTS["sandbag-1"], [{ type: "executeCard", cardId: "STD-043", zone: "front" }, { type: "endTurn" }]);
+  assert.deepEqual(TUTORIAL_OPPONENT_SCRIPTS["sandbag-2"], [{ type: "attack", cardId: "STD-043", targetType: "fortress" }, { type: "endTurn" }]);
 });
 
 test("vengeance tutorial: opponent STR 5 is taken to 0 with a relogged layered Ob and the generated Dolls", () => {

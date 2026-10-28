@@ -1,4 +1,4 @@
-import { endTurn, installCard, playCard, restSecurity } from "../game/engine.js";
+import { attack, canAttack, endTurn, getAttackTargets, installCard, playCard, restSecurity } from "../game/engine.js";
 import { tutorialSteps, matches, currentTutorialStep } from "./tutorial-script.js";
 export { TUTORIAL_SPEAKER, createTutorialFlow, currentTutorialPresentation, advanceTutorialIntroduction,
   completeTutorialIntroduction, currentTutorialStep, isTutorialActionExpected } from "./tutorial-script.js";
@@ -17,7 +17,9 @@ export function acceptTutorialAction(state, flow, action) {
   flow.error = "";
   flow.index += 1;
   if (step.after === "yellow-demo") runYellowTutorialTurn(state);
-  if (step.after === "guardman-demo") runGuardmanTutorialTurn(state);
+  if (step.after === "guardman-demo") runSecurityTutorialTurn(state, "STD-022");
+  if (step.after === "sandbag-1") runSecurityTutorialTurn(state, "STD-043");
+  if (step.after === "sandbag-2") runSandbagAttackTurn(state);
   if (step.after === "yellow-pass" && state.active === "ai") {
     endTurn(state);
     const security = state.players.ai.front.find((card) => card.id === "STD-131" && !card.sleep);
@@ -28,16 +30,27 @@ export function acceptTutorialAction(state, flow, action) {
   return true;
 }
 
-// 赤チュートリアルの相手: ガードマン(セキュリティ)を実行し、スリープさせてターンを終える。
-function runGuardmanTutorialTurn(state) {
+// 赤(ガードマン)・青(装甲兵 メルク)チュートリアルの相手: セキュリティのObを実行し、スリープさせてターンを終える。
+function runSecurityTutorialTurn(state, cardId) {
   const ai = state.players.ai;
-  const guardman = ai.hand.find((card) => card.id === "STD-022");
-  if (guardman) {
-    playCard(state, "ai", guardman.uid, { force: true });
+  const security = ai.hand.find((card) => card.id === cardId);
+  if (security) {
+    playCard(state, "ai", security.uid, { force: true });
     endTurn(state);
-    const fieldGuardman = ai.front.find((card) => card.id === "STD-022");
-    if (fieldGuardman) restSecurity(state, "ai", fieldGuardman.uid);
+    const fieldSecurity = ai.front.find((card) => card.id === cardId);
+    if (fieldSecurity) restSecurity(state, "ai", fieldSecurity.uid);
   } else endTurn(state);
+  if (state.securityRestWindow === "ai") endTurn(state);
+}
+
+// 青チュートリアルの相手: 装甲兵 メルクで相手ユーザー(自分)を攻撃してターンを終える。自分のObは[暗号化]で対象にならない。
+function runSandbagAttackTurn(state) {
+  const merc = state.players.ai.front.find((card) => card.id === "STD-043");
+  if (merc && canAttack(state, "ai", merc)) {
+    const target = getAttackTargets(state, "ai", merc).find((item) => item.type === "fortress");
+    if (target) attack(state, "ai", merc.uid, target.uid);
+  }
+  endTurn(state);
   if (state.securityRestWindow === "ai") endTurn(state);
 }
 
