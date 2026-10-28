@@ -204,7 +204,12 @@ function guideHtml(tutorial) {
   // A speaker with no portrait gets the first letter of the name in the square instead.
   const portrait = navigator?.src ? `<img src="${esc(navigator.src)}" alt="${esc(presentation.speaker)}の立ち絵" style="object-position:${esc(navigator.objectPosition ?? 'center top')}">`
     : `<span class="live-guide-noportrait" aria-hidden="true">${esc([...String(presentation.speaker ?? '')][0] ?? '')}</span>`;
-  const text = (presentation.parts ?? [page.text]).map(part => typeof part === 'string' ? esc(part) : `<ruby>${esc(part.ruby)}<rt>${esc(part.rt)}</rt></ruby>`).join('');
+  // Where the script asks for an ability's icon (presentation.icons), it follows the ability's name in the line, as in the log.
+  const iconed = html => (presentation.icons ?? []).reduce((line, name) => {
+    const badge = abilityBadgeDefinition(name);
+    return badge.asset ? line.replaceAll(`『${esc(name)}』`, `『${esc(name)}<img class="live-guide-kw" src="${esc(badge.asset)}" alt="${esc(badge.label)}">』`) : line;
+  }, html);
+  const text = (presentation.parts ?? [page.text]).map(part => typeof part === 'string' ? iconed(esc(part)) : `<ruby>${esc(part.ruby)}<rt>${esc(part.rt)}</rt></ruby>`).join('');
   return `<aside class="r2-guide live-guide" aria-label="チュートリアル"${page.pending ? ' data-paging="pending"' : ''} data-guide-page="${page.index + 1}/${page.count}" data-tutorial-step="${flow.introComplete ? `${flow.tutorialId}:${flow.index}` : `intro:${flow.introIndex}`}"><div class="live-guide-cast">${portrait}<strong>${esc(presentation.speaker)}</strong></div><div class="live-guide-speech"><div class="live-guide-text" tabindex="0" role="region" aria-label="チュートリアルのセリフ" aria-live="polite"><p>${text}</p>${(flow.error || tutorial.note) && !complete ? `<p class="live-guide-error" role="alert">${esc(flow.error || tutorial.note)}</p>` : ''}</div><nav>${complete ? '' : '<button class="live-guide-skip" data-runtime-tutorial-skip>スキップ</button>'}${page.count > 1 ? `<small class="live-guide-page" aria-label="${page.index + 1}ページ目／全${page.count}ページ">${page.index + 1}/${page.count}</small>` : ''}<span class="live-guide-turn">${page.index > 0 ? '<button class="live-guide-prev" data-runtime-guide-prev>◂ 戻る</button>' : ''}${page.pending ? '' : !page.last ? '<button class="live-guide-next" data-runtime-guide-next>次へ ▸</button>' : complete ? '<button class="live-guide-next" data-runtime-tutorial-finish>一覧へ戻る ▸</button>' : presentation.intro || presentation.expect?.type === 'advance' && !presentation.expect.press ? '<button class="live-guide-next" data-runtime-tutorial-next>次へ ▸</button>' : ''}</span></nav></div></aside>`;
 }
 function artHtml(model,presentation) {

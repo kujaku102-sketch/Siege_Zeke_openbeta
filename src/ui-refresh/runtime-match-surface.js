@@ -117,6 +117,26 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       render(ui.read());
     } else if (guideAway?.hold && !anyOpen()) { guideAway = null; render(ui.read()); }
   };
+  // A line about an ability (a badge in its focus, nothing asked to press) opens the card's detail itself: the board
+  // draws no badges, the detail does, highlighted. It is closed again when the step moves on, if still the one opened.
+  let guideDetail = null;
+  const showBadge = () => {
+    if (disposed || !latest) return;
+    const tutorial = session.tutorial(), presentation = tutorial.ok && !tutorial.value.flow.complete ? tutorial.value.presentation : null;
+    const step = tutorial.ok ? pageStep(tutorial.value.flow) : null;
+    if (guideDetail && guideDetail.step !== step) {
+      const open = latest.model.ui.detailCardRef === guideDetail.cardRef;
+      guideDetail = null;
+      if (open) { render(ui.closeDetail()); return; }
+    }
+    const badge = !presentation?.expect?.press && presentation?.focus?.find(focus => focus.kind === 'ui' && focus.target === 'ability-badge');
+    if (!badge || guideDetail) return;
+    const seat = latest.model.seats.find(item => item.seatId === scope.seatIds[0]);
+    const card = ['front', 'back'].flatMap(zone => seat?.[zone].cards ?? []).find(item => !item.faceDown && item.definition.id === badge.cardId);
+    if (!card) return;
+    guideDetail = { step, cardRef: card.cardRef };
+    if (latest.model.ui.detailCardRef !== card.cardRef) render(ui.showDetail(card.cardRef));
+  };
   const paginateGuide = guide => {
     const tutorial = session.tutorial(), presentation = tutorial.ok ? tutorial.value.presentation : null;
     if (!presentation || presentation.parts) return;
@@ -220,7 +240,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       renderScope = nextScope;
       regionKeys = nextKeys;
       syncInteractionClasses(root, next);
-      if (tutorial.ok) schedule(watchPress, 0);
+      if (tutorial.ok) { schedule(watchPress, 0); schedule(showBadge, 0); }
       decorate(() => scenes.sync(next, effectsEnabled, shellRebuilt || runtimeChanged));
       if (geometryDirty) queueLayout();
       decorate(() => syncResultFx(root,effectsEnabled && !lowGpu));

@@ -289,6 +289,31 @@ test("the red tutorial's look-and-see steps move on when what they ask is presse
   assert.equal(steps.filter(step => step.expect?.press).length, 3);
 });
 
+test("blue tutorial: the Hacking icon in step 7's line, the access pick pointed at by its card, a badge line opens the detail itself", async () => {
+  const { tutorialSteps } = await import("../src/data/tutorial-script.js");
+  const steps = tutorialSteps("blue");
+  // 台本の「ハッキング(アイコン)」: the line drops the stage direction and names the icon to show.
+  assert.equal(steps[13].text, "エリアの『フラウ』が『ハッキング』を得て、さらに+1/0されます");
+  assert.deepEqual(steps[13].icons, ["ハッキング"]);
+  assert.equal(steps.filter(step => step.icons).length, 1);
+  const view = await readSource("../src/ui-refresh/runtime-read-view.js");
+  assert.ok(view.includes("return badge.asset ? line.replaceAll(`『${esc(name)}』`, `『${esc(name)}<img class=\"live-guide-kw\" src=\"${esc(badge.asset)}\" alt=\"${esc(badge.label)}\">』`) : line;"));
+  const css = await readSource("../src/ui-refresh/live.css");
+  assert.ok(css.includes(".live-guide-text .live-guide-kw { height:1.3em;"), "a line high, in em");
+  const { selectionRequestHtml } = await import("../src/ui-refresh/choice-read-view.js");
+  const request = { requestId: "r", presentationKey: "card-effect", constraints: { kind: "count", minimum: 1, maximum: 1 },
+    options: [{ optionId: "o1", preview: { definitionId: "STD-111", name: "/オフェンスプロトコル/*", definition: { id: "STD-111", name: "/オフェンスプロトコル/*" } } },
+      { optionId: "o2", cardRef: "c2" }, { optionId: "o3", zone: "front", slot: 1, kind: "slot", label: "front 1" }] };
+  const html = selectionRequestHtml(request, { cards: [{ cardRef: "c2", faceDown: false, definition: { id: "STD-109", name: "フラウ" } }], cardHtml: card => card.definition.name });
+  assert.match(html, /data-option-id="o1"[^>]*data-option-card-id="STD-111"/, "a deck card by its preview");
+  assert.match(html, /data-option-id="o2" [^>]*data-card-ref="c2" data-option-card-id="STD-109"/, "a card on the board by its ref");
+  assert.doesNotMatch(html, /data-option-id="o3"[^>]*data-option-card-id/, "a slot stands for no card");
+  const surface = await readSource("../src/ui-refresh/runtime-match-surface.js");
+  assert.ok(surface.includes("const badge = !presentation?.expect?.press && presentation?.focus?.find(focus => focus.kind === 'ui' && focus.target === 'ability-badge');"), "only where nothing is asked to press");
+  assert.ok(surface.includes("if (open) { render(ui.closeDetail()); return; }"), "closed when the step moves on");
+  assert.ok(surface.includes("if (latest.model.ui.detailCardRef !== card.cardRef) render(ui.showDetail(card.cardRef));"));
+});
+
 test("opening protocol v2.4 is opt-in by URL and only for the AI mode; the redraw pick has its own wording", async () => {
   const main = await readSource("../src/main.js");
   assert.ok(main.includes("mode === 'ai' && new URLSearchParams(location.search).get('opening') === 'v2.4' ? {openingProtocol:'v2.4'} : {}"));

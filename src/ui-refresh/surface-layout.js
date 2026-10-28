@@ -13,7 +13,28 @@ import { screenUnit } from './screen-unit.js';
 // is not pointed at.
 const EXPECTED_ROUTES = Object.freeze({ play: ['executeCard', 'executeSpell', 'mountCard', 'setScript'], install: ['install'],
   attack: ['attack'], layered: ['executeLayered'], relog: ['redeploy'], 'activate-effect': ['activateCardEffect'] });
-const expectedButton = expect => EXPECTED_ROUTES[expect?.type] && expect.cardId ? [{ kind: 'route', cardId: expect.cardId, routes: EXPECTED_ROUTES[expect.type] }] : [];
+// A step that asks for a choice's answer points at the option of its card (blue: the access pick of the Offense Protocol).
+const expectedButton = expect => expect?.type === 'answerChoice' && expect.cardId ? [{ kind: 'option', cardId: expect.cardId }]
+  : EXPECTED_ROUTES[expect?.type] && expect.cardId ? [{ kind: 'route', cardId: expect.cardId, routes: EXPECTED_ROUTES[expect.type] }] : [];
+
+// The card detail sits at the screen's left edge, where the guide's portrait stands: a badge the line points at is
+// scrolled within the detail to a free side of the portrait it can reach, the nearer one (blue: the Hacking badge
+// while it is explained). Where neither can be reached it stays as it is.
+function clearOfPortrait(guide, badge, viewport) {
+  const portrait = guide.querySelector('.live-guide-cast img,.live-guide-noportrait')?.getBoundingClientRect();
+  if (!badge || !portrait) return;
+  const rect = badge.getBoundingClientRect();
+  if (rect.right <= portrait.left || rect.left >= portrait.right || rect.bottom <= portrait.top || rect.top >= portrait.bottom) return;
+  let scroller = badge.parentElement;
+  while (scroller && scroller.scrollHeight <= scroller.clientHeight && !scroller.matches('.r2-detail')) scroller = scroller.parentElement;
+  if (!scroller) return;
+  const box = scroller.getBoundingClientRect(), gap = viewport.height * .02;
+  const room = { up: scroller.scrollTop, down: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop };
+  // How far to scroll (+ down the content) so the badge sits just below or just above the portrait, inside the detail.
+  const moves = [rect.top - (portrait.bottom + gap), rect.bottom - (portrait.top - gap)]
+    .filter(move => (move < 0 ? -move <= room.up : move <= room.down) && rect.top - move >= box.top && rect.bottom - move <= box.bottom);
+  if (moves.length) scroller.scrollTop += moves.sort((a, b) => Math.abs(a) - Math.abs(b))[0];
+}
 
 export function createSurfaceLayout({ root, session, scope, boardStyle, latest, requestFrame, disposed, guideLastPage = () => true, paginateGuide = () => {}, guideStep = () => null, guideGrow = () => ({ page: 0, step: 0 }) }) {
   let layoutFrame = null;
@@ -88,7 +109,8 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
           'ability-badge':`.r2-detail[data-card-id="${focus.cardId}"] [data-ability-help]`}[focus.target],
         // A route button in the popup of the focused card (play = execute).
         button:focus.button === 'play' ? `.r2-popup[data-card-id="${focus.cardId}"] :is([data-route="executeCard"],[data-route="executeSpell"])` : null,
-        route:focus.routes ? `.r2-popup[data-card-id="${focus.cardId}"] :is(${focus.routes.map(route => `[data-route="${route}"]`).join(',')})` : null};
+        route:focus.routes ? `.r2-popup[data-card-id="${focus.cardId}"] :is(${focus.routes.map(route => `[data-route="${route}"]`).join(',')})` : null,
+        option:`[data-option-card-id="${focus.cardId}"]`};
       const named = element => !focus.badge || [element.getAttribute('aria-label'), element.getAttribute('title'), element.textContent].some(text => text?.includes(focus.badge));
       for (const element of [...root.querySelectorAll(selectors[focus.kind] ?? ':not(*)')].filter(named)) {
         pointed.push(element);
@@ -111,6 +133,7 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}`;
       if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step }) };
       applyGuideBand(view, guideBand.band, viewport, grow.page);
+      clearOfPortrait(guide, pointed.find(element => element.matches('.r2-detail [data-ability-help]')), viewport);
       paginateGuide(guide);
     }
   };

@@ -14,6 +14,7 @@ export function numberTutorialItems(entries, order = TUTORIAL_ORDER) {
 
 export const TUTORIAL_ITEMS = numberTutorialItems([
   { id: 'basics', subtitle: '基本操作・赤', summary: '赤デッキで、インストール・実行・攻撃から、実行先選択、QA、セキュリティ、マウント、任意追加効果まで。' },
+  { id: 'blue', subtitle: 'ハッキング・暗号化・青', summary: '青デッキで、シンボルのインストール、ログイン効果のアクセス、Spで得るハッキング、セキュリティ、暗号化まで。' },
   { id: 'vengeance', subtitle: 'ヴェンジェンス・紫', summary: '紫デッキで、Obの移動とレイヤード。インストール、レイヤード、リログ、効果起動（アップデート）まで。' }
 ]);
 export const TUTORIAL_IDS = Object.freeze(TUTORIAL_ITEMS.map(item => item.id));

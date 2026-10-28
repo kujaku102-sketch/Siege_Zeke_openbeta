@@ -56,11 +56,14 @@ export function selectionRequestHtml(request, { cards = [], answer = null, cardH
   const head = list ? `<header class="cp-head"><div><small>CARD ACCESS <i>/ LIST</i></small><h2>${esc(requestTitle(request))}</h2></div>` : `<header><h2>${esc(requestTitle(request))}</h2>`;
   return `<section class="effect-dialog${list ? ' is-list cp-panel' : ''}" data-request-id="${esc(request.requestId)}">${head}<button data-selection-collapse aria-label="選択画面を畳む">${selectionEyeHtml(true)}</button></header>${lead}<div class="runtime-selection-options${list ? ' is-list' : ''}">${request.options.map(option => {
     const card = optionCard(option, cards);
-    if (list) return `<div class="runtime-selection-option${selected.has(option.optionId) ? ' selected' : ''}"><button data-option-id="${esc(option.optionId)}" aria-pressed="${selected.has(option.optionId)}"${option.cardRef ? ` data-card-ref="${esc(option.cardRef)}"` : ''}>${rowHtml(card)}</button></div>`;
+    // The card an option stands for (a deck card by its preview), so a tutorial can point at the pick it asks for.
+    const cardId = (card && !card.faceDown ? card.definition?.id : null) ?? option.preview?.definitionId;
+    const refs = `${option.cardRef ? ` data-card-ref="${esc(option.cardRef)}"` : ''}${cardId ? ` data-option-card-id="${esc(cardId)}"` : ''}`;
+    if (list) return `<div class="runtime-selection-option${selected.has(option.optionId) ? ' selected' : ''}"><button data-option-id="${esc(option.optionId)}" aria-pressed="${selected.has(option.optionId)}"${refs}>${rowHtml(card)}</button></div>`;
     const label = option.label ?? (card && !card.faceDown ? card.definition.name
       : option.zone ? `${option.zone}${option.slot ? ` ${option.slot}` : ''}` : option.kind ?? option.optionId);
     const amount = answer?.allocation?.find(row => row.optionId === option.optionId)?.amount ?? 0;
-    return `<div class="runtime-selection-option${selected.has(option.optionId) ? ' selected' : ''}"><button data-option-id="${esc(option.optionId)}" aria-pressed="${selected.has(option.optionId)}"${option.cardRef ? ` data-card-ref="${esc(option.cardRef)}"` : ''}>${card && cardHtml ? cardHtml(card) : option.preview && cardHtml ? cardHtml({ faceDown: false, definition: { id: option.preview.definitionId, name: option.preview.name } }) : esc(label)}</button>${request.constraints.kind === 'allocation' ? `<input type="number" min="0" step="1" value="${amount}" data-allocation-option="${esc(option.optionId)}" aria-label="${esc(label)}の割り当て">` : ''}</div>`;
+    return `<div class="runtime-selection-option${selected.has(option.optionId) ? ' selected' : ''}"><button data-option-id="${esc(option.optionId)}" aria-pressed="${selected.has(option.optionId)}"${refs}>${card && cardHtml ? cardHtml(card) : option.preview && cardHtml ? cardHtml({ faceDown: false, definition: { id: option.preview.definitionId, name: option.preview.name } }) : esc(label)}</button>${request.constraints.kind === 'allocation' ? `<input type="number" min="0" step="1" value="${amount}" data-allocation-option="${esc(option.optionId)}" aria-label="${esc(label)}の割り当て">` : ''}</div>`;
   }).join('')}</div><footer><p>${esc(instructions)}</p>${groups}</footer></section>`;
 }
 
