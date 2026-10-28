@@ -8,6 +8,7 @@ import { findIdentityEntry } from './identity.js';
 import { lookupRuntimeCardReference } from './references.js';
 import { createActionRegistry, lookupActionHandler } from './action-registry.js';
 import { prepareRequiredInputAction } from './required-input.js';
+import { isTutorialId, tutorialPlayerDeckId } from './tutorial-setup.js';
 import {
   SAFE_READ_MISSING, SafeReadError, readDenseData, readFiniteNumber, readOrdinary, readOwnData
 } from './safe-read.js';
@@ -103,7 +104,7 @@ function metadataData(value) {
   const hasProtocol = Object.hasOwn(metadata.startOptions, 'openingProtocol');
   const options = exact(metadata.startOptions, hasProtocol ? [...START_OPTION_KEYS, 'openingProtocol'] : START_OPTION_KEYS, 'INVALID_AUTHORITY');
   if (hasProtocol && (options.openingProtocol !== 'v2.4' || options.mode !== 'ai')) reject('INVALID_AUTHORITY');
-  if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(options.mode) || !['basics', 'vengeance'].includes(options.tutorialId)
+  if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(options.mode) || !isTutorialId(options.tutorialId)
     || !nonempty(options.playerDeckId) || !nonempty(options.aiDeckId) || !nonempty(options.playerUserId) || !nonempty(options.aiUserId)
     || typeof options.sandboxDeckSetup !== 'boolean') reject('INVALID_AUTHORITY');
   options.playerDeckRecipe = recipe(options.playerDeckRecipe);
@@ -217,9 +218,9 @@ function engineData(value, metadata, restSecurity = false) {
     opening: Object.hasOwn(value, 'opening')
   };
   if (state.opening) ordinary(own(value, 'opening', 'INVALID_AUTHORITY'), 'INVALID_AUTHORITY');
-  const expectedPlayerDeck = options.mode === 'tutorial' && options.tutorialId === 'vengeance' ? 'vengeance' : options.playerDeckId;
+  const expectedPlayerDeck = options.mode === 'tutorial' ? tutorialPlayerDeckId(options.tutorialId, options.playerDeckId) : options.playerDeckId;
   if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(state.mode) || state.mode !== options.mode
-    || !['basics', 'vengeance'].includes(state.tutorialId) || state.tutorialId !== options.tutorialId
+    || !isTutorialId(state.tutorialId) || state.tutorialId !== options.tutorialId
     || !nonempty(state.playerDeckId) || state.playerDeckId !== expectedPlayerDeck || !nonempty(state.aiDeckId) || state.aiDeckId !== options.aiDeckId
     || !nonempty(state.playerUserId) || state.playerUserId !== options.playerUserId
     || !nonempty(state.aiUserId) || state.aiUserId !== options.aiUserId) reject('INVALID_AUTHORITY');

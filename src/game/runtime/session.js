@@ -4,6 +4,7 @@ import { createIdentityState } from './identity.js';
 import { createRngState } from './rng.js';
 import { RuntimeError } from './factory.js';
 import { buildRuntimeIdentityIndex } from './bridge.js';
+import { isTutorialId, tutorialSetupValid } from './tutorial-setup.js';
 
 const failure = code => ({ ok: false, error: { code } });
 const nonempty = value => typeof value === 'string' && value.length > 0;
@@ -65,7 +66,7 @@ function options(input) {
     if (normalized.openingProtocol === 'legacy') delete normalized.openingProtocol;
     else if (normalized.openingProtocol !== 'v2.4' || normalized.mode !== 'ai') return null;
   }
-  if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(normalized.mode) || !['basics', 'vengeance'].includes(normalized.tutorialId)) return null;
+  if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(normalized.mode) || !isTutorialId(normalized.tutorialId)) return null;
   for (const key of ['playerDeckId', 'aiDeckId']) if (typeof normalized[key] !== 'string' || !Object.hasOwn(DECK_OPTIONS, normalized[key])) return null;
   for (const key of ['playerUserId', 'aiUserId']) if (typeof normalized[key] !== 'string' || !Object.hasOwn(USER_CARDS, normalized[key])) return null;
   if (typeof normalized.sandboxDeckSetup !== 'boolean') return null;
@@ -74,14 +75,7 @@ function options(input) {
     if (copied === false) return null;
     normalized[key] = copied;
   }
-  if (normalized.mode === 'tutorial') {
-    const vengeance = normalized.tutorialId === 'vengeance';
-    const playerRecipe = normalized.playerDeckRecipe ?? DECK_OPTIONS[vengeance ? 'vengeance' : normalized.playerDeckId].recipe;
-    const aiRecipe = normalized.aiDeckRecipe ?? DECK_OPTIONS[normalized.aiDeckId].recipe;
-    const contains = (rows, ids) => ids.every(id => rows.some(([definition, count]) => definition === id && count > 0));
-    if (!vengeance && !contains(playerRecipe, ['STD-076', 'STD-075', 'STD-090', 'STD-086'])) return null;
-    if (!contains(aiRecipe, vengeance ? ['STD-125', 'STD-131', 'STD-149'] : ['STD-125', 'STD-131', 'STD-149', 'STD-129', 'STD-138'])) return null;
-  }
+  if (normalized.mode === 'tutorial' && !tutorialSetupValid(normalized)) return null;
   return normalized;
 }
 

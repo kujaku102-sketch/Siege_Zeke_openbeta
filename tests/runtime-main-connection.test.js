@@ -841,3 +841,47 @@ test('two CPU controllers pass the v2.4 opening by keeping, then play and replay
     assert.equal(replayMatchRecord(JSON.parse(JSON.stringify(record.value))).value.revision, session.port('a').value.query().value.status.revision);
   } finally { session.dispose(); }
 });
+
+// A scripted tutorial opponent may attack with a card already on its field.
+function scriptedOpponent(script, setupTarget = false) {
+  const {lifecycle,session,port}=setup(),other=session.port('b').value;
+  active(session,port,'b');
+  const ob=add(session,other,'STD-020');submit(other,plan(other,'executeCard',ob,option=>option.zone==='front'));
+  submit(other,{type:'endTurn'});
+  if(setupTarget){const guard=add(session,port,'STD-020');submit(port,plan(port,'executeCard',guard,option=>option.zone==='front'));}
+  submit(port,{type:'endTurn'});
+  assert.equal(other.query().value.status.activeSeat,'b');
+  const queue=[];let index=0;
+  const view={port:seat=>session.port(seat),tutorial:()=>({ok:true,value:{opponentScript:'demo',opponentIndex:index}})};
+  const controller=createTutorialOpponentController({session:view,seatId:'b',scripts:{demo:script},
+    scheduler:{schedule:task=>{queue.push(task);return task;},cancel:task=>{const at=queue.indexOf(task);if(at>=0)queue.splice(at,1);}}});
+  assert.equal(controller.ok,true,JSON.stringify(controller));
+  const run=()=>{controller.value.start();const revisions=[];
+    for(let count=0;count<6&&queue.length;count+=1){const before=other.query().value.status.revision;queue.shift()();
+      const after=other.query().value.status.revision;revisions.push(after-before);if(after!==before)index+=1;}
+    return revisions;};
+  return {lifecycle,session,port,other,run,controller};
+}
+test('scripted opponent attacks the user with a field card, then ends its turn',()=>{
+  const {lifecycle,port,other,run}=scriptedOpponent([{type:'attack',cardId:'STD-020',targetType:'fortress'},{type:'endTurn'}]);
+  const strBefore=seatView(port.query().value).fortressStr;
+  assert.deepEqual(run(),[1,1]);
+  assert.equal(seatView(port.query().value).fortressStr,strBefore-2);
+  assert.equal(other.query().value.status.activeSeat,'a');lifecycle.dispose();
+});
+test('scripted opponent without a named target takes the first offered one; a named card that is not offered stops it unsent',()=>{
+  const open=scriptedOpponent([{type:'attack',cardId:'STD-020'}],true);
+  const fortress=seatView(open.port.query().value).fortressStr;
+  assert.deepEqual(open.run(),[1,0]); // then the script is over and the controller idles
+  assert.equal(seatView(open.port.query().value).fortressStr,fortress-2);
+  open.lifecycle.dispose();
+  // An awake Ob cannot be attacked, so only the user is offered: the script line cannot be performed.
+  const missing=scriptedOpponent([{type:'attack',cardId:'STD-020',targetType:'card',targetCardId:'STD-020'}],true);
+  const before=missing.other.query().value;
+  assert.deepEqual(missing.run(),[0]);
+  assert.deepEqual(missing.other.query().value,before);
+  missing.lifecycle.dispose();
+  const absent=scriptedOpponent([{type:'attack',cardId:'STD-131'}],true);
+  assert.deepEqual(absent.run(),[0]);
+  absent.lifecycle.dispose();
+});

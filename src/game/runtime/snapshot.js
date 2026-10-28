@@ -6,6 +6,7 @@ import { queryRuntimeSeat, queryRuntimeCard } from './query.js';
 import { projectRuntimeView } from './projection.js';
 import { restoreRngState } from './rng.js';
 import { buildRequiredInput } from './required-input.js';
+import { isTutorialId, tutorialPlayerDeckId, tutorialSetupValid } from './tutorial-setup.js';
 
 const FORMAT = 'siege-zeke.authority-snapshot';
 const SNAPSHOT_KEYS = ['format', 'schemaVersion', 'metadata', 'revision', 'engineState', 'referenceState'];
@@ -159,20 +160,13 @@ function optionsData(input, code) {
   const result = { ...defaults, ...supplied };
   if (typeof result.mode !== 'string' || !['ai', 'tutorial', 'lab', 'sandbox'].includes(result.mode)) reject(code);
   if (['lab', 'sandbox'].includes(result.mode)) reject(UNSUPPORTED);
-  if (!['basics', 'vengeance'].includes(result.tutorialId)) reject(code);
+  if (!isTutorialId(result.tutorialId)) reject(code);
   for (const key of ['playerDeckId', 'aiDeckId']) if (typeof result[key] !== 'string' || !Object.hasOwn(DECK_OPTIONS, result[key])) reject(code);
   for (const key of ['playerUserId', 'aiUserId']) if (typeof result[key] !== 'string' || !Object.hasOwn(USER_CARDS, result[key])) reject(code);
   if (typeof result.sandboxDeckSetup !== 'boolean') reject(code);
   if (Object.hasOwn(result, 'openingProtocol') && (result.openingProtocol !== 'v2.4' || result.mode !== 'ai')) reject(code);
   for (const key of ['playerDeckRecipe', 'aiDeckRecipe']) result[key] = recipeData(result[key], code);
-  if (result.mode === 'tutorial') {
-    const vengeance = result.tutorialId === 'vengeance';
-    const playerRecipe = result.playerDeckRecipe ?? DECK_OPTIONS[vengeance ? 'vengeance' : result.playerDeckId].recipe;
-    const aiRecipe = result.aiDeckRecipe ?? DECK_OPTIONS[result.aiDeckId].recipe;
-    const contains = (rows, ids) => ids.every(id => rows.some(([definition, count]) => definition === id && count > 0));
-    if (!vengeance && !contains(playerRecipe, ['STD-076', 'STD-075', 'STD-090', 'STD-086'])) reject(code);
-    if (!contains(aiRecipe, vengeance ? ['STD-125', 'STD-131', 'STD-149'] : ['STD-125', 'STD-131', 'STD-149', 'STD-129', 'STD-138'])) reject(code);
-  }
+  if (result.mode === 'tutorial' && !tutorialSetupValid(result)) reject(code);
   return result;
 }
 
@@ -327,7 +321,7 @@ function validateRootNumbers(state, descriptorCode = STATE) {
 }
 
 function sameArray(a, b) { return a.length === b.length && a.every((value, index) => value === b[index]); }
-function effectiveDeck(options) { return options.mode === 'tutorial' && options.tutorialId === 'vengeance' ? 'vengeance' : options.playerDeckId; }
+function effectiveDeck(options) { return options.mode === 'tutorial' ? tutorialPlayerDeckId(options.tutorialId, options.playerDeckId) : options.playerDeckId; }
 
 function consistency(metadata, state, revision) {
   const runtime = state.runtimeContext;
