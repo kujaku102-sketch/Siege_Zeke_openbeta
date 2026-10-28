@@ -235,6 +235,9 @@ async function action(page,type,id,preference={}) {
       continue;
     }
     await guideClear(page,'pick');
+    // What can be picked on the board glows on its own frame (the slot or the user), no box laid over it.
+    if (await page.evaluate(() => [...document.querySelectorAll('.wire-board .request-target')].some(node => getComputedStyle(node).outlineStyle!=='none'
+      || !/wf-glow/.test(getComputedStyle(node.querySelector(':scope > :is(.slot,.user-target)') ?? node).filter)))) throw new Error('a board pick target is boxed or does not glow: '+type+' '+id);
     const request=planned.value.selectionRequests[0];
     selections.push(await choose(page,request,query,preference));
   }
@@ -438,6 +441,11 @@ async function step(page,id,index) {
   // A line with nothing to point at (the opponent's turn, the battle explanation) has none.
   if (await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.tutorial().value?.presentation?.focus?.length))
     await page.locator('.live-focus[data-tutorial-focus-label]').first().waitFor({state:'attached',timeout:3000}).catch(() => {throw new Error('tutorial focus missing at '+id+':'+index);});
+  // On the board a highlight glows on the board's own lines, no box laid over it; a card to use blinks on itself, on
+  // the board or in the hand (文豪, 2026-10-29).
+  const marks=await page.evaluate(() => ({boxed:[...document.querySelectorAll('.wire-board .live-focus,.r2-hand .card.live-focus')].filter(node => getComputedStyle(node).outlineStyle!=='none').length,
+    still:[...document.querySelectorAll('.wire-board .board-slot.live-focus[data-card-ref] .card-line,.r2-hand .card.live-focus')].filter(node => !/use-card/.test(getComputedStyle(node).animationName)).length}));
+  if (marks.boxed || marks.still) throw new Error('board highlight at '+id+':'+index+': '+JSON.stringify(marks));
   await guideClear(page,'page');
 }
 // V092-08 Q4/Q5: the winning attack ends the tutorial on its closing line (no result window); its button
