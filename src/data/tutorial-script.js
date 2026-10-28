@@ -26,6 +26,7 @@ export const TUTORIAL_OPPONENT_SCRIPTS = Object.freeze({
   'sandbag-2': Object.freeze([{type:'attack',cardId:'STD-043',targetType:'fortress'}, {type:'endTurn'}])
 });
 
+// 「ようこそ」の挨拶は赤(basics)だけで流す。ほかの色は自分の手順1から始まる(文豪 2026-10-29)。
 const INTRO_STEPS = [
   { speaker: TUTORIAL_SPEAKER, text: "初めまして。Siege÷Zeke(ジーグ)の世界へようこそ。私は『じぐさぽ』です。" },
   { speaker: TUTORIAL_SPEAKER, text: "人間様……いえ、ユーザー様のサポートを仰せつかっております。どうぞよろしく。" },
@@ -441,22 +442,24 @@ const VENGEANCE_STEPS = [
   }
 ];
 
+const introSteps = (tutorialId) => tutorialId === "basics" ? INTRO_STEPS : [];
 const tutorialSteps = (tutorialId) => tutorialId === "vengeance" ? VENGEANCE_STEPS : tutorialId === "blue" ? BLUE_STEPS : BASIC_STEPS;
 
 export function createTutorialFlow(tutorialId = "basics") {
-  return { tutorialId, introIndex: 0, introComplete: false, index: 0, complete: false, error: "", pendingAction: null };
+  return { tutorialId, introIndex: 0, introComplete: introSteps(tutorialId).length === 0, index: 0, complete: false, error: "", pendingAction: null };
 }
 
 export function currentTutorialPresentation(flow) {
-  if (!flow?.introComplete) return { ...INTRO_STEPS[Math.min(flow?.introIndex ?? 0, INTRO_STEPS.length - 1)], intro: true };
+  if (!flow?.introComplete) { const intro = introSteps(flow?.tutorialId); return { ...intro[Math.min(flow?.introIndex ?? 0, intro.length - 1)], intro: true }; }
   return currentTutorialStep(flow);
 }
 
 export function advanceTutorialIntroduction(flow) {
   if (!flow || flow.introComplete) return false;
+  const length = introSteps(flow.tutorialId).length;
   flow.introIndex += 1;
-  if (flow.introIndex >= INTRO_STEPS.length) {
-    flow.introIndex = INTRO_STEPS.length - 1;
+  if (flow.introIndex >= length) {
+    flow.introIndex = Math.max(length - 1, 0);
     flow.introComplete = true;
   }
   flow.error = "";
@@ -465,7 +468,7 @@ export function advanceTutorialIntroduction(flow) {
 
 export function completeTutorialIntroduction(flow) {
   if (!flow) return false;
-  flow.introIndex = INTRO_STEPS.length - 1;
+  flow.introIndex = Math.max(introSteps(flow.tutorialId).length - 1, 0);
   flow.introComplete = true;
   flow.error = "";
   return true;
