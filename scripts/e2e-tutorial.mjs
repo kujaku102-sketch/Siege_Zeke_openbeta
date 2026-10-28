@@ -63,8 +63,11 @@ async function guideClear(page,moment) {
 // long 「」 growing it), what these vengeance steps point at spans all three bands, so every band covers some of it
 // while the line is read. Put away by a tap before the move, it covers nothing at the popups and picks that follow.
 // Anything else covered fails.
+// Blue 3-6: Rutile's access list stands at the left edge, its first rows under the portrait while the Login is
+// explained over the open choice (seen at 1280×720 and 844×390; the --screens sizes not run, 文豪 2026-10-28).
 const KNOWN_COVERED={
-  'page@vengeance:2':['素材ドールズ'],'page@vengeance:6':['効果起動','アクロィア','タナフォリア'],'page@vengeance:7':['ターン終了','トライプビア']
+  'page@vengeance:2':['素材ドールズ'],'page@vengeance:6':['効果起動','アクロィア','タナフォリア'],'page@vengeance:7':['ターン終了','トライプビア'],
+  ...Object.fromEntries([3,4,5,6].map(index => ['page@blue:'+index,['2Sp/オフェンスプロトコル','5Sp/アサルトプログラム']]))
 };
 // One page a 「」 of the script (pages cut at ▽ only), its text inside the frame (one line kept free for a refused
 // move's reason), the frame and the portrait on screen, the guide's buttons clear of the text (文豪, 2026-10-28).
@@ -308,6 +311,43 @@ async function pressAsked(page,id,index,open,close) {
   }
   await page.locator('.live-guide').waitFor({state:'visible',timeout:3000}).catch(() => {throw new Error('the next line did not come back after '+id+':'+index);});
 }
+// Blue step 6: Rutile's access lists the Offense Protocol and the Assault Programs. The Offense Protocol is
+// highlighted; an Assault Program is refused with the reason, and the guide comes back.
+async function accessPick(page) {
+  await putAway(page);
+  const query=(await read(page)).value,input=query.requiredInput;
+  const option=id => input?.options.find(option => option.preview?.definitionId===id);
+  if (!option('STD-111') || !option('STD-116')) throw new Error('the access does not list both programs');
+  if (!await page.locator('[data-option-card-id="STD-111"].live-focus').count()) throw new Error('the Offense Protocol is not highlighted in the access');
+  if (await page.locator('[data-option-card-id="STD-116"].live-focus').count()) throw new Error('an Assault Program is highlighted in the access');
+  await guideClear(page,'pick');
+  await pick(page,option('STD-116'),query);
+  await page.locator('.live-guide').waitFor({state:'visible',timeout:3000}).catch(() => {throw new Error('the guide did not come back on the Assault Program');});
+  const reason=await page.locator('.live-guide .live-guide-error').innerText().catch(() => '');
+  if (!reason.includes('オフェンスプロトコル') || (await read(page)).value.requiredInput?.choiceId!==input.choiceId) throw new Error('the Assault Program was not refused: '+reason);
+  await tapWhileSpeaking(page,'blue 6, refused access');
+  await putAway(page);
+  await pick(page,option('STD-111'),query);
+  const confirm=page.locator('[data-runtime-confirm]').first();
+  if (await confirm.count() && await confirm.isVisible() && await confirm.isEnabled()) await clickVisible(page,'[data-runtime-confirm]');
+  await settle(page);
+  const hand=cards((await read(page)).value).filter(card => !card.faceDown && card.location?.zone==='hand').map(card => card.definition.id);
+  if (!hand.includes('STD-111') || hand.includes('STD-116')) throw new Error('the access did not take the Offense Protocol: '+hand.join(','));
+}
+// A line about an ability opens Frau's detail itself with the badge highlighted (the board draws no badges); the
+// detail closes when the step moves on.
+async function abilityLine(page,id,index,badge) {
+  await step(page,id,index);
+  await page.locator(`.r2-detail[data-card-id="STD-109"] [data-ability-help].live-focus[data-tutorial-focus-label*="${badge}"]`).waitFor({state:'visible',timeout:3000})
+    .catch(() => {throw new Error(`the ${badge} badge is not shown highlighted at ${id}:${index}`);});
+  // In sight: not under the guide's portrait or frame (the detail stands at the left edge like the portrait).
+  await page.waitForTimeout(300);
+  const hidden=await page.evaluate(() => {const node=document.querySelector('.r2-detail [data-ability-help].live-focus'),rect=node.getBoundingClientRect();
+    return document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2)?.closest('.live-guide')?.className ?? null;});
+  if (hidden) throw new Error(`the ${badge} badge is under the guide at ${id}:${index} (${hidden})`);
+  await next(page);
+  await page.waitForFunction(() => !document.querySelector('.r2-detail'),null,{timeout:3000}).catch(() => {throw new Error(`the detail opened at ${id}:${index} stays open`);});
+}
 async function tapCard(page,cardId,zone) {
   const card=cards((await read(page)).value).find(card => !card.faceDown && card.definition.id===cardId && card.location?.zone===zone);
   const selector='[data-card-ref="'+card.cardRef+'"]';
@@ -340,8 +380,32 @@ async function intro(page,id) {
   }
   await step(page,id,0);await next(page);
 }
+// The blue script's 「」, one a step, as 文豪 wrote them (02-青-台本-修正反映.md, 2026-10-28). 「(アイコン)」 is a stage
+// direction: the line drops it and shows the ability's icon there instead.
+const BLUE_SCRIPT=[
+  '青のデッキを使います。青は『ハッキング』と『暗号化』という、相手のセキュリティをすり抜ける、あるいは攻撃を受けない能力を得意とします。',
+  '青のカードを使うには青のシンボルが必要なので『漣』をレジストリにインストールしましょう。',
+  'では、『ルチル』を実行してみましょう。','『ルチル』は青の得意なSp(スペル)とアクセスを駆使する戦術、特に『/…/*』系Spのサポートカードです。',
+  '『ログイン』効果は実行してエリアに出た時に起動する能力です。','お、起動しましたね。','今は『/オフェンスプロトコル/*』にアクセスして手札に加えましょう！',
+  '次に『フラウ』を実行します。メモリ2です。','フラウは『ハッキング』か『暗号化』を持っている間、+1/+1されます。今はどちらも持っていないので、2/2のままです。',
+  'ターンを終了しましょう。',
+  '相手が『装甲兵 メルク』を出して、スリープさせました。『セキュリティ』を持つObがスリープしている間、普通のObは相手ユーザーを攻撃できません。',
+  'では私達のターンですね。','今回は『フラウ』を選んで『/オフェンスプロトコル/*』を使ってみましょう','エリアの『フラウ』が『ハッキング(アイコン)』を得て、さらに+1/0されます',
+  'さらに！『フラウ』自身の効果で追加で+1/+1されました！','『ハッキング』は、相手の『セキュリティ』を無視して攻撃対象を選べるようになる効果です','それでは、攻撃してみましょう！',
+  '攻撃成功！相手のSTRが5から1になりました。','では『ルチル』で攻撃してみましょう。','ハッキングを持たない『ルチル』では、攻撃の対象を『セキュリティ』に吸われてしまいます。残念。',
+  '次は第二の戦術、『暗号化』です。これを持つObは相手Obの攻撃対象になりません','『セキュリティウォール』を実行しましょう。','ターンを終了します。相手の装甲兵が攻撃してきますが……',
+  '『暗号化』のおかげで、私たちのObは攻撃されません。','攻撃は相手ユーザーのあなたにだけ届きます。','今引いてきた『/アサルトプログラム/*』を起動しましょう！',
+  '最後です。『フラウ』で相手ユーザーを攻撃しましょう！','STRが0になりました！完璧な勝利を貴方に。Powered by Neutron Security！……企業案件です。'
+];
 async function step(page,id,index) {
   await page.waitForFunction(({id,index}) => document.querySelector('.live-guide')?.dataset.tutorialStep === id+':'+index && window.__SIMPLE_ZEKE_E2E__.tutorial().value?.opponentScript === null,{id,index});
+  if (id==='blue') {
+    const said=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.tutorial().value?.presentation?.text);
+    if (said!==BLUE_SCRIPT[index].replace('(アイコン)','')) throw new Error('blue '+index+' is not the script line: '+said);
+    // Where the script asks for the icon, the line shows the ability's icon right after its name.
+    if (BLUE_SCRIPT[index].includes('(アイコン)') && !await page.locator('.live-guide-text img.live-guide-kw[alt="ハッキング"]').count())
+      throw new Error('blue '+index+': the Hacking icon is not in the line');
+  }
   await guidePage(page);
   await readPages(page);
   const audit=await page.locator('.live-guide').evaluate(node => {const rect=node.getBoundingClientRect();return {left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,w:innerWidth,h:innerHeight};});
@@ -434,6 +498,36 @@ async function run(page,id) {
     await step(page,id,39);await action(page,'attack','STD-091',{targetId:'STD-022'});await settle(page);
     await talk(40,41);
     await step(page,id,42);await action(page,'attack','STD-021',{user:true});await settle(page);
+  } else if (id==='blue') {
+    // The author's blue script, one 「」 a step (28 steps): Nami for the blue symbol, Rutile's access, Frau passing Merc
+    // by Hacking, Rutile taken by Merc's Security, the Security Wall's Encryption, and the Assault Program: STR 5 -> 1 -> 0.
+    const talk=async (from,to) => {for (let index=from;index<=to;index+=1) {await step(page,id,index);await next(page);}};
+    await step(page,id,1);await action(page,'install','STD-117');
+    await step(page,id,2);await action(page,'executeCard','STD-107',{zone:'front'});
+    // Rutile's access stays open while the guide explains the Login: it is not answered until its own line.
+    await step(page,id,3);await tapWhileSpeaking(page,'blue 3, the access open');await next(page);
+    await talk(4,5);
+    await step(page,id,6);await accessPick(page);
+    await step(page,id,7);await action(page,'executeCard','STD-109',{zone:'front'});
+    await talk(8,8);
+    await step(page,id,9);await action(page,'endTurn');await settle(page);
+    await talk(10,11);
+    await step(page,id,12);
+    await action(page,'executeSpell','STD-111',{targetId:'STD-107',cardOnly:true,refused:'フラウ',label:'the Offense Protocol on Rutile'});
+    await action(page,'executeSpell','STD-111',{targetId:'STD-109',cardOnly:true});await settle(page);
+    await talk(13,14);
+    await abilityLine(page,id,15,'ハッキング');
+    await step(page,id,16);
+    await action(page,'attack','STD-109',{targetId:'STD-043',cardOnly:true,refused:'相手ユーザー',label:'Frau on Merc'});
+    await action(page,'attack','STD-109',{user:true});await settle(page);
+    await talk(17,17);
+    await step(page,id,18);await action(page,'attack','STD-107',{targetId:'STD-043'});await settle(page);
+    await talk(19,20);
+    await step(page,id,21);await action(page,'executeSpell','STD-110');await settle(page);
+    await step(page,id,22);await action(page,'endTurn');await settle(page);
+    await talk(23,24);
+    await step(page,id,25);await action(page,'executeSpell','STD-116');await settle(page);
+    await step(page,id,26);await action(page,'attack','STD-109',{user:true});await settle(page);
   } else {
     await step(page,id,1);await action(page,'install','STD-191');
     await step(page,id,2);await action(page,'executeLayered','STD-195',{zone:'front'});await settle(page);
@@ -465,7 +559,7 @@ try {
     const context=await browser.newContext({viewport:{width:profile.width,height:profile.height},...profile.device});
     const page=await context.newPage();
     page.on('pageerror',error => errors.push(error.message));
-    for (const id of ['basics','vengeance']) {await run(page,id);runs.push({profile:profile.label,tutorial:id});}
+    for (const id of ['basics','blue','vengeance']) {await run(page,id);runs.push({profile:profile.label,tutorial:id});}
     // Skip during a committed required choice revokes old refs and cannot carry it.
     await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.start('tutorial','vengeance',1));
     await intro(page,'vengeance');await action(page,'install','STD-191');await action(page,'executeLayered','STD-195',{zone:'front'});await action(page,'redeploy','STD-195',{zone:'back'});
