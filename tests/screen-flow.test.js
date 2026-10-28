@@ -254,7 +254,7 @@ test('guide pages: one per 「」, each growing the frame as it needs on this sc
   assert.ok(surface.includes("guidePaging = { key, pages: splitGuidePages(presentation.text).map(page => ({ ...page, grow: Math.max(0, counter.frameHeight(page.text) - base) })) };"));
   assert.ok(surface.includes("const key = `${presentation.text}\\u0000${counter.width}\\u0000${viewport.height}\\u0000${fontEpoch}`;"), 'measured again when the screen or the fonts change');
   assert.ok(surface.includes('return pages ? { page: pages[guidePageShown.index]?.grow ?? 0, step: Math.max(0, ...pages.map(page => page.grow ?? 0)) } : { page: 0, step: 0 };'), 'the page shown, and the step\'s tallest page');
-  assert.ok(surface.includes("for (const name of ['board', 'console', 'hand', 'hand-toggle']) { const host = root.querySelector(`[data-live-region=\"${name}\"]`); if (host) host.inert = reading; }"));
+  assert.ok(surface.includes("for (const name of ['board', 'console', 'hand', 'hand-toggle', 'popup', 'selection', 'detail', 'drawer']) { const host = root.querySelector(`[data-live-region=\"${name}\"]`); if (host) host.inert = reading; }"));
   assert.ok(surface.includes("if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && event.target.closest?.('.live-guide')) {"));
   assert.ok(surface.includes("if (focused) (root.querySelector(delta < 0 && index > 0 ? '.live-guide [data-runtime-guide-prev]' : forward) ?? root.querySelector(forward))?.focus();"), 'focus follows the button pressed, [次へ] on the next page');
   const layout = await readSource('../src/ui-refresh/surface-layout.js');

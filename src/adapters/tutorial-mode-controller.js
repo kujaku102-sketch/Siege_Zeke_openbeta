@@ -99,8 +99,10 @@ export function createTutorialModeController(tutorialId = 'basics') {
           ? { ok: true, value: null } : failure('TUTORIAL_ACTION_NOT_EXPECTED');
       }
       if (!flow.introComplete || flow.complete || acceptedAction || opponentScript) return failure('TUTORIAL_ACTION_NOT_EXPECTED');
-      if (!matches(currentTutorialStep(flow).expect, semantic)) return failure('TUTORIAL_ACTION_NOT_EXPECTED');
-      const rule = guard();
+      const rule = guard(), expect = currentTutorialStep(flow).expect;
+      // The step's own card played elsewhere (the Junk Parts alone in the back) is told the same reason.
+      if (!matches(expect, semantic)) return rule?.action && semantic.cardId === expect.cardId && semantic.type === expect.type
+        ? refuse('TUTORIAL_ACTION_NOT_EXPECTED', rule.reason) : failure('TUTORIAL_ACTION_NOT_EXPECTED');
       return !rule?.action || matches(rule.action, semantic) ? { ok: true, value: null } : refuse('TUTORIAL_ACTION_NOT_EXPECTED', rule.reason);
     },
     accepted(query, action) {

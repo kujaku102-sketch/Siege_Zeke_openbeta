@@ -74,8 +74,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     return { index, count: pages.length, text: pages[index].text, last: index === pages.length - 1, pending: false };
   };
   // While the guide speaks the match takes no input (文豪, 2026-10-28). A tap on its line does what [次へ] would; on a
-  // step that asks for a move, where there is none, it puts the guide away until the next step, or until a refused
-  // move has a reason to show.
+  // step that asks for a move, where there is none, it puts the guide away until the next step or a refused move.
   let guideAway = null;
   const guideReason = value => value.flow.error || (tutorialNote?.index === value.flow.index ? tutorialNote.text : '') || '';
   const tutorialView = () => {
@@ -97,7 +96,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     const forward = root.querySelector(press ? '.live-guide [data-runtime-guide-next]' : '.live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next])');
     if (forward) { forward.click(); return; }
     guideAway = { step: pageStep(tutorial.value.flow), reason: guideReason(tutorial.value) };
-    act(ui.read());
+    // Only redrawn: act() would confirm again a refused plan left on its confirm bar, and bring the guide back.
+    render(ui.read());
   };
   // A step that asks the player to press something to see it (expect.press in tutorial-script.js: the info button,
   // an ability badge, a card's detail) moves on once that is open; the next line waits until it is closed.
@@ -161,8 +161,9 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const log = createLogSync(root);
   const render = result => {
     if (disposed) return;
-    // A move the tutorial refused is redrawn as it stands, so the guide shows why.
-    if (!result.ok) { reportError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { const read = ui.read(); if (read.ok) render(read); } return; }
+    // A move the tutorial refused is redrawn as it stands, so the guide shows why. The guide comes back on every
+    // refusal, also when the reason is the one it gave before, and the match waits again.
+    if (!result.ok) { reportError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { guideAway = null; const read = ui.read(); if (read.ok) render(read); } return; }
     const next = result.value;
     const tutorial = tutorialView();
     const presentation = { ...next, view, effectsEnabled, boardStyle, tutorial:tutorial.ok ? tutorial.value : null };
@@ -198,9 +199,10 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
         if(list)list.scrollTop=0;
       }
       log.sync(next,shellRebuilt);
-      // While the guide speaks the match waits: past its pages, and on a move's step until a tap puts it away.
+      // While the guide speaks the match waits: past its pages, and on a move's step until a tap puts it away. A popup,
+      // pick or detail left open when it comes back waits too (a phone tap on a card fell on a popup's button).
       const reading = Boolean(tutorial.ok && tutorial.value.presentation && !tutorial.value.away);
-      for (const name of ['board', 'console', 'hand', 'hand-toggle']) { const host = root.querySelector(`[data-live-region="${name}"]`); if (host) host.inert = reading; }
+      for (const name of ['board', 'console', 'hand', 'hand-toggle', 'popup', 'selection', 'detail', 'drawer']) { const host = root.querySelector(`[data-live-region="${name}"]`); if (host) host.inert = reading; }
       root.querySelector('.r2-runtime-view')?.classList.toggle('tutorial-reading', reading);
       // Compat render mode: the guide drops its backdrop blur (heavy on WebKit) and keeps an opaque face.
       root.querySelector('.r2-runtime-view')?.classList.toggle('live-low-gpu', lowGpu);

@@ -267,6 +267,9 @@ test("while the guide speaks the match takes no input; a tap puts it away until 
   assert.ok(surface.includes("if (forward) { forward.click(); return; }\n    guideAway = { step: pageStep(tutorial.value.flow), reason: guideReason(tutorial.value) };"), "[次へ] where there is one, else put away");
   assert.ok(surface.includes("if (guideAway && guideAway.step !== pageStep(tutorial.value.flow)) guideAway = null;"), "back on the next step");
   assert.ok(surface.includes("const away = guideAway?.reason === guideReason(tutorial.value) ? { away: true } : {};"), "back with a refused move's reason");
+  assert.ok(surface.includes("result.error.code !== 'TUTORIAL_DISPOSED') { guideAway = null; const read = ui.read();"), "back on every refused move, the same reason again too");
+  assert.ok(surface.includes("reason: guideReason(tutorial.value) };\n    // Only redrawn: act() would confirm again a refused plan left on its confirm bar, and bring the guide back.\n    render(ui.read());"), "putting it away confirms nothing");
+  assert.ok(surface.includes("for (const name of ['board', 'console', 'hand', 'hand-toggle', 'popup', 'selection', 'detail', 'drawer']) {"), "a popup, pick or detail left open waits too");
   assert.ok(surface.includes("if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('.live-guide-text')) {"), "the keyboard's tap");
   const view = await readSource("../src/ui-refresh/runtime-read-view.js");
   assert.ok(view.includes(`if (tutorial.away) return '<aside class="live-guide-away" aria-label="チュートリアル"><button class="live-guide-skip" data-runtime-tutorial-skip>スキップ</button></aside>';`), "[スキップ] stays");

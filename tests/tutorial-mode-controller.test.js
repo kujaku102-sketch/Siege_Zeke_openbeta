@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNewMatchSessionController } from '../src/adapters/match-session-controller.js';
 import { chooseSimpleAiIntent } from '../src/adapters/simple-ai-policy.js';
+import { createTutorialModeController, TUTORIAL_STEP_GUARDS } from '../src/adapters/tutorial-mode-controller.js';
 
 function setup() {
   const created = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: {
@@ -73,4 +74,33 @@ test('tutorial normal play and attack use ports; opponent cannot act before scri
     assert.equal(answering.submit(intent.value).ok, true);
   }
   assert.equal(game.tutorial().value.flow.index, 30);
+});
+test('red step 37: the Junk Parts anywhere but under Atto is refused with the guard reason, alone in the back too', () => {
+  const controller = createTutorialModeController('basics');
+  const card = (id, zone) => ({ cardRef: `r-${id}`, definition: { id }, faceDown: false, mounted: [], location: { zone } });
+  const seat = (seatId, cards) => ({ seatId, hand: { cards: cards.filter(item => item.location.zone === 'hand') },
+    ...Object.fromEntries(['front', 'back', 'registry', 'trash', 'ban'].map(zone => [zone, { cards: cards.filter(item => item.location.zone === zone) }])) });
+  const query = { observation: { seats: [seat('a', [card('STD-021', 'front'), card('STD-091', 'front'), card('STD-087', 'hand'), card('STD-078', 'hand')]),
+    seat('b', [card('STD-022', 'front')])] }, status: { viewerSeat: 'a', activeSeat: 'a', lockedOutcome: null, progress: 'awaitingAction' }, requiredInput: null };
+  const moves = {
+    play: expect => ({ type: 'executeCard', cardRef: `r-${expect.cardId}`, destination: { zone: expect.zone } }),
+    install: expect => ({ type: 'install', cardRef: `r-${expect.cardId}` }),
+    attack: expect => ({ type: 'attack', attackerRef: `r-${expect.cardId}`, target: expect.targetCardId ? { kind: 'card', cardRef: `r-${expect.targetCardId}` } : { kind: 'user', seatId: 'b' } }),
+    'end-turn': () => ({ type: 'endTurn' })
+  };
+  while (controller.presentation().flow.index < 37 || !controller.presentation().flow.introComplete) {
+    const expect = controller.presentation().presentation.expect;
+    if (!controller.presentation().flow.introComplete || expect.type === 'advance') { assert.equal(controller.advance().ok, true); continue; }
+    const action = moves[expect.type](expect);
+    assert.equal(controller.authorize(query, action).ok, true, JSON.stringify(expect));
+    controller.accepted(query, action);
+  }
+  const reason = TUTORIAL_STEP_GUARDS.basics[37].reason;
+  for (const action of [{ type: 'executeCard', cardRef: 'r-STD-078', destination: { zone: 'back' } },
+    { type: 'mountCard', cardRef: 'r-STD-078', hostRef: 'r-STD-021' },
+    { type: 'executeCard', cardRef: 'r-STD-078', destination: { zone: 'front' } }]) {
+    assert.equal(controller.authorize(query, action).error?.code, 'TUTORIAL_ACTION_NOT_EXPECTED', JSON.stringify(action));
+    assert.equal(controller.presentation().flow.error, reason, JSON.stringify(action));
+  }
+  assert.equal(controller.authorize(query, { type: 'mountCard', cardRef: 'r-STD-078', hostRef: 'r-STD-091' }).ok, true);
 });
