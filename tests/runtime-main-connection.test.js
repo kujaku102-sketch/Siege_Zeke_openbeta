@@ -1010,3 +1010,32 @@ test('tutorial blue: taps during Merc\'s turn leave the turn to the script, so t
   assert.equal(session.tutorial().value.flow.index,13);
   lifecycle.dispose();
 });
+
+// Skipping a tutorial plays its own script to the win (same commands, same guards): STR 0 and the closing line.
+import { playTutorialToWin } from '../src/adapters/tutorial-autoplay.js';
+for (const [tutorialId,aiDeckId,closing] of [['basics','yellow',/勝利です/],['vengeance','yellow',/勝利。/],['blue','tutorial-sandbag',/完璧な勝利/]]) {
+  test(`playTutorialToWin takes ${tutorialId} to its own win: the opponent at STR 0, the result locked, the closing line`,()=>{
+    const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),runtime=config('tutorial');
+    Object.assign(runtime.gameOptions,{tutorialId,aiDeckId});
+    const session=lifecycle.start(runtime).value,port=session.port('a').value;
+    const result=playTutorialToWin({session});assert.equal(result.ok,true,JSON.stringify(result));
+    const query=port.query().value;
+    assert.equal(seatView(query,'b').fortressStr,0);assert.equal(query.status.lockedOutcome.winnerSeat,'a');
+    const flow=session.tutorial().value.flow;assert.equal(flow.complete,true);
+    assertClosingLine(session,flow.index,closing);
+    lifecycle.dispose();
+  });
+}
+test('lifecycle.skipTutorialToWin plays the running tutorial on from where it stands, in the same session, and refuses outside a tutorial',()=>{
+  const {lifecycle,session,port}=setup('tutorial');
+  walkRedToEndOfTurnOne(session,port); // stands at the opponent's script, the player's first turn just ended
+  const result=lifecycle.skipTutorialToWin();assert.equal(result.ok,true,JSON.stringify(result));
+  assert.equal(result.value,session);assert.equal(lifecycle.current().value,session);
+  assert.equal(seatView(port.query().value,'b').fortressStr,0);assert.equal(port.query().value.status.lockedOutcome.winnerSeat,'a');
+  assertClosingLine(session,43,/勝利です/);
+  assert.equal(lifecycle.completeTutorial().ok,true,'the closing line ends the tutorial as a played one does');
+  lifecycle.dispose();
+  const sandbox=setup(),refused=sandbox.lifecycle.skipTutorialToWin();
+  assert.equal(refused.ok,false);assert.equal(refused.error.code,'UNAVAILABLE_MODE');sandbox.lifecycle.dispose();
+  const idle=createMatchLifecycleController({nextMatchId:()=> 'x'});assert.equal(idle.skipTutorialToWin().error.code,'UNAVAILABLE_MODE');
+});

@@ -1,4 +1,5 @@
 import { createNewMatchSessionController } from './match-session-controller.js';
+import { playTutorialToWin } from './tutorial-autoplay.js';
 
 const failure = code => ({ ok: false, error: { code } });
 
@@ -37,6 +38,13 @@ export function createMatchLifecycleController({ nextMatchId = () => crypto.rand
       if (!config || config.gameOptions.mode !== 'tutorial') return failure('UNAVAILABLE_MODE');
       return start({ ...structuredClone(config), matchId: nextMatchId(),
         gameOptions: { ...structuredClone(config.gameOptions), mode: 'sandbox', sandboxDeckSetup: true } });
+    },
+    // Plays the current tutorial's own script on from wherever it stands, to its win: the opponent at STR 0,
+    // the result locked for the player, the guide on the closing line. Same session, so the host keeps its handles.
+    skipTutorialToWin() {
+      if (!config || config.gameOptions.mode !== 'tutorial' || !current) return failure('UNAVAILABLE_MODE');
+      const played = playTutorialToWin({ session: current });
+      return played.ok ? { ok: true, value: current } : played;
     },
     completeTutorial() {
       if (!config || config.gameOptions.mode !== 'tutorial' || !current) return failure('UNAVAILABLE_MODE');
