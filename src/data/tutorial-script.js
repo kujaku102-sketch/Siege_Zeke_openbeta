@@ -355,7 +355,9 @@ const BLUE_STEPS = [
   BLUE_ADVANCE("次は第二の戦術、『暗号化』です。これを持つObは相手Obの攻撃対象になりません", [BLUE_CARD("STD-110", "セキュリティウォール")]),
   BLUE_STEP("『セキュリティウォール』を実行しましょう。", [BLUE_CARD("STD-110", "セキュリティウォール")], { type: "play", cardId: "STD-110" }),
   // 10 ターン終了と相手の攻撃
-  BLUE_STEP("ターンを終了します。相手の装甲兵が攻撃してきますが……", [{ kind: "action", action: "end-turn", label: "ターン終了" }], { type: "end-turn" }, { after: "sandbag-2" }),
+  // 暗号化がフラウに付いているのはこの手順の間だけ(相手ターン終了で切れる)なので、暗号化のバッジはここで見せる。
+  BLUE_STEP("ターンを終了します。相手の装甲兵が攻撃してきますが……", [{ kind: "action", action: "end-turn", label: "ターン終了" },
+    { kind: "ui", target: "ability-badge", cardId: "STD-109", badge: "暗号化", label: "暗号化のバッジ" }], { type: "end-turn" }, { after: "sandbag-2" }),
   BLUE_ADVANCE("『暗号化』のおかげで、私たちのObは攻撃されません。", [BLUE_CARD("STD-109", "フラウ", "front")]),
   BLUE_ADVANCE("攻撃は相手ユーザーのあなたにだけ届きます。"),
   // 11 とどめ
