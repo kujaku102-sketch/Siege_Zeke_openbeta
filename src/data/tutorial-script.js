@@ -5,11 +5,25 @@ export const TUTORIAL_OPPONENT_STR = 5;
 // 赤チュートリアルの初手(文豪の台本)。台本の「兵士」は剣士(STD-021、メモリ2・3/3・無色)に統一している。
 export const TUTORIAL_SOLDIER_ID = "STD-021";
 export const TUTORIAL_RED_HAND = Object.freeze(["STD-087", TUTORIAL_SOLDIER_ID, "STD-091", "STD-078"]);
+// 青チュートリアル(文豪の台本、2026-10-28)。手札は ルチル・漣・フラウ・セキュリティウォール。山札はオフェンスプロトコル1枚とアサルトプログラム6枚。
+// ルチルのアクセスでオフェンスプロトコルが手札に移ると山札はアサルトだけになり、山札が混ぜられても、どのターンの引きもアサルトプログラムになる。
+// 引く枚数: 2ターン目の開始・STR 5→1 のインシデントの1ドロー・3ターン目の開始・勝利後のアサルトの追加ドロー(必須ドロー、失敗は敗北)の4枚。
+// アサルトは 6 枚で、最後に2枚残る。
+export const TUTORIAL_BLUE_HAND = Object.freeze(["STD-107", "STD-117", "STD-109", "STD-110"]);
+export const TUTORIAL_BLUE_DECK = Object.freeze([["STD-111", 1], ["STD-116", 6]].map((row) => Object.freeze(row)));
+// 相手の無色サンドバッグデッキ(設計メモ 08 §2.2)。台本が使う装甲兵 メルク(STD-043)は手札に直接置く。計40枚・同名3枚まで。
+export const TUTORIAL_SANDBAG_DECK = Object.freeze([
+  ["STD-020", 3], ["STD-021", 3], ["STD-022", 3], ["STD-023", 3], ["STD-024", 3], ["STD-025", 3], ["STD-026", 3],
+  ["STD-027", 3], ["STD-028", 3], ["STD-029", 3], ["STD-031", 3], ["STD-043", 3], ["STD-044", 3], ["STD-004", 1]
+].map((row) => Object.freeze(row)));
 export const TUTORIAL_OPPONENT_SCRIPTS = Object.freeze({
   'yellow-demo': Object.freeze([{type:'install',cardId:'STD-125'}, {type:'executeCard',cardId:'STD-131',zone:'front'}, {type:'endTurn'}]),
   'yellow-pass': Object.freeze([{type:'endTurn'}]),
   // 赤チュートリアル: 相手はセキュリティのObガードマンを実行し、スリープさせてターンを終える。
-  'guardman-demo': Object.freeze([{type:'executeCard',cardId:'STD-022',zone:'front'}, {type:'endTurn'}])
+  'guardman-demo': Object.freeze([{type:'executeCard',cardId:'STD-022',zone:'front'}, {type:'endTurn'}]),
+  // 青チュートリアル: 1) 装甲兵 メルクを実行してスリープさせ、ターンを終える。2) 次のターン、メルクで相手ユーザーを攻撃してターンを終える。
+  'sandbag-1': Object.freeze([{type:'executeCard',cardId:'STD-043',zone:'front'}, {type:'endTurn'}]),
+  'sandbag-2': Object.freeze([{type:'attack',cardId:'STD-043',targetType:'fortress'}, {type:'endTurn'}])
 });
 
 const INTRO_STEPS = [
@@ -292,6 +306,63 @@ const BASIC_STEPS = [
   }
 ];
 
+// 青(セキュリティ・ハッキング・暗号化)。文豪の台本 02-青-台本-修正反映.md の「」を 1 つずつ 1 ステップにしている(原文のまま、順番どおり)。
+// 括弧の演出は focus / expect に移した。手順3のルチルだけ、実行(ログイン効果の選択が開く)を先に行い、説明と「お、起動しましたね。」は
+// 選択を開いたまま進め、最後の行でオフェンスプロトコルを選ぶ。leavesChoice の実行(step.leavesChoice)は、選択が開いたままでも次のステップへ進む。
+const BLUE_CARD = (cardId, label, zone = "hand", owner = "player") => ({ kind: "card", cardId, owner, zone, label });
+const BLUE_FRONT = { kind: "zone", owner: "player", zone: "front", label: "自分フロント" };
+const BLUE_USER = { kind: "fortress", owner: "ai", label: "相手ユーザー" };
+const BLUE_STEP = (text, focus, expect, rest = {}) => ({ speaker: TUTORIAL_SPEAKER, text, ...(focus ? { focus } : {}), expect, ...rest });
+const BLUE_ADVANCE = (text, focus) => BLUE_STEP(text, focus, { type: "advance" });
+
+const BLUE_STEPS = [
+  // 1 開始
+  BLUE_ADVANCE("青のデッキを使います。青は『ハッキング』と『暗号化』という、相手のセキュリティをすり抜ける、あるいは攻撃を受けない能力を得意とします。"),
+  // 2 インストール(シンボル)
+  BLUE_STEP("青のカードを使うには青のシンボルが必要なので『漣』をレジストリにインストールしましょう。",
+    [BLUE_CARD("STD-117", "漣"), { kind: "admin", owner: "player", zone: "registry", label: "レジストリ" }], { type: "install", cardId: "STD-117" }),
+  // 3 ルチル
+  BLUE_STEP("では、『ルチル』を実行してみましょう。", [BLUE_CARD("STD-107", "ルチル"), BLUE_FRONT],
+    { type: "play", cardId: "STD-107", zone: "front" }, { leavesChoice: true }),
+  BLUE_ADVANCE("『ルチル』は青の得意なSp(スペル)とアクセスを駆使する戦術、特に『/…/*』系Spのサポートカードです。", [BLUE_CARD("STD-107", "ルチル", "front")]),
+  BLUE_ADVANCE("『ログイン』効果は実行してエリアに出た時に起動する能力です。", [BLUE_CARD("STD-107", "ルチル", "front")]),
+  BLUE_ADVANCE("お、起動しましたね。", [BLUE_CARD("STD-107", "ルチル", "front")]),
+  BLUE_STEP("今は『/オフェンスプロトコル/*』にアクセスして手札に加えましょう！", undefined, { type: "answerChoice", cardId: "STD-111" }),
+  // 4 フラウ
+  BLUE_STEP("次に『フラウ』を実行します。メモリ2です。", [BLUE_CARD("STD-109", "フラウ"), BLUE_FRONT], { type: "play", cardId: "STD-109", zone: "front" }),
+  BLUE_ADVANCE("フラウは『ハッキング』か『暗号化』を持っている間、+1/+1されます。今はどちらも持っていないので、2/2のままです。", [BLUE_CARD("STD-109", "フラウ", "front")]),
+  // 5 ターン終了
+  BLUE_STEP("ターンを終了しましょう。", [{ kind: "action", action: "end-turn", label: "ターン終了" }], { type: "end-turn" }, { after: "sandbag-1" }),
+  // 6 相手のセキュリティ
+  BLUE_ADVANCE("相手が『装甲兵 メルク』を出して、スリープさせました。『セキュリティ』を持つObがスリープしている間、普通のObは相手ユーザーを攻撃できません。",
+    [BLUE_CARD("STD-043", "装甲兵 メルク", "front", "ai"), BLUE_USER]),
+  // 7 Spの使用、ハッキングで攻撃
+  BLUE_ADVANCE("では私達のターンですね。"),
+  BLUE_STEP("今回は『フラウ』を選んで『/オフェンスプロトコル/*』を使ってみましょう",
+    [BLUE_CARD("STD-111", "オフェンスプロトコル"), BLUE_CARD("STD-109", "フラウ", "front")], { type: "play", cardId: "STD-111", targetCardId: "STD-109" }),
+  BLUE_ADVANCE("エリアの『フラウ』が『ハッキング』を得て、さらに+1/0されます", [BLUE_CARD("STD-109", "フラウ", "front")]),
+  BLUE_ADVANCE("さらに！『フラウ』自身の効果で追加で+1/+1されました！", [BLUE_CARD("STD-109", "フラウ", "front")]),
+  BLUE_ADVANCE("『ハッキング』は、相手の『セキュリティ』を無視して攻撃対象を選べるようになる効果です",
+    [BLUE_CARD("STD-109", "フラウ", "front"), { kind: "ui", target: "ability-badge", cardId: "STD-109", badge: "ハッキング", label: "ハッキングのバッジ" }]),
+  BLUE_STEP("それでは、攻撃してみましょう！", [BLUE_CARD("STD-109", "フラウ", "front"), BLUE_USER], { type: "attack", cardId: "STD-109", targetType: "fortress" }),
+  BLUE_ADVANCE("攻撃成功！相手のSTRが5から1になりました。", [BLUE_USER]),
+  // 8 ハッキングを持たないObで攻撃
+  BLUE_STEP("では『ルチル』で攻撃してみましょう。", [BLUE_CARD("STD-107", "ルチル", "front"), BLUE_CARD("STD-043", "装甲兵 メルク", "front", "ai")],
+    { type: "attack", cardId: "STD-107", targetCardId: "STD-043" }),
+  BLUE_ADVANCE("ハッキングを持たない『ルチル』では、攻撃の対象を『セキュリティ』に吸われてしまいます。残念。", [BLUE_CARD("STD-043", "装甲兵 メルク", "front", "ai")]),
+  // 9 暗号化
+  BLUE_ADVANCE("次は第二の戦術、『暗号化』です。これを持つObは相手Obの攻撃対象になりません", [BLUE_CARD("STD-110", "セキュリティウォール")]),
+  BLUE_STEP("『セキュリティウォール』を実行しましょう。", [BLUE_CARD("STD-110", "セキュリティウォール")], { type: "play", cardId: "STD-110" }),
+  // 10 ターン終了と相手の攻撃
+  BLUE_STEP("ターンを終了します。相手の装甲兵が攻撃してきますが……", [{ kind: "action", action: "end-turn", label: "ターン終了" }], { type: "end-turn" }, { after: "sandbag-2" }),
+  BLUE_ADVANCE("『暗号化』のおかげで、私たちのObは攻撃されません。", [BLUE_CARD("STD-109", "フラウ", "front")]),
+  BLUE_ADVANCE("攻撃は相手ユーザーのあなたにだけ届きます。"),
+  // 11 とどめ
+  BLUE_STEP("今引いてきた『/アサルトプログラム/*』を起動しましょう！", [BLUE_CARD("STD-116", "アサルトプログラム")], { type: "play", cardId: "STD-116" }),
+  BLUE_STEP("最後です。『フラウ』で相手ユーザーを攻撃しましょう！", [BLUE_CARD("STD-109", "フラウ", "front"), BLUE_USER], { type: "attack", cardId: "STD-109", targetType: "fortress" }),
+  BLUE_STEP("STRが0になりました！完璧な勝利を貴方に。Powered by Neutron Security！……企業案件です。", undefined, null)
+];
+
 const VENGEANCE_STEPS = [
   {
     speaker: TUTORIAL_SPEAKER,
@@ -367,7 +438,7 @@ const VENGEANCE_STEPS = [
   }
 ];
 
-const tutorialSteps = (tutorialId) => tutorialId === "vengeance" ? VENGEANCE_STEPS : BASIC_STEPS;
+const tutorialSteps = (tutorialId) => tutorialId === "vengeance" ? VENGEANCE_STEPS : tutorialId === "blue" ? BLUE_STEPS : BASIC_STEPS;
 
 export function createTutorialFlow(tutorialId = "basics") {
   return { tutorialId, introIndex: 0, introComplete: false, index: 0, complete: false, error: "", pendingAction: null };
