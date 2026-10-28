@@ -47,8 +47,8 @@ export function createTutorialModeController(tutorialId = 'basics') {
   let disposed = false;
   const stepFinished = () => {
     const step = currentTutorialStep(flow);
-    opponentScript = step.after ?? null;
-    opponentIndex = 0;
+    // A step without an opponent turn leaves a running script alone; clearing it would strand the match in the opponent's turn.
+    if (step.after) { opponentScript = step.after; opponentIndex = 0; }
     flow.index += 1;
     flow.complete = flow.index >= tutorialSteps(tutorialId).length - 1;
     acceptedAction = null;
@@ -69,6 +69,8 @@ export function createTutorialModeController(tutorialId = 'basics') {
     advance() {
       if (disposed) return failure('TUTORIAL_DISPOSED');
       if (!flow.introComplete) advanceTutorialIntroduction(flow);
+      // The guide waits while the opponent's script plays: it ends with the player's turn started (memory refilled).
+      else if (opponentScript) return failure('TUTORIAL_OPPONENT_TURN');
       else if (currentTutorialStep(flow).expect?.type === 'advance') stepFinished();
       else return failure('TUTORIAL_ACTION_NOT_EXPECTED');
       return { ok: true, value: null };
