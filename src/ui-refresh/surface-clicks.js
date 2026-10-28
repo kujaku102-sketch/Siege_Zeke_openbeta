@@ -40,7 +40,9 @@ const slotHit = slot => ({ kind: 'slot', seatId: slot.dataset.seat, zone: slot.d
 export function routeClick(event, c) {
   const { ui, act } = c;
   const latest = c.latest();
-  const target = event.target.closest('button') ?? (c.boardStyle === 'wireframe' ? event.target.closest('[data-wire-hit]') : null);
+  // A tap on the guide's line, not on one of its buttons (runtime-match-surface.js, tapGuide).
+  if (event.target.closest('.live-guide-speech') && !event.target.closest('button')) return c.tapGuide?.();
+  const target =event.target.closest('button') ?? (c.boardStyle === 'wireframe' ? event.target.closest('[data-wire-hit]') : null);
   if (!target) {
     if (latest?.interactionRequest) {
       const slot = event.target.closest('.board-slot[data-seat][data-zone][data-slot]');

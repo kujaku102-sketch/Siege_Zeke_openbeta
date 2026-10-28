@@ -248,6 +248,44 @@ test("a tap on an occupied slot answers a slot request, and a card request still
   assert.deepEqual(run(cardOnly, request([{ optionId: "c", cardRef: ref }])), [{ kind: "card", cardRef: ref }]);
 });
 
+test("a tap on the guide's line goes to the guide, a tap on its buttons to the button", async () => {
+  const { routeClick } = await import("../src/ui-refresh/surface-clicks.js");
+  const run = button => {
+    const calls = [];
+    const target = { closest: selector => selector === ".live-guide-speech" ? {} : selector === "button" ? button : null };
+    routeClick({ target }, { ui: {}, act: () => {}, latest: () => null, tapGuide: () => calls.push("tap"), turnGuidePage: delta => calls.push(delta) });
+    return calls;
+  };
+  assert.deepEqual(run(null), ["tap"]);
+  assert.deepEqual(run({ hasAttribute: name => name === "data-runtime-guide-next" }), [1]);
+});
+
+test("while the guide speaks the match takes no input; a tap puts it away until the next step or a new reason", async () => {
+  const surface = await readSource("../src/ui-refresh/runtime-match-surface.js");
+  assert.ok(surface.includes("const reading = Boolean(tutorial.ok && tutorial.value.presentation && !tutorial.value.away);"));
+  assert.ok(surface.includes("const forward = root.querySelector(press ? '.live-guide [data-runtime-guide-next]' : '.live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next])');"), "a step pointing at a button to press is a move");
+  assert.ok(surface.includes("if (forward) { forward.click(); return; }\n    guideAway = { step: pageStep(tutorial.value.flow), reason: guideReason(tutorial.value) };"), "[次へ] where there is one, else put away");
+  assert.ok(surface.includes("if (guideAway && guideAway.step !== pageStep(tutorial.value.flow)) guideAway = null;"), "back on the next step");
+  assert.ok(surface.includes("const away = guideAway?.reason === guideReason(tutorial.value) ? { away: true } : {};"), "back with a refused move's reason");
+  assert.ok(surface.includes("if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('.live-guide-text')) {"), "the keyboard's tap");
+  const view = await readSource("../src/ui-refresh/runtime-read-view.js");
+  assert.ok(view.includes(`if (tutorial.away) return '<aside class="live-guide-away" aria-label="チュートリアル"><button class="live-guide-skip" data-runtime-tutorial-skip>スキップ</button></aside>';`), "[スキップ] stays");
+  assert.ok(view.includes("presentation.expect?.type === 'advance' && !presentation.expect.press ?"), "a press step has no [次へ]");
+  assert.ok(surface.includes("if (expect?.press && guideAway && PRESS_OPEN[expect.press]?.(expect.cardId)) {"), "a press step moves on once what it asks is open");
+  assert.ok(surface.includes("} else if (guideAway?.hold && !anyOpen()) { guideAway = null; render(ui.read()); }"), "the next line waits until it is closed");
+  const css = await readSource("../src/ui-refresh/live.css");
+  assert.ok(css.includes("padding:.4em .45em .4em .9em; pointer-events:auto; cursor:pointer;"), "the frame takes the tap");
+});
+
+test("the red tutorial's look-and-see steps move on when what they ask is pressed (文豪, 2026-10-28)", async () => {
+  const { tutorialSteps } = await import("../src/data/tutorial-script.js");
+  const steps = tutorialSteps("basics");
+  assert.deepEqual(steps[19].expect, { type: "advance", press: "info-button" });
+  assert.deepEqual(steps[26].expect, { type: "advance", press: "ability-badge", cardId: "STD-091" });
+  assert.deepEqual(steps[36].expect, { type: "advance", press: "card-detail", cardId: "STD-078" });
+  assert.equal(steps.filter(step => step.expect?.press).length, 3);
+});
+
 test("opening protocol v2.4 is opt-in by URL and only for the AI mode; the redraw pick has its own wording", async () => {
   const main = await readSource("../src/main.js");
   assert.ok(main.includes("mode === 'ai' && new URLSearchParams(location.search).get('opening') === 'v2.4' ? {openingProtocol:'v2.4'} : {}"));

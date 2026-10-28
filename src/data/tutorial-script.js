@@ -145,7 +145,8 @@ const BASIC_STEPS = [
     speaker: TUTORIAL_SPEAKER,
     text: "こうすることで、その色のカードは使用可能になります！情報ボタンを押してみてください",
     focus: [{ kind: "ui", target: "info-button", label: "情報ボタン" }],
-    expect: { type: "advance" }
+    // 押したら進む手順(文豪、2026-10-28)。開いたものを閉じると次のセリフが出る(runtime-match-surface.js)。
+    expect: { type: "advance", press: "info-button" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
@@ -187,7 +188,7 @@ const BASIC_STEPS = [
     speaker: TUTORIAL_SPEAKER,
     text: "横のカード詳細から能力バッジを押して解説を見てください。これを持っている『アツト』はすぐに攻撃できます！",
     focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }, { kind: "ui", target: "ability-badge", cardId: "STD-091", badge: "QA", label: "QAバッジ" }],
-    expect: { type: "advance" }
+    expect: { type: "advance", press: "ability-badge", cardId: "STD-091" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
@@ -247,7 +248,7 @@ const BASIC_STEPS = [
     speaker: TUTORIAL_SPEAKER,
     text: "手札にある『ジャンクパーツ』をご覧ください！",
     focus: [{ kind: "card", cardId: "STD-078", owner: "player", zone: "hand", label: "ジャンクパーツ" }, { kind: "ui", target: "card-detail", cardId: "STD-078", label: "ジャンクパーツの詳細" }],
-    expect: { type: "advance" }
+    expect: { type: "advance", press: "card-detail", cardId: "STD-078" }
   },
   {
     speaker: TUTORIAL_SPEAKER,

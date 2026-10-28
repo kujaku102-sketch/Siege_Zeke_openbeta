@@ -40,7 +40,7 @@ body { overflow:hidden; }
   color:var(--gd-a); font-size:1.05em; line-height:1.3; letter-spacing:.12em; text-shadow:0 0 .4em #00ff0099,0 .06em .2em #000; }
 .r2-content .r2-guide.live-guide .live-guide-cast strong::before { content:"> "; }
 .live-guide-speech { position:relative; grid-column:2; grid-row:1; display:grid; grid-template-columns:minmax(0,1fr) var(--guide-nav-width); grid-template-rows:minmax(0,1fr); min-height:0; box-sizing:border-box;
-  border:.125em solid var(--gd-a); border-radius:1em / .8em; padding:.4em .45em .4em .9em; pointer-events:none;
+  border:.125em solid var(--gd-a); border-radius:1em / .8em; padding:.4em .45em .4em .9em; pointer-events:auto; cursor:pointer;
   background:radial-gradient(120% 140% at 50% 40%,color-mix(in srgb,#0b1d22 var(--gd-alpha),transparent),color-mix(in srgb,var(--gd-face) var(--gd-alpha),transparent));
   -webkit-backdrop-filter:blur(.25em); backdrop-filter:blur(.25em); box-shadow:0 0 .75em #00ff0055,inset 0 0 1.5em #00ff0022; }
 .live-guide-speech::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; background:repeating-linear-gradient(0deg,#00ff000c 0 .0625em,transparent .0625em .1875em); }
@@ -62,12 +62,18 @@ body { overflow:hidden; }
 .live-guide[data-paging="pending"] .live-guide-text { overflow:hidden; }
 /* PC (文豪, 2026-10-28): the buttons in one row at the top right, on the speaker-name line the text already leaves
    free, so the text runs the frame's full width and the frame is no taller for them. The line kept free for a
-   refused move's reason stays in the text's own row. Only the buttons take clicks: left of them, as through the
-   rest of the frame, a click reaches the board. Sizes in em of the guide's text (4.2dvh). */
+   refused move's reason stays in the text's own row. Sizes in em of the guide's text (4.2dvh). */
 body[data-view="pc"] .r2-content .r2-guide.live-guide .live-guide-speech { grid-template-columns:minmax(0,1fr); }
 body[data-view="pc"] .r2-content .r2-guide.live-guide nav { position:absolute; top:.3em; right:.45em; grid-column:1; grid-template-columns:auto auto auto; grid-template-rows:auto;
   grid-template-areas:"page skip turn"; gap:0 .6em; margin:0; }
 body[data-view="pc"] .r2-content .r2-guide.live-guide button { min-height:1.5em; min-width:1.5em; }
+/* The guide put away by a tap on its line (文豪, 2026-10-28): only [スキップ] stays, at the top centre, clear of the
+   corners' HUD (settings, the opponent's display). The guide's own type and colours, sized in em of it. */
+.r2-content .live-guide-away { position:fixed; top:max(1dvh,env(safe-area-inset-top,0px)); left:50%; transform:translateX(-50%); z-index:calc(var(--z-modal) + 1);
+  font:400 max(.9375rem,4.2dvh)/1 SZDotGothic,"Yu Gothic UI",sans-serif; pointer-events:none; }
+.r2-content .live-guide-away .live-guide-skip { min-height:1.5em; margin:0; padding:0 .7em; border:.0625em solid #00ff00; border-radius:.35em; background:color-mix(in srgb,#071015 84%,transparent);
+  color:#7fcf8f; font:inherit; font-size:.7em; letter-spacing:.08em; pointer-events:auto; }
+.r2-content .live-guide-away .live-guide-skip:focus-visible { outline:.125em solid #f9df8a; outline-offset:.125em; }
 /* Compat render mode: no blur (heavy on WebKit), a nearly opaque glass instead. */
 .live-low-gpu .r2-guide.live-guide { --gd-alpha:95%; }
 .live-low-gpu .r2-guide.live-guide .live-guide-speech { -webkit-backdrop-filter:none; backdrop-filter:none; }

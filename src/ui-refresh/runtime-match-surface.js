@@ -73,13 +73,49 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     const index = Math.min(guidePage.index, pages.length - 1);
     return { index, count: pages.length, text: pages[index].text, last: index === pages.length - 1, pending: false };
   };
+  // While the guide speaks the match takes no input (文豪, 2026-10-28). A tap on its line does what [次へ] would; on a
+  // step that asks for a move, where there is none, it puts the guide away until the next step, or until a refused
+  // move has a reason to show.
+  let guideAway = null;
+  const guideReason = value => value.flow.error || (tutorialNote?.index === value.flow.index ? tutorialNote.text : '') || '';
   const tutorialView = () => {
     const tutorial = session.tutorial();
     if (!tutorial.ok) { guidePageShown = null; return tutorial; }
     const page = pageFor(tutorial.value);
     guidePageShown = page;
     const note = tutorialNote?.index === tutorial.value.flow.index ? { note: tutorialNote.text } : {};
-    return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}) } };
+    if (guideAway && guideAway.step !== pageStep(tutorial.value.flow)) guideAway = null;
+    const away = guideAway?.reason === guideReason(tutorial.value) ? { away: true } : {};
+    return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}), ...away } };
+  };
+  const tapGuide = () => {
+    const tutorial = session.tutorial();
+    if (!tutorial.ok || tutorial.value.flow.complete || guidePageShown?.pending) return;
+    // A step that points at a button to press is a move even where the script moves on by [次へ] (the blocked play
+    // tried): past its pages, the tap puts the guide away.
+    const press = tutorial.value.presentation?.focus?.some(focus => focus.kind === 'button');
+    const forward = root.querySelector(press ? '.live-guide [data-runtime-guide-next]' : '.live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next])');
+    if (forward) { forward.click(); return; }
+    guideAway = { step: pageStep(tutorial.value.flow), reason: guideReason(tutorial.value) };
+    act(ui.read());
+  };
+  // A step that asks the player to press something to see it (expect.press in tutorial-script.js: the info button,
+  // an ability badge, a card's detail) moves on once that is open; the next line waits until it is closed.
+  const PRESS_OPEN = {
+    'info-button': () => root.hasAttribute('data-count-peek'),
+    'ability-badge': cardId => Boolean(root.querySelector(`.r2-detail[data-card-id="${cardId}"] [data-ability-help][aria-expanded="true"]`)),
+    'card-detail': cardId => Boolean(root.querySelector(`.r2-detail[data-card-id="${cardId}"]`))
+  };
+  const anyOpen = () => root.hasAttribute('data-count-peek') || Boolean(root.querySelector('.r2-detail,[data-ability-help][aria-expanded="true"]'));
+  const watchPress = () => {
+    if (disposed) return;
+    const tutorial = session.tutorial(), expect = tutorial.ok && !tutorial.value.flow.complete ? tutorial.value.presentation?.expect : null;
+    if (expect?.press && guideAway && PRESS_OPEN[expect.press]?.(expect.cardId)) {
+      const next = session.advanceTutorial();
+      if (!next.ok) { reportError(next.error.code); return; }
+      guideAway = { step: pageStep(session.tutorial().value.flow), reason: '', hold: true };
+      render(ui.read());
+    } else if (guideAway?.hold && !anyOpen()) { guideAway = null; render(ui.read()); }
   };
   const paginateGuide = guide => {
     const tutorial = session.tutorial(), presentation = tutorial.ok ? tutorial.value.presentation : null;
@@ -162,8 +198,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
         if(list)list.scrollTop=0;
       }
       log.sync(next,shellRebuilt);
-      // Reading a step's earlier pages: the match waits for its last page.
-      const reading = Boolean(guidePageShown && !guidePageShown.last);
+      // While the guide speaks the match waits: past its pages, and on a move's step until a tap puts it away.
+      const reading = Boolean(tutorial.ok && tutorial.value.presentation && !tutorial.value.away);
       for (const name of ['board', 'console', 'hand', 'hand-toggle']) { const host = root.querySelector(`[data-live-region="${name}"]`); if (host) host.inert = reading; }
       root.querySelector('.r2-runtime-view')?.classList.toggle('tutorial-reading', reading);
       // Compat render mode: the guide drops its backdrop blur (heavy on WebKit) and keeps an opaque face.
@@ -182,6 +218,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       renderScope = nextScope;
       regionKeys = nextKeys;
       syncInteractionClasses(root, next);
+      if (tutorial.ok) schedule(watchPress, 0);
       decorate(() => scenes.sync(next, effectsEnabled, shellRebuilt || runtimeChanged));
       if (geometryDirty) queueLayout();
       decorate(() => syncResultFx(root,effectsEnabled && !lowGpu));
@@ -228,7 +265,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   });
   const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,
-    onTitle, onTutorialSkip, onTutorialComplete, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage };
+    onTitle, onTutorialSkip, onTutorialComplete, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide };
   listener('click', event => {
     if (disposed || event.target.closest('[data-ability-help]')) return;
     if (suppressedPointerId !== null) {
@@ -245,7 +282,9 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     ));
   });
   const selectionPeek = attachSelectionPeek({ root, listener });
-  attachCountPeek({ root, listener, signal: lifetime.signal });
+  attachCountPeek({ root, listener, signal: lifetime.signal, changed: () => watchPress() });
+  // An ability badge opens its help outside the match's own clicks (ability-help.js): looked at after every click.
+  root.ownerDocument?.addEventListener?.('click', () => schedule(watchPress, 0), { capture: true, signal: lifetime.signal });
   attachDetailScroll({ root, signal: lifetime.signal });
   const pointer = attachSurfacePointer({ root, listener, ui, act, render, latest: () => latest,
     schedule, cancel: timers.cancel, handDrag, handDock: () => handDock, selectionPeek, scenes, queueLayout,
@@ -253,6 +292,10 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   listener('keydown', event => {
     if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && event.target.closest?.('.live-guide')) {
       event.preventDefault(); turnGuidePage(event.key === 'ArrowRight' ? 1 : -1); return;
+    }
+    // The keyboard's tap on the line.
+    if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('.live-guide-text')) {
+      event.preventDefault(); tapGuide(); return;
     }
     if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-wire-hit]')) {
       event.preventDefault(); event.target.dispatchEvent(new MouseEvent('click',{bubbles:true})); return;

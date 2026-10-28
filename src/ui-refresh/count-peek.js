@@ -1,8 +1,8 @@
 // The count button works while held: pressing it marks the root, and every count tag
-// on the board shows; letting go anywhere hides them again. Keyboard holds work too.
-export function attachCountPeek({ root, listener, signal }) {
-  const show = () => root.setAttribute?.('data-count-peek', '');
-  const hide = () => root.removeAttribute?.('data-count-peek');
+// on the board shows; letting go anywhere hides them again. Keyboard holds work too. `changed` hears both.
+export function attachCountPeek({ root, listener, signal, changed = () => {} }) {
+  const show = () => { root.setAttribute?.('data-count-peek', ''); changed(); };
+  const hide = () => { const shown = root.hasAttribute?.('data-count-peek'); root.removeAttribute?.('data-count-peek'); if (shown) changed(); };
   listener('pointerdown', event => { if (event.button === 0 && event.target.closest('[data-runtime-counts]')) show(); });
   // Letting go outside the match still counts, so the release is watched on the window.
   const win = root.ownerDocument?.defaultView;

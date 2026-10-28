@@ -244,7 +244,7 @@ test('tutorial try: the blocked play moves the step on and puts its reason in th
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
   assert.ok(surface.includes('const reportError = code => { noticeStep = tutorialIndex(); onError(code); };'));
   assert.ok(surface.includes('if (noticeStep !== null && tutorial.ok && tutorial.value.flow.index > noticeStep) { noticeStep = null; onNoticeClear(); }'));
-  assert.ok(surface.includes('onMenu, onError: reportError, noteTutorial, turnGuidePage };'), 'presses in the match are recorded');
+  assert.ok(surface.includes('onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide };'), 'presses in the match are recorded');
   const main = await readSource('../src/main.js');
   assert.ok(main.includes("onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}"));
 });
