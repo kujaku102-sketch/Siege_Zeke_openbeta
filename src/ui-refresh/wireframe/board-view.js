@@ -50,6 +50,8 @@ function securityShield(card, cx, cy) {
 // edges count as line. The patch keeps what it set.
 const LINE_PIXEL = 2;
 const LINE_PIXEL_DEFS = `<filter id="wf-pixel-line" filterUnits="userSpaceOnUse" x="-400" y="-400" width="2400" height="1700" color-interpolation-filters="sRGB"><feMorphology in="SourceGraphic" operator="dilate" radius="${Math.max(.5, LINE_PIXEL / 2 - .5)}" data-line-px="pre" data-patch-keep="radius" result="fat"/><feFlood width="1" height="1" data-line-px="flood" data-patch-keep="width height" flood-color="#fff"/><feComposite width="${LINE_PIXEL}" height="${LINE_PIXEL}" data-line-px="tile" data-patch-keep="width height"/><feTile result="grid"/><feComposite in="fat" in2="grid" operator="in"/><feMorphology operator="dilate" radius="${LINE_PIXEL / 2}" data-line-px="grow" data-patch-keep="radius"/><feComponentTransfer><feFuncA type="discrete" tableValues="0 1 1 1"/></feComponentTransfer></filter>`;
+// A frame that glows (board.css): its own line blurred under it, in board units so it scales with the board.
+const GLOW_DEFS = `<filter id="wf-glow" x="-25%" y="-25%" width="150%" height="150%"><feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
 export function fitPixelLines(svg) {
   const scale = svg?.getScreenCTM?.()?.a;
   if (!(scale > 0)) return;
@@ -128,7 +130,7 @@ export function wireframeStatusHtml(seat, mine, uniqueButton = '') {
 }
 export function wireframeBoardHtml(model, uniqueButton = '') {
   const {self,enemy,slots,cards} = geometry(model);
-  const board = `<defs>${LINE_PIXEL_DEFS}<pattern id="back-pattern" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#11202c"/><path d="M0 0L10 10M10 0L0 10" stroke="#496071" stroke-width=".6"/></pattern>${SHIELD_DEFS}<marker id="wf-arrow-tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#c2ed95"/></marker></defs>
+  const board = `<defs>${LINE_PIXEL_DEFS}${GLOW_DEFS}<pattern id="back-pattern" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#11202c"/><path d="M0 0L10 10M10 0L0 10" stroke="#496071" stroke-width=".6"/></pattern>${SHIELD_DEFS}<marker id="wf-arrow-tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#c2ed95"/></marker></defs>
     <polygon class="board-plane" points="${points([project(-100,-90),project(1150,-90),project(1150,990),project(-100,990)])}"/>
     ${[enemy,self].map(seat=>`<g data-wire-hit data-fortress="${esc(seat.seatId)}" data-runtime-profile="${esc(seat.seatId)}" role="button" tabindex="0" aria-label="${seat===self?'自分':'相手'}ユーザー領域">${poly(525,seat===enemy?-55:955,820,35,'class="user-target"')}</g>`).join('')}
     ${slots.map(slot=>{

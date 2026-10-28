@@ -102,7 +102,8 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
     if (tutorial.ok && !tutorial.value.flow.complete) for (const focus of [...tutorial.value.presentation.focus ?? [], ...expectedButton(tutorial.value.presentation.expect)]) {
       const seat = scope.seatIds[focus.owner === 'ai' ? 1 : 0];
       const selectors = {card:`[data-card-id="${focus.cardId}"][data-seat="${seat}"][data-zone="${focus.zone}"]`,
-        zone:`.zone[data-seat="${seat}"][data-zone="${focus.zone}"]`,fortress:`[data-fortress="${seat}"]`,
+        // A zone on the 3D board has no box of its own: its empty slots stand for it.
+        zone:`:is(.zone,.wire-board .board-slot:not([data-card-ref]))[data-seat="${seat}"][data-zone="${focus.zone}"]`,fortress:`[data-fortress="${seat}"]`,
         admin:`[data-runtime-zone="${focus.zone}"][data-seat="${seat}"]`,action:focus.action === 'tutorial-advance' ? '[data-runtime-tutorial-next]' : '[data-runtime-end-turn]',
         // A HUD control, or a part of the card detail while it shows the focused card.
         ui:{'info-button':'[data-runtime-counts]','card-detail':`.r2-detail[data-card-id="${focus.cardId}"]`,

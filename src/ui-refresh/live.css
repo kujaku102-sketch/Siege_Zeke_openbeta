@@ -80,6 +80,14 @@ body[data-view="pc"] .r2-content .r2-guide.live-guide button { min-height:1.5em;
 .live-low-gpu .r2-guide.live-guide { --gd-alpha:95%; }
 .live-low-gpu .r2-guide.live-guide .live-guide-speech { -webkit-backdrop-filter:none; backdrop-filter:none; }
 .live-focus { outline:max(.125rem,calc(var(--u) * .1875)) solid #f9df8a!important; outline-offset:max(.0625rem,calc(var(--u) * .125)); }
+/* Tutorial: the hand card a step wants used blinks and glows on itself instead of a box (文豪, 2026-10-29). */
+.r2-hand .card.live-focus { outline:none!important; animation:live-use-card 1.2s ease-in-out infinite alternate; }
+/* The hand's scroller clips what lies far outside a card: the glow is lit inside the card as well. */
+@keyframes live-use-card {
+  from { border-color:#a8863a; filter:brightness(1); box-shadow:inset 0 0 calc(var(--u) * .5) #f9df8a55, 0 0 calc(var(--u) * .25) #f9df8a66; }
+  to { border-color:#fff3c4; filter:brightness(1.18); box-shadow:inset 0 0 calc(var(--u) * 1.25) #f9df8acc, 0 0 calc(var(--u) * .625) calc(var(--u) * .125) #f9df8a; }
+}
+@media (prefers-reduced-motion:reduce) { .r2-hand .card.live-focus { animation:none; border-color:#fff3c4; box-shadow:inset 0 0 calc(var(--u) * 1.25) #f9df8acc, 0 0 calc(var(--u) * .625) calc(var(--u) * .125) #f9df8a; } }
 /* Panels and their buttons are cut by clip-path, which hides an outline drawn outside them: draw it inside. */
 .r2-content .cp-panel.live-focus, .r2-content .cp-panel .live-focus { outline-offset:calc(-1 * max(.125rem,calc(var(--u) * .1875))); }
 .r2-content .r2-mode-grid button { cursor:pointer; }

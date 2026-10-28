@@ -42,6 +42,18 @@ body[data-view] .r2-content .r2-wireframe-view .wire-board-host { position:absol
 /* Board lines in low-res pixels (filter in board-view.js). Cards, art and text stay sharp. */
 .r2-wireframe-view .wire-board:not(.wf-pixel-off) :is(.slot,.registry,.pile,.trash-pile,.user-target,.empty-pile),
 .r2-wireframe-view .wire-board:not(.wf-pixel-off) :is([data-fx-zone="deck"],[data-runtime-zone="trash"]) :is(.solid-side,.solid-seam) { filter:url(#wf-pixel-line); shape-rendering:crispEdges; }
+/* A slot, registry or user area that is picked, dragged over or pointed at glows on its own frame (文豪, 2026-10-29):
+   no box is laid over the board, a screen-square outline misses the slanted frame. Widths and blur are board units. */
+.r2-wireframe-view .wire-board :is(.request-target,.drag-over,.live-focus) { outline:none!important; filter:none; }
+.r2-wireframe-view .wire-board :is(.request-target,.drag-over,.live-focus:not([data-card-ref])) > :is(.slot,.user-target,.registry) {
+  --frame-glow:#ecc987; stroke:var(--frame-glow); stroke-width:3.5; stroke-dasharray:none; filter:url(#wf-glow);
+}
+.r2-wireframe-view .wire-board .live-focus:not([data-card-ref]) > * { --frame-glow:#f9df8a; }
+.r2-wireframe-view .wire-board .drag-over > * { --frame-glow:#ffffff; }
+/* Tutorial: the card a step wants used blinks and glows on itself (文豪, 2026-10-29). */
+.r2-wireframe-view .wire-board .board-slot.live-focus[data-card-ref] .card-line { stroke:#f9df8a; stroke-width:3.5; filter:url(#wf-glow); animation:wf-use-card 1.2s ease-in-out infinite alternate; }
+@keyframes wf-use-card { from { stroke:#a8863a; stroke-opacity:.6; } to { stroke:#fff3c4; stroke-opacity:1; } }
+@media (prefers-reduced-motion:reduce) { .r2-wireframe-view .wire-board .board-slot.live-focus[data-card-ref] .card-line { animation:none; } }
 .r2-wireframe-view .ghost { fill:#c2ed9533; stroke:#c2ed95; stroke-width:2; }
 .r2-wireframe-view .arrow { stroke:#c2ed95; stroke-width:3; fill:none; }
 .r2-wireframe-view .wf-status { position:absolute; width:18%; border:1px solid #65727a; background:#152027ed; color:#dbe4e8; padding:1cqh; z-index:2; font:2cqh system-ui; }

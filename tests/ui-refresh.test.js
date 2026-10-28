@@ -289,6 +289,22 @@ test("the red tutorial's look-and-see steps move on when what they ask is presse
   assert.equal(steps.filter(step => step.expect?.press).length, 3);
 });
 
+test("a picked, dragged-over or pointed-at board frame glows itself, no box over the board; a tutorial's card to use blinks (文豪, 2026-10-29)", async () => {
+  const board = await readSource("../src/ui-refresh/wireframe/board.css");
+  assert.ok(board.includes(".r2-wireframe-view .wire-board :is(.request-target,.drag-over,.live-focus) { outline:none!important; filter:none; }"), "no screen-square box on the slanted board");
+  assert.ok(board.includes(".r2-wireframe-view .wire-board :is(.request-target,.drag-over,.live-focus:not([data-card-ref])) > :is(.slot,.user-target,.registry) {"), "the slot, registry or user frame itself");
+  assert.ok(board.includes(".r2-wireframe-view .wire-board .board-slot.live-focus[data-card-ref] .card-line { stroke:#f9df8a; stroke-width:3.5; filter:url(#wf-glow); animation:wf-use-card"), "a card on the board blinks on its own lines");
+  assert.ok(board.includes("@media (prefers-reduced-motion:reduce) { .r2-wireframe-view .wire-board .board-slot.live-focus[data-card-ref] .card-line { animation:none; } }"));
+  const view = await readSource("../src/ui-refresh/wireframe/board-view.js");
+  assert.ok(view.includes('<filter id="wf-glow"') && view.includes("${LINE_PIXEL_DEFS}${GLOW_DEFS}"), "the glow is an SVG filter in board units, so it scales with the board");
+  const live = await readSource("../src/ui-refresh/live.css");
+  const hand = live.slice(live.indexOf(".r2-hand .card.live-focus"), live.indexOf("/* Panels and their buttons"));
+  assert.ok(hand.includes("outline:none!important; animation:live-use-card"), "a hand card blinks instead of a box");
+  assert.ok(!/\d(px|rem)\b/.test(hand), "sizes in --u ratios only");
+  const layout = await readSource("../src/ui-refresh/surface-layout.js");
+  assert.ok(layout.includes("zone:`:is(.zone,.wire-board .board-slot:not([data-card-ref]))[data-seat=\"${seat}\"][data-zone=\"${focus.zone}\"]`"), "a zone on the 3D board is pointed at by its empty slots");
+});
+
 test("blue tutorial: the Hacking icon in step 7's line, the access pick pointed at by its card, a badge line opens the detail itself", async () => {
   const { tutorialSteps } = await import("../src/data/tutorial-script.js");
   const steps = tutorialSteps("blue");
