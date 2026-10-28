@@ -959,3 +959,83 @@ test('tutorial blue runs start to finish through ports: the Rutile access, Hacki
   assertClosingLine(session,27,/完璧な勝利/);
   lifecycle.dispose();
 });
+
+// A human taps the guide line while the opponent's script plays: the tap changes nothing, the script runs
+// to its end, the player's turn starts (memory refilled) and only then does the guide move on.
+function tapDuringOpponentTurn(session,port) {
+  const tutorial=()=>session.tutorial().value,flowBefore=tutorial().flow.index;
+  assert.ok(tutorial().opponentScript,'the opponent script is waiting to run');
+  const queue=[],created=createTutorialOpponentController({session,seatId:'b',scheduler:{schedule:task=>{queue.push(task);return task;},cancel:task=>{const at=queue.indexOf(task);if(at>=0)queue.splice(at,1);}}});
+  assert.equal(created.ok,true,JSON.stringify(created));
+  const tap=()=>{
+    const revision=port.query().value.status.revision,script=tutorial().opponentScript,at=tutorial().opponentIndex;
+    const result=session.advanceTutorial();
+    assert.equal(result.ok,false);assert.equal(result.error.code,'TUTORIAL_OPPONENT_TURN');
+    assert.equal(tutorial().flow.index,flowBefore);assert.equal(tutorial().opponentScript,script);assert.equal(tutorial().opponentIndex,at);
+    assert.equal(port.query().value.status.revision,revision);
+  };
+  created.value.start();tap();
+  for(let count=0;count<40&&queue.length;count+=1){queue.shift()();if(tutorial().opponentScript)tap();}
+  assert.equal(queue.length,0);created.value.dispose();
+  assert.equal(tutorial().opponentScript,null);assert.equal(tutorial().flow.index,flowBefore);
+  assert.equal(port.query().value.status.activeSeat,'a');
+}
+test('tutorial red: taps on the guide during the opponent\'s script change nothing and the script finishes',()=>{
+  const {lifecycle,session,port}=setup('tutorial');
+  walkRedToEndOfTurnOne(session,port);
+  tapDuringOpponentTurn(session,port);
+  assert.equal(session.advanceTutorial().ok,true,'then the guide moves on');
+  assert.ok(seatView(port.query().value,'b').front.cards.some(card=>!card.faceDown&&card.definition.id==='STD-022'&&card.status.sleep));
+  lifecycle.dispose();
+});
+test('tutorial blue: taps during Merc\'s turn leave the turn to the script, so the memory is refilled and the Offense Protocol plays',()=>{
+  const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),runtime=config('tutorial');
+  Object.assign(runtime.gameOptions,{tutorialId:'blue',aiDeckId:'tutorial-sandbag'});
+  const session=lifecycle.start(runtime).value,port=session.port('a').value;
+  const hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;
+  for(let n=0;n<8;n+=1)session.advanceTutorial();
+  submit(port,plan(port,'install',hand('STD-117')));
+  submit(port,plan(port,'executeCard',hand('STD-107'),option=>option.zone==='front'));
+  for(let n=0;n<3;n+=1)session.advanceTutorial();
+  const pick=port.query().value.requiredInput.options.find(option=>option.preview.definitionId==='STD-111');
+  submit(port,{type:'answerChoice',choiceId:port.query().value.requiredInput.choiceId,optionIds:[pick.optionId],allocation:[]});settleTutorial(session);
+  submit(port,plan(port,'executeCard',hand('STD-109'),option=>option.zone==='front'));settleTutorial(session);
+  session.advanceTutorial();
+  submit(port,{type:'endTurn'});settleTutorial(session);
+  tapDuringOpponentTurn(session,port);
+  assert.equal(seatView(port.query().value).memory.current,5,'the memory is refilled');
+  for(let n=0;n<2;n+=1)assert.equal(session.advanceTutorial().ok,true);
+  const frau=visibleCard(port.query().value,'STD-109',['front']).cardRef;
+  submit(port,plan(port,'executeSpell',hand('STD-111'),option=>option.cardRef===frau));settleTutorial(session);
+  assert.equal(session.tutorial().value.flow.index,13);
+  lifecycle.dispose();
+});
+
+// Skipping a tutorial plays its own script to the win (same commands, same guards): STR 0 and the closing line.
+import { playTutorialToWin } from '../src/adapters/tutorial-autoplay.js';
+for (const [tutorialId,aiDeckId,closing] of [['basics','yellow',/勝利です/],['vengeance','yellow',/勝利。/],['blue','tutorial-sandbag',/完璧な勝利/]]) {
+  test(`playTutorialToWin takes ${tutorialId} to its own win: the opponent at STR 0, the result locked, the closing line`,()=>{
+    const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),runtime=config('tutorial');
+    Object.assign(runtime.gameOptions,{tutorialId,aiDeckId});
+    const session=lifecycle.start(runtime).value,port=session.port('a').value;
+    const result=playTutorialToWin({session});assert.equal(result.ok,true,JSON.stringify(result));
+    const query=port.query().value;
+    assert.equal(seatView(query,'b').fortressStr,0);assert.equal(query.status.lockedOutcome.winnerSeat,'a');
+    const flow=session.tutorial().value.flow;assert.equal(flow.complete,true);
+    assertClosingLine(session,flow.index,closing);
+    lifecycle.dispose();
+  });
+}
+test('lifecycle.skipTutorialToWin plays the running tutorial on from where it stands, in the same session, and refuses outside a tutorial',()=>{
+  const {lifecycle,session,port}=setup('tutorial');
+  walkRedToEndOfTurnOne(session,port); // stands at the opponent's script, the player's first turn just ended
+  const result=lifecycle.skipTutorialToWin();assert.equal(result.ok,true,JSON.stringify(result));
+  assert.equal(result.value,session);assert.equal(lifecycle.current().value,session);
+  assert.equal(seatView(port.query().value,'b').fortressStr,0);assert.equal(port.query().value.status.lockedOutcome.winnerSeat,'a');
+  assertClosingLine(session,43,/勝利です/);
+  assert.equal(lifecycle.completeTutorial().ok,true,'the closing line ends the tutorial as a played one does');
+  lifecycle.dispose();
+  const sandbox=setup(),refused=sandbox.lifecycle.skipTutorialToWin();
+  assert.equal(refused.ok,false);assert.equal(refused.error.code,'UNAVAILABLE_MODE');sandbox.lifecycle.dispose();
+  const idle=createMatchLifecycleController({nextMatchId:()=> 'x'});assert.equal(idle.skipTutorialToWin().error.code,'UNAVAILABLE_MODE');
+});
