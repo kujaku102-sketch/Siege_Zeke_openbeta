@@ -8,7 +8,7 @@ import { findIdentityEntry } from './identity.js';
 import { lookupRuntimeCardReference } from './references.js';
 import { createActionRegistry, lookupActionHandler } from './action-registry.js';
 import { prepareRequiredInputAction } from './required-input.js';
-import { isTutorialId, tutorialPlayerDeckId } from './tutorial-setup.js';
+import { isTutorialId, tutorialAiDeckId, tutorialPlayerDeckId } from './tutorial-setup.js';
 import {
   SAFE_READ_MISSING, SafeReadError, readDenseData, readFiniteNumber, readOrdinary, readOwnData
 } from './safe-read.js';
@@ -218,10 +218,12 @@ function engineData(value, metadata, restSecurity = false) {
     opening: Object.hasOwn(value, 'opening')
   };
   if (state.opening) ordinary(own(value, 'opening', 'INVALID_AUTHORITY'), 'INVALID_AUTHORITY');
-  const expectedPlayerDeck = options.mode === 'tutorial' ? tutorialPlayerDeckId(options.tutorialId, options.playerDeckId) : options.playerDeckId;
+  const tutorial = options.mode === 'tutorial';
+  const expectedPlayerDeck = tutorial ? tutorialPlayerDeckId(options.tutorialId, options.playerDeckId) : options.playerDeckId;
+  const expectedAiDeck = tutorial ? tutorialAiDeckId(options.tutorialId, options.aiDeckId) : options.aiDeckId;
   if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(state.mode) || state.mode !== options.mode
     || !isTutorialId(state.tutorialId) || state.tutorialId !== options.tutorialId
-    || !nonempty(state.playerDeckId) || state.playerDeckId !== expectedPlayerDeck || !nonempty(state.aiDeckId) || state.aiDeckId !== options.aiDeckId
+    || !nonempty(state.playerDeckId) || state.playerDeckId !== expectedPlayerDeck || !nonempty(state.aiDeckId) || state.aiDeckId !== expectedAiDeck
     || !nonempty(state.playerUserId) || state.playerUserId !== options.playerUserId
     || !nonempty(state.aiUserId) || state.aiUserId !== options.aiUserId) reject('INVALID_AUTHORITY');
   if (state.active !== 'player' && state.active !== 'ai') reject('INVALID_AUTHORITY');

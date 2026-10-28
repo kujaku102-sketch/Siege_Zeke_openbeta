@@ -70,14 +70,19 @@ export function createTutorialModeController(tutorialId = 'basics') {
       const playerSeat = query.observation.seats[0].seatId;
       const cards = visibleCards(query);
       if (['answerChoice', 'declineChoice'].includes(action.type)) {
-        const rule = query.status.viewerSeat === playerSeat && flow.introComplete && !flow.complete ? guard() : null;
-        if (!rule?.choose) return { ok: true, value: null };
-        if (action.type === 'declineChoice') return refuse('TUTORIAL_CHOICE_NOT_EXPECTED', rule.reason);
+        const guided = query.status.viewerSeat === playerSeat && flow.introComplete && !flow.complete;
+        const rule = guided ? guard() : null, expect = guided ? currentTutorialStep(flow).expect : null;
+        // While the guide only speaks, a choice a step left open (leavesChoice) waits for its own step.
+        if (expect?.type === 'advance') return refuse('TUTORIAL_CHOICE_NOT_EXPECTED');
+        const answered = expect?.type === 'answerChoice';
+        if (!rule?.choose && !answered) return { ok: true, value: null };
+        if (action.type === 'declineChoice') return refuse('TUTORIAL_CHOICE_NOT_EXPECTED', rule?.reason);
         const options = (action.optionIds ?? []).map(id => query.requiredInput?.options?.find(option => option.optionId === id));
         const picked = options.map(option => option && { kind: option.kind, label: option.label,
           cardId: cards.find(card => card.cardRef === option.cardRef && !card.faceDown)?.definition.id ?? null });
-        return picked.length && picked.every(option => option && rule.choose(option))
-          ? { ok: true, value: null } : refuse('TUTORIAL_CHOICE_NOT_EXPECTED', rule.reason);
+        return picked.length && picked.every(option => option && (!rule?.choose || rule.choose(option))
+          && (!answered || matches(expect, { type: 'answerChoice', cardId: option.cardId })))
+          ? { ok: true, value: null } : refuse('TUTORIAL_CHOICE_NOT_EXPECTED', rule?.reason);
       }
       const card = cards.find(item => item.cardRef === (action.cardRef ?? action.attackerRef));
       const target = cards.find(item => item.cardRef === (action.target?.cardRef ?? action.targets?.[0]?.cardRef));
@@ -111,10 +116,13 @@ export function createTutorialModeController(tutorialId = 'basics') {
       if (query.status.viewerSeat === playerSeat) flow.error = '';
       if (query.status.lockedOutcome?.winnerSeat === playerSeat && query.requiredInput === null && flow.introComplete && !flow.complete) return finishOnWin();
       if (query.status.viewerSeat !== playerSeat && !['answerChoice', 'declineChoice'].includes(action.type)) opponentActionPending = true;
-      if (query.status.viewerSeat === playerSeat && !['answerChoice', 'declineChoice'].includes(action.type)) {
+      const step = flow.introComplete && !flow.complete ? currentTutorialStep(flow) : null;
+      // A choice is the step's own action only when the step expects the answer; a step that
+      // leavesChoice is done with the move itself and lets the guide talk over the open choice.
+      if (query.status.viewerSeat === playerSeat && (!['answerChoice', 'declineChoice'].includes(action.type) || step?.expect?.type === 'answerChoice')) {
         acceptedAction = structuredClone(action);
       }
-      if (acceptedAction && query.requiredInput === null && query.status.progress !== 'resultLocked') stepFinished();
+      if (acceptedAction && (query.requiredInput === null || step?.leavesChoice) && query.status.progress !== 'resultLocked') stepFinished();
       if (opponentActionPending && query.requiredInput === null) {
         opponentIndex += 1;
         opponentActionPending = false;

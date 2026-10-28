@@ -6,7 +6,7 @@ import { queryRuntimeSeat, queryRuntimeCard } from './query.js';
 import { projectRuntimeView } from './projection.js';
 import { restoreRngState } from './rng.js';
 import { buildRequiredInput } from './required-input.js';
-import { isTutorialId, tutorialPlayerDeckId, tutorialSetupValid } from './tutorial-setup.js';
+import { isTutorialId, tutorialAiDeckId, tutorialPlayerDeckId, tutorialSetupValid } from './tutorial-setup.js';
 
 const FORMAT = 'siege-zeke.authority-snapshot';
 const SNAPSHOT_KEYS = ['format', 'schemaVersion', 'metadata', 'revision', 'engineState', 'referenceState'];
@@ -322,13 +322,14 @@ function validateRootNumbers(state, descriptorCode = STATE) {
 
 function sameArray(a, b) { return a.length === b.length && a.every((value, index) => value === b[index]); }
 function effectiveDeck(options) { return options.mode === 'tutorial' ? tutorialPlayerDeckId(options.tutorialId, options.playerDeckId) : options.playerDeckId; }
+function effectiveAiDeck(options) { return options.mode === 'tutorial' ? tutorialAiDeckId(options.tutorialId, options.aiDeckId) : options.aiDeckId; }
 
 function consistency(metadata, state, revision) {
   const runtime = state.runtimeContext;
   if (!Number.isSafeInteger(revision) || revision < 0 || Object.is(revision, -0)) reject(INVALID);
   if (runtime.matchId !== metadata.matchId || !sameArray(runtime.seatIds, metadata.seatIds)) reject(SCOPE);
   if (state.mode !== metadata.startOptions.mode || state.tutorialId !== metadata.startOptions.tutorialId
-    || state.playerDeckId !== effectiveDeck(metadata.startOptions) || state.aiDeckId !== metadata.startOptions.aiDeckId
+    || state.playerDeckId !== effectiveDeck(metadata.startOptions) || state.aiDeckId !== effectiveAiDeck(metadata.startOptions)
     || state.playerUserId !== metadata.startOptions.playerUserId || state.aiUserId !== metadata.startOptions.aiUserId) reject(STATE);
 }
 
