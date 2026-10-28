@@ -3130,7 +3130,16 @@ test("red tutorial (script): the symbol-less Atto is refused, install lights red
   const accept = (action) => assert.equal(acceptTutorialAction(state, flow, action), true, JSON.stringify(action) + " " + flow.error);
   const hand = (id) => player.hand.find((card) => card.id === id);
   // One speech bubble per step (44 steps): the data is walked bubble by bubble, so the indices are asserted.
-  const skip = (count, index) => { for (let n = 0; n < count; n += 1) accept({ type: "advance" }); assert.equal(flow.index, index); };
+  // The "look at it" steps (19 the info button, 26 the QA badge, 36 the Junk Parts detail) advance only on the press they ask for.
+  const pressed = [];
+  const skip = (count, index) => {
+    for (let n = 0; n < count; n += 1) {
+      const { press, cardId } = currentTutorialPresentation(flow).expect;
+      if (press) pressed.push(flow.index);
+      accept({ type: "advance", ...(press ? { press } : {}), ...(press && cardId ? { cardId } : {}) });
+    }
+    assert.equal(flow.index, index);
+  };
   skip(11, 11); // Ob / STR / Code / Junk Parts' +1/+1 / "execute", up to "let's play the swordsman"
 
   const soldier = hand("STD-021");
@@ -3202,6 +3211,7 @@ test("red tutorial (script): the symbol-less Atto is refused, install lights red
   assert.equal(state.victory.finished, true);
   assert.equal(flow.complete, true);
   assert.equal(currentTutorialPresentation(flow).expect, null, "the last step is the closing line");
+  assert.deepEqual(pressed, [19, 26, 36], "the info button, the QA badge and the Junk Parts detail were pressed");
 });
 
 test("only the three tutorials start the opponent at STR 5; every other mode keeps the user's own STR", () => {
