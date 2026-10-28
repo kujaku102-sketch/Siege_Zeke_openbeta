@@ -336,7 +336,7 @@ async function accessPick(page) {
 }
 // A line about an ability opens Frau's detail itself with the badge highlighted (the board draws no badges); the
 // detail closes when the step moves on.
-async function abilityLine(page,id,index,badge) {
+async function badgeShown(page,id,index,badge) {
   await step(page,id,index);
   await page.locator(`.r2-detail[data-card-id="STD-109"] [data-ability-help].live-focus[data-tutorial-focus-label*="${badge}"]`).waitFor({state:'visible',timeout:3000})
     .catch(() => {throw new Error(`the ${badge} badge is not shown highlighted at ${id}:${index}`);});
@@ -345,8 +345,32 @@ async function abilityLine(page,id,index,badge) {
   const hidden=await page.evaluate(() => {const node=document.querySelector('.r2-detail [data-ability-help].live-focus'),rect=node.getBoundingClientRect();
     return document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2)?.closest('.live-guide')?.className ?? null;});
   if (hidden) throw new Error(`the ${badge} badge is under the guide at ${id}:${index} (${hidden})`);
+}
+const detailClosed = (page,id,index) => page.waitForFunction(() => !document.querySelector('.r2-detail'),null,{timeout:3000})
+  .catch(() => {throw new Error(`the detail opened at ${id}:${index} stays open`);});
+async function abilityLine(page,id,index,badge) {
+  await badgeShown(page,id,index,badge);
   await next(page);
-  await page.waitForFunction(() => !document.querySelector('.r2-detail'),null,{timeout:3000}).catch(() => {throw new Error(`the detail opened at ${id}:${index} stays open`);});
+  await detailClosed(page,id,index);
+}
+// Blue step 22: the turn-end line shows the Encryption badge too, the only step Frau has it (文豪, 2026-10-28). The
+// detail leaves the turn-end button and its highlight in sight, and the turn is ended from it as usual.
+async function turnEndWithBadge(page,id,index) {
+  await badgeShown(page,id,index,'暗号化');
+  const covered=() => page.evaluate(() => {const node=document.querySelector('[data-runtime-end-turn].live-focus'),rect=node?.getBoundingClientRect();
+    if (!rect?.width) return 'no highlighted turn-end button';
+    const pad=Math.min(rect.width,rect.height)*.15,points=[[rect.left+rect.width/2,rect.top+rect.height/2],[rect.left+pad,rect.top+pad],[rect.right-pad,rect.bottom-pad]];
+    const over=points.map(([x,y]) => document.elementFromPoint(x,y)).find(hit => hit && !node.contains(hit) && hit.closest('.r2-detail'));
+    return over ? 'under the detail: '+over.outerHTML.slice(0,80) : null;});
+  const before=await covered();
+  if (before) throw new Error(`the turn-end button at ${id}:${index}: ${before}`);
+  await putAway(page);
+  if (!await page.locator('.r2-detail [data-ability-help].live-focus').count()) throw new Error(`the detail closed when the guide was put away at ${id}:${index}`);
+  const away=await covered();
+  if (away) throw new Error(`the turn-end button at ${id}:${index} with the guide away: ${away}`);
+  await action(page,'endTurn');await settle(page);
+  await step(page,id,index+1);
+  await detailClosed(page,id,index);
 }
 async function tapCard(page,cardId,zone) {
   const card=cards((await read(page)).value).find(card => !card.faceDown && card.definition.id===cardId && card.location?.zone===zone);
@@ -524,8 +548,9 @@ async function run(page,id) {
     await step(page,id,18);await action(page,'attack','STD-107',{targetId:'STD-043'});await settle(page);
     await talk(19,20);
     await step(page,id,21);await action(page,'executeSpell','STD-110');await settle(page);
-    await step(page,id,22);await action(page,'endTurn');await settle(page);
-    await talk(23,24);
+    await turnEndWithBadge(page,id,22);
+    await next(page);
+    await talk(24,24);
     await step(page,id,25);await action(page,'executeSpell','STD-116');await settle(page);
     await step(page,id,26);await action(page,'attack','STD-109',{user:true});await settle(page);
   } else {

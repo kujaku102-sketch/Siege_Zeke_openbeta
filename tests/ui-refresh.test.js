@@ -296,6 +296,11 @@ test("blue tutorial: the Hacking icon in step 7's line, the access pick pointed 
   assert.equal(steps[13].text, "エリアの『フラウ』が『ハッキング』を得て、さらに+1/0されます");
   assert.deepEqual(steps[13].icons, ["ハッキング"]);
   assert.equal(steps.filter(step => step.icons).length, 1);
+  // The badges the guide opens Frau's detail for: Hacking on its line, Encryption on the turn-end step (the only one
+  // Frau has it), the turn still ended from that step.
+  const badges = steps.flatMap((step, index) => (step.focus ?? []).filter(focus => focus.target === "ability-badge").map(focus => [index, focus.cardId, focus.badge, step.expect?.type]));
+  assert.deepEqual(badges, [[15, "STD-109", "ハッキング", "advance"], [22, "STD-109", "暗号化", "end-turn"]]);
+  assert.equal(steps[22].focus[0].action, "end-turn");
   const view = await readSource("../src/ui-refresh/runtime-read-view.js");
   assert.ok(view.includes("return badge.asset ? line.replaceAll(`『${esc(name)}』`, `『${esc(name)}<img class=\"live-guide-kw\" src=\"${esc(badge.asset)}\" alt=\"${esc(badge.label)}\">』`) : line;"));
   const css = await readSource("../src/ui-refresh/live.css");
