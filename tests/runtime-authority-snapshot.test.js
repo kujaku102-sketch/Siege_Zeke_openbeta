@@ -165,3 +165,21 @@ test('v2.4 opening: not snapshottable before the first turn, then restores with 
   const legacy = createRuntimeAuthoritySnapshot(authority());
   assert.equal(Object.hasOwn(legacy.value.runtime.metadata.startOptions, 'openingProtocol'), false);
 });
+
+
+test('blue tutorial authority is a valid live authority and snapshots like the other tutorials', () => {
+  const session = createRuntimeSession({ matchId: 'snapshot-command-match', seatIds: ['seat-a', 'seat-b'], seed: 41, ruleVersion: 'rules-1', cardVersion: 'cards-1',
+    gameOptions: { mode: 'tutorial', tutorialId: 'blue' } });
+  assert.equal(session.ok, true, JSON.stringify(session));
+  const source = authority({ playerUserId: 'doors_zx' });
+  const blue = { ...source, metadata: session.value.metadata, engineState: session.value.engineState };
+  const frame = buildRuntimeReferenceFrame(blue.engineState);
+  const refs = createRuntimeReferenceState({ frame: frame.value, newRefs: Array.from({ length: 200 }, (_, index) => `r:${(index + 1).toString(16).padStart(32, '0')}`).slice(0,
+    frame.value.cards.reduce((count, card) => count + (card.location.kind === 'board' ? 2 : card.location.kind === 'zone' && card.location.zone === 'hand' ? 1 : 0), 0)) });
+  assert.equal(refs.ok, true, JSON.stringify(refs));
+  const made = createRuntimeAuthoritySnapshot({ ...blue, referenceState: refs.value });
+  assert.equal(made.ok, true, JSON.stringify(made));
+  const restored = restoreRuntimeAuthoritySnapshot(structuredClone(made.value), expected);
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.equal(restored.value.metadata.startOptions.tutorialId, 'blue');
+});

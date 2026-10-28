@@ -14,6 +14,14 @@ export const TUTORIAL_STEP_GUARDS = Object.freeze({
   basics: Object.freeze({
     37: Object.freeze({ action: { hostCardId: 'STD-091' }, reason: 'ジャンクパーツは『アツト』の下に実行して、マウントして。' })
   }),
+  // Blue (28 steps). 6: Rutile's access must take the Offense Protocol (the Assault Program is in the list too).
+  // 12: the Offense Protocol goes on Frau. 16 / 26: Frau, who has Hacking, must hit the user, not Merc.
+  blue: Object.freeze({
+    6: Object.freeze({ choose: option => option.cardId === 'STD-111', reason: 'アクセスは『オフェンスプロトコル』を選んで。' }),
+    12: Object.freeze({ action: { targetCardId: 'STD-109' }, reason: '『オフェンスプロトコル』は『フラウ』に使って。' }),
+    16: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' }),
+    26: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' })
+  }),
   vengeance: Object.freeze({
     3: Object.freeze({ choose: LAYER_COST, reason: '移動コストは『レイヤー1枚を破棄』で払って。' }),
     6: Object.freeze({ action: { targetCardId: 'STD-194' }, reason: '効果の対象は『アクロィア』を選んで。' }),
@@ -79,7 +87,7 @@ export function createTutorialModeController(tutorialId = 'basics') {
         if (action.type === 'declineChoice') return refuse('TUTORIAL_CHOICE_NOT_EXPECTED', rule?.reason);
         const options = (action.optionIds ?? []).map(id => query.requiredInput?.options?.find(option => option.optionId === id));
         const picked = options.map(option => option && { kind: option.kind, label: option.label,
-          cardId: cards.find(card => card.cardRef === option.cardRef && !card.faceDown)?.definition.id ?? null });
+          cardId: cards.find(card => card.cardRef === option.cardRef && !card.faceDown)?.definition.id ?? option.preview?.definitionId ?? null });
         return picked.length && picked.every(option => option && (!rule?.choose || rule.choose(option))
           && (!answered || matches(expect, { type: 'answerChoice', cardId: option.cardId })))
           ? { ok: true, value: null } : refuse('TUTORIAL_CHOICE_NOT_EXPECTED', rule?.reason);

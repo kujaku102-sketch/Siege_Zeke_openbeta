@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CARD_LIBRARY, LAB_CARD_IDS, USER_CARDS, createCardInstance, createToken, expandDeck } from '../src/data/cards.js';
 import { createRuntimeSession } from '../src/game/runtime/session.js';
+import { TUTORIAL_IDS, tutorialAiDeckId, tutorialPlayerDeckId } from '../src/game/runtime/tutorial-setup.js';
 import { RuntimeError, createRuntimeCard, createRuntimeToken, expandRuntimeDeck } from '../src/game/runtime/factory.js';
 import { nextRng } from '../src/game/runtime/rng.js';
 import {
@@ -618,4 +619,32 @@ test('S02-SESSION-30: Imperial attack generates opponent-owned proofs after dest
   assert.equal(proof.ownerSeat, 'seat-b');
   assert.ok(state.players.ai.trash.some(card => card.uid === victim.uid));
   audit(state);
+});
+
+test('blue tutorial: allowed id, both decks forced, hand and opponent set up by the engine, preflight on the recipes', () => {
+  const player = [['STD-111', 1], ['STD-116', 6]], ai = [['STD-043', 3]];
+  // Whatever deck ids the caller sends, the state reports the tutorial's own decks.
+  const blue = game({ mode: 'tutorial', tutorialId: 'blue' });
+  assert.equal(blue.playerDeckId, 'tutorial-blue');
+  assert.equal(blue.aiDeckId, 'tutorial-sandbag');
+  assert.deepEqual(blue.players.player.hand.map(card => card.id), ['STD-107', 'STD-117', 'STD-109', 'STD-110']);
+  assert.deepEqual(blue.players.ai.hand.map(card => card.id), ['STD-043']);
+  assert.equal(blue.players.ai.fortressStr, 5);
+  assert.deepEqual(TUTORIAL_IDS, ['basics', 'vengeance', 'blue']);
+  assert.equal(tutorialPlayerDeckId('blue', 'red'), 'tutorial-blue');
+  assert.equal(tutorialAiDeckId('blue', 'yellow'), 'tutorial-sandbag');
+  assert.equal(tutorialAiDeckId('vengeance', 'yellow'), 'yellow');
+  assert.equal(tutorialPlayerDeckId('basics', 'red'), 'red');
+  // A recipe the caller supplies must hold the cards the script plays or draws, on both sides.
+  assert.equal(createRuntimeSession(config({ mode: 'tutorial', tutorialId: 'blue', playerDeckRecipe: player, aiDeckRecipe: ai })).ok, true);
+  rejects(config({ mode: 'tutorial', tutorialId: 'blue', aiDeckRecipe: [['STD-020', 3]] }));
+  rejects(config({ mode: 'tutorial', tutorialId: 'blue', playerDeckRecipe: [['STD-116', 6]] }));
+  rejects(config({ mode: 'tutorial', tutorialId: 'blue', playerDeckRecipe: [['STD-111', 1]] }));
+  // Other modes ignore the tutorial preflight; unknown ids are still refused.
+  assert.equal(createRuntimeSession(config({ mode: 'ai', tutorialId: 'blue' })).ok, true);
+  rejects(config({ mode: 'tutorial', tutorialId: 'green' }));
+  // basics and vengeance keep their own checks.
+  rejects(config({ mode: 'tutorial', playerDeckRecipe: [['STD-022', 1]] }));
+  rejects(config({ mode: 'tutorial', tutorialId: 'vengeance', aiDeckRecipe: [['STD-125', 1], ['STD-131', 1]] }));
+  assert.equal(createRuntimeSession(config({ mode: 'tutorial', tutorialId: 'vengeance' })).ok, true);
 });

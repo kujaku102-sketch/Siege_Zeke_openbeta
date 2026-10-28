@@ -885,3 +885,77 @@ test('scripted opponent without a named target takes the first offered one; a na
   assert.deepEqual(absent.run(),[0]);
   absent.lifecycle.dispose();
 });
+
+// The blue tutorial (the author's script, 28 steps) walked through the seat ports to the win: STR 5 -> 1 -> 0 with Frau.
+test('tutorial blue runs start to finish through ports: the Rutile access, Hacking past Merc, Encryption against its attack, STR 5 to 1 to 0',()=>{
+  const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),runtime=config('tutorial');
+  Object.assign(runtime.gameOptions,{tutorialId:'blue',aiDeckId:'tutorial-sandbag'});
+  const created=lifecycle.start(runtime);assert.equal(created.ok,true,JSON.stringify(created));
+  const session=created.value,port=session.port('a').value;
+  const index=()=>session.tutorial().value.flow.index,at=expected=>assert.equal(index(),expected);
+  const skip=(count,expected)=>{for(let n=0;n<count;n+=1)assert.equal(session.advanceTutorial().ok,true);at(expected);};
+  const card=(id,zones)=>visibleCard(port.query().value,id,zones)?.cardRef,hand=id=>card(id,['hand']),front=id=>card(id,['front']);
+  const enemy=()=>seatView(port.query().value,'b'),ids=zone=>seatView(port.query().value)[zone].cards.map(item=>item.definition.id);
+  const target=ref=>option=>option.cardRef===ref;
+  skip(8,1);
+  assert.deepEqual(ids('hand'),['STD-107','STD-117','STD-109','STD-110']);
+  assert.equal(enemy().fortressStr,5);assert.deepEqual(enemy().hand.count,1);
+  assertRefused(port,{type:'endTurn'});
+  // 2 the blue symbol
+  submit(port,plan(port,'install',hand('STD-117')));at(2);
+  // 3 Rutile: the play ends the step with the access choice still open; the guide talks over it
+  submit(port,plan(port,'executeCard',hand('STD-107'),option=>option.zone==='front'));at(3);
+  const open=port.query().value.requiredInput;
+  assert.ok(open?.canAnswer);assert.deepEqual(open.options.map(option=>option.preview.definitionId).filter((id,at,all)=>all.indexOf(id)===at).sort(),['STD-111','STD-116']);
+  refusedFor(session,port,{type:'executeCard',cardRef:hand('STD-109'),destination:{zone:'front',slot:2}},/^$/);
+  const early=open.options.find(option=>option.preview.definitionId==='STD-111');
+  refusedFor(session,port,{type:'answerChoice',choiceId:open.choiceId,optionIds:[early.optionId],allocation:[]},/^$/);
+  skip(3,6);
+  assert.equal(port.query().value.requiredInput.choiceId,open.choiceId,'the choice waited for its own step');
+  const wrong=open.options.find(option=>option.preview.definitionId==='STD-116');
+  refusedFor(session,port,{type:'answerChoice',choiceId:open.choiceId,optionIds:[wrong.optionId],allocation:[]},/オフェンスプロトコル/);
+  refusedFor(session,port,{type:'declineChoice',choiceId:open.choiceId},/オフェンスプロトコル/);
+  submit(port,{type:'answerChoice',choiceId:open.choiceId,optionIds:[early.optionId],allocation:[]});
+  settleTutorial(session);at(7);
+  assert.ok(ids('hand').includes('STD-111'));assert.ok(!ids('hand').includes('STD-116'));
+  // 4 Frau
+  submit(port,plan(port,'executeCard',hand('STD-109'),option=>option.zone==='front'));settleTutorial(session);at(8);
+  skip(1,9);
+  // 5 end of turn: Merc is played to the front and put to sleep by the script
+  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);at(10);
+  const merc=enemy().front.cards.find(item=>!item.faceDown&&item.definition.id==='STD-043');
+  assert.ok(merc&&merc.status.sleep,'Merc stands asleep in front');
+  assert.equal(enemy().fortressStr,5);
+  assert.equal(port.query().value.status.activeSeat,'a');
+  // 7 the Offense Protocol goes on Frau, who then passes Merc by Hacking
+  skip(2,12);
+  assert.equal(seatView(port.query().value).memory.current,5,'the memory is refilled each turn');
+  refusedFor(session,port,plan(port,'executeSpell',hand('STD-111'),target(front('STD-107'))),/フラウ/);
+  submit(port,plan(port,'executeSpell',hand('STD-111'),target(front('STD-109'))));settleTutorial(session);at(13);
+  skip(3,16);
+  const frauHits=plan(port,'attack',front('STD-109'),option=>option.kind==='user');
+  refusedFor(session,port,plan(port,'attack',front('STD-109'),option=>option.kind==='card'),/相手ユーザー/);
+  submit(port,frauHits);settleTutorial(session);at(17);
+  assert.equal(enemy().fortressStr,1);
+  // 8 Rutile has no Hacking: Merc is its only target and breaks it
+  skip(1,18);
+  submit(port,plan(port,'attack',front('STD-107'),()=>true));settleTutorial(session);at(19);
+  assert.ok(!front('STD-107'),'Rutile was destroyed by Merc');assert.equal(enemy().fortressStr,1);
+  // 9 Encryption
+  skip(2,21);
+  submit(port,plan(port,'executeSpell',hand('STD-110'),()=>true));settleTutorial(session);at(22);
+  // 10 Merc's attack can only reach the user
+  const before=seatView(port.query().value).fortressStr;
+  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);at(23);
+  assert.ok(seatView(port.query().value).fortressStr<before,'the attack reached the user');
+  assert.ok(front('STD-109'),'Frau is untouched');assert.equal(port.query().value.status.activeSeat,'a');
+  // 11 the Assault Program drawn this turn, then the last attack
+  skip(2,25);
+  assert.ok(ids('hand').includes('STD-116'),'the turn 3 draw is the Assault Program');
+  submit(port,plan(port,'executeSpell',hand('STD-116'),()=>true));settleTutorial(session);at(26);
+  submit(port,plan(port,'attack',front('STD-109'),option=>option.kind==='user'));settleTutorial(session);
+  const done=port.query().value;
+  assert.equal(enemy().fortressStr,0);assert.equal(done.status.lockedOutcome.winnerSeat,'a');
+  assertClosingLine(session,27,/完璧な勝利/);
+  lifecycle.dispose();
+});
