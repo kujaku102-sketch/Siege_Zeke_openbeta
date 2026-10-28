@@ -46,28 +46,25 @@ async function guideClear(page,moment) {
   const probe=() => page.evaluate(() => [...document.querySelectorAll('.live-guide,.r2-popup')].map(node => {const r=node.getBoundingClientRect();return [r.left,r.top,r.width,r.height].map(Math.round).join(',');}).join('|'));
   for (let last=null,quiet=0,turn=0;turn<30 && quiet<3;turn+=1) {const now=await probe();quiet=now===last ? quiet+1 : 0;last=now;await page.waitForTimeout(100);}
   const hits=await page.evaluate(() => {
-    const guide=document.querySelector('.live-guide');if (!guide) return [];
-    const parts=[guide.querySelector('.live-guide-cast img,.live-guide-noportrait'),guide.querySelector('.live-guide-speech')].filter(Boolean).map(node => node.getBoundingClientRect());
+    // Put away, only its [スキップ] stays: clear of the same, and of the opponent's display.
+    const guide=document.querySelector('.live-guide'),away=document.querySelector('.live-guide-away');if (!guide && !away) return [];
+    const parts=(guide ? [guide.querySelector('.live-guide-cast img,.live-guide-noportrait'),guide.querySelector('.live-guide-speech')] : [away.querySelector('button')]).filter(Boolean).map(node => node.getBoundingClientRect());
     const area=(a,b) => {const x=Math.min(a.right,b.right)-Math.max(a.left,b.left),y=Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top);return x>=1 && y>=1 ? x*y : 0;};
-    return [...document.querySelectorAll('.live-focus,.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline],.r2-popup button')]
-      .filter(node => !node.closest('.live-guide') && getComputedStyle(node).visibility!=='hidden' && node.getBoundingClientRect().width>0)
+    const flow=window.__SIMPLE_ZEKE_E2E__.tutorial().value?.flow;
+    return [...document.querySelectorAll('.live-focus,.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline],.r2-popup button'+(away ? ',.wf-status.wf-enemy' : ''))]
+      .filter(node => !node.closest('.live-guide,.live-guide-away') && getComputedStyle(node).visibility!=='hidden' && node.getBoundingClientRect().width>0)
       .map(node => ({name:(node.dataset.tutorialFocusLabel || node.getAttribute('aria-label') || node.textContent || node.className).toString().trim().slice(0,24),
-        leftOpen:node.matches('.r2-popup button:not(.live-focus)'),area:Math.round(parts.reduce((sum,part) => sum+area(part,node.getBoundingClientRect()),0))}))
-      .filter(hit => hit.area>1).map(hit => ({...hit,step:guide.dataset.tutorialStep,band:document.querySelector('.r2-runtime-view')?.dataset.guideBand}));
+        leftOpen:Boolean(guide) && node.matches('.r2-popup button:not(.live-focus)'),area:Math.round(parts.reduce((sum,part) => sum+area(part,node.getBoundingClientRect()),0))}))
+      .filter(hit => hit.area>1).map(hit => ({...hit,step:guide?.dataset.tutorialStep ?? flow?.tutorialId+':'+flow?.index,band:guide ? document.querySelector('.r2-runtime-view')?.dataset.guideBand : 'away'}));
   });
   for (const hit of hits) (hit.leftOpen ? leftOpen : covered).push({at:`${moment}@${hit.step}`,name:hit.name,line:`${profileLabel} ${moment}@${hit.step} (${hit.band}): ${hit.name} ${hit.area}px²`});
 }
-// Known on the --screens sizes, 文豪's call pending (2026-10-28): with the guide a third of the height, what these
-// vengeance steps point at spans all three bands (the TURN gauge, the hand, the layered pick's sheet, the back row
-// and its popup on 852×393), so every band covers some of it. Anything else covered fails.
+// Known on the --screens sizes, 文豪's call pending (2026-10-28): with the guide a third of the height (or more, a
+// long 「」 growing it), what these vengeance steps point at spans all three bands, so every band covers some of it
+// while the line is read. Put away by a tap before the move, it covers nothing at the popups and picks that follow.
+// Anything else covered fails.
 const KNOWN_COVERED={
-  'page@vengeance:2':['素材ドールズ'],'popup@vengeance:2':['素材ドールズ'],
-  'pick@vengeance:2':['トライプビア','素材ドールズ','ドールズOb','次へ','戻る'],'pick@vengeance:3':['トライプビア'],
-  'pick@vengeance:6':['アクロィア','タナフォリア','[アップデート:2]','戻る'],'page@vengeance:7':['ターン終了','トライプビア'],
-  'popup@vengeance:8':['再実行'],
-  // Since a long 「」 grows the frame (2026-10-28, also pending): the top band's frame growing up over the pick bar.
-  'pick@basics:37':['戻る'],'page@vengeance:6':['効果起動','アクロィア','タナフォリア'],'popup@vengeance:6':['効果起動','アクロィア','タナフォリア'],
-  'pick@vengeance:8':['戻る']
+  'page@vengeance:2':['素材ドールズ'],'page@vengeance:6':['効果起動','アクロィア','タナフォリア'],'page@vengeance:7':['ターン終了','トライプビア']
 };
 // One page a 「」 of the script (pages cut at ▽ only), its text inside the frame (one line kept free for a refused
 // move's reason), the frame and the portrait on screen, the guide's buttons clear of the text (文豪, 2026-10-28).
@@ -168,6 +165,7 @@ async function refusedAnswer(page,input,query,label,reason) {
   await page.locator('.live-guide .live-guide-error').waitFor({state:'visible',timeout:5000}).catch(() => {throw new Error('refusal reason not shown for '+label);});
   const text=await page.locator('.live-guide .live-guide-error').innerText(),after=(await read(page)).value;
   if (!text.includes(reason) || after.requiredInput?.choiceId!==input.choiceId || after.status.revision!==query.status.revision) throw new Error('off-script answer not refused: '+JSON.stringify({text,after:after.requiredInput?.choiceId}));
+  await putAway(page);
 }
 async function settle(page,{decline=false,checkBack=false,preference={scope:'レイヤー'},refuse=null}={}) {
   for (let index=0;index<50;index+=1) {
@@ -189,7 +187,7 @@ async function settle(page,{decline=false,checkBack=false,preference={scope:'レ
   throw new Error('required input failed to settle');
 }
 async function action(page,type,id,preference={}) {
-  await readPages(page);
+  await readPages(page);await putAway(page);
   const query=(await read(page)).value;
   const entryFor=card => query.legalActions.find(entry => (entry.actionType ?? entry.action?.type) === type && (!id || (entry.base?.cardRef ?? entry.base?.attackerRef ?? entry.action?.cardRef) === card?.cardRef));
   // A layer under another card has the same id: take the copy that has the action.
@@ -247,9 +245,40 @@ async function readPages(page) {
   throw new Error('guide pages never reached the last one');
 }
 const next = async page => {await readPages(page);await clickVisible(page,'[data-runtime-tutorial-next]');};
+// While the guide speaks the match takes no input; on a step that asks for a move a tap on its line puts it away
+// until the next step or a refused move's reason (文豪, 2026-10-28). A step pointing at a button to press is one
+// such step, though the script moves it on by [次へ].
+async function putAway(page) {
+  const press=await page.evaluate(() => Boolean(window.__SIMPLE_ZEKE_E2E__.tutorial().value?.presentation?.focus?.some(focus => focus.kind==='button')));
+  if (!await page.locator('.live-guide').count() || await page.locator(press ? '.live-guide [data-runtime-guide-next]' : '.live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next],[data-runtime-tutorial-finish])').count()) return;
+  if (!await page.evaluate(() => ['board','hand','console'].every(name => document.querySelector(`[data-live-region="${name}"]`)?.inert))) throw new Error('the match takes input while the guide speaks');
+  await clickVisible(page,'.live-guide-text');
+  await page.waitForFunction(() => !document.querySelector('.live-guide'),null,{timeout:3000});
+  if (await page.evaluate(() => document.querySelector('[data-live-region="board"]')?.inert)) throw new Error('the match still waits with the guide put away');
+  if (!await page.locator('.live-guide-away [data-runtime-tutorial-skip]').isVisible()) throw new Error('[スキップ] not kept with the guide put away');
+}
+// A step that asks to press something to see it moves on once it is open; the next line waits until it is closed
+// (文豪, 2026-10-28): the info button (held, let go), Atto's QA badge in its detail, the Junk Parts' detail.
+async function pressAsked(page,id,index,open,close) {
+  await step(page,id,index);await putAway(page);
+  await open();
+  await page.waitForFunction(step => window.__SIMPLE_ZEKE_E2E__.tutorial().value?.flow.index===step,index+1,{timeout:3000}).catch(() => {throw new Error('pressing what '+id+':'+index+' asks did not move it on');});
+  if (close) {
+    if (await page.locator('.live-guide').count()) throw new Error('the next line covers what was opened at '+id+':'+index);
+    await close();
+  }
+  await page.locator('.live-guide').waitFor({state:'visible',timeout:3000}).catch(() => {throw new Error('the next line did not come back after '+id+':'+index);});
+}
+async function tapCard(page,cardId,zone) {
+  const card=cards((await read(page)).value).find(card => !card.faceDown && card.definition.id===cardId && card.location?.zone===zone);
+  const selector='[data-card-ref="'+card.cardRef+'"]';
+  if (zone==='hand' && !await page.locator(selector).first().isVisible()) await clickVisible(page,'[data-runtime-hand]');
+  await clickVisible(page,selector);
+}
 // Red step 13: Atto's play button is highlighted in its popup; pressing it names the missing red symbol and the step moves on.
 async function tryBlockedPlay(page,id,cardId) {
   const after=Number((await page.locator('.live-guide').getAttribute('data-tutorial-step')).split(':')[1])+1;
+  await putAway(page);
   const card=cards((await read(page)).value).find(card => !card.faceDown && card.definition.id===cardId && card.location?.zone==='hand');
   const selector='[data-card-ref="'+card.cardRef+'"]';
   if (!await page.locator(selector).first().isVisible()) await clickVisible(page,'[data-runtime-hand]');
@@ -332,17 +361,29 @@ async function run(page,id) {
     await step(page,id,13);await tryBlockedPlay(page,id,'STD-091');
     await talk(14,17);
     await step(page,id,18);await action(page,'install','STD-087');
-    for (const index of [19,20]) {
-      await step(page,id,index);
-      if (!await page.locator('[data-runtime-counts].live-focus').count()) throw new Error('the info button is not highlighted at '+index);
-      await next(page);
-    }
+    await pressAsked(page,id,19,async () => {
+      if (!await page.locator('[data-runtime-counts].live-focus').count()) throw new Error('the info button is not highlighted at 19');
+      await clickVisible(page,'[data-runtime-counts]');
+    });
+    await step(page,id,20);
+    if (!await page.locator('[data-runtime-counts].live-focus').count()) throw new Error('the info button is not highlighted at 20');
+    await next(page);
     await step(page,id,21);await action(page,'executeCard','STD-091',{zone:'front'});
-    await talk(22,28);
+    await talk(22,25);
+    // The badge is scrolled to the middle of the detail once it is marked: pressed after that settles. Its help
+    // opens over the detail; Escape closes it before the detail is closed.
+    await pressAsked(page,id,26,async () => {
+      await tapCard(page,'STD-091','front');
+      await page.waitForFunction(() => {const badge=document.querySelector('.r2-detail [data-ability-help].live-focus'),top=badge?.getBoundingClientRect().top;
+        const still=top!==undefined && top===window.__badgeTop;window.__badgeTop=top;return still;},null,{polling:150,timeout:3000});
+      await clickVisible(page,'.r2-detail [data-ability-help].live-focus');
+    },async () => {await page.keyboard.press('Escape');await clickVisible(page,'[data-close-detail]');});
+    await talk(27,28);
     await step(page,id,29);await action(page,'attack','STD-091',{user:true});await settle(page);
     await talk(30,30);
     await step(page,id,31);await action(page,'endTurn');await settle(page);
-    await talk(32,36);
+    await talk(32,35);
+    await pressAsked(page,id,36,() => tapCard(page,'STD-078','hand'),() => clickVisible(page,'[data-close-detail]'));
     // Alone in a slot the Junk Parts leave Atto too weak for the Guardman: refused, with the reason in the guide.
     await step(page,id,37);await action(page,'executeCard','STD-078',{zone:'front',refused:true});
     if (!(await page.locator('.live-guide .live-guide-error').innerText().catch(() => '')).includes('アツト')) throw new Error('the Junk Parts refusal reason is not shown');
