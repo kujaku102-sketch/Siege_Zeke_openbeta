@@ -340,7 +340,8 @@ const BLUE_STEPS = [
   BLUE_ADVANCE("では私達のターンですね。"),
   BLUE_STEP("今回は『フラウ』を選んで『/オフェンスプロトコル/*』を使ってみましょう",
     [BLUE_CARD("STD-111", "オフェンスプロトコル"), BLUE_CARD("STD-109", "フラウ", "front")], { type: "play", cardId: "STD-111", targetCardId: "STD-109" }),
-  BLUE_ADVANCE("エリアの『フラウ』が『ハッキング』を得て、さらに+1/0されます", [BLUE_CARD("STD-109", "フラウ", "front")]),
+  // 台本の「ハッキング(アイコン)」: (アイコン) は演出なのでセリフから外し、icons で名前の後ろにアイコンを出す。
+  BLUE_STEP("エリアの『フラウ』が『ハッキング』を得て、さらに+1/0されます", [BLUE_CARD("STD-109", "フラウ", "front")], { type: "advance" }, { icons: ["ハッキング"] }),
   BLUE_ADVANCE("さらに！『フラウ』自身の効果で追加で+1/+1されました！", [BLUE_CARD("STD-109", "フラウ", "front")]),
   BLUE_ADVANCE("『ハッキング』は、相手の『セキュリティ』を無視して攻撃対象を選べるようになる効果です",
     [BLUE_CARD("STD-109", "フラウ", "front"), { kind: "ui", target: "ability-badge", cardId: "STD-109", badge: "ハッキング", label: "ハッキングのバッジ" }]),
