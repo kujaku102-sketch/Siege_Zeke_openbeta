@@ -192,12 +192,14 @@ test('main wiring: flow buttons before title modes, Escape and [戻る] through 
     assert.ok(!/pushState|replaceState|popstate|location\.hash/.test(source), 'no history API (Q14)');
 });
 
-test('main wiring: a won tutorial is marked on its way out and its button returns to the list; a skipped one goes to the sandbox unfinished', async () => {
+test('main wiring: a won tutorial is marked on its way out and its button returns to the list; a skipped one jumps to its own win in the same match', async () => {
   const main = await readSource('../src/main.js');
   const replace = main.slice(main.indexOf('function replaceTutorial(complete) {'), main.indexOf('const tutorialWon'));
   assert.ok(replace.includes("if (complete) return leaveMatch(nextScreen('game','tutorial-complete'));"));
-  assert.ok(replace.includes('lifecycle.skipTutorial()') && replace.includes("host.mode = 'sandbox'"));
-  assert.ok(!replace.includes('markTutorialDone'), 'skipping marks nothing');
+  // 文豪 2026-10-29: skip goes to the tutorial's own STR 0 win (its closing line), not the sandbox; counted as cleared.
+  assert.ok(replace.includes('const result = lifecycle.skipTutorialToWin();') && replace.includes('surface?.refresh();'));
+  assert.ok(!replace.includes('lifecycle.skipTutorial()') && !replace.includes("host.mode = 'sandbox'"), 'no sandbox after a skip');
+  assert.ok(!replace.includes('markTutorialDone'), 'marked on the way out, by tutorialWon');
   assert.ok(main.includes("const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;"));
   assert.ok(main.includes("function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();"),
     'marked before the match is left, whichever way out');

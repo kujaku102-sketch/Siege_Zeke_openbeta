@@ -125,11 +125,12 @@ function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.
   return result;
 }
 // A finished tutorial (won, closing line shown) returns to the list on its [一覧へ戻る] (V092-08 Q4);
-// a skipped one stays unfinished and goes on to the sandbox as before.
+// a skipped one jumps, in the same match, to its own win with the opponent at STR 0 and the closing line
+// (文豪, 2026-10-29), so it counts as cleared like a played one.
 function replaceTutorial(complete) {
   if (complete) return leaveMatch(nextScreen('game','tutorial-complete'));
-  const result = lifecycle.skipTutorial();
-  if (!result.ok) return notice(result.error.code);host.mode = 'sandbox';host.opponentControl = 'manual';attachSession(result.value);}
+  const result = lifecycle.skipTutorialToWin();
+  if (!result.ok) return notice(result.error.code);surface?.refresh();}
 // Leaving a won tutorial by any way marks it finished in this browser (Q5).
 const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;
 function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = screen;host.options = false;host.catalogOpen = false;renderShell(true);
