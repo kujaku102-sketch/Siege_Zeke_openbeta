@@ -609,7 +609,8 @@ test('tutorial vengeance runs start to finish through ports: relogged layered Ob
   const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),runtime=config('tutorial');runtime.gameOptions.tutorialId='vengeance';
   const created=lifecycle.start(runtime);assert.equal(created.ok,true,JSON.stringify(created));
   const session=created.value,port=session.port('a').value;
-  for(let index=0;index<8;index+=1)assert.equal(session.advanceTutorial().ok,true);
+  // No greeting before purple (red only, 2026-10-29): its own step 1 is the one line before the install.
+  assert.equal(session.advanceTutorial().ok,true);
   const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;
   submit(port,plan(port,'install',hand('STD-191')));assert.equal(index(),2);
   submit(port,plan(port,'executeLayered',hand('STD-195'),option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),3);
@@ -897,7 +898,7 @@ test('tutorial blue runs start to finish through ports: the Rutile access, Hacki
   const card=(id,zones)=>visibleCard(port.query().value,id,zones)?.cardRef,hand=id=>card(id,['hand']),front=id=>card(id,['front']);
   const enemy=()=>seatView(port.query().value,'b'),ids=zone=>seatView(port.query().value)[zone].cards.map(item=>item.definition.id);
   const target=ref=>option=>option.cardRef===ref;
-  skip(8,1);
+  skip(1,1); // no greeting before blue (red only, 2026-10-29): its step 1 is the one line before the install
   assert.deepEqual(ids('hand'),['STD-107','STD-117','STD-109','STD-110']);
   assert.equal(enemy().fortressStr,5);assert.deepEqual(enemy().hand.count,1);
   assertRefused(port,{type:'endTurn'});
