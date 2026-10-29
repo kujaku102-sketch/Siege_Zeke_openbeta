@@ -269,6 +269,13 @@ async function putAway(page) {
   await page.waitForFunction(() => !document.querySelector('.live-guide'),null,{timeout:3000});
   if (await page.evaluate(() => document.querySelector('[data-live-region="board"]')?.inert)) throw new Error('the match still waits with the guide put away');
   if (!await page.locator('.live-guide-away [data-runtime-tutorial-skip]').isVisible()) throw new Error('[スキップ] not kept with the guide put away');
+  // The move asked for stays written behind the opponent's back row, 「〇〇をしよう」, in sight (文豪, 2026-10-29).
+  const hint=await page.evaluate(() => {const expect=window.__SIMPLE_ZEKE_E2E__.tutorial().value?.presentation?.expect,node=document.querySelector('.wire-board .wf-tutorial-hint:not([hidden]) text');
+    const rect=node?.getBoundingClientRect(),back=Math.min(...[...document.querySelectorAll('.wire-board .board-slot[data-zone="back"]')].filter(slot => slot.dataset.seat!==window.__SIMPLE_ZEKE_E2E__.query().value.status.viewerSeat).map(slot => slot.getBoundingClientRect().top));
+    return {wants:Boolean(expect && (expect.type!=='advance' || expect.press)),text:node?.textContent ?? '',
+      placed:Boolean(rect) && rect.top>=0 && rect.left>=0 && rect.right<=innerWidth && rect.bottom<=back};});
+  if (hint.wants && (!/[ぁ-ゖ]う$/.test(hint.text) || !hint.placed)) throw new Error('the hint is not shown behind the opponent back row: '+JSON.stringify(hint));
+  if (!hint.wants && hint.text) throw new Error('a hint on a step that wants no move: '+hint.text);
 }
 // While the guide speaks a real click (a tap on a phone) on what it does not cover changes nothing: cards, popup and
 // pick buttons, slots, the user, the hand button (a phone tap on a card fell on a popup's button left open).
@@ -301,6 +308,51 @@ async function tapWhileSpeaking(page,label) {
     if ((pressed+=1)>=16) break;
   }
   if (!pressed) throw new Error('nothing outside the guide to press at '+label);
+}
+// 文豪's stall (2026-10-29): a person does not wait for the opponent's scripted turn. Taps on the guide's line and its
+// [次へ], and a hand card tried, while it plays move nothing and raise no notice; the guide just waits, and the
+// opponent's turn still ends with the player's turn started, memory refilled. Called right after the turn is ended.
+async function opponentTurnTaps(page,id) {
+  const state=() => page.evaluate(() => {const tutorial=window.__SIMPLE_ZEKE_E2E__.tutorial().value,query=window.__SIMPLE_ZEKE_E2E__.query().value;
+    return {step:tutorial.flow.index,script:tutorial.opponentScript,notice:document.querySelector('.r2-notice')?.textContent ?? '',
+      active:query.observation.activeSeat,viewer:query.status.viewerSeat,memory:query.observation.seats.find(seat => seat.seatId===query.status.viewerSeat)?.memory};});
+  const start=await state();
+  if (!start.script) throw new Error(id+': the opponent turn was over before anything was tapped');
+  // A tap counts only while the script still plays (once it is over a tap is an ordinary one): the check, the tap at
+  // the point a finger would press and the read after it run in one task of the page, which the paced script cannot
+  // interleave.
+  let taps=0;
+  for (let turn=0;turn<80;turn+=1) {
+    const round=await page.evaluate(() => {
+      const e2e=window.__SIMPLE_ZEKE_E2E__,read=() => ({step:e2e.tutorial().value.flow.index,script:e2e.tutorial().value.opponentScript,
+        notice:document.querySelector('.r2-notice')?.textContent ?? '',popups:document.querySelectorAll('.r2-popup').length});
+      const hits=[];
+      for (const selector of ['.live-guide-text','.live-guide [data-runtime-tutorial-next]','.r2-hand .card']) {
+        const node=document.querySelector(selector),rect=node?.getBoundingClientRect();
+        if (!rect?.width || !read().script) continue;
+        const x=rect.left+rect.width/2,y=rect.top+Math.min(rect.height/2,rect.height*.2),hit=document.elementFromPoint(x,y);
+        if (!hit) continue;
+        const before=read();
+        for (const type of ['pointerdown','mousedown','pointerup','mouseup','click']) hit.dispatchEvent(new (type.startsWith('pointer') ? PointerEvent : MouseEvent)(type,{bubbles:true,cancelable:true,clientX:x,clientY:y,isPrimary:true,button:0}));
+        hits.push({selector,before,after:read()});
+      }
+      return {hits,playing:Boolean(read().script)};
+    });
+    for (const {selector,before,after} of round.hits) {
+      taps+=1;
+      if (after.step!==before.step) throw new Error(id+': a tap on '+selector+' moved the guide during the opponent turn ('+before.step+' -> '+after.step+')');
+      if (after.notice) throw new Error(id+': a notice during the opponent turn: '+after.notice);
+      if (after.popups>before.popups) throw new Error(id+': a tap on '+selector+' during the opponent turn opened a popup');
+    }
+    if (!round.playing) break;
+    await page.waitForTimeout(90);
+  }
+  if (!taps) throw new Error(id+': nothing was tapped during the opponent turn');
+  // The stall left the opponent's turn unfinished: here it ends and the player's turn starts, memory refilled.
+  await page.waitForFunction(() => window.__SIMPLE_ZEKE_E2E__.tutorial().value?.opponentScript===null,null,{timeout:15000})
+    .catch(() => {throw new Error(id+': the opponent turn never ended after the taps');});
+  const end=await state();
+  if (end.notice || end.active!==end.viewer || end.memory?.current!==end.memory?.max) throw new Error(id+': after the opponent turn: '+JSON.stringify({start,end}));
 }
 // A step that asks to press something to see it moves on once it is open; the next line waits until it is closed
 // (文豪, 2026-10-28): the info button (held, let go), Atto's QA badge in its detail, the Junk Parts' detail.
@@ -398,8 +450,13 @@ async function tryBlockedPlay(page,id,cardId) {
   const reason=await page.locator('.live-guide .live-guide-error').innerText().catch(() => '');
   if (!reason.includes('シンボル')) throw new Error('the missing symbol is not named in the guide: '+reason);
 }
+// The greeting (7 pages) plays before red only; blue and purple open on their own step 1 (文豪, 2026-10-29).
 async function intro(page,id) {
-  for (let index=0;index<7;index+=1) {
+  if (id!=='basics') {
+    await page.locator('.live-guide').waitFor({state:'visible',timeout:5000});
+    if (await page.locator('.live-guide').getAttribute('data-tutorial-step') !== id+':0') throw new Error(id+' does not open on its own step 1');
+  }
+  for (let index=0;id==='basics' && index<7;index+=1) {
     const guide=page.locator('.live-guide');
     if (await guide.getAttribute('data-tutorial-step') !== 'intro:'+index || (await guide.locator('.live-guide-cast strong').textContent())?.trim() !== 'じぐさぽ') throw new Error('introduction mismatch');
     if (index===3 && await guide.locator('ruby rt').textContent() !== 'ベータテスト') throw new Error('beta ruby missing');
@@ -446,6 +503,7 @@ async function step(page,id,index) {
   const marks=await page.evaluate(() => ({boxed:[...document.querySelectorAll('.wire-board .live-focus,.r2-hand .card.live-focus')].filter(node => getComputedStyle(node).outlineStyle!=='none').length,
     still:[...document.querySelectorAll('.wire-board .board-slot.live-focus[data-card-ref] .card-line,.r2-hand .card.live-focus')].filter(node => !/use-card/.test(getComputedStyle(node).animationName)).length}));
   if (marks.boxed || marks.still) throw new Error('board highlight at '+id+':'+index+': '+JSON.stringify(marks));
+  if (await page.locator('.wire-board .wf-tutorial-hint:not([hidden])').count()) throw new Error('the hint stays with the guide speaking at '+id+':'+index);
   await guideClear(page,'page');
 }
 // V092-08 Q4/Q5: the winning attack ends the tutorial on its closing line (no result window); its button
@@ -516,7 +574,7 @@ async function run(page,id) {
     await talk(27,28);
     await step(page,id,29);await action(page,'attack','STD-091',{user:true});await settle(page);
     await talk(30,30);
-    await step(page,id,31);await action(page,'endTurn');await settle(page);
+    await step(page,id,31);await action(page,'endTurn');await opponentTurnTaps(page,id);await settle(page);
     await talk(32,35);
     await pressAsked(page,id,36,() => tapCard(page,'STD-078','hand'),() => clickVisible(page,'[data-close-detail]'));
     // Alone in a slot, under the soldier or alone in the back the Junk Parts leave Atto too weak for the Guardman:
@@ -542,7 +600,7 @@ async function run(page,id) {
     await step(page,id,6);await accessPick(page);
     await step(page,id,7);await action(page,'executeCard','STD-109',{zone:'front'});
     await talk(8,8);
-    await step(page,id,9);await action(page,'endTurn');await settle(page);
+    await step(page,id,9);await action(page,'endTurn');await opponentTurnTaps(page,id);await settle(page);
     await talk(10,11);
     await step(page,id,12);
     await action(page,'executeSpell','STD-111',{targetId:'STD-107',cardOnly:true,refused:'フラウ',label:'the Offense Protocol on Rutile'});
@@ -593,16 +651,21 @@ try {
     const page=await context.newPage();
     page.on('pageerror',error => errors.push(error.message));
     for (const id of ['basics','blue','vengeance']) {await run(page,id);runs.push({profile:profile.label,tutorial:id});}
-    // Skip during a committed required choice revokes old refs and cannot carry it.
-    await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.start('tutorial','vengeance',1));
-    await intro(page,'vengeance');await action(page,'install','STD-191');await action(page,'executeLayered','STD-195',{zone:'front'});await action(page,'redeploy','STD-195',{zone:'back'});
-    const old=(await read(page)).value,scope=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.scope());
-    if (!old.requiredInput) throw new Error('skip case not in required choice');
-    await clickVisible(page,'[data-runtime-tutorial-skip]');
-    const after=(await read(page)).value;
-    if (after.requiredInput || after.status.revision!==0 || after.status.matchId===scope.matchId) throw new Error('skip did not create fresh sandbox');
-    const stale=await page.evaluate(input => window.__SIMPLE_ZEKE_E2E__.submit(input),{commandId:'old-choice',expectedRevision:0,action:{type:'answerChoice',choiceId:old.requiredInput.choiceId,optionIds:[],allocation:[]}});
-    if (stale.ok && stale.value.kind==='accepted') throw new Error('old choice accepted after skip');
+    // [スキップ] jumps, in the same match, to the tutorial's own win (the opponent at STR 0, the closing line) and
+    // counts as cleared (文豪, 2026-10-29): from blue's first line, and from inside purple's committed required choice.
+    for (const id of ['blue','vengeance']) {
+      await page.evaluate(() => localStorage.removeItem('sz-tutorial-done'));
+      await page.evaluate(id => window.__SIMPLE_ZEKE_E2E__.start('tutorial',id,1),id);
+      await intro(page,id);
+      if (id==='vengeance') {
+        await action(page,'install','STD-191');await action(page,'executeLayered','STD-195',{zone:'front'});await action(page,'redeploy','STD-195',{zone:'back'});
+        if (!(await read(page)).value.requiredInput) throw new Error('skip case not in required choice');
+      }
+      const scope=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.scope());
+      await clickVisible(page,'[data-runtime-tutorial-skip]');
+      if ((await read(page)).value.status.matchId!==scope.matchId) throw new Error(id+': skip left the match');
+      await completionReturnsToList(page,id);
+    }
     await context.close();
   }
   if (errors.length) throw new Error('tutorial page errors: '+errors.join(' | '));
@@ -610,7 +673,7 @@ try {
   const unknown=covered.filter(hit => !knownCovered(hit)),known=[...new Set(covered.filter(knownCovered).map(hit => hit.line.replace(/ \d+px²$/,'')))];
   if (screensMode && unknown.length) throw new Error('the guide covers what can be pressed ('+unknown.length+'):\n'+[...new Set(unknown.map(hit => hit.line))].join('\n'));
   if (screensMode && pageIssues.length) throw new Error('guide pages ('+pageIssues.length+'):\n'+[...new Set(pageIssues)].join('\n'));
-  console.log(JSON.stringify({suite:'tutorial',runs,completionReturnsToList:true,offScriptRefused:true,freshSkip:true,requiredBackPreserves:true,
+  console.log(JSON.stringify({suite:'tutorial',runs,completionReturnsToList:true,offScriptRefused:true,skipToWin:true,requiredBackPreserves:true,
     guideCovers:screensMode ? {unknown:0,known:known.length} : {counted:new Set(covered.map(hit => hit.line)).size},
     leftOpenCovered:[...new Set(leftOpen.map(hit => hit.line.replace(/ \d+px²$/,'')))],guidePages:screensMode ? {issues:0} : {issues:[...new Set(pageIssues)]},
     frameMax:Math.round(frameMax*1000)/10+'%',keyboardMode,screensMode,ok:true}));
