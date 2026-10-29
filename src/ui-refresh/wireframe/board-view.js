@@ -125,6 +125,19 @@ function countTagsHtml(seat, mine, at) {
     return `<g class="wf-count-tag" data-count-zone="${zone}" data-count-seat="${esc(seat.seatId)}" transform="translate(${p.x} ${p.y})"><rect x="-58" y="-24" width="116" height="48"/><text class="wf-count-label" y="-8" text-anchor="middle">${label}</text><text class="wf-count-value" y="17" text-anchor="middle">${seat[zone].count ?? seat[zone].cards.length}</text></g>`;
   }).join('')}</g>`;
 }
+// A tutorial's 「〇〇をしよう」 while its guide is put away (文豪, 2026-10-29): deep in the board, behind the opponent's
+// back row and its user area, in board units so it follows the camera. Empty here; the surface fills it (syncTutorialHint).
+function tutorialHintHtml() {
+  const at = project(525, -150);
+  return `<g class="wf-tutorial-hint" pointer-events="none" hidden><text x="${at.x}" y="${at.y}" font-size="30" text-anchor="middle"></text></g>`;
+}
+export function syncTutorialHint(svg, text) {
+  const hint = svg?.querySelector('.wf-tutorial-hint');
+  if (!hint) return;
+  const label = hint.querySelector('text');
+  if (label.textContent !== text) label.textContent = text;
+  hint.toggleAttribute('hidden', !text);
+}
 export function wireframeStatusHtml(seat, mine, uniqueButton = '') {
   return `<aside class="wf-status ${mine?'wf-self':'wf-enemy'}" data-user-seat="${esc(seat.seatId)}" data-fx-zone="hand" data-fx-seat="${esc(seat.seatId)}">${uniqueButton ? `<div class="r2-console wf-unique">${uniqueButton}</div>` : ''}<div class="wf-user-window"><button class="wf-user-title" data-runtime-profile="${esc(seat.seatId)}" aria-label="${esc(seat.user.name)} のユーザー詳細">${mine?'':'<b aria-hidden="true">●●●</b>'}<span>${esc(seat.user.name)}</span>${mine?'<b aria-hidden="true">×</b>':''}</button><canvas class="wf-life" data-life-seat="${esc(seat.seatId)}" aria-label="${esc(seat.user.name)} STR ${seat.fortressStr} / ${seat.user.maxFortressStr}、インシデント ${seat.user.incidents.join('・')}" data-str="${seat.fortressStr}"></canvas></div><button class="wf-avatar" data-runtime-profile="${esc(seat.seatId)}" aria-label="${mine?'自分':'相手'} ${esc(seat.user.name)} ユーザー詳細"></button></aside>`;
 }
@@ -156,7 +169,7 @@ export function wireframeBoardHtml(model, uniqueButton = '') {
       const mine=seat===self,x=mine?-20:1070,y=mine?700:200,side=mine?1070:-20,lift=pileHeight(12);
       const trash=project(side,mine?630:270,lift);
       return countTagsHtml(seat,mine,{deck:project(side,mine?850:50,lift),trash,registry:project(x,y,lift),ban:{x:trash.x,y:trash.y+54}});
-    }).join('')}<g class="wf-preview" pointer-events="none"></g>`;
+    }).join('')}<g class="wf-preview" pointer-events="none"></g>${tutorialHintHtml()}`;
   return `<div class="r2-board wire-board-host" data-patch-keep="class:wf-has-model"><canvas class="wf-board-model" aria-hidden="true" data-patch-keep="width height data-engine"></canvas><svg class="wire-board" viewBox="0 0 1600 900" aria-label="対局盤面" data-patch-keep="class:wf-pixel-off">${board}</svg>${wireframeStatusHtml(self,true,uniqueButton)}${wireframeStatusHtml(enemy,false)}</div>`;
 }
 export function wireframePreviewHtml(value, hover = null) {

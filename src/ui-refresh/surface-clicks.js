@@ -12,7 +12,8 @@ const BUTTONS = [
   ['data-runtime-guide-prev', c => c.turnGuidePage(-1)],
   // The tried play moves the step on and its reason shows in the guide for that step (not a shell notice).
   ['data-tutorial-try', (c, target) => { const next = c.session.advanceTutorial(); if (!next.ok) return c.onError(next.error.code); c.noteTutorial(blockMessage({ code: target.dataset.tutorialTry })); return c.act(c.ui.read()); }],
-  ['data-runtime-tutorial-next', c => { const next = c.session.advanceTutorial(); return next.ok ? c.act(c.ui.read()) : c.onError(next.error.code); }],
+  // While the opponent's script plays the guide just waits: the tap changes nothing and raises nothing.
+  ['data-runtime-tutorial-next', c => { const next = c.session.advanceTutorial(); return next.ok ? c.act(c.ui.read()) : next.error.code === 'TUTORIAL_OPPONENT_TURN' ? undefined : c.onError(next.error.code); }],
   ['data-runtime-unique-close', c => c.act(c.ui.closeUnique())],
   ['data-runtime-profile-close', c => c.act(c.ui.closeProfile())],
   ['data-runtime-art', (c, target) => c.act(c.ui.openArt(target.dataset.runtimeArt))],

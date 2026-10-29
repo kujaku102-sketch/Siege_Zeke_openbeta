@@ -305,6 +305,24 @@ test("a picked, dragged-over or pointed-at board frame glows itself, no box over
   assert.ok(layout.includes("zone:`:is(.zone,.wire-board .board-slot:not([data-card-ref]))[data-seat=\"${seat}\"][data-zone=\"${focus.zone}\"]`"), "a zone on the 3D board is pointed at by its empty slots");
 });
 
+test("tutorial: with the guide put away the move asked for stays written behind the opponent's back row; the guide waits through the opponent's turn (文豪, 2026-10-29)", async () => {
+  const { project, CARD } = await import("../src/ui-refresh/wireframe/geometry.js");
+  const view = await readSource("../src/ui-refresh/wireframe/board-view.js");
+  assert.ok(view.includes("const at = project(525, -150);"), "deep in the board");
+  // Behind the opponent's back row (y 84) and its user area (y -55, 35 deep): further from the player than both.
+  assert.ok(project(525, -150).y < project(525, -55 - 35 / 2).y && project(525, -55 - 35 / 2).y < project(525, 84 - CARD.height / 2).y);
+  assert.ok(view.includes('<g class="wf-tutorial-hint" pointer-events="none" hidden><text x="${at.x}" y="${at.y}" font-size="30" text-anchor="middle"></text></g>'), "sized in board units, so it scales and follows the camera");
+  assert.ok(view.includes("}).join('')}<g class=\"wf-preview\" pointer-events=\"none\"></g>${tutorialHintHtml()}`;"));
+  const css = await readSource("../src/ui-refresh/wireframe/board.css");
+  assert.ok(css.includes(".r2-wireframe-view .wf-tutorial-hint[hidden] { display:none; }"));
+  assert.ok(!/\d(px|rem)\b/.test(css.slice(css.indexOf(".r2-wireframe-view .wf-tutorial-hint text"), css.indexOf(".r2-wireframe-view .ghost"))), "no fixed sizes");
+  const surface = await readSource("../src/ui-refresh/runtime-match-surface.js");
+  assert.ok(surface.includes("syncTutorialHint(root.querySelector('.wire-board'), tutorial.ok && tutorial.value.away ? currentTutorialHint(tutorial.value.flow, TUTORIAL_STEP_GUARDS) : '');"), "only while the guide is put away");
+  assert.ok(surface.includes("if (!next.ok) { if (next.error.code !== 'TUTORIAL_OPPONENT_TURN') reportError(next.error.code); return; }"));
+  const clicks = await readSource("../src/ui-refresh/surface-clicks.js");
+  assert.ok(clicks.includes("next.error.code === 'TUTORIAL_OPPONENT_TURN' ? undefined : c.onError(next.error.code)"), "a tap during the opponent's turn raises nothing");
+});
+
 test("blue tutorial: the Hacking icon in step 7's line, the access pick pointed at by its card, a badge line opens the detail itself", async () => {
   const { tutorialSteps } = await import("../src/data/tutorial-script.js");
   const steps = tutorialSteps("blue");

@@ -54,6 +54,9 @@ body[data-view] .r2-content .r2-wireframe-view .wire-board-host { position:absol
 .r2-wireframe-view .wire-board .board-slot.live-focus[data-card-ref] .card-line { stroke:#f9df8a; stroke-width:3.5; filter:url(#wf-glow); animation:wf-use-card 1.2s ease-in-out infinite alternate; }
 @keyframes wf-use-card { from { stroke:#a8863a; stroke-opacity:.6; } to { stroke:#fff3c4; stroke-opacity:1; } }
 @media (prefers-reduced-motion:reduce) { .r2-wireframe-view .wire-board .board-slot.live-focus[data-card-ref] .card-line { animation:none; } }
+/* A tutorial's 「〇〇をしよう」 behind the opponent's back row while the guide is put away; sizes in board units. */
+.r2-wireframe-view .wf-tutorial-hint[hidden] { display:none; }
+.r2-wireframe-view .wf-tutorial-hint text { fill:#f9df8a; font-family:var(--wf-control-font); letter-spacing:.06em; stroke:#0b141c; stroke-width:6; paint-order:stroke fill; }
 .r2-wireframe-view .ghost { fill:#c2ed9533; stroke:#c2ed95; stroke-width:2; }
 .r2-wireframe-view .arrow { stroke:#c2ed95; stroke-width:3; fill:none; }
 .r2-wireframe-view .wf-status { position:absolute; width:18%; border:1px solid #65727a; background:#152027ed; color:#dbe4e8; padding:1cqh; z-index:2; font:2cqh system-ui; }

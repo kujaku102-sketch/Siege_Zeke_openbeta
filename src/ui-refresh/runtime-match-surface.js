@@ -23,6 +23,9 @@ import { attachSelectionPeek } from './selection-peek.js';
 import { attachCountPeek } from './count-peek.js';
 import { attachDetailScroll } from './detail-scroll.js';
 import { centerIncidentStrip } from './user-detail-view.js';
+import { syncTutorialHint } from './wireframe/board-view.js';
+import { currentTutorialHint } from '../data/tutorial-hint.js';
+import { TUTORIAL_STEP_GUARDS } from '../adapters/tutorial-mode-controller.js';
 
 // One delegated input surface, one session. This module cannot reach the engine
 // and has no legacy fallback. Host owns title/deck/settings and session changes.
@@ -112,7 +115,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     const tutorial = session.tutorial(), expect = tutorial.ok && !tutorial.value.flow.complete ? tutorial.value.presentation?.expect : null;
     if (expect?.press && guideAway && PRESS_OPEN[expect.press]?.(expect.cardId)) {
       const next = session.advanceTutorial();
-      if (!next.ok) { reportError(next.error.code); return; }
+      if (!next.ok) { if (next.error.code !== 'TUTORIAL_OPPONENT_TURN') reportError(next.error.code); return; }
       guideAway = { step: pageStep(session.tutorial().value.flow), reason: '', hold: true };
       render(ui.read());
     } else if (guideAway?.hold && !anyOpen()) { guideAway = null; render(ui.read()); }
@@ -240,6 +243,9 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       renderScope = nextScope;
       regionKeys = nextKeys;
       syncInteractionClasses(root, next);
+      // With the guide put away on a step that wants a move, the move stays written on the board (文豪, 2026-10-29);
+      // it goes when the step moves on or the guide comes back.
+      syncTutorialHint(root.querySelector('.wire-board'), tutorial.ok && tutorial.value.away ? currentTutorialHint(tutorial.value.flow, TUTORIAL_STEP_GUARDS) : '');
       if (tutorial.ok) { schedule(watchPress, 0); schedule(showBadge, 0); }
       decorate(() => scenes.sync(next, effectsEnabled, shellRebuilt || runtimeChanged));
       if (geometryDirty) queueLayout();
