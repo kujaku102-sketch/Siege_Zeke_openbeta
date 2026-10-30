@@ -422,7 +422,7 @@ export function compileEffectText(sourceText = "", context = {}) {
     }
   }
   const operations = clauses.flatMap((clause) => clause.operations);
-  
+
   const preset = CARD_OPERATION_PRESETS.get(context.id);
   if (preset) operations.push(structuredClone(preset));
   if (/①または②を1つ選び起動する/.test(normalizedText) && !operations.some((operation) => operation.type === "choose_numbered_effect")) {
