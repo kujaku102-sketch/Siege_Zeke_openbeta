@@ -1,10 +1,9 @@
-// STD-140 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { findCard } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { addTimedModifier } from "../../game/effects/generic/actions.js";
 import { grantDamageModifier } from "../../game/effects/generic/damage.js";
+import { addTimedModifier } from "../../game/effects/generic/trigger-actions.js";
 
 // handlers (was effects/custom/std_140.js)
 export function std140UpdateChoiceSelection(state, continuation, result, playerId, player) {

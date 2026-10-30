@@ -6,7 +6,8 @@ import { resolveEffect } from "./effects.js";
 import { enabledSymbols } from "./play.js";
 import { fail, findCard, newActionBlock } from "./shared.js";
 import { CUSTOM_ACTIVATE_CARD_EFFECT_CORE, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2, CUSTOM_GET_EFFECT_TARGETS, PASS } from "../effects/custom/index.js";
-import { executeRuntimeActions, runtimeActionFeasible } from "../effects/generic/actions.js";
+import { runtimeActionFeasible } from "../effects/generic/action-values.js";
+import { executeRuntimeActions } from "../effects/generic/actions.js";
 
 export function getEffectTargets(state, targetPlayerId, sourceCard) {
   const player = state.players[targetPlayerId];

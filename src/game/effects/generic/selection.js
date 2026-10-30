@@ -20,12 +20,14 @@ import { addLog, findCard, hasClass, otherPlayer, shuffle } from "../../core/sha
 import { emitGameEvent, emitUserAbilityFeedback, resumeStalledTriggerThread, resumeTriggerThreadAfterSelection } from "../../core/triggers.js";
 import { endTurn } from "../../core/turn.js";
 import { CUSTOM_RESOLVE_CARD_SELECTION_CORE, CUSTOM_SELECTION_HANDLERS, PASS } from "../custom/index.js";
-import { addTimedModifier, executeRuntimeActions, runtimeActionCandidates, runtimeActionFeasible, runtimeSpecMatchesCard, runtimeSpecValue } from "./actions.js";
+import { runtimeActionCandidates, runtimeActionFeasible, runtimeSpecMatchesCard, runtimeSpecValue } from "./action-values.js";
+import { executeRuntimeActions } from "./actions.js";
 import { beginSourceLayerSelection, consumeSelectedSourceLayers, continuePlacementCostBatch, ownLayerEntries, placementCostCandidates } from "./cost.js";
 import { grantDamageModifier } from "./damage.js";
 import { destroyCard } from "./destroy.js";
 import { placementResult, setCardSleeping } from "./placement.js";
 import { moveCardToTrash } from "./trash.js";
+import { addTimedModifier } from "./trigger-actions.js";
 
 function runtimeAccessCandidates(player, action, referenceCard = null) {
   return player.deck.filter((card) => runtimeSpecMatchesCard(card, action.filter, referenceCard));

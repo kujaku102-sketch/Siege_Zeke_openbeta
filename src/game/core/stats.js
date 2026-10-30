@@ -4,7 +4,7 @@ import { isObCard } from "../card-types.js";
 import { auraKeywordSpecsFor, conditionalKeywordSpecsFor, continuousStatModifierSpecsFor, mountedKeywordSpecsFor, mountedStatModifierSpecsFor } from "../continuous-effect-specs.js";
 import { enabledSymbols } from "./play.js";
 import { activeCards, hasClass } from "./shared.js";
-import { runtimeSpecValue } from "../effects/generic/actions.js";
+import { runtimeSpecValue } from "../effects/generic/action-values.js";
 
 export function battleStatModifierValue(state, playerId, source, stat) {
   let value = 0;

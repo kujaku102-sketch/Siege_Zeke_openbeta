@@ -11,9 +11,10 @@ import { addLog, findCard, otherPlayer } from "./shared.js";
 import { cardCurrentStr, continuousEffectConditionMatches } from "./stats.js";
 import { drainTriggerQueue, emitGameEvent, resumeStalledTriggerThread } from "./triggers.js";
 import { CUSTOM_DRAIN_INDEPENDENT_EFFECTS, CUSTOM_RESOLVE_DECLARED_SCRIPT } from "../effects/custom/index.js";
-import { executeRuntimeActions, executeTriggerAction } from "../effects/generic/actions.js";
+import { executeRuntimeActions } from "../effects/generic/actions.js";
 import { destroyCard } from "../effects/generic/destroy.js";
 import { moveCardToTrash } from "../effects/generic/trash.js";
+import { executeTriggerAction } from "../effects/generic/trigger-actions.js";
 
 export function resolveEffect(state, resolver) {
   const ownsResolution = !state.effectResolution;

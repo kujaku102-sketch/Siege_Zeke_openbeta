@@ -10,7 +10,7 @@ export { coordinatorProjectionBlocked, buildProjectionSpec, commitProjection, cl
 export { canAddSandboxCardToHand, addSandboxCardToHand } from "./core/setup-arrange.js";
 export { canOpeningMulligan, canKeepOpeningHand, openingMulligan, keepOpeningHand } from "./core/opening.js";
 export { DECK_OPTIONS, createGame } from "./core/setup.js";
-export { resolveVariableExpression } from "./effects/generic/actions.js";
+export { resolveVariableExpression } from "./effects/generic/action-values.js";
 export { resolveTriggerChoice, emitGameEvent } from "./core/triggers.js";
 export { finishGameIfSettled } from "./core/effects.js";
 export { getMaxMemory, executionCost, visibleHandExecutionPayment } from "./effects/generic/cost.js";

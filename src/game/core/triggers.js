@@ -1,13 +1,14 @@
 import { collectActivationWindows, createEventContext } from "../activation-windows.js";
-import { specsForEvent } from "../trigger-specs.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
-import { describeOperation } from "../effect-operation-library.js";
 import { isObCard } from "../card-types.js";
+import { describeOperation } from "../effect-operation-library.js";
+import { specsForEvent } from "../trigger-specs.js";
 import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled, lockVictoryIfDecided, runEffectEntry } from "./effects.js";
 import { enabledSymbols } from "./play.js";
 import { queueDeclaredScriptActivationWindow } from "./scripts.js";
 import { addLog, cardsInPlay, findCard, otherPlayer } from "./shared.js";
-import { executeCardRuntimeSpec, executeTriggerAction } from "../effects/generic/actions.js";
+import { executeCardRuntimeSpec } from "../effects/generic/actions.js";
+import { executeTriggerAction } from "../effects/generic/trigger-actions.js";
 
 function collectTriggers(state, event) {
   const context = createEventContext(state, event);

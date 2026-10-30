@@ -7,7 +7,7 @@ import { getEffectTargets } from "../../core/play-effects.js";
 import { spellNeedsTarget } from "../../core/play-spell.js";
 import { canPlayCard, playCard, playCardCore } from "../../core/play.js";
 import { addLog, fail, findCard, otherPlayer } from "../../core/shared.js";
-import { runtimeSpecMatchesCard } from "./actions.js";
+import { runtimeSpecMatchesCard } from "./action-values.js";
 import { destroyCard } from "./destroy.js";
 import { moveCardToTrash } from "./trash.js";
 
