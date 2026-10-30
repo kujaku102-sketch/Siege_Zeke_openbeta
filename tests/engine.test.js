@@ -5,6 +5,7 @@ import { CARD_LIBRARY, LAB_CARD_IDS, createCardInstance, createToken, normalizeC
 import { CARD_ART } from "../src/data/card-art.generated.js";
 import { isObCard } from "../src/game/card-types.js";
 import { placeCardByEffect } from "../src/game/effects/generic/placement.js";
+import { executeRuntimeActions } from "../src/game/effects/generic/actions.js";
 const STD_SUPPORTED_CARDS = CARD_LIBRARY;
 const VENGEANCE_CARDS = Object.fromEntries(Object.entries(CARD_LIBRARY).filter(([id]) => /^STD-(18[7-9]|19\d|20\d|21[0-2])$/.test(id)));
 const NEUTRON_CARDS = Object.fromEntries(Object.entries(CARD_LIBRARY).filter(([id]) => /^STD-(10[7-9]|11\d|12[0-4])$/.test(id)));
@@ -8399,6 +8400,25 @@ test("SZTB-097 keeps an STD-003 prompt and resumes cleanup once after accept or 
     status: { matchId, revision, viewerSeat: 'cpu' }, observation: { turnNumber: 4 }, legalActions: [], requiredInput: pickInput(options)
   });
   const answered = q => chooseSimpleAiIntent(q, 'c').value.action.optionIds[0];
+
+test("a Script that an effect generates and places goes to the back only; a full back sends it to the trash as a rule destruction", () => {
+  const generate = [{ type: "generate", cardIds: ["STD-165"], destination: "place" }];
+  const room = createGame({ mode: "lab", rng: () => 0.5 });
+  const frontBefore = room.players.player.front.length;
+  executeRuntimeActions(room, "player", createCardInstance("STD-170", "player", 17001), generate);
+  assert.equal(room.players.player.back.filter((card) => card.id === "STD-165" && card.faceDown).length, 1);
+  assert.equal(room.players.player.front.length, frontBefore);
+
+  const full = createGame({ mode: "lab", rng: () => 0.5 });
+  const owner = full.players.player;
+  owner.back = Array.from({ length: owner.user.backLimit }, (_, index) => createCardInstance("STD-021", "player", 2100 + index));
+  const fullFrontBefore = owner.front.length;
+  executeRuntimeActions(full, "player", createCardInstance("STD-170", "player", 17002), generate);
+  assert.equal(owner.front.length, fullFrontBefore);
+  assert.equal(owner.back.length, owner.user.backLimit);
+  assert.ok(owner.trash.some((card) => card.id === "STD-165"));
+  assert.ok(full.events.some((event) => event.type === "card_destroyed" && event.cardId === "STD-165" && event.ruleDestruction === true));
+});
 
   test('the CPU tries a different option when the same required input comes back at the same revision', () => {
     // A rejected answer leaves the revision unchanged; repeating it would never advance the match.

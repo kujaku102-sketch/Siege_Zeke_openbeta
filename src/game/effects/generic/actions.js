@@ -426,8 +426,9 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
         }
         if (destination === "place") {
           // 生成して配置: 効果配置。実行を経由しないのでログインも実行時誘発も起きない(ルールブック付録「実行と効果配置」)。
+          // Scriptの設置先はバックだけ(4.5)。バックが埋まっていればフロントへは置かず、強制配置としてルール破壊(3.1)。
           const zone = card.category === "Script"
-            ? (generatedPlayer.back.length < generatedPlayer.user.backLimit ? "back" : "front")
+            ? "back"
             : (generatedPlayer.front.length < generatedPlayer.user.frontLimit ? "front" : generatedPlayer.back.length < generatedPlayer.user.backLimit ? "back" : "front");
           card.summoningSick = zone === "front";
           if (card.category === "Script") Object.assign(card, { faceDown: true, residentActive: false, sleep: false });
