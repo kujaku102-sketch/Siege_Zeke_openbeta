@@ -13,3 +13,6 @@ export const definition = {
   ],
   "text": "自分のレジストリからカードが離れる度、相手に1ダメージ。"
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "own_registry_left_damage", target: "enemy_user", value: 1 };

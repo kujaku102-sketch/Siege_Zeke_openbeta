@@ -23,3 +23,6 @@ export const runtimeSpec = spec("spell", [op("decode", {
     },
     count: 1
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "variable_decode", variable: { countUnion: ["own_trash_nom", "own_trash_security"] }, filter: { category: "Ob", originalMemory: "lt_x" }, count: 1 };

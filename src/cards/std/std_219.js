@@ -10,3 +10,9 @@ export const definition = {
   "classes": [],
   "text": "[ログイン]カード1枚にアクセスし、それをレジストリにインストールする。①これの攻撃時、レジストリからX以下のカードを選びそれをメモリを支払わず実行できる。(Xは自分のレジストリの枚数である。)"
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "login_access_install_then_registry_free_execute", login: { type: "access_install", count: 1, destination: "registry" }, attack: { selection: { source: "own_registry", originalMemoryMaximumFrom: "self_registry_count", count: 1 }, executionCost: 0 } };
+
+// uses the shared selection modules (was effect-selection-modules.js SHARED_SELECTION_MODULE_CARD_IDS)
+export const sharedSelectionModuleCard = true;

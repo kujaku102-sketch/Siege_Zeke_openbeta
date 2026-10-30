@@ -1,7 +1,7 @@
 import { normalizeBoardSlots } from "../board-slots.js";
 import { isObCard } from "../card-types.js";
 import { mandatoryStateCheckSpecsFor } from "../continuous-effect-specs.js";
-import { hasKeyword } from "../effect-compiler.js";
+import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { cardCurrentStr, continuousEffectConditionMatches } from "./battle.js";
 import { continueDeferredSpellCleanup } from "./play.js";

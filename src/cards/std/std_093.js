@@ -18,3 +18,6 @@ export const definition = {
 
 // runtime spec (was card-runtime-specs.js)
 export const runtimeSpec = spec("login", [op("generate", { factory: "punks_token", count: 1, destination: "choose_area" })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "login_place_virtual", token: "Punks", count: 1 };

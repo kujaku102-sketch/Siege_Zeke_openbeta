@@ -20,3 +20,6 @@ export const runtimeSpec = spec("area_to_trash", [op("schedule_delayed", {
     event: "turn_started", timing: "next_controller_turn", action: "move_source_from_trash",
     destination: "choose_area", resetDamage: true, sleep: true
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "area_to_trash_next_turn_revive", target: "source_uid", destination: "choose_area", enterSleep: true };

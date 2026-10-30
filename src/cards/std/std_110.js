@@ -17,3 +17,6 @@ export const definition = {
 
 // runtime spec (was card-runtime-specs.js)
 export const runtimeSpec = spec("spell", [op("grant_keyword", { target: "own_ob_all", keyword: "ENCRYPTION", duration: "through_next_turn_end" })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "grant_keyword_group", target: "own_ob_snapshot", keyword: "Encryption", expires: "next_turn_end" };

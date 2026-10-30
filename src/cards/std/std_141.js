@@ -11,3 +11,6 @@ export const definition = {
   "activationCost": 0,
   "printedCost": "3-0"
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "resident_destroyed_count_branch", count: "destroyed_sacred_tree_scripts_this_turn", thresholds: [2, 3, 5] };

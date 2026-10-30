@@ -36,3 +36,6 @@ export const triggerSpecs = [
     actions: []
   })
 ];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "optional_enemy_draw_trigger", trigger: { event: "card_drawn", controller: "opponent" }, effect: { type: "draw", target: "source_controller", value: 1 } };

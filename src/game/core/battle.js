@@ -2,7 +2,7 @@ import { normalizeBoardSlots } from "../board-slots.js";
 import { battleStatModifierSpecsFor, cardRuntimeSpec } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
 import { attackPermissionSpecsFor, auraKeywordSpecsFor, conditionalKeywordSpecsFor, continuousStatModifierSpecsFor, mountedKeywordSpecsFor, mountedStatModifierSpecsFor } from "../continuous-effect-specs.js";
-import { hasKeyword, keywordValue } from "../effect-compiler.js";
+import { hasKeyword, keywordValue } from "../../../packages/effect-compiler/index.js";
 import { flattenedLayerCount } from "../layered-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { recordVictoryFact, runEffectEntry } from "./effects.js";

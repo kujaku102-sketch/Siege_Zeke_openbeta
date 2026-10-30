@@ -13,3 +13,6 @@ export const definition = {
 
 // attackPermissionSpec (was continuous-effect-specs.js)
 export const attackPermissionSpec = [{ type: "forbid_target", target: "enemy_user", condition: "source_registry_executed_this_turn" }];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "logout_registry_replacement_and_registry_execute", cannotAttack: "user_if_registry_executed" };

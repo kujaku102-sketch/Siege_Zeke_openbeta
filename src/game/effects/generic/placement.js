@@ -1,4 +1,4 @@
-import { hasKeyword, keywordValue } from "../../effect-compiler.js";
+import { hasKeyword, keywordValue } from "../../../../packages/effect-compiler/index.js";
 import { destructionPermissionSpecsFor, mountEventSpecsFor } from "../../continuous-effect-specs.js";
 import { createSelectionRequest } from "../../selection-model.js";
 import { isObCard } from "../../card-types.js";

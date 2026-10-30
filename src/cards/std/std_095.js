@@ -19,3 +19,6 @@ export const definition = {
 
 // layered requirement (was layered-specs.js)
 export const layeredSpec = { groups: [exact(area, { nameIncludes: "変形合体レッパオー", isOb: true }), own(area, { className: "レッドパンクス" })] };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "override_layered_battle", executionDiscount: "maximum_original_memory_among_selected_layers", attackBonus: "source_layer_count", onBattleDestroy: "enemy_user_damage_destroyed_ob_original_str" };

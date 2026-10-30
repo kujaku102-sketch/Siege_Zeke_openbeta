@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { compileEffectText, normalizeCardCategory } from "../src/game/effect-compiler.js";
+import { compileEffectText, normalizeCardCategory } from "../packages/effect-compiler/index.js";
 import { CARD_LIBRARY, LAB_CARD_IDS, createCardInstance, createToken, normalizeCardClasses } from "../src/data/cards.js";
 import { CARD_ART } from "../src/data/card-art.generated.js";
 import { isObCard } from "../src/game/card-types.js";
@@ -77,7 +77,7 @@ import { canConfirmSelection, collectDeckScopeOptions, confirmSelection, createA
 import { resolveAutomatedAiChoices, runSimpleAiTurn, runSimpleAiTurnSteps } from "../src/game/ai.js";
 import { chooseSimpleAiIntent } from "../src/adapters/simple-ai-policy.js";
 import { accessPolicy, deckMovePolicy, destructionOutcome, resultCountGate } from "../src/game/effect-operation-library.js";
-import { parseDynamicThresholdSelectionModule, parseLookSelectRemainderModule, parseSelectAllocateFollowUpModule } from "../src/game/effect-selection-modules.js";
+import { parseDynamicThresholdSelectionModule, parseLookSelectRemainderModule, parseSelectAllocateFollowUpModule } from "../packages/effect-compiler/index.js";
 import { collectActivationWindows, createEventContext, createTriggerSpec, scriptConditionMatches } from "../src/game/activation-windows.js";
 import { acceptTutorialAction, completeTutorialIntroduction, createTutorialFlow, currentTutorialPresentation } from "../src/data/tutorial.js";
 import { TUTORIAL_OPPONENT_SCRIPTS, tutorialSteps } from "../src/data/tutorial-script.js";

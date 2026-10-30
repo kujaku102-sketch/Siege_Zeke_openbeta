@@ -20,3 +20,6 @@ export const mountEventSpec = [{
       Object.freeze({ type: "discard", target: "source_owner_hand", count: 1 })
     ])
   }];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "mounted_sleep_owner_discard", value: 1, keyword: "Security" };

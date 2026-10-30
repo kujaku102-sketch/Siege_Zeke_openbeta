@@ -1,4 +1,18 @@
-import { compileSelectionModules } from "./effect-selection-modules.js";
+import { compileSelectionModules } from "./selection-modules.js";
+
+// Data the host registers. The compiler itself knows no card ids.
+const CARD_OPERATION_PRESETS = new Map();
+const INTRINSIC_KEYWORDS = new Map();
+
+// { [cardId]: operation } - an extra operation compileEffectText appends for that card (a fresh copy per call).
+export function registerCardOperationPresets(presets) {
+  for (const [id, operation] of Object.entries(presets)) CARD_OPERATION_PRESETS.set(id, operation);
+}
+
+// { [cardId]: [keyword name, ...] } - keywords hasKeyword reports for that card although its text has no such keyword.
+export function registerIntrinsicKeywords(table) {
+  for (const [id, names] of Object.entries(table)) INTRINSIC_KEYWORDS.set(id, [...names]);
+}
 
 const KEYWORD_PATTERNS = [
   ["QA", /\[(?:QA|クイックアクション)\]/g],
@@ -414,112 +428,9 @@ export function compileEffectText(sourceText = "", context = {}) {
     }
   }
   const operations = clauses.flatMap((clause) => clause.operations);
-  const runtimeSpecials = {
-    "STD-003": { type: "turn_trash_destination_replacement", trigger: "enemy_card_would_move_to_trash", affected: "enemy_cards", destination: "ban", duration: "turn" },
-    "STD-011": { type: "remove_components", target: "one_user_or_card", preserve: ["printed_text", "base_stats", "damage", "layers"] },
-    "STD-026": { type: "intrinsic_component", component: "Protect", amount: 1, stackable: true },
-    "STD-028": { type: "intrinsic_keyword", keyword: "Contact" },
-    "STD-029": { type: "intrinsic_destruction_replacement", keyword: "Backup", limit: "once_per_turn", condition: "front_and_back_space" },
-    "STD-038": { type: "generated_cards_ban", trigger: "card_generated", subject: "generated_cards" },
-    "STD-043": { type: "intrinsic_keyword", keyword: "Security" },
-    "STD-044": { type: "intrinsic_keyword", keyword: "QA" },
-    "STD-076": { type: "intrinsic_destruction_replacement", keyword: "Backup", limit: "once_per_turn", condition: "front_and_back_space" },
-    "STD-082": { type: "login_mill_then_place", mill: { source: "deck_top", count: 1, destination: "trash" }, followUp: { source: "trash", category: "Code", originalMemoryMaximum: 3, count: 1, destination: "area" } },
-    "STD-088": { type: "execution_restriction", executionAllowed: false, keyword: "QA" },
-    "STD-091": { type: "mandatory_attack", targetPriority: "ob_if_possible", keyword: "QA" },
-    "STD-093": { type: "login_place_virtual", token: "Punks", count: 1 },
-    "STD-100": { type: "execution_cost_by_distinct_names", area: "own", className: "レッドパンクス", modifierPerName: -1, keywords: ["QA", "Security"] },
-    "STD-105": { type: "fortress_attack_interrupt", trigger: "enemy_attacks_own_fortress", execute: { source: "hand", owner: "self", controller: "activator", destination: { owner: "controller", zone: "area" }, category: "Lyd-Ob", forced: true, memoryCost: 0 }, followUp: { sleep: true, grant: "Security", destroyAt: "next_turn_end" } },
-    "STD-110": { type: "grant_keyword_group", target: "own_ob_snapshot", keyword: "Encryption", expires: "next_turn_end" },
-    "STD-113": { type: "place_from_hand_trigger", triggers: ["login", "own_turn_start"], filter: { className: "エレクトロンフェアリー", originalMemoryLte: 2 }, count: 1, free: true },
-    "STD-114": { type: "attack_trigger_grant_keyword", target: "other_own_ob", keyword: "Hacking", duration: "while_in_area" },
-    "STD-115": { type: "resident_grant_keyword_group", target: "own_class", className: "エレクトロンフェアリー", keyword: "Encryption" },
-    "STD-116": { type: "turn_grant_attack_success", target: "own_class_snapshot", className: "エレクトロンフェアリー", keyword: "Hacking", onUserAttackSuccess: [{ type: "draw", value: 1 }, { type: "deal_damage", target: "enemy_user", value: 1 }] },
-    "STD-117": { type: "position_dependent_attack_card", keyword: "Backup", onAttack: { salvage: { source: "own_trash", categories: ["Sp"], orClassName: "エレクトロンフェアリー", count: 1 } }, front: { grantSelf: "Hacking" }, back: { grantOwnColor: { color: "青", keyword: "Encryption" } } },
-    "STD-119": { type: "resident_once_per_turn_spell_trigger", spellNamePattern: "slash_wrapped", action: { type: "add_counter_group", target: "enemy_area_ob", counter: "Load", value: 1 } },
-    "STD-120": { type: "resident_once_per_turn_spell_trigger", action: { type: "activate_from_trash_then_deck", filter: { category: "Sp", namePattern: "slash_wrapped", originalMemoryLte: 2 }, count: 1, free: true, deckMove: "shuffle" } },
-    "STD-122": { type: "destroy_any_count_then", target: "own_area_class", className: "エレクトロンフェアリー", zeroShortCircuit: true, followUp: { placeToken: "STD-123", count: 2, statVariable: { trashMatchingDestroyedNames: true, multiplier: 2 } } },
-    "STD-123": { type: "state_threshold_keywords", destroyIfStrLte: 0, condition: { stat: "ATK", gte: 5 }, keywords: ["QA", "Hacking"] },
-    "STD-127": { type: "battle_outgoing_damage_replacement", target: "source", opposingCategory: "Ob", value: 0, keyword: "Security" },
-    "STD-129": { type: "intrinsic_keywords", keywords: ["Security", "Backup"] },
-    "STD-130": { type: "battle_stat_variable", target: "source", stat: "STR", value: { count: "own_area_ob", className: "ナイツ・オブ・マキナ" }, keywords: ["Security", "Decoy"] },
-    "STD-131": { type: "logout_drag_from_hand", filter: { cardName: "華守り" }, count: 1, free: true, keyword: "Security" },
-    "STD-132": { type: "response_no_additional_effect", cost: 3, keyword: "Security" },
-    "STD-135": { type: "logout_delayed_self_revive", timing: "current_turn_end", condition: { sourceZone: "trash" }, destination: "front", keyword: "Security" },
-    "STD-136": { type: "attack_optional_destroy_to_standby", target: "other_own_ob", followUp: { battledOb: { skipNextStandby: true } }, keyword: "Contact" },
-    "STD-148": { type: "resident_opponent_turn_battle_damage", armAt: "opponent_turn_start", trigger: "own_ob_battles", target: "enemy_user", value: 1 },
-    "STD-151": { type: "logout_random_discard", target: "enemy_hand", count: 1 },
-    "STD-152": { type: "login_or_update_decode", updateCost: 2, filter: { category: "Ob", originalMemoryLte: 2 }, count: 1, followUp: { destroyAt: "current_turn_end" } },
-    "STD-153": { type: "login_logout_add_counter", target: "enemy_ob_one", counter: "Load", value: 2 },
-    "STD-154": { type: "area_to_trash_next_turn_revive", target: "source_uid", destination: "choose_area", enterSleep: true },
-    "STD-156": { type: "logout_choice", choices: [{ type: "heal_user", value: 3 }, { type: "decode", filter: { category: "Ob", originalMemoryLte: 3, differentNameFromSource: true }, count: 1 }] },
-    "STD-161": { type: "madness_counter_rule", timings: ["counter_added", "target_controller_turn_start"], roll: "sum_one_d6_per_counter", banIf: "roll_gt_original_str_plus_15" },
-    "STD-165": { type: "resident_destruction_threshold", threshold: 4, count: "destroyed_cards_this_turn", cost: "destroy_source", followUp: { executeFreeLogin: { zones: ["trash", "hand"], category: "Ob", className: "旧支配者" } } },
-    "STD-166": { type: "conditional_add_counter", condition: { ownAreaObClass: "旧支配者" }, target: "enemy_user", counter: "Madness", value: 1 },
-    "STD-168": { type: "resident_each_ob_destroyed", action: { type: "select_add_counter", target: "any_user_or_ob", counter: "Load", value: 1 } },
-    "STD-170": { type: "update_random_generate_place", cost: 4, cardIds: ["STD-165", "STD-171", "STD-172"], count: 1 },
-    "STD-172": { type: "logout_random_ban_each_player", zones: ["area", "hand"], countPerPlayer: 1 },
-    "STD-175": { type: "insect_destroyed_salvage", trigger: "any_insect_destroyed", source: "own_trash", category: "Script", count: 1, keyword: "Security" },
-    "STD-176": { type: "enemy_turn_start_grant_all", target: "own_ob_all", keyword: "Slash", duration: "through_next_turn" },
-    "STD-179": { type: "optional_hand_place_on_own_script_activated", target: "self", free: true },
-    "STD-181": { type: "attack_permission", condition: "own_script_activated_this_turn" },
-    "STD-182": { type: "login_set_script_and_attack_activate_script", login: { source: "own_hand", category: "Script", setupMemoryMaximum: 2 }, attack: { source: "own_back", category: "Script", activationMemoryMaximum: 2, optional: true } },
-    "STD-184": { type: "dual_ob_script", scriptSetupMemory: 3, scriptActivationMemory: 0, onObLogin: "place_self_as_ob" },
-    "STD-185": { type: "optional_battle_substitution", condition: "own_insect_battles", substitute: "self" },
-    "STD-214": { type: "mandatory_attack_cost", cost: "recover_one_registry_card", failure: "attack_fails" },
-    "STD-215": { type: "registry_executable_and_logout_install_self" },
-    "STD-216": { type: "login_install_deck_top" },
-    "STD-217": { type: "own_registry_left_damage", target: "enemy_user", value: 1 },
-    "STD-220": { type: "logout_registry_replacement_and_registry_execute", cannotAttack: "user_if_registry_executed" },
-    "STD-222": { type: "install_hand_then_draw_count" },
-    "STD-226": { type: "optional_enemy_registry_install_compress", condition: "source_standby", cost: "sleep_self", target: "one_registry_card" },
-    "STD-228": { type: "update_self_damage_random_enemy_area", cost: 4, damage: 3 },
-    "STD-229": { type: "registry_five_extra_turn", damageModifier: -2 },
-    "STD-230": { type: "ambush_hand_inspection_install", source: "own_faceup_registry", cost: 3, registryCardCountMinimum: "source_original_memory", choose: 1, randomAdditional: 1 },
-    "STD-231": { type: "enemy_ob_execute_adjacent_domination" },
-    "STD-234": { type: "mounted_sleep_owner_discard", value: 1, keyword: "Security" },
-    "STD-235": { type: "mounted_sleep_owner_damage", value: 2, keyword: "Contact" },
-    "STD-237": { type: "update_random_ob_generate_place", cost: 4 },
-    "STD-094": { type: "layered_login_damage", requirement: { groups: [{ class: "ノイド", count: 1 }, { class: "レッドパンクス", minimum: 1 }] }, damage: { target: "enemy_user", value: "source_stack_count" } },
-    "STD-085": { type: "layered_attack_cost_effect", cost: { layerToTrash: 1 }, effect: { atk: 2, str: 0 }, afterResolution: { destroyIfStackMaximum: 1 } },
-    "STD-095": { type: "override_layered_battle", executionDiscount: "maximum_original_memory_among_selected_layers", attackBonus: "source_layer_count", onBattleDestroy: "enemy_user_damage_destroyed_ob_original_str" },
-    "STD-099": { type: "hand_destruction_replacement_login", timing: "same_as_backup", competingReplacements: "controller_choice_one", free: true, destroyedObBecomesLayer: true, loginBonusPerLayer: { atk: 1, str: 1 } },
-    "STD-232": { type: "layered_turn_start_logout", turnStart: "move_each_deck_top_to_source_layer", logout: "allocate_source_layer_memory_as_damage_then_install_layers_to_owners_registry" },
-    "SZTB-092": { type: "layered_attack_target_damage", amount: 3 },
-    "SZTB-093": { type: "layered_attacked_prebattle", damageAttacker: 2, thenGenerateAndPlace: "SZTB-091" },
-    "SZTB-094": { type: "layered_login_turn_end_access_counter", access: "non_ob_arms_band_to_hand", counter: "sleep_source_then_execute_magazine_sp" },
-    "SZTB-095": { type: "layered_magazine_support", oncePerTurn: "replace_magazine_sp_trash_with_source_layer", onMagazineLayerConsumed: "enemy_user_damage_1" },
-    "STD-137": { type: "variable_choice_spell", variable: { aggregate: "absolute_user_life_difference" }, choices: ["own_ob_all_2_2_through_next_turn", "decode_nom_ob_original_memory_lte_x"] },
-    "STD-138": { type: "variable_damage", variable: { count: "own_area_security", add: 1 }, target: "enemy_ob" },
-    "STD-146": { type: "variable_decode", variable: { countUnion: ["own_trash_nom", "own_trash_security"] }, filter: { category: "Ob", originalMemory: "lt_x" }, count: 1 },
-    "STD-157": { type: "destroy_lki_place", trigger: ["login", "update_3"], target: "other_own_area_card", lki: "original_memory", followUp: { source: "hand", filter: { category: "Ob", color: "黒", originalMemory: "lte_x" }, destination: "area", free: true } },
-    "STD-162": { type: "destroy_lki_salvage", target: "one_own_ob", lki: "original_str", followUp: { source: "trash", filter: { category: "Ob" }, aggregateOriginalMemory: "lte_x", count: "any", destination: "hand" } },
-    "STD-121": { type: "trinity_resident", executionCost: { operation: "destroy", zones: ["front", "back"], controller: "any", faceUp: true, namePrefix: "情報管理端末", count: 3, distinctBy: "name", allRequired: true }, triggers: ["self_activated", "first_ob_attack_each_turn"] },
-    "STD-140": { type: "resident_battle_branch", effects: ["modify_own_ob", "prevent_battle_damage", "salvage_nonself_sacred_tree"] },
-    "STD-141": { type: "resident_destroyed_count_branch", count: "destroyed_sacred_tree_scripts_this_turn", thresholds: [2, 3, 5] },
-    "STD-143": { type: "sleep_all_enemy_ob", conditionalDraw: { count: 2, condition: "executed_on_enemy_turn" } },
-    "STD-223": { type: "ambush", cost: 2, trigger: "enemy_ob_attack_declared", registryThreshold: "source_original_memory", incidentLimit: "once_per_attack", effect: "damage_ob_3_draw_if_destroyed" },
-    "STD-224": { type: "install_number_watch", value: "chosen_number", trigger: "enemy_card_executed_and_placed", compare: "printed_memory", effect: "destroy_source_and_event_card" },
-    "STD-227": { type: "imperial_project", loginAndUpdate: "random_install_from_enemy_hand_area_trash_deck", continuousAtk: "unique_registry_colors", attack: "atk_7_destroy_enemy_front_generate_proof" },
-    "STD-238": { type: "layered_attack", requirement: "one_own_area_ob_plus_one_own_registry", optionalCost: { zone: "layer", count: 2 }, effects: ["standby", "modify_self_permanent_2_0"] },
-    "STD-118": { type: "resident_replacement", limit: "once_per_turn", trigger: "slash_spell_activated", replacement: "trash_to_hand" },
-    "STD-199": { type: "login_move_choice", target: "any_front_ob", destinations: ["owner_hand", "owner_back"], followUpByDestination: { hand: "owner_recover_memory_2", back: "owner_draw_1" } },
-    "STD-203": { type: "response_grouped_cost_damage", cost: 1, groups: ["one_own_ob_destroy", "one_enemy_ob_damage_2"], followUp: "if_enemy_destroyed_damage_same_column_ob_2" },
-    "STD-204": { type: "execution_placement_replacement", trigger: "enemy_ob_executing", replacement: "generated_dolls_gigantes_with_executed_ob_as_layer" },
-    "STD-207": { type: "response_generate_reveal", cost: 3, generate: { cardId: "STD-189", destination: "hand" }, reveal: "one_purple_hand", revealedExecutionCostModifier: -2 },
-    "STD-209": { type: "destroy_category_branch", target: "enemy_area_card", branches: { Ob: ["STD-205", "STD-189"], nonOb: ["STD-189", "STD-189"] }, destination: "hand" },
-    "STD-211": { type: "select_own_area_class_destroy_then_draw", selection: { source: "own_area", selector: "class", count: 1 }, destroy: { target: "selected_own_area_class", all: true, recordAs: "destroyed_count" }, followUp: { type: "draw", valueFrom: "destroyed_count", zeroShortCircuit: true } },
-    "STD-124": { type: "proxy_generate_then_login_trash_thresholds", proxy: { generatedCardId: "STD-124", count: 2, destination: "hand" }, login: { statModifier: { atk: "own_trash_same_id_count", str: "own_trash_same_id_count" }, thresholds: [{ minimum: 3, effect: { type: "draw", value: 2 } }, { minimum: 5, effect: { type: "sleep", target: "enemy_ob_all" } }, { minimum: 7, effect: { type: "grant_keywords", target: "source", keywords: ["QA", "Disconnect"] } }, { minimum: 20, effect: { type: "win_game", target: "source_controller" } }] } },
-    "STD-159": { type: "indestructible_on_any_ob_destroyed_turn_stat", immunity: { target: "source", operation: "destroy" }, trigger: { event: "ob_destroyed", scope: "any_faceup_area_ob" }, effect: { type: "modify_stats", target: "source", atk: 1, str: 0, duration: "turn" } },
-    "STD-174": { type: "once_per_turn_script_activated_ready_self", trigger: { event: "script_activated", scope: "any" }, effect: [{ type: "modify_stats", target: "source", atk: 1, str: 0, duration: "turn" }, { type: "standby", target: "source" }] },
-    "STD-186": { type: "optional_enemy_draw_trigger", trigger: { event: "card_drawn", controller: "opponent" }, effect: { type: "draw", target: "source_controller", value: 1 } },
-    "STD-208": { type: "resident_dolls_destroyed_enemy_ob_debuff", trigger: { event: "ob_destroyed", namePattern: "ドールズ" }, effect: { type: "modify_stats", target: "enemy_ob_all", atk: -1, str: 0, duration: "turn" } },
-    "STD-219": { type: "login_access_install_then_registry_free_execute", login: { type: "access_install", count: 1, destination: "registry" }, attack: { selection: { source: "own_registry", originalMemoryMaximumFrom: "self_registry_count", count: 1 }, executionCost: 0 } },
-    "SZTB-098": { type: "magazine_arms_band_ready_then_generate_jacket", magazineCost: 4, effect: [{ type: "modify_stats", target: "own_named_ob_all", namePattern: "アームズバンド", atk: 1, str: 0, duration: "turn" }, { type: "remove_damage_and_standby", target: "own_named_ob_all", namePattern: "アームズバンド" }, { type: "generate_and_place", cardId: "SZTB-091", condition: "own_arms_band_ob_exists" }] },
-    "SZTB-101": { type: "resident_arms_band_amalgam_layer_generation", triggers: [{ event: "layered_login", target: "own_arms_band_layered_ob" }, { event: "attack_declared", target: "own_arms_band_layered_ob" }], effect: { type: "generate_as_layer", cardId: "SZTB-090" } },
-    "SZTB-102": { type: "resident_arms_band_salvage_then_layer_consume_repeat", activations: ["normal", "update_2"], action: { type: "salvage", source: "own_trash", namePattern: "アームズバンド", count: 1 }, followUp: { type: "consume_layers", count: "any", repeatActionPer: 2 } }
-  };
-  if (runtimeSpecials[context.id]) operations.push(runtimeSpecials[context.id]);
+  
+  const preset = CARD_OPERATION_PRESETS.get(context.id);
+  if (preset) operations.push(structuredClone(preset));
   if (/①または②を1つ選び起動する/.test(normalizedText) && !operations.some((operation) => operation.type === "choose_numbered_effect")) {
     operations.push({ type: "choose_numbered_effect", options: [1, 2], count: 1 });
   }
@@ -574,7 +485,7 @@ export function compileEffectText(sourceText = "", context = {}) {
       warnings.push({ code: "unparsed_effect_clause", clauseIndex: clause.index, text: clause.text, message: "効果を示す語が残っているが命令へ変換されていない" });
     }
   }
-  if (runtimeSpecials[context.id]) {
+  if (preset) {
     const representedByRuntimeSpecial = new Set([
       "unparsed_effect_clause",
       "choice_branch",
@@ -616,7 +527,7 @@ export function compileEffectText(sourceText = "", context = {}) {
 }
 
 export function hasKeyword(card, name) {
-  if (card.id === "STD-100" && ["QA", "SECURITY"].includes(name)) return true;
+  if (INTRINSIC_KEYWORDS.get(card.id)?.includes(name)) return true;
   const compiled = card.compiled ?? compileEffectText(card.text);
   return compiled.keywords.some((keyword) => keyword.name === name && keyword.intrinsic !== false) || card.grantedKeywords?.includes(name);
 }

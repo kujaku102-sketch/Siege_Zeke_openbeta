@@ -13,3 +13,6 @@ export const definition = {
   "str": null,
   "cardClass": null
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "response_grouped_cost_damage", cost: 1, groups: ["one_own_ob_destroy", "one_enemy_ob_damage_2"], followUp: "if_enemy_destroyed_damage_same_column_ob_2" };

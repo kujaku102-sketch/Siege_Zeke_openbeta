@@ -22,3 +22,6 @@ export const runtimeSpec = spec("login", [op("deal_damage", { target: "enemy_use
 
 // layered requirement (was layered-specs.js)
 export const layeredSpec = { groups: [exact(area, { className: "ノイド", isOb: true }), own(area, { className: "レッドパンクス" })] };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "layered_login_damage", requirement: { groups: [{ class: "ノイド", count: 1 }, { class: "レッドパンクス", minimum: 1 }] }, damage: { target: "enemy_user", value: "source_stack_count" } };

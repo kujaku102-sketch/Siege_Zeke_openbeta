@@ -40,3 +40,6 @@ export const triggerSpecs = [
 
 // uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
 export const sharedTriggerCard = true;
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "resident_arms_band_amalgam_layer_generation", triggers: [{ event: "layered_login", target: "own_arms_band_layered_ob" }, { event: "attack_declared", target: "own_arms_band_layered_ob" }], effect: { type: "generate_as_layer", cardId: "SZTB-090" } };

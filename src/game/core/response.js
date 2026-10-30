@@ -1,5 +1,5 @@
 import { isObCard } from "../card-types.js";
-import { keywordValue } from "../effect-compiler.js";
+import { keywordValue } from "../../../packages/effect-compiler/index.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { cardCurrentStr } from "./battle.js";
 import { declareEffect, runEffectEntry } from "./effects.js";

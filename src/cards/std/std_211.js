@@ -13,3 +13,6 @@ export const definition = {
   "str": null,
   "cardClass": null
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "select_own_area_class_destroy_then_draw", selection: { source: "own_area", selector: "class", count: 1 }, destroy: { target: "selected_own_area_class", all: true, recordAs: "destroyed_count" }, followUp: { type: "draw", valueFrom: "destroyed_count", zeroShortCircuit: true } };

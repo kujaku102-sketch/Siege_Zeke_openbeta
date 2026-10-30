@@ -23,3 +23,6 @@ export const triggerSpecs = [
     actions: [op("select", { selector: "one_own_ob", then: "modify_and_prevent_battle_damage", atk: -2, str: 0, duration: "turn" })]
   })
 ];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "resident_battle_branch", effects: ["modify_own_ob", "prevent_battle_damage", "salvage_nonself_sacred_tree"] };

@@ -16,3 +16,6 @@ export const runtimeSpec = spec("spell", [
     op("sleep", { target: "enemy_ob_all" }),
     op("draw", { target: "source_controller", amount: 2, condition: { expression: "opponent_turn" } })
   ]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "sleep_all_enemy_ob", conditionalDraw: { count: 2, condition: "executed_on_enemy_turn" } };

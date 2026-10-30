@@ -18,3 +18,6 @@ export const definition = {
 
 // runtime spec (was card-runtime-specs.js)
 export const runtimeSpec = spec("login", [op("move", { target: "deck_top", destination: "registry", count: 1 })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "login_install_deck_top" };

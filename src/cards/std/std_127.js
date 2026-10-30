@@ -27,3 +27,6 @@ export const damageModifierSpecs = Object.freeze([
       amount: 0
     })
   ]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "battle_outgoing_damage_replacement", target: "source", opposingCategory: "Ob", value: 0, keyword: "Security" };

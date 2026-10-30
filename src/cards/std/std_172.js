@@ -18,3 +18,6 @@ export const definition = {
 export const runtimeSpec = spec("logout", [op("move", {
     target: "random_each_player", source: "hand_and_area", destination: "ban", count: 1
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "logout_random_ban_each_player", zones: ["area", "hand"], countPerPlayer: 1 };

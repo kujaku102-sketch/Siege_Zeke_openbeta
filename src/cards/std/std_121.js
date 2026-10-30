@@ -22,3 +22,6 @@ export const placementCostSpec = Object.freeze({
     }),
     payment: Object.freeze({ operation: "destroy", allRequired: true })
   });
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "trinity_resident", executionCost: { operation: "destroy", zones: ["front", "back"], controller: "any", faceUp: true, namePrefix: "情報管理端末", count: 3, distinctBy: "name", allRequired: true }, triggers: ["self_activated", "first_ob_attack_each_turn"] };

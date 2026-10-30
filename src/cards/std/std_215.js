@@ -13,3 +13,6 @@ export const definition = {
   ],
   "text": "レジストリからこれを実行できる。[ログアウト]これをレジストリにインストールする。"
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "registry_executable_and_logout_install_self" };

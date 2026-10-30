@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { excludesCardCategory, isLydCard, isLydCategory, isObCard, isObCategory, matchesCardCategory } from "../src/game/card-types.js";
-import { parseLookSelectRemainderModule } from "../src/game/effect-selection-modules.js";
+import { parseLookSelectRemainderModule } from "../packages/effect-compiler/index.js";
 
 const normal = { category: "Ob" };
 const layered = { category: "Lyd-Ob", printedCategory: "Lyd-Ob" };

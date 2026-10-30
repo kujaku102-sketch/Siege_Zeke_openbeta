@@ -1,7 +1,7 @@
 import { CARD_LIBRARY } from "../../../data/cards.js";
 import { cardPlacementCostSpec, cardRuntimeSpec } from "../../card-runtime-specs.js";
 import { isObCard, matchesCardCategory } from "../../card-types.js";
-import { keywordValue } from "../../effect-compiler.js";
+import { keywordValue } from "../../../../packages/effect-compiler/index.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
 import { RuntimeError } from "../../runtime/factory.js";
 import { createAllocationSpec, createChoiceSpec, createSelectionRequest, createSelectionSpec, isSelectionRequestFeasible, selectionRequestFromSpec } from "../../selection-model.js";

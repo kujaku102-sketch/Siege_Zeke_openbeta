@@ -2,7 +2,7 @@ import { executionCostModifierSpecsFor, playerValueModifierSpecsFor } from "../.
 import { isObCard } from "../../card-types.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
 import { createSelectionRequest } from "../../selection-model.js";
-import { hasKeyword, keywordValue } from "../../effect-compiler.js";
+import { hasKeyword, keywordValue } from "../../../../packages/effect-compiler/index.js";
 import { canPlayCard, getEffectTargets, playCard, playCardCore, spellNeedsTarget } from "../../core/play.js";
 import { addLog, fail, findCard, otherPlayer } from "../../core/shared.js";
 import { runtimeSpecMatchesCard } from "./actions.js";

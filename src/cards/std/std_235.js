@@ -20,3 +20,6 @@ export const mountEventSpec = [{
       Object.freeze({ type: "deal_damage", target: "source_owner_user", amount: 2 })
     ])
   }];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "mounted_sleep_owner_damage", value: 2, keyword: "Contact" };

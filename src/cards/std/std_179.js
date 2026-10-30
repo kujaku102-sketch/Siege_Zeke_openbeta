@@ -13,3 +13,6 @@ export const definition = {
     "インセクト"
   ]
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "optional_hand_place_on_own_script_activated", target: "self", free: true };

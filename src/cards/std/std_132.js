@@ -10,3 +10,6 @@ export const definition = {
   "text": "[レスポンス:3][セキュリティ]",
   "classes": []
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "response_no_additional_effect", cost: 3, keyword: "Security" };

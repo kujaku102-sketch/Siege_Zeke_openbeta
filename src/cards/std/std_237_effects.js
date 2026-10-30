@@ -1,7 +1,7 @@
 // STD-237 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { CARD_LIBRARY } from "../../data/cards.js";
 import { isObCard } from "../../game/card-types.js";
-import { hasKeyword } from "../../game/effect-compiler.js";
+import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { hydrateCard } from "../../game/core/setup.js";
 import { fail } from "../../game/core/shared.js";

@@ -16,3 +16,6 @@ export const runtimeSpec = spec("spell", [op("add_counter", {
     target: "enemy_user", counter: "madness", amount: 1,
     condition: { expression: "own_area_has_class_ob", className: "旧支配者" }
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "conditional_add_counter", condition: { ownAreaObClass: "旧支配者" }, target: "enemy_user", counter: "Madness", value: 1 };

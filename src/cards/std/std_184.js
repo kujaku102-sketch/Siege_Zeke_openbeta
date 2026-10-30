@@ -15,3 +15,6 @@ export const definition = {
     "インセクト"
   ]
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "dual_ob_script", scriptSetupMemory: 3, scriptActivationMemory: 0, onObLogin: "place_self_as_ob" };

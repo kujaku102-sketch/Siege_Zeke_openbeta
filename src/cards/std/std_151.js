@@ -17,3 +17,6 @@ export const definition = {
 
 // runtime spec (was card-runtime-specs.js)
 export const runtimeSpec = spec("logout", [op("discard", { target: "random_enemy_hand", count: 1 })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "logout_random_discard", target: "enemy_hand", count: 1 };

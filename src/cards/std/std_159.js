@@ -32,3 +32,6 @@ export const triggerSpecs = [
 
 // uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
 export const sharedTriggerCard = true;
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "indestructible_on_any_ob_destroyed_turn_stat", immunity: { target: "source", operation: "destroy" }, trigger: { event: "ob_destroyed", scope: "any_faceup_area_ob" }, effect: { type: "modify_stats", target: "source", atk: 1, str: 0, duration: "turn" } };

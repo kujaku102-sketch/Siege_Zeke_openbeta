@@ -13,3 +13,6 @@ export const definition = {
 
 // runtime spec (was card-runtime-specs.js)
 export const runtimeSpec = spec("spell", [op("deal_damage", { target: "selected_enemy_ob", amount: { expression: "own_area_security_count_plus_one" } })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "variable_damage", variable: { count: "own_area_security", add: 1 }, target: "enemy_ob" };

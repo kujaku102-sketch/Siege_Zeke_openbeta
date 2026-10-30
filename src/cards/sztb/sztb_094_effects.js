@@ -1,6 +1,6 @@
 // SZTB-094 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { isObCard } from "../../game/card-types.js";
-import { hasKeyword } from "../../game/effect-compiler.js";
+import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { runEffectEntry } from "../../game/core/effects.js";
 import { getEffectTargets, playCard, spellNeedsTarget } from "../../game/core/play.js";

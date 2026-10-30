@@ -31,3 +31,6 @@ export const triggerSpecs = [
     actions: []
   })
 ];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "enemy_turn_start_grant_all", target: "own_ob_all", keyword: "Slash", duration: "through_next_turn" };

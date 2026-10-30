@@ -16,3 +16,6 @@ export const definition = {
   "printedCategory": "Ob",
   "cardClass": "ヴェンジェンス/ギークス"
 };
+
+// uses the shared selection modules (was effect-selection-modules.js SHARED_SELECTION_MODULE_CARD_IDS)
+export const sharedSelectionModuleCard = true;

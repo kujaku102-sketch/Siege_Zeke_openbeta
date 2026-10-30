@@ -41,3 +41,6 @@ export const runtimeSpec = spec("login", [op("select", {
       ]
     })]
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "login_move_choice", target: "any_front_ob", destinations: ["owner_hand", "owner_back"], followUpByDestination: { hand: "owner_recover_memory_2", back: "owner_draw_1" } };

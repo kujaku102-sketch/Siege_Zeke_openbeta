@@ -16,3 +16,6 @@ export const definition = {
 
 // attackPermissionSpec (was continuous-effect-specs.js)
 export const attackPermissionSpec = [{ type: "require_attack_condition", condition: "own_script_activated_this_turn" }];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "attack_permission", condition: "own_script_activated_this_turn" };

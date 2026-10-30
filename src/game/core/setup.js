@@ -1,5 +1,5 @@
 import { cardRuntimeRoute } from "../card-runtime-specs.js";
-import { compileEffectText, keywordValue } from "../effect-compiler.js";
+import { compileEffectText, keywordValue } from "../../../packages/effect-compiler/index.js";
 import { normalizeLayerState } from "../layer-state.js";
 import { TUTORIAL_BLUE_DECK, TUTORIAL_BLUE_HAND, TUTORIAL_OPPONENT_STR, TUTORIAL_RED_HAND, TUTORIAL_SANDBAG_DECK } from "../../data/tutorial-script.js";
 import { createRuntimeCard, expandRuntimeDeck } from "../runtime/factory.js";

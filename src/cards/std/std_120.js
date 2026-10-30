@@ -36,3 +36,6 @@ export const triggerSpecs = [
 
 // uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
 export const sharedTriggerCard = true;
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "resident_once_per_turn_spell_trigger", action: { type: "activate_from_trash_then_deck", filter: { category: "Sp", namePattern: "slash_wrapped", originalMemoryLte: 2 }, count: 1, free: true, deckMove: "shuffle" } };

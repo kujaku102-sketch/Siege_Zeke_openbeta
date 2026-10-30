@@ -2,7 +2,7 @@ import { cardAtBoardSlot, inheritBoardSlot, normalizeBoardSlots, projectZoneSlot
 import { cardPlacementCostSpec, cardRuntimeSpec } from "../card-runtime-specs.js";
 import { isObCard, isObCategory } from "../card-types.js";
 import { placementPermissionSpecsFor } from "../continuous-effect-specs.js";
-import { compileEffectText, hasKeyword, keywordValue } from "../effect-compiler.js";
+import { compileEffectText, hasKeyword, keywordValue } from "../../../packages/effect-compiler/index.js";
 import { flattenedLayerCount, flattenMaterialStack, layeredCandidates, layeredSelectionPlan, layeredSpecFor, normalizeMountedStack, validatesLayeredSelection } from "../layered-specs.js";
 import { createSelectionRequest, createSelectionSpec, selectionRequestFromSpec } from "../selection-model.js";
 import { hasOptionalActivationSpec } from "../trigger-specs.js";

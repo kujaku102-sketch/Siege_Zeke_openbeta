@@ -13,3 +13,6 @@ export const definition = {
     "インセクト"
   ]
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "optional_battle_substitution", condition: "own_insect_battles", substitute: "self" };

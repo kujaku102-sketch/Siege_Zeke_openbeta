@@ -24,3 +24,6 @@ export const runtimeSpec = multiSpec(
       filter: { category: "Ob", originalMemoryMaximum: 2 }, count: 1, destroyAtTurnEnd: true
     })])
   );
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "login_or_update_decode", updateCost: 2, filter: { category: "Ob", originalMemoryLte: 2 }, count: 1, followUp: { destroyAt: "current_turn_end" } };

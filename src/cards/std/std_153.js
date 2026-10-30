@@ -26,3 +26,6 @@ export const runtimeSpec = multiSpec(
       afterActions: [op("add_counter", { target: "selected_enemy_ob", counter: "load", amount: 2 })]
     })])
   );
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "login_logout_add_counter", target: "enemy_ob_one", counter: "Load", value: 2 };

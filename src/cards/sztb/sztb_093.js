@@ -23,3 +23,6 @@ export const runtimeSpec = spec("attacked", [
 
 // layered requirement (was layered-specs.js)
 export const layeredSpec = { groups: [exact(["hand"], { armsBand: true }), exact(area, { armsBand: true })] };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "layered_attacked_prebattle", damageAttacker: 2, thenGenerateAndPlace: "SZTB-091" };

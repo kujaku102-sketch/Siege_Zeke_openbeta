@@ -19,3 +19,6 @@ export const triggerSpecs = [
     actions: []
   })
 ];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "enemy_ob_execute_adjacent_domination" };

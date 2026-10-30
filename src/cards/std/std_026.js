@@ -12,3 +12,6 @@ export const definition = {
   ],
   "text": "[プロテクト:1]"
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "intrinsic_component", component: "Protect", amount: 1, stackable: true };

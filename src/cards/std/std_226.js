@@ -10,3 +10,6 @@ export const definition = {
   "classes": [],
   "text": "このObがスタンバイ状態の時、相手がレジストリにカードをインストールした場合に①を起動できる。①このObをスリープし、レジストリのカード1枚を裏向きにする。"
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "optional_enemy_registry_install_compress", condition: "source_standby", cost: "sleep_self", target: "one_registry_card" };

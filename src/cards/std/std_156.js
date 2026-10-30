@@ -25,3 +25,6 @@ export const runtimeSpec = spec("logout", [op("choose_effect", {
       })] }
     ]
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "logout_choice", choices: [{ type: "heal_user", value: 3 }, { type: "decode", filter: { category: "Ob", originalMemoryLte: 3, differentNameFromSource: true }, count: 1 }] };

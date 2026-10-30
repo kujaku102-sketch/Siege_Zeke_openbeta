@@ -17,3 +17,6 @@ export const definition = {
 
 // layered requirement (was layered-specs.js)
 export const layeredSpec = { groups: [own(["hand", ...area], { armsBand: true }, 3)] };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "layered_magazine_support", oncePerTurn: "replace_magazine_sp_trash_with_source_layer", onMagazineLayerConsumed: "enemy_user_damage_1" };

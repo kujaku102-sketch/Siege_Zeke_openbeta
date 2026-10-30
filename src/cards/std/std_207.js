@@ -13,3 +13,6 @@ export const definition = {
   "str": null,
   "cardClass": null
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "response_generate_reveal", cost: 3, generate: { cardId: "STD-189", destination: "hand" }, reveal: "one_purple_hand", revealedExecutionCostModifier: -2 };

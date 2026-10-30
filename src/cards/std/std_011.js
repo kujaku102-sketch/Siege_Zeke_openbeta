@@ -12,3 +12,6 @@ export const definition = {
 
 // runtime spec (was card-runtime-specs.js)
 export const runtimeSpec = spec("spell", [op("remove_components", { target: "selected_user_or_card" })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "remove_components", target: "one_user_or_card", preserve: ["printed_text", "base_stats", "damage", "layers"] };

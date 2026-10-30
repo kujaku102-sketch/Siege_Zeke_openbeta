@@ -33,3 +33,6 @@ export const triggerSpecs = [
 
 // uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
 export const sharedTriggerCard = true;
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "resident_once_per_turn_spell_trigger", spellNamePattern: "slash_wrapped", action: { type: "add_counter_group", target: "enemy_area_ob", counter: "Load", value: 1 } };

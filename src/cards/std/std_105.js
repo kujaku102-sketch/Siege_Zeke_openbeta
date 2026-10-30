@@ -19,3 +19,6 @@ export const triggerSpecs = [
     actions: []
   })
 ];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "fortress_attack_interrupt", trigger: "enemy_attacks_own_fortress", execute: { source: "hand", owner: "self", controller: "activator", destination: { owner: "controller", zone: "area" }, category: "Lyd-Ob", forced: true, memoryCost: 0 }, followUp: { sleep: true, grant: "Security", destroyAt: "next_turn_end" } };

@@ -15,3 +15,6 @@ export const definition = {
 
 // placementPermissionSpec (was continuous-effect-specs.js)
 export const placementPermissionSpec = [{ type: "forbid_execution" }];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "execution_restriction", executionAllowed: false, keyword: "QA" };

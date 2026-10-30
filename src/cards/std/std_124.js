@@ -16,3 +16,6 @@ export const definition = {
   "printedCategory": "Ob",
   "cardClass": "ニュートロン・セキュリティ/エレクトロン・フェアリー"
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "proxy_generate_then_login_trash_thresholds", proxy: { generatedCardId: "STD-124", count: 2, destination: "hand" }, login: { statModifier: { atk: "own_trash_same_id_count", str: "own_trash_same_id_count" }, thresholds: [{ minimum: 3, effect: { type: "draw", value: 2 } }, { minimum: 5, effect: { type: "sleep", target: "enemy_ob_all" } }, { minimum: 7, effect: { type: "grant_keywords", target: "source", keywords: ["QA", "Disconnect"] } }, { minimum: 20, effect: { type: "win_game", target: "source_controller" } }] } };

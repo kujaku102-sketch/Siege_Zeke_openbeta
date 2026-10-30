@@ -34,8 +34,8 @@ import {
   mandatoryStateCheckSpecsFor
 } from "../src/game/continuous-effect-specs.js";
 import { SHARED_TRIGGER_CARD_IDS, specsForEvent } from "../src/game/trigger-specs.js";
-import { compileEffectText } from "../src/game/effect-compiler.js";
-import { SHARED_SELECTION_MODULE_CARD_IDS } from "../src/game/effect-selection-modules.js";
+import { compileEffectText } from "../packages/effect-compiler/index.js";
+import { SHARED_SELECTION_MODULE_CARD_IDS } from "../src/cards/compiler-presets.js";
 import { LAYERED_CARD_IDS, layeredSpecFor, validatesLayeredSelection } from "../src/game/layered-specs.js";
 
 let layeredEntrySerial = 0;

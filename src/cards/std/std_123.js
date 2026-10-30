@@ -32,3 +32,6 @@ export const mandatoryStateCheckSpec = [{
     suppressReplacement: true,
     condition: Object.freeze({ expression: "source_max_str_at_most", amount: 0 })
   }];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "state_threshold_keywords", destroyIfStrLte: 0, condition: { stat: "ATK", gte: 5 }, keywords: ["QA", "Hacking"] };

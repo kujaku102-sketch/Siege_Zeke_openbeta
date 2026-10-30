@@ -34,3 +34,6 @@ export const triggerSpecs = [
 
 // uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
 export const sharedTriggerCard = true;
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "resident_dolls_destroyed_enemy_ob_debuff", trigger: { event: "ob_destroyed", namePattern: "ドールズ" }, effect: { type: "modify_stats", target: "enemy_ob_all", atk: -1, str: 0, duration: "turn" } };

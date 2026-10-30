@@ -29,3 +29,6 @@ export const triggerSpecs = [
 
 // uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
 export const sharedTriggerCard = true;
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "layered_turn_start_logout", turnStart: "move_each_deck_top_to_source_layer", logout: "allocate_source_layer_memory_as_damage_then_install_layers_to_owners_registry" };

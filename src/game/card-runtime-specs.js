@@ -1,6 +1,6 @@
 
 import { CARD_LIBRARY } from "../data/cards.js";
-import { compileEffectText } from "./effect-compiler.js";
+import { compileEffectText } from "../../packages/effect-compiler/index.js";
 import { CARD_DAMAGE_MODIFIER_SPECS } from "./damage-modifier-specs.js";
 import {
   CARD_CONDITIONAL_KEYWORD_SPECS,
@@ -17,7 +17,7 @@ import {
   CARD_PLAYER_VALUE_MODIFIER_SPECS
 } from "./continuous-effect-specs.js";
 import { SHARED_TRIGGER_CARD_IDS } from "./trigger-specs.js";
-import { SHARED_SELECTION_MODULE_CARD_IDS } from "./effect-selection-modules.js";
+import { SHARED_SELECTION_MODULE_CARD_IDS } from "../cards/compiler-presets.js";
 import { collectSpecs } from "../cards/index.js";
 import { RUNTIME_SPEC_ORDER } from "../cards/spec-order.js";
 

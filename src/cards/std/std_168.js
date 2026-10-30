@@ -30,3 +30,6 @@ export const triggerSpecs = [
 
 // uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
 export const sharedTriggerCard = true;
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "resident_each_ob_destroyed", action: { type: "select_add_counter", target: "any_user_or_ob", counter: "Load", value: 1 } };

@@ -20,3 +20,6 @@ export const runtimeSpec = spec("login", [op("set_flag", { target: "source", fla
 
 // attackPermissionSpec (was continuous-effect-specs.js)
 export const attackPermissionSpec = [{ type: "restrict_targets", rule: "ob_if_possible" }];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "mandatory_attack", targetPriority: "ob_if_possible", keyword: "QA" };

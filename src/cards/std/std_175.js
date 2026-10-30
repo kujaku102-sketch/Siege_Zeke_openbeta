@@ -35,3 +35,6 @@ export const triggerSpecs = [
 
 // uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
 export const sharedTriggerCard = true;
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "insect_destroyed_salvage", trigger: "any_insect_destroyed", source: "own_trash", category: "Script", count: 1, keyword: "Security" };

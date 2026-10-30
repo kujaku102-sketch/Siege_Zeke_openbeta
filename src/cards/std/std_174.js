@@ -34,3 +34,6 @@ export const triggerSpecs = [
 
 // uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
 export const sharedTriggerCard = true;
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "once_per_turn_script_activated_ready_self", trigger: { event: "script_activated", scope: "any" }, effect: [{ type: "modify_stats", target: "source", atk: 1, str: 0, duration: "turn" }, { type: "standby", target: "source" }] };

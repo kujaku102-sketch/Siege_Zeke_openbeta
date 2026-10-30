@@ -31,3 +31,6 @@ export const runtimeSpec = spec("spell", [
       condition: { expression: "recorded_value_not_equals", key: "destroyed_category", value: "Ob", requiresKey: true }
     })
   ]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "destroy_category_branch", target: "enemy_area_card", branches: { Ob: ["STD-205", "STD-189"], nonOb: ["STD-189", "STD-189"] }, destination: "hand" };

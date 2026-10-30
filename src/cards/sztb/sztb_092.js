@@ -20,3 +20,6 @@ export const runtimeSpec = spec("attack_declared", [op("deal_damage", { target: 
 
 // layered requirement (was layered-specs.js)
 export const layeredSpec = { groups: [exact(["hand"], { armsBand: true })] };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "layered_attack_target_damage", amount: 3 };

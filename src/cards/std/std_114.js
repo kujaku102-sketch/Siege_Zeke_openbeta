@@ -25,3 +25,6 @@ export const runtimeSpec = spec("attack_declared", [op("select", {
     label: "[ハッキング]を与える他の自分Obを選択",
     afterActions: [op("grant_keyword", { target: "selected_own_ob", keyword: "HACKING", duration: "game" })]
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "attack_trigger_grant_keyword", target: "other_own_ob", keyword: "Hacking", duration: "while_in_area" };

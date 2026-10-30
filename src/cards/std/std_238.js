@@ -15,3 +15,6 @@ export const definition = {
 
 // layered requirement (was layered-specs.js)
 export const layeredSpec = { groups: [exact(area, { isOb: true }), own(["registry"], {})] };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "layered_attack", requirement: "one_own_area_ob_plus_one_own_registry", optionalCost: { zone: "layer", count: 2 }, effects: ["standby", "modify_self_permanent_2_0"] };

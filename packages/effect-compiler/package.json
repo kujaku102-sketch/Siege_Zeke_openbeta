@@ -1,0 +1,17 @@
+{
+  "name": "effect-compiler",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "description": "Card effect text to operations (placeholder: name, license and publication are decided later)",
+  "license": "UNLICENSED",
+  "files": [
+    "index.js",
+    "src",
+    "README.md"
+  ]
+}

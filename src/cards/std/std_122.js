@@ -13,3 +13,6 @@ export const definition = {
   "str": null,
   "cardClass": null
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "destroy_any_count_then", target: "own_area_class", className: "エレクトロンフェアリー", zeroShortCircuit: true, followUp: { placeToken: "STD-123", count: 2, statVariable: { trashMatchingDestroyedNames: true, multiplier: 2 } } };

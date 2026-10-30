@@ -21,3 +21,6 @@ export const runtimeSpec = spec("spell", [
     op("grant_keyword", { target: "own_class_ob_all", className: "エレクトロンフェアリー", keyword: "HACKING", duration: "turn" }),
     op("set_flag", { target: "own_class_ob_all", className: "エレクトロンフェアリー", flag: "assaultProgramTurn", value: { expression: "turn_number" } })
   ]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "turn_grant_attack_success", target: "own_class_snapshot", className: "エレクトロンフェアリー", keyword: "Hacking", onUserAttackSuccess: [{ type: "draw", value: 1 }, { type: "deal_damage", target: "enemy_user", value: 1 }] };

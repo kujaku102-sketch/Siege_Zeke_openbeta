@@ -31,3 +31,6 @@ export const runtimeSpec = spec("spell", [op("choose_effect", {
       }
     ]
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "variable_choice_spell", variable: { aggregate: "absolute_user_life_difference" }, choices: ["own_ob_all_2_2_through_next_turn", "decode_nom_ob_original_memory_lte_x"] };

@@ -11,3 +11,6 @@ export const definition = {
 
 // placementPermissionSpec (was continuous-effect-specs.js)
 export const placementPermissionSpec = [{ type: "forbid_mount_on_source" }];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "update_self_damage_random_enemy_area", cost: 4, damage: 3 };

@@ -20,3 +20,6 @@ export const runtimeSpec = spec("login", [
     op("mill", { target: "own_deck_top", amount: 1, destination: "trash" }),
     op("decode", { filter: { category: "Code", originalMemoryMaximum: 3 }, count: 1, destination: "choose_area" })
   ]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "login_mill_then_place", mill: { source: "deck_top", count: 1, destination: "trash" }, followUp: { source: "trash", category: "Code", originalMemoryMaximum: 3, count: 1, destination: "area" } };

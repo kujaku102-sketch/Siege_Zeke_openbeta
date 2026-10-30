@@ -24,3 +24,6 @@ export const battleStatModifierSpec = Object.freeze([Object.freeze({
     }),
     duration: "battle"
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "battle_stat_variable", target: "source", stat: "STR", value: { count: "own_area_ob", className: "ナイツ・オブ・マキナ" }, keywords: ["Security", "Decoy"] };

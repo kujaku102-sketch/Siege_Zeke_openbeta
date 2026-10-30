@@ -13,3 +13,6 @@ export const definition = {
   ],
   "text": "[セキュリティ][バックアップ]"
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "intrinsic_keywords", keywords: ["Security", "Backup"] };

@@ -18,3 +18,6 @@ export const runtimeSpec = multiSpec(
     spec("script_activation", armsBandBootCampActions()),
     spec("update", armsBandBootCampActions(), { requiresResidentActive: true })
   );
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "resident_arms_band_salvage_then_layer_consume_repeat", activations: ["normal", "update_2"], action: { type: "salvage", source: "own_trash", namePattern: "アームズバンド", count: 1 }, followUp: { type: "consume_layers", count: "any", repeatActionPer: 2 } };

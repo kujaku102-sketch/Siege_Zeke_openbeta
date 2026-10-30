@@ -1,8 +1,6 @@
 const COLOR_WORDS = ["赤", "黄", "紫", "青", "緑", "橙", "黒", "白"];
 const ZONE_MAP = Object.freeze({ 山札: "deck", 手札: "hand", ゴミ箱: "trash", レジストリ: "registry", エリア: "area" });
 
-export const SHARED_SELECTION_MODULE_CARD_IDS = Object.freeze(["STD-187", "STD-219"]);
-
 function parseFilter(fragment) {
   const memory = fragment.match(/(?:元々の)?メモリ(\d+)以下/)?.[1];
   const color = COLOR_WORDS.find((value) => fragment.includes(value));

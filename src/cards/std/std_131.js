@@ -22,3 +22,6 @@ export const runtimeSpec = spec("logout", [op("select", {
     continueWhenEmpty: true, skipAfterActionsWhenEmpty: true,
     afterActions: [op("move", { target: "selected_cards", source: "hand", destination: "drag", free: true, forced: true })]
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "logout_drag_from_hand", filter: { cardName: "華守り" }, count: 1, free: true, keyword: "Security" };

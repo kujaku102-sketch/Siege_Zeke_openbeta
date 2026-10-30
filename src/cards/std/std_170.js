@@ -18,3 +18,6 @@ export const runtimeSpec = spec("update", [op("generate", {
     cardIds: ["STD-165", "STD-171", "STD-172"], randomOne: true, destination: "execute",
     free: true, forced: true
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "update_random_generate_place", cost: 4, cardIds: ["STD-165", "STD-171", "STD-172"], count: 1 };

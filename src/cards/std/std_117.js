@@ -34,3 +34,6 @@ export const auraKeywordSpec = [
     { type: "grant_keyword", providerZone: "front", target: "source", keyword: "HACKING" },
     { type: "grant_keyword", providerZone: "back", target: "own_color_ob_all", color: "青", keyword: "ENCRYPTION" }
   ];
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "position_dependent_attack_card", keyword: "Backup", onAttack: { salvage: { source: "own_trash", categories: ["Sp"], orClassName: "エレクトロンフェアリー", count: 1 } }, front: { grantSelf: "Hacking" }, back: { grantOwnColor: { color: "青", keyword: "Encryption" } } };

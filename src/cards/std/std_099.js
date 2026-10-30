@@ -22,3 +22,6 @@ export const runtimeSpec = spec("login", [op("modify_stats", { target: "source",
 
 // layered requirement (was layered-specs.js)
 export const layeredSpec = { groups: [exact(area, { nameIncludes: "変形合体レッパオー", isOb: true }), own(area, { className: "レッドパンクス" })] };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "hand_destruction_replacement_login", timing: "same_as_backup", competingReplacements: "controller_choice_one", free: true, destroyedObBecomesLayer: true, loginBonusPerLayer: { atk: 1, str: 1 } };

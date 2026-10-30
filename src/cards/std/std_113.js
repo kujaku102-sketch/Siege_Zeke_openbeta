@@ -32,3 +32,6 @@ export const runtimeSpec = multiSpec(
       afterActions: [op("move", { target: "selected_cards", source: "hand", destination: "area", free: true, forced: true })]
     })])
   );
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "place_from_hand_trigger", triggers: ["login", "own_turn_start"], filter: { className: "エレクトロンフェアリー", originalMemoryLte: 2 }, count: 1, free: true };

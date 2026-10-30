@@ -21,3 +21,6 @@ export const runtimeSpec = spec("logout", [op("schedule_delayed", {
     event: "turn_ended", timing: "current_turn_end", action: "move_source_from_trash",
     destination: "front", resetDamage: true, standby: true
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "logout_delayed_self_revive", timing: "current_turn_end", condition: { sourceZone: "trash" }, destination: "front", keyword: "Security" };

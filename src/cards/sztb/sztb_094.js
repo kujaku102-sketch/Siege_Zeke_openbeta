@@ -17,3 +17,6 @@ export const definition = {
 
 // layered requirement (was layered-specs.js)
 export const layeredSpec = { groups: [own(["hand", ...area], { armsBand: true }, 3)] };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "layered_login_turn_end_access_counter", access: "non_ob_arms_band_to_hand", counter: "sleep_source_then_execute_magazine_sp" };

@@ -22,3 +22,6 @@ export const runtimeSpec = spec("login", [op("select", {
     count: 1,
     afterActions: [op("move", { target: "selected_cards", source: "hand", destination: "back", free: true, forced: true, asScript: true })]
   })]);
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "login_set_script_and_attack_activate_script", login: { source: "own_hand", category: "Script", setupMemoryMaximum: 2 }, attack: { source: "own_back", category: "Script", activationMemoryMaximum: 2, optional: true } };

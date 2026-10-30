@@ -9,3 +9,6 @@ export const definition = {
   "text": "[QA]",
   "classes": []
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "intrinsic_keyword", keyword: "QA" };

@@ -1,6 +1,6 @@
 import { createEventContext, createScriptActivationWindow } from "../activation-windows.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
-import { hasKeyword, keywordValue } from "../effect-compiler.js";
+import { hasKeyword, keywordValue } from "../../../packages/effect-compiler/index.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { hasOptionalActivationSpec, optionalSpecsForCard } from "../trigger-specs.js";
 import { resumeDeferredAttack } from "./battle.js";

@@ -13,3 +13,6 @@ export const definition = {
   ],
   "text": "これの攻撃宣言時、カードを1枚レジストリから手札に加えなければ攻撃に失敗する。"
 };
+
+// compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
+export const compilerPreset = { type: "mandatory_attack_cost", cost: "recover_one_registry_card", failure: "attack_fails" };

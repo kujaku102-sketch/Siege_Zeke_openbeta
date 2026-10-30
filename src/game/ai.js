@@ -17,7 +17,7 @@ import {
   restSecurity,
   spellNeedsTarget
 } from "./engine.js";
-import { hasKeyword, keywordValue } from "./effect-compiler.js";
+import { hasKeyword, keywordValue } from "../../packages/effect-compiler/index.js";
 import { confirmSelection, setSelectionScope, toggleSelection } from "./selection-model.js";
 
 export function resolveAutomatedAiChoices(state, playerId = "ai") {
