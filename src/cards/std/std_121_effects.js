@@ -1,7 +1,6 @@
-// STD-121 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { dealFortressDamage } from "../../game/core/battle.js";
+import { drawCards } from "../../game/core/draw.js";
 import { addLog, otherPlayer } from "../../game/core/shared.js";
-import { drawCards } from "../../game/core/turn.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { moveCardToTrash } from "../../game/effects/generic/placement.js";
 

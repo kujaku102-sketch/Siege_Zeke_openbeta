@@ -1,6 +1,5 @@
-// STD-212 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { addLog } from "../../game/core/shared.js";
-import { completeTurnAfterDelayedEffects } from "../../game/core/turn.js";
+import { completeTurnAfterDelayedEffects } from "../../game/core/turn-delayed.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { createVengeanceCard, placeByMode } from "../../game/effects/generic/placement.js";
 

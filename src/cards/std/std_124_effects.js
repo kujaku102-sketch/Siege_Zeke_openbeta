@@ -1,10 +1,9 @@
-// STD-124 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { isObCard } from "../../game/card-types.js";
 import { createRuntimeCard } from "../../game/runtime/factory.js";
+import { drawCards } from "../../game/core/draw.js";
 import { recordVictoryFact } from "../../game/core/effects.js";
 import { hydrateCard } from "../../game/core/setup.js";
 import { addLog, otherPlayer } from "../../game/core/shared.js";
-import { drawCards } from "../../game/core/turn.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { emitCardsGenerated, moveCardToTrash, setCardSleeping } from "../../game/effects/generic/placement.js";
 

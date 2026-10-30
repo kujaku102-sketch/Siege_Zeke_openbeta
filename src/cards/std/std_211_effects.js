@@ -1,9 +1,8 @@
-// STD-211 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { CARD_LIBRARY } from "../../data/cards.js";
 import { resultCountGate } from "../../game/effect-operation-library.js";
+import { drawCards } from "../../game/core/draw.js";
 import { continueDeferredSpellCleanup } from "../../game/core/play.js";
 import { addLog, classKey, fail, findCard } from "../../game/core/shared.js";
-import { drawCards } from "../../game/core/turn.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { destroyCard } from "../../game/effects/generic/placement.js";
 

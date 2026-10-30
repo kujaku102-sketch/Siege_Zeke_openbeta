@@ -1,9 +1,8 @@
-// STD-048 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { createRuntimeCard } from "../../game/runtime/factory.js";
+import { resumeMandatoryDrawContinuation } from "../../game/core/draw.js";
 import { getEffectActivationTargets } from "../../game/core/play.js";
 import { hydrateCard } from "../../game/core/setup.js";
 import { addLog, fail, otherPlayer } from "../../game/core/shared.js";
-import { resumeMandatoryDrawContinuation } from "../../game/core/turn.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { destroyCard, moveCardToTrash, placeByMode } from "../../game/effects/generic/placement.js";
 

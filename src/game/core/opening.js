@@ -1,6 +1,7 @@
+import { drawCardRaw } from "./draw.js";
 import { addLog, fail, shuffle } from "./shared.js";
 import { emitUserAbilityFeedback } from "./triggers.js";
-import { drawCardRaw, startTurn } from "./turn.js";
+import { startTurn } from "./turn.js";
 
 // 開始手順(規則書2.4)。openingProtocol="v2.4" の試合だけ、ゲーム開始前に各ユーザーが1回(BIGBOSSは最大3回)
 // 手札の任意枚数を山札の下へ戻して同数引き直せる。決定は seat 順(player→ai)に1人ずつ行い、最後の決定の中で

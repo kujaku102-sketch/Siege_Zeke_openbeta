@@ -1,7 +1,6 @@
-// STD-077 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { CARD_LIBRARY } from "../../data/cards.js";
+import { drawCards } from "../../game/core/draw.js";
 import { addLog, fail, findCard, hasClass, provisional } from "../../game/core/shared.js";
-import { drawCards } from "../../game/core/turn.js";
 import { moveCardToTrash } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_077.js)

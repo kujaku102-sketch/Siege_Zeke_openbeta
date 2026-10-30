@@ -1,91 +1,19 @@
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
 import { createSelectionRequest } from "../selection-model.js";
-import { canAttack, cardHasKeyword, getAttackTargets } from "./battle.js";
-import { finalizeEffectResolution, recordVictoryFact, resolveMandatoryStateChecks, runEffectEntry } from "./effects.js";
-import { queueMemoryLimitIncreasePrompt } from "./scripts.js";
-import { addLog, fail, findCard, newActionBlock, otherPlayer } from "./shared.js";
-import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { beginStd048MandatoryDraw } from "../../cards/std/std_048_effects.js";
 import { resolveStd049TurnEnd } from "../../cards/std/std_049_effects.js";
 import { continueStd141TurnEndQueue } from "../../cards/std/std_141_effects.js";
 import { beginSztb094Access } from "../../cards/sztb/sztb_094_effects.js";
+import { canAttack, cardHasKeyword, getAttackTargets } from "./battle.js";
+import { continueMandatoryTurnDraw, drawCardRaw, drawCards } from "./draw.js";
+import { recordVictoryFact, runEffectEntry } from "./effects.js";
+import { addLog, fail, findCard, otherPlayer } from "./shared.js";
+import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
+import { completeTurnAfterDelayedEffects, resolveTurnEndDelayedEffects, resolveTurnStartDelayedEffects } from "./turn-delayed.js";
 import { executeCardRuntimeSpec } from "../effects/generic/actions.js";
 import { getMaxMemory } from "../effects/generic/cost.js";
-import { destroyCard, distributeLayeredFollowers, emitEffectPlacement, placeByMode, revealMountedCode, setCardSleeping, syncFieldEntryTurns } from "../effects/generic/placement.js";
-
-export function drawCardRaw(player) {
-  const card = player.deck.pop();
-  if (card) player.hand.push(card);
-  return card;
-}
-
-export function drawCards(state, playerId, count = 1) {
-  const player = state.players[playerId];
-  let drawn = 0;
-  for (let i = 0; i < count; i += 1) {
-    const card = drawCardRaw(player);
-    if (!card) continue;
-    drawn += 1;
-    emitGameEvent(state, {
-      type: "card_drawn", playerId, ownerId: card.owner ?? playerId,
-      cardUid: card.uid, cardId: card.id, cardName: card.name,
-      category: card.category, color: card.color, amount: 1,
-      drawIndex: drawn, requestedCount: count, source: "draw"
-    });
-  }
-  if (drawn) addLog(state, `${player.user.name}が${drawn}枚ドロー。`);
-  return drawn;
-}
-
-function continueMandatoryTurnDraw(state, playerId, count) {
-  const drawn = drawCards(state, playerId, count);
-  if (drawn < count) {
-    state.players[playerId].mandatoryDrawFailed = true;
-    recordVictoryFact(state, { type: "mandatory-draw-failed", playerId });
-    addLog(state, `${state.players[playerId].user.name}はターン開始時の必要ドローを完了できず敗北。`, "win");
-    if (!state.effectResolution) finalizeEffectResolution(state);
-  }
-}
-
-function hasMandatoryDrawChildWork(state) {
-  return Boolean(
-    // Only the placement/replacement continuation belongs to Dawn's mandatory
-    // draw. Newly queued triggers (STD186/179 etc.) are separate effects.
-    state.pending || state.prompt || state.deferredTrashMoves?.length || state.deferredDestruction
-  );
-}
-
-export function resumeMandatoryDrawContinuation(state) {
-  const continuation = state.mandatoryDrawContinuation;
-  if (!continuation || continuation.type !== "std048-mandatory-draw" || hasMandatoryDrawChildWork(state)) return false;
-  if (continuation.placementOutcome === "pending") return false;
-  if (!continuation.ruleDrawDone) {
-    continuation.ruleDrawDone = true;
-    continueMandatoryTurnDraw(state, continuation.playerId, continuation.remainingRuleDraws);
-    if (state.players[continuation.playerId].mandatoryDrawFailed) {
-      state.mandatoryDrawContinuation = null;
-      finalizeEffectResolution(state);
-      return true;
-    }
-    if (hasMandatoryDrawChildWork(state)) return true;
-  }
-  if (continuation.placementOutcome === "placed" && !continuation.successEffectDone) {
-    continuation.successEffectDone = true;
-    const player = state.players[continuation.playerId];
-    player.fortressStr = Math.min(player.user.maxStr, player.fortressStr + 3);
-    drawCards(state, continuation.playerId, 1);
-    addLog(state, `${continuation.sourceName}: ドラッグ成功。自分ユーザーを3回復し、1枚ドロー。`, "effect");
-    if (hasMandatoryDrawChildWork(state)) return true;
-  }
-  state.mandatoryDrawContinuation = null;
-  if (state.effectResolution?.kind === "STD-048-mandatory-draw") {
-    resolveMandatoryStateChecks(state);
-    finalizeEffectResolution(state);
-  }
-  if (!state.winner) runPostDrawTurnStart(state, continuation.playerId);
-  return true;
-}
+import { distributeLayeredFollowers, revealMountedCode } from "../effects/generic/placement.js";
 
 function rollMadness(state, count) {
   let total = 0;
@@ -122,7 +50,7 @@ export function resolveMadnessChecks(state, playerId) {
   }
 }
 
-function runPostDrawTurnStart(state, playerId) {
+export function runPostDrawTurnStart(state, playerId) {
   const player = state.players[playerId];
   for (const provider of player.registry.filter((card) => !card.faceDown && cardRuntimeSpec(card.id, "turn_start"))) {
     runEffectEntry(state, "turn-start", playerId, () => executeCardRuntimeSpec(state, "turn_start", playerId, provider));
@@ -192,124 +120,6 @@ export function startTurn(state, playerId) {
   }
   if (state.mandatoryDrawContinuation) return;
   runPostDrawTurnStart(state, playerId);
-}
-
-export function restSecurity(state, playerId, uid) {
-  if (state.active !== playerId || state.winner || state.victory?.lockedOutcome || state.pending || state.prompt || state.effectResolution) return false;
-  const card = state.players[playerId].front.find((item) => item.uid === uid);
-  if (!card || !isObCard(card) || card.faceDown || !cardHasKeyword(card, "SECURITY")) return fail(state, "[セキュリティ]を持つフロントObを選んで。", false);
-  if (state.securityRestWindow !== playerId) return fail(state, "[セキュリティ]はターン終了時だけスリープできる。", false);
-  if (card.sleep) return fail(state, "既にスリープしている。", false);
-  setCardSleeping(state, playerId, card);
-  addLog(state, `${card.name}を[セキュリティ]待機でスリープ。`, "action");
-  return true;
-}
-
-export function canActivateTurbo(state, playerId = "player") {
-  const player = state.players[playerId];
-  return Boolean(player && player.user?.abilityKey === "turbo" && state.active === playerId && !player.turboUsed);
-}
-
-export function activateTurbo(state, playerId = "player") {
-  const player = state.players[playerId];
-  { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
-  if (!canActivateTurbo(state, playerId)) return fail(state, "ターボ・ブーストは今は使えない。", false);
-  const beforeMaxMemory = getMaxMemory(player);
-  player.turboUsed = true;
-  player.turboActive = true;
-  player.memory += 2;
-  addLog(state, `${player.user.name}「ターボ・ブースト！」メモリ上限とアクティブメモリ+2。`, "effect");
-  emitUserAbilityFeedback(state, "turbo", playerId, playerId, {
-    branch: "activated", before: beforeMaxMemory, after: getMaxMemory(player), amount: 2, steps: [{ kind: "value_change", target: { kind: "player_stat", playerId, metric: "memory_limit" }, before: beforeMaxMemory, after: getMaxMemory(player) }]
-  });
-  queueMemoryLimitIncreasePrompt(state, playerId, "ターボ・ブースト！");
-  return true;
-}
-
-function resolveDelayedTrashMove(state, effect) {
-  const owner = state.players[effect.ownerId];
-  if (!owner) return false;
-  const index = owner.trash.findIndex((card) => card.uid === effect.cardUid);
-  if (index < 0) return false;
-  const [card] = owner.trash.splice(index, 1);
-  if (effect.destination === "hand") {
-    owner.hand.push(card);
-    addLog(state, `${effect.sourceName}: 次の自分ターン開始時にゴミ箱から手札へ。`, "effect");
-    return true;
-  }
-  const zone = effect.destination === "choose_area"
-    ? owner.front.length < owner.user.frontLimit ? "front" : owner.back.length < owner.user.backLimit ? "back" : "front"
-    : effect.destination ?? "front";
-  if (placeByMode(state, effect.ownerId, card, { zone, from: "trash", source: effect.sourceName }) !== "placed") return true;
-  if (effect.resetDamage) card.damage = 0;
-  if (effect.standby) card.sleep = false;
-  if (effect.sleep) setCardSleeping(state, effect.ownerId, card);
-  card.summoningSick = zone === "front";
-  emitEffectPlacement(state, effect.ownerId, card, zone, effect.sourceName);
-  return true;
-}
-
-function resolveTurnStartDelayedEffects(state, playerId) {
-  const player = state.players[playerId];
-  const due = state.delayedEffects.filter((effect) => effect.event === "turn_started"
-    && effect.ownerId === playerId
-    && effect.dueOwnerTurnsTaken <= player.turnsTaken + 1);
-  state.delayedEffects = state.delayedEffects.filter((effect) => !due.includes(effect));
-  for (const effect of due) {
-    if (effect.type === "move_source_from_trash") resolveDelayedTrashMove(state, effect);
-  }
-}
-
-function resolveTurnEndDelayedEffects(state, activeId) {
-  const due = state.delayedEffects.filter((effect) => effect.event === "turn_ended"
-    && (effect.dueTurn !== undefined ? effect.dueTurn <= state.turnNumber : effect.turnPlayerId === activeId));
-  state.delayedEffects = state.delayedEffects.filter((effect) => !due.includes(effect));
-  for (const effect of due) {
-    if (effect.type === "destroy_card") {
-      destroyCard(state, effect.ownerId, effect.cardUid, { source: `${effect.sourceName}の遅延破壊` });
-      continue;
-    }
-    if (effect.type === "move_source_from_trash") {
-      resolveDelayedTrashMove(state, effect);
-      continue;
-    }
-    if (effect.type !== "generate_dolls_for_destroyed_ob") continue;
-    const maximum = state.turnStats.destroyedOb;
-    if (maximum <= 0) continue;
-    const request = createSelectionRequest({ mode: "scope", scopeField: "count",
-      scopeOptions: Array.from({ length: maximum + 1 }, (_, index) => String(index)),
-      label: `生成するドールズの数（0～${maximum}）`, message: effect.sourceName,
-      continuation: { type: "std212-respawn-count", playerId: effect.controllerId, sourceName: effect.sourceName, activeId, maximum } });
-    state.pending = { type: "selection", validTargets: [], request };
-    return true;
-  }
-  return false;
-}
-
-export function completeTurnAfterDelayedEffects(state, activeId) {
-  const player = state.players[activeId];
-  for (const current of Object.values(state.players)) {
-    for (const card of [...current.front, ...current.back, ...current.hand]) {
-      for (const [keyword, expiry] of Object.entries(card.keywordExpiries ?? {})) {
-        if (expiry <= state.turnNumber) {
-          card.grantedKeywords = (card.grantedKeywords ?? []).filter((value) => value !== keyword);
-          delete card.keywordExpiries[keyword];
-        }
-      }
-      if (card.assaultProgramTurn === state.turnNumber) delete card.assaultProgramTurn;
-    }
-  }
-  player.forceAttack = false;
-  syncFieldEntryTurns(state);
-  state.turnNumber += 1;
-  if (state.extraTurnPlayerId === activeId) {
-    state.extraTurnPlayerId = null;
-    state.damagePenaltyPlayerId = activeId;
-    state.damagePenaltyTurn = state.turnNumber;
-    startTurn(state, activeId);
-  } else if (["lab", "sandbox"].includes(state.mode) && !state.sandboxUi?.alternateTurns) startTurn(state, "player");
-  else startTurn(state, otherPlayer(activeId));
-  return true;
 }
 
 export function endTurn(state) {

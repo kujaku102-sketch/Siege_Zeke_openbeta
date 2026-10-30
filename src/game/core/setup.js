@@ -6,10 +6,11 @@ import { normalizeBoardSlots } from "../board-slots.js";
 import { cardRuntimeRoute } from "../card-runtime-specs.js";
 import { normalizeLayerState } from "../layer-state.js";
 import { expandRuntimeDeck } from "../runtime/factory.js";
+import { drawCardRaw } from "./draw.js";
 import { OPENING_ORDER } from "./opening.js";
 import { arrangeBlueTutorial, arrangeLab, arrangeSandbox, arrangeTutorial, arrangeVengeanceTutorial } from "./setup-arrange.js";
 import { runtimeRng, shuffle } from "./shared.js";
-import { drawCardRaw, startTurn } from "./turn.js";
+import { startTurn } from "./turn.js";
 
 function normalizeClasses(instance) {
   const values = instance.classes ?? instance.cardClass ?? instance.className ?? instance.class

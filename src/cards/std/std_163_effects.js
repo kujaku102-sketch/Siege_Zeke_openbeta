@@ -1,9 +1,8 @@
-// STD-163 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { isObCard } from "../../game/card-types.js";
 import { createChoiceSpec, createSelectionRequest, selectionRequestFromSpec } from "../../game/selection-model.js";
 import { dealCardDamage } from "../../game/core/battle.js";
+import { drawCards } from "../../game/core/draw.js";
 import { findCard, otherPlayer } from "../../game/core/shared.js";
-import { drawCards } from "../../game/core/turn.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { destroyCard } from "../../game/effects/generic/placement.js";
 

@@ -1,9 +1,8 @@
-// STD-223 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { attack, continueAttackAfterCost, dealCardDamage } from "../../game/core/battle.js";
+import { drawCards } from "../../game/core/draw.js";
 import { findCard } from "../../game/core/shared.js";
-import { drawCards } from "../../game/core/turn.js";
 import { moveCardToTrash } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_223.js)
