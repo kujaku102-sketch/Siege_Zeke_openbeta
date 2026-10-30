@@ -13,7 +13,7 @@ import { EVENT_CONTEXT_REQUIRED_IF_IDS, NORMAL_IF_SCRIPT_IDS, openScriptActivati
 import { addLog, cardTraits, fail, findCard, isArmsBandOb, newActionBlock, otherPlayer, provisional } from "./shared.js";
 import { drainTriggerQueue, emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { CUSTOM_ACTIVATE_CARD_EFFECT_CORE, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2, CUSTOM_GET_EFFECT_TARGETS, CUSTOM_INSTALL_CARD, CUSTOM_NORMAL_SPELL_SELECTION, CUSTOM_NOTIFY_CARD_EXECUTED, CUSTOM_PLAY_CARD_CORE, CUSTOM_PLAY_CARD_CORE_3, CUSTOM_PLAY_CARD_CORE_4, CUSTOM_RESOLVE_LOGIN, CUSTOM_RESOLVE_LOGIN_2, CUSTOM_RESOLVE_SPELL, CUSTOM_SPELL_CLEANUP_EXTRA, PASS } from "../effects/custom/index.js";
-import { continueStd211DestructionBatch } from "../effects/custom/std_211.js";
+import { continueStd211DestructionBatch } from "../../cards/std/std_211_effects.js";
 import { executeCardRuntimeSpec, executeRuntimeActions, runtimeActionFeasible } from "../effects/generic/actions.js";
 import { STD121_PLACEMENT_PERMIT, consumeSelectedSourceLayers, executionCost, magazineExecutionCandidates, ownLayerEntries, placementCostCandidates } from "../effects/generic/cost.js";
 import { destroyCard, distributeLayeredFollowers, emitCardPlacement, emitEffectPlacement, emitRegistryInstalled, failForcedPlacement, markFieldEntry, moveCardToTrash, movedSummoningSick, placeByMode, placementResult, resolveMountedSourceTrigger, revealMountedCode, triggerMoved } from "../effects/generic/placement.js";

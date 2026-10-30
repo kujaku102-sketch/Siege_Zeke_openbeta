@@ -6,10 +6,10 @@ import { finalizeEffectResolution, recordVictoryFact, resolveMandatoryStateCheck
 import { queueMemoryLimitIncreasePrompt } from "./scripts.js";
 import { addLog, fail, findCard, newActionBlock, otherPlayer } from "./shared.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
-import { beginStd048MandatoryDraw } from "../effects/custom/std_048.js";
-import { resolveStd049TurnEnd } from "../effects/custom/std_049.js";
-import { continueStd141TurnEndQueue } from "../effects/custom/std_141.js";
-import { beginSztb094Access } from "../effects/custom/sztb_094.js";
+import { beginStd048MandatoryDraw } from "../../cards/std/std_048_effects.js";
+import { resolveStd049TurnEnd } from "../../cards/std/std_049_effects.js";
+import { continueStd141TurnEndQueue } from "../../cards/std/std_141_effects.js";
+import { beginSztb094Access } from "../../cards/sztb/sztb_094_effects.js";
 import { executeCardRuntimeSpec } from "../effects/generic/actions.js";
 import { getMaxMemory } from "../effects/generic/cost.js";
 import { destroyCard, distributeLayeredFollowers, emitEffectPlacement, placeByMode, revealMountedCode, setCardSleeping, syncFieldEntryTurns } from "../effects/generic/placement.js";

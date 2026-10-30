@@ -1,6 +1,6 @@
 import { RuntimeError } from "../runtime/factory.js";
 import { addLog, exactKeys, isCounter, isNonEmptyString, isPlainObject, runtimeRng } from "./shared.js";
-import { resumeStd230AmbushCleanup } from "../effects/custom/std_230.js";
+import { resumeStd230AmbushCleanup } from "../../cards/std/std_230_effects.js";
 
 const PROJECTION_CHANNELS = new Set(["pending", "prompt"]);
 

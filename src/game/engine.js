@@ -10,9 +10,9 @@ export { getMaxMemory, executionCost, visibleHandExecutionPayment } from "./effe
 export { drawCards, startTurn, restSecurity, canActivateTurbo, activateTurbo, endTurn } from "./core/turn.js";
 export { activateScript, declinePrompt } from "./core/scripts.js";
 export { resolveCardSelection } from "./effects/generic/selection.js";
-export { resolveSamLogin } from "./effects/custom/std_077.js";
+export { resolveSamLogin } from "../cards/std/std_077_effects.js";
 export { cardAtk, cardMaxStr, cardCurrentStr, cardHasKeyword, getAttackTargets, canAttack, attack, dealCardDamage, dealFortressDamage } from "./core/battle.js";
-export { resolveLuckyShotAdditional } from "./effects/custom/std_086.js";
+export { resolveLuckyShotAdditional } from "../cards/std/std_086_effects.js";
 export { declineResponse, activateResponse } from "./core/response.js";
 export { destroyCard, discardMountedCard, resolveAccessDragPlacement } from "./effects/generic/placement.js";
 export { findCard } from "./core/shared.js";

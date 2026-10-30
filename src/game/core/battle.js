@@ -12,7 +12,7 @@ import { activeCards, addLog, cardTraits, fail, findCard, hasClass, otherPlayer,
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { drawCards } from "./turn.js";
 import { CUSTOM_ATTACK_CORE, CUSTOM_ATTACK_CORE_2, CUSTOM_ATTACK_CORE_3, CUSTOM_ATTACK_CORE_4, CUSTOM_ATTACK_CORE_5, CUSTOM_ATTACK_CORE_6, CUSTOM_QUEUE_POST_ATTACK_SELECTION, PASS } from "../effects/custom/index.js";
-import { resolveTrinityEffect } from "../effects/custom/std_121.js";
+import { resolveTrinityEffect } from "../../cards/std/std_121_effects.js";
 import { executeRuntimeActions, runtimeSpecValue } from "../effects/generic/actions.js";
 import { applyDamageModifiers, clearDamageModifiers } from "../effects/generic/damage.js";
 import { destroyCard, setCardSleeping } from "../effects/generic/placement.js";
