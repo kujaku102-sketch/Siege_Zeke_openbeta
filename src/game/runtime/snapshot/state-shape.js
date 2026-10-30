@@ -109,7 +109,7 @@ function idleState(state) {
     'deferredDeclaredScriptCleanup', 'placementCostBatch', 'triggerThread', 'threadNotice', 'selectedUid', 'openAdmin', 'pending', 'prompt']) {
     if (own(state, key, STATE) !== null) reject(UNSUPPORTED);
   }
-  for (const key of ['selectionQueue', 'victoryFacts', 'activationWindows', 'scriptActivationQueue', 'triggerQueue', 'delayedEffects', 'declaredEffects', 'responseEventQueue']) {
+  for (const key of ['selectionQueue', 'victoryFacts', 'scriptActivationQueue', 'triggerQueue', 'delayedEffects', 'declaredEffects', 'responseEventQueue']) {
     if (dense(own(state, key, STATE), STATE).length) reject(UNSUPPORTED);
   }
   const victory = own(state, 'victory', STATE);

@@ -142,7 +142,7 @@ test('S02-SNAPSHOT-05: requires exact start option and snapshot root shapes', ()
 });
 
 test('S02-SNAPSHOT-06: strict copy rejects unsupported values and never invokes accessors', () => {
-  for (const value of [undefined, Symbol('x'), () => 1, 1n, NaN, Infinity, -0, new Map(), new Set(), new Date(), Object.create({ inherited: true })]) {
+  for (const value of [Symbol('x'), () => 1, 1n, NaN, Infinity, -0, new Map(), new Set(), new Date(), Object.create({ inherited: true })]) {
     const current = input();
     current.engineState.victory.bad = value;
     rejects(createRuntimeSnapshot(current), 'SNAPSHOT_UNSUPPORTED_STATE');
@@ -152,6 +152,23 @@ test('S02-SNAPSHOT-06: strict copy rejects unsupported values and never invokes 
   Object.defineProperty(getter.engineState.victory, 'bad', { enumerable: true, get() { calls += 1; return 1; } });
   rejects(createRuntimeSnapshot(getter), 'SNAPSHOT_UNSUPPORTED_STATE');
   assert.equal(calls, 0);
+});
+
+test('S02-SNAPSHOT-06b: saving leaves out a field without a value (as JSON does); loading still refuses one', () => {
+  const current = input();
+  current.engineState.victory.bad = undefined;
+  current.engineState.log.push({ id: 'x', text: 'y', color: undefined });
+  const snapshot = create(current);
+  assert.equal(Object.hasOwn(snapshot.engineState.victory, 'bad'), false);
+  assert.equal(Object.hasOwn(snapshot.engineState.log.at(-1), 'color'), false);
+  assert.deepEqual(snapshot, JSON.parse(JSON.stringify(snapshot)));
+  assert.equal(restore(JSON.parse(JSON.stringify(snapshot))).ok, true);
+  const loaded = structuredClone(snapshot);
+  loaded.engineState.victory.bad = undefined;
+  rejects(restore(loaded), 'SNAPSHOT_INVALID_INPUT');
+  const inArray = input();
+  inArray.engineState.log.push({ id: 'x', text: 'y', parts: [undefined] });
+  rejects(createRuntimeSnapshot(inArray), 'SNAPSHOT_UNSUPPORTED_STATE');
 });
 
 test('S02-SNAPSHOT-07: strict arrays reject holes, extras, accessors, and cycles', () => {
