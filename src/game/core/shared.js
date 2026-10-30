@@ -1,3 +1,4 @@
+import { TRACE_TAGS, trace } from "../engine-trace.js";
 import { nextRng } from "../runtime/rng.js";
 import { RuntimeError } from "../runtime/factory.js";
 import { CARD_LIBRARY } from "../../data/cards.js";
@@ -144,6 +145,7 @@ export function newActionBlock(state) {
 }
 
 export function fail(state, message, silent) {
+  trace(state, { tag: TRACE_TAGS.CONDITION, result: false, reason: message, silent: Boolean(silent) });
   state.message = message;
   if (!silent) addLog(state, message, "warning");
   return false;

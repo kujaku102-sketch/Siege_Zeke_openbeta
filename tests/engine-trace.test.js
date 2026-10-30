@@ -4,7 +4,7 @@ import { createCardInstance } from "../src/data/cards.js";
 import { addLog } from "../src/game/core/shared.js";
 import { EFFECT_OPERATION_TYPES } from "../src/game/effect-operation-library.js";
 import { TRACE_TAGS, setTraceSink } from "../src/game/engine-trace.js";
-import { attack, createGame, resolveAccessDragPlacement, resolveCardSelection, resolveTriggerChoice } from "../src/game/engine.js";
+import { attack, createGame, destroyCard, playCard, resolveAccessDragPlacement, resolveCardSelection, resolveTriggerChoice } from "../src/game/engine.js";
 
 // Two triggers fire at once (a trigger thread), one needs a choice, a drag placement follows.
 function playScenario() {
@@ -29,7 +29,7 @@ function playScenario() {
   return { state, calls };
 }
 
-const stable = (state) => JSON.stringify({ ...state, log: state.log.map(({ id: _id, ...entry }) => entry) });
+const stable = (state) => JSON.stringify(state);
 
 test("the trace is ordered, closed in its vocabulary, and changes neither the game nor the RNG", () => {
   setTraceSink(null);
@@ -48,7 +48,7 @@ test("the trace is ordered, closed in its vocabulary, and changes neither the ga
     assert.ok(Object.values(TRACE_TAGS).includes(record.tag), record.tag);
     assert.ok(record.op === null || Object.values(EFFECT_OPERATION_TYPES).includes(record.op), record.op);
   });
-  for (const tag of [TRACE_TAGS.LAUNCH, TRACE_TAGS.TRIGGER, TRACE_TAGS.SELECT, TRACE_TAGS.JUDGE]) {
+  for (const tag of [TRACE_TAGS.LAUNCH, TRACE_TAGS.TRIGGER, TRACE_TAGS.SELECT, TRACE_TAGS.JUDGE, TRACE_TAGS.RESULT]) {
     assert.ok(records.some((record) => record.tag === tag), tag);
   }
   assert.ok(records.some((record) => record.tag === TRACE_TAGS.TRIGGER && record.event === "thread-opened"));
@@ -72,4 +72,42 @@ test("log ids are a deterministic counter that survives the 120-entry cap", () =
   assert.equal(new Set(first.log.map((entry) => entry.id)).size, 120);
   const ids = first.log.map((entry) => Number(entry.id.slice(1)));
   assert.ok(ids.every((id, index) => index === 0 || id === ids[index - 1] + 1));
+});
+
+function collect(run) {
+  const records = [];
+  setTraceSink((record) => records.push(record));
+  try { run(); } finally { setTraceSink(null); }
+  return records;
+}
+
+test("an Sp is cleaned up (trash) inside its effect, before the judgement closes it", () => {
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  const reboot = createCardInstance("STD-010", "player", 10101);
+  state.players.player.hand = [reboot]; state.players.player.memory = 5;
+  const records = collect(() => playCard(state, "player", reboot.uid));
+  const order = records.map((record) => record.tag + (record.event ? ":" + record.event : "") + (record.phase ? ":" + record.phase : ""));
+  const cleanup = order.indexOf("後始末:spell-to-trash");
+  assert.ok(cleanup > order.indexOf("起動"));
+  assert.ok(cleanup < order.indexOf("判定:out"));
+  assert.ok(records.some((record) => record.tag === TRACE_TAGS.RESULT && record.event === "card_executed"));
+});
+
+test("a destruction attempt and the backup that replaces it are both traced, in that order", () => {
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  const hero = createCardInstance("STD-029", "player", 2901);
+  hero.summoningSick = false;
+  state.players.player.front = [hero];
+  const records = collect(() => destroyCard(state, "player", hero.uid, { source: "test" }));
+  const replace = records.filter((record) => record.tag === TRACE_TAGS.REPLACE);
+  assert.deepEqual(replace.map((record) => record.event + ":" + (record.kind ?? "")), ["attempt:", "replaced:backup"]);
+  assert.equal(state.players.player.back[0]?.uid, hero.uid);
+});
+
+test("a refused action leaves a failed 条件 record", () => {
+  const state = createGame({ mode: "ai", rng: () => 0.5 });
+  const card = createCardInstance("STD-020", "player", 2001);
+  state.players.player.hand = [card]; state.players.player.memory = 0;
+  const records = collect(() => playCard(state, "player", "missing-uid"));
+  assert.ok(records.some((record) => record.tag === TRACE_TAGS.CONDITION && record.result === false));
 });

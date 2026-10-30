@@ -1,3 +1,4 @@
+import { TRACE_TAGS, trace } from "../../engine-trace.js";
 import { cardPlacementCostSpec } from "../../card-runtime-specs.js";
 import { isObCard } from "../../card-types.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
@@ -581,6 +582,9 @@ function resumeCardSelection(state, continuation, result) {
 }
 
 export function resolveCardSelection(state, continuation, result) {
+  if (result?.choice !== undefined || result?.scope !== undefined) {
+    trace(state, { tag: TRACE_TAGS.BRANCH, continuation: continuation?.type ?? null, playerId: continuation?.playerId ?? null, choice: result.choice ?? null, scope: result.scope ?? null });
+  }
   const resolved = runEffectEntry(state, "selection", continuation?.playerId ?? null, () => {
     const resumed = resumeCardSelection(state, continuation, result);
     if (resumed && !state.pending && !state.prompt) resumeStalledTriggerThread(state);

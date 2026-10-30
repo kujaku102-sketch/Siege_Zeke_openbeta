@@ -1,3 +1,4 @@
+import { TRACE_TAGS, trace } from "../../engine-trace.js";
 import { swapBoardSlots } from "../../board-slots.js";
 import { cardRuntimeSpec } from "../../card-runtime-specs.js";
 import { isObCard } from "../../card-types.js";
@@ -28,6 +29,9 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
     const action = actions[actionIndex];
     if (!runtimeSpecCondition(state, playerId, source, action.condition, runtime, targetUid)) continue;
     const amount = action.amount === undefined ? 0 : Number(runtimeSpecValue(state, playerId, source, action.amount, runtime));
+    if (action.type !== "select" && action.type !== "select_player" && action.type !== "choose_zone") {
+      trace(state, { tag: TRACE_TAGS.RESULT, op: action.type, target: action.target ?? null, amount: action.amount === undefined ? null : amount, cardId: source?.id ?? null, playerId });
+    }
     if (action.type === "select") {
       return openRuntimeTargetSelection(state, playerId, source, action, runtime, continuationMeta);
     } else if (action.type === "select_player") {

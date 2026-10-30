@@ -4,7 +4,7 @@ import { isObCard } from "../card-types.js";
 import { describeOperation } from "../effect-operation-library.js";
 import { TRACE_TAGS, trace, traceActive } from "../engine-trace.js";
 import { specsForEvent } from "../trigger-specs.js";
-import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled, lockVictoryIfDecided, runEffectEntry } from "./effects.js";
+import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled, judgeVictory, runEffectEntry } from "./effects.js";
 import { enabledSymbols } from "./play.js";
 import { queueDeclaredScriptActivationWindow } from "./scripts.js";
 import { addLog, cardsInPlay, findCard, otherPlayer } from "./shared.js";
@@ -32,7 +32,7 @@ function executeQueuedTrigger(state, trigger) {
   else for (const action of trigger.spec.actions) executeTriggerAction(state, trigger, action);
   if (!state.pending) trigger.status = "resolved";
   // 同時に誘発した効果は別々の効果。1つ完了した時点で勝敗が決まったら、残りは未宣言のまま実行しない。
-  if (!state.pending && !state.prompt) lockVictoryIfDecided(state);
+  if (!state.pending && !state.prompt) judgeVictory(state, "trigger");
 }
 
 function finishTriggerThread(state) {
@@ -205,6 +205,8 @@ export function emitGameEvent(state, event) {
   const normalized = { id: `EV-${++state.triggerSerial}`, turnNumber: state.turnNumber,
     ...(threadItem ? { threadId: state.triggerThread.id, threadItemId: threadItem.id } : {}), ...event };
   state.events.push(normalized);
+  if (traceActive()) trace(state, { tag: TRACE_TAGS.RESULT, event: normalized.type, eventId: normalized.id, playerId: normalized.playerId ?? null,
+    cardUid: normalized.cardUid ?? null, cardId: normalized.cardId ?? null, source: typeof normalized.source === "string" ? normalized.source : null });
   if (state.winner) {
     if (state.events.length > 200) state.events.shift();
     return normalized;

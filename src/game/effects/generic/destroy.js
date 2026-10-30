@@ -10,6 +10,7 @@ import { resolveMandatoryStateChecks } from "../../core/effects.js";
 import { continueDeferredSpellCleanup, resolveLogoutAfterAreaExit } from "../../core/play-spell.js";
 import { openScriptActivationWindow, queueScriptPrompt } from "../../core/scripts.js";
 import { addLog, cardTraits, hasClass, otherPlayer } from "../../core/shared.js";
+import { TRACE_TAGS, trace } from "../../engine-trace.js";
 import { emitGameEvent } from "../../core/triggers.js";
 import { executeRuntimeActions, resumeDestroyLkiFollowUp } from "./actions.js";
 import { continuePlacementCostBatch, settlePlacementCostDestruction } from "./cost.js";
@@ -72,14 +73,17 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
   if (index < 0) return false;
   const zone = player[zoneName];
   const protectedCard = zone[index];
+  trace(state, { tag: TRACE_TAGS.REPLACE, op: "destroy", event: "attempt", cardId: protectedCard.id, cardUid: protectedCard.uid, ownerId, source });
   if (destructionPermissionSpecsFor(protectedCard.id).some((spec) => spec.type === "forbid_destruction" && spec.target === "source"
     && (protectedCard.id !== "STD-159" || protectedCard.faceDown !== true))) {
+    trace(state, { tag: TRACE_TAGS.REPLACE, op: "destroy", event: "replaced", kind: "indestructible", cardUid: protectedCard.uid });
     addLog(state, `${protectedCard.name}は破壊できない。`, "effect");
     settleDestructionContinuations(state, uid, false);
     continuePlacementCostBatch(state);
     return false;
   }
   if (!piercing && consumeProtect(state, protectedCard, `${source}による破壊`)) {
+    trace(state, { tag: TRACE_TAGS.REPLACE, op: "destroy", event: "replaced", kind: "protect", cardUid: protectedCard.uid });
     settleDestructionContinuations(state, uid, false);
     resumeDestroyLkiFollowUp(state, uid);
     continuePlacementCostBatch(state);
@@ -117,6 +121,7 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
   const grantedBackupUses = Number(card.backup ?? 0);
   const backupUsesThisTurn = card.backupUsedTurn === state.turnNumber ? Number(card.backupUsesThisTurn ?? 0) : 0;
   if (!piercing && !suppressReplacement && zoneName === "front" && (replacementChoice === "backup" || (replacementChoice === null && (grantedBackupUses > 0 || maxBackupUses > backupUsesThisTurn))) && player.back.length < player.user.backLimit) {
+    trace(state, { tag: TRACE_TAGS.REPLACE, op: "destroy", event: "replaced", kind: "backup", cardUid: card.uid });
     setCardSleeping(state, ownerId, card);
     card.damage = 0;
     if (grantedBackupUses > 0) card.backup = grantedBackupUses - 1;

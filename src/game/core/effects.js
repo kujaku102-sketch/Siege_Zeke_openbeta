@@ -139,13 +139,18 @@ export function lockVictoryIfDecided(state) {
   return true;
 }
 
-export function finalizeEffectResolution(state) {
-  const completedResolution = state.effectResolution;
-  trace(state, { tag: TRACE_TAGS.JUDGE, phase: "in", kind: completedResolution?.kind ?? null });
+// The judgement at an effect boundary: lock the result if it is decided (kind says which boundary this is).
+export function judgeVictory(state, kind) {
+  trace(state, { tag: TRACE_TAGS.JUDGE, phase: "in", kind });
   const lockedBefore = Boolean(state.victory?.lockedOutcome);
   lockVictoryIfDecided(state);
-  trace(state, { tag: TRACE_TAGS.JUDGE, phase: "out", kind: completedResolution?.kind ?? null,
+  trace(state, { tag: TRACE_TAGS.JUDGE, phase: "out", kind,
     locked: Boolean(state.victory?.lockedOutcome), lockedNow: Boolean(state.victory?.lockedOutcome) && !lockedBefore, winner: state.winner ?? null });
+}
+
+export function finalizeEffectResolution(state) {
+  const completedResolution = state.effectResolution;
+  judgeVictory(state, completedResolution?.kind ?? null);
   if (completedResolution?.declaredEffectId && state.resolvingDeclaredEffect?.id === completedResolution.declaredEffectId) {
     state.resolvingDeclaredEffect.status = "resolved";
     state.resolvingDeclaredEffect = null;

@@ -5,6 +5,7 @@ import { keywordValue } from "../../core/keywords.js";
 import { resolveLogoutAfterAreaExit } from "../../core/play-spell.js";
 import { openScriptActivationWindow } from "../../core/scripts.js";
 import { addLog, otherPlayer } from "../../core/shared.js";
+import { TRACE_TAGS, trace } from "../../engine-trace.js";
 import { emitGameEvent } from "../../core/triggers.js";
 import { executeCardRuntimeSpec } from "./actions.js";
 import { finalizeRuleDestruction } from "./placement.js";
@@ -28,6 +29,7 @@ export function moveCardToTrash(state, ownerId, card, source = "移動", { suppr
     }
   }
   if (owner.trashBanUntilTurn === state.turnNumber) {
+    trace(state, { tag: TRACE_TAGS.REPLACE, op: "move", event: "replaced", kind: "trash-ban", cardUid: card.uid, ownerId });
     owner.ban.push(card);
     distributeLayeredFollowers(state, card, "ban", source);
     addLog(state, `${source}: ${card.name}のゴミ箱移動をBANへ置換。`, "effect");

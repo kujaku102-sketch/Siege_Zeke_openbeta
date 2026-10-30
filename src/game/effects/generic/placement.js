@@ -1,3 +1,4 @@
+import { TRACE_TAGS, trace } from "../../engine-trace.js";
 import { placeCardInBoardSlot } from "../../board-slots.js";
 import { isObCard } from "../../card-types.js";
 import { mountEventSpecsFor } from "../../continuous-effect-specs.js";
@@ -87,6 +88,7 @@ export function emitCardPlacement(state, playerId, card, zone, placementCause, s
 }
 
 export function finalizeRuleDestruction(state, ownerId, card, { from = "hand", to = "trash", source = "配置上限", zone = null } = {}) {
+  trace(state, { tag: TRACE_TAGS.REPLACE, op: "destroy", event: "replaced", kind: "placement-limit", cardUid: card.uid, ownerId, from, to });
   state.turnStats.destroyedCards += 1;
   if (isObCard(card)) state.turnStats.destroyedOb += 1;
   if (card.category === "Script" && card.name.includes("聖樹")) state.turnStats.destroyedSacredTreeScripts += 1;

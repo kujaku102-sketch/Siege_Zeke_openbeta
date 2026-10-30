@@ -1,3 +1,4 @@
+import { TRACE_TAGS, trace } from "../../engine-trace.js";
 import { isLydCard, isObCard, matchesCardCategory } from "../../card-types.js";
 import { flattenedLayerCount, flattenedLayers } from "../../layered-specs.js";
 import { cardTraits, classKey, findCard, hasClass, hasNoEffectText, isArmsBandCard, otherPlayer } from "../../core/shared.js";
@@ -54,6 +55,12 @@ export function runtimeSpecValue(state, playerId, source, value, runtime = null)
 }
 
 export function runtimeSpecCondition(state, playerId, source, condition, runtime = null, targetUid = null) {
+  const result = evaluateRuntimeSpecCondition(state, playerId, source, condition, runtime, targetUid);
+  if (condition) trace(state, { tag: TRACE_TAGS.CONDITION, result: Boolean(result), expression: condition.expression ?? condition.type ?? null, cardId: source?.id ?? null, playerId });
+  return result;
+}
+
+function evaluateRuntimeSpecCondition(state, playerId, source, condition, runtime, targetUid) {
   if (!condition) return true;
   const player = state.players[playerId];
   if (condition.expression === "source_has_lyd_layer") return runtimeSpecValue(state, playerId, source, { expression: "source_lyd_layer_count" }) > 0;

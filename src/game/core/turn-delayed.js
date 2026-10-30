@@ -1,3 +1,4 @@
+import { TRACE_TAGS, trace } from "../engine-trace.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { addLog, otherPlayer } from "./shared.js";
 import { startTurn } from "./turn.js";
@@ -44,6 +45,7 @@ export function resolveTurnEndDelayedEffects(state, activeId) {
     && (effect.dueTurn !== undefined ? effect.dueTurn <= state.turnNumber : effect.turnPlayerId === activeId));
   state.delayedEffects = state.delayedEffects.filter((effect) => !due.includes(effect));
   for (const effect of due) {
+    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "turn-end-delayed", type: effect.type, ownerId: effect.ownerId ?? null, cardUid: effect.cardUid ?? null, sourceName: effect.sourceName ?? null });
     if (effect.type === "destroy_card") {
       destroyCard(state, effect.ownerId, effect.cardUid, { source: `${effect.sourceName}の遅延破壊` });
       continue;
