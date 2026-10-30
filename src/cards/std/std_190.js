@@ -11,22 +11,22 @@ export const definition = {
   "atk": 2,
   "str": 4,
   "classes": [
-    "ニュートロン・セキュリティ",
-    "ノイド"
+    "ヴェンジェンス",
+    "ギークス"
   ],
-  "text": "これがバックにいる場合、ターン終了時に相手ユーザーに2ダメージ。",
+  "text": "これがバックにいる場合、相手ターン終了時に相手ユーザーに2ダメージ。",
   "sourceId": "STD-190",
   "printedCategory": "Ob",
-  "cardClass": "ニュートロン・セキュリティ/ノイド"
+  "cardClass": "ヴェンジェンス/ギークス"
 };
 
 // trigger specs (was trigger-specs.js)
 export const triggerSpecs = [
   createTriggerSpec({
-    id: "STD-190:back-turn-end",
+    id: "STD-190:back-enemy-turn-end",
     cardId: "STD-190",
     event: "turn_ended",
-    conditions: [{ type: "source_zone", zone: "back" }],
+    conditions: [{ type: "source_zone", zone: "back" }, { type: "event_player_is_enemy" }],
     actions: [op("deal_damage", { target: "enemy_user", amount: 2 })]
   })
 ];

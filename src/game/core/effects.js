@@ -243,8 +243,8 @@ function finishDeclaredScriptCleanup(state) {
   });
   player.scriptActivatedTurn = state.turnNumber;
   for (const candidate of player.hand.filter((card) => card.id === "STD-179")) {
-    const request = createSelectionRequest({ mode: "scope", scopeField: "place", scopeOptions: ["配置しない", "配置する"],
-      label: `${candidate.name}: 手札から配置`, message: candidate.text,
+    const request = createSelectionRequest({ mode: "scope", scopeField: "place", scopeOptions: ["ドラッグしない", "スリープしてドラッグする"],
+      label: `${candidate.name}: 手札からスリープしてドラッグ`, message: candidate.text,
       continuation: { type: "std179-place", playerId: declared.playerId, sourceUid: candidate.uid, sourceName: candidate.name } });
     enqueueSelection(state, { type: "selection", validTargets: [], request }, selectionProjectionMeta("engine:std179-place", declared.playerId));
   }

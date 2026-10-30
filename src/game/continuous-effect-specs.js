@@ -23,6 +23,8 @@ export const CARD_MOUNT_EVENT_SPECS = freezeSpecs(collectSpecs("mountEventSpec")
 
 export const CARD_AURA_KEYWORD_SPECS = freezeSpecs(collectSpecs("auraKeywordSpec"));
 
+export const CARD_AURA_BATTLE_STAT_SPECS = freezeSpecs(collectSpecs("auraBattleStatSpec"));
+
 export const CARD_ATTACK_PERMISSION_SPECS = freezeSpecs(collectSpecs("attackPermissionSpec"));
 
 export const CARD_DESTRUCTION_PERMISSION_SPECS = freezeSpecs(collectSpecs("destructionPermissionSpec"));
@@ -40,6 +42,7 @@ export const mountedStatModifierSpecsFor = (cardId) => specsFor(CARD_MOUNTED_STA
 export const mountedKeywordSpecsFor = (cardId) => specsFor(CARD_MOUNTED_KEYWORD_SPECS, cardId);
 export const mountEventSpecsFor = (cardId) => specsFor(CARD_MOUNT_EVENT_SPECS, cardId);
 export const auraKeywordSpecsFor = (cardId) => specsFor(CARD_AURA_KEYWORD_SPECS, cardId);
+export const auraBattleStatSpecsFor = (cardId) => specsFor(CARD_AURA_BATTLE_STAT_SPECS, cardId);
 export const attackPermissionSpecsFor = (cardId) => specsFor(CARD_ATTACK_PERMISSION_SPECS, cardId);
 export const destructionPermissionSpecsFor = (cardId) => specsFor(CARD_DESTRUCTION_PERMISSION_SPECS, cardId);
 export const placementPermissionSpecsFor = (cardId) => specsFor(CARD_PLACEMENT_PERMISSION_SPECS, cardId);

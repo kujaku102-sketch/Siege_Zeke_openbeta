@@ -8,7 +8,7 @@ export const definition = {
   "atk": 1,
   "str": 3,
   "classes": [],
-  "text": "自分のScriptが起動した時、手札からこのObを配置できる。",
+  "text": "[セキュリティ]自分のScriptが起動した時、手札からこのObをスリープしてドラッグできる。",
   "traits": [
     "インセクト"
   ]

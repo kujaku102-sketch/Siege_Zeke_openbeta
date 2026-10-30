@@ -9,8 +9,8 @@ import { consumeProtect, dealFortressDamage } from "./deal-damage.js";
 import { drawCards } from "./draw.js";
 import { runEffectEntry } from "./effects.js";
 import { hasKeyword } from "./keywords.js";
-import { addLog, cardTraits, fail, findCard, otherPlayer } from "./shared.js";
-import { battleStatModifierValue, cardAtk, cardCurrentStr, cardHasKeyword, cardHasRuntimeKeyword } from "./stats.js";
+import { addLog, fail, findCard, otherPlayer } from "./shared.js";
+import { battleAuraAtkBonus, battleStatModifierValue, cardAtk, cardCurrentStr, cardHasKeyword, cardHasRuntimeKeyword } from "./stats.js";
 import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_ATTACK_CORE, CUSTOM_ATTACK_CORE_2, CUSTOM_ATTACK_CORE_3, CUSTOM_ATTACK_CORE_4, CUSTOM_ATTACK_CORE_5, CUSTOM_ATTACK_CORE_6, CUSTOM_QUEUE_POST_ATTACK_SELECTION, PASS } from "../effects/custom/index.js";
 import { executeRuntimeActions } from "../effects/generic/actions.js";
@@ -139,30 +139,6 @@ function attackCore(state, playerId, attackerUid, targetUid) {
     target = targets[0];
     addLog(state, `セキュリティまたは攻撃制約により対象を「${target.label}」へ変更。`, "effect");
   }
-  if (cardTraits(attacker).includes("インセクト") && !attacker.skipStd185AttackerSubstitution) {
-    const general = player.front.find((card) => card.id === "STD-185" && !card.sleep && card.uid !== attacker.uid);
-    if (general) {
-      const request = createSelectionRequest({ mode: "scope", scopeField: "substitute", scopeOptions: ["交代しない", "クワガタ将軍と戦闘"],
-        label: `${general.name}: 戦闘交代`, message: general.text,
-        continuation: { type: "std185-attacker-substitute", playerId, attackerUid: attacker.uid, targetUid: target.uid, generalUid: general.uid } });
-      state.pending = { type: "selection", validTargets: [], request };
-      return true;
-    }
-  }
-  delete attacker.skipStd185AttackerSubstitution;
-  if (target?.type === "card" && !attacker.skipStd185Substitution) {
-    const defenderId = otherPlayer(playerId);
-    const defender = state.players[defenderId].front.find((card) => card.uid === target.uid);
-    const general = state.players[defenderId].front.find((card) => card.id === "STD-185" && !card.sleep && card.uid !== defender?.uid);
-    if (defender && cardTraits(defender).includes("インセクト") && general) {
-      const request = createSelectionRequest({ mode: "scope", scopeField: "substitute", scopeOptions: ["交代しない", "クワガタ将軍と戦闘"],
-        label: `${general.name}: 戦闘交代`, message: general.text,
-        continuation: { type: "std185-defender-substitute", playerId: defenderId, attackerPlayerId: playerId, attackerUid, originalTargetUid: target.uid, generalUid: general.uid } });
-      state.pending = { type: "selection", validTargets: [], request };
-      return true;
-    }
-  }
-  delete attacker.skipStd185Substitution;
   const customAttackCore4 = CUSTOM_ATTACK_CORE_4[attacker.id];
   if (customAttackCore4) customAttackCore4({ attacker, player, state, playerId });
   if (!attacker.skipStd223Ambush) {
@@ -282,8 +258,8 @@ function attackCore(state, playerId, attackerUid, targetUid) {
   defender.battleStrBonus = battleStatModifierValue(state, opponentId, defender, "str");
   const attackerStrBefore = cardCurrentStr(state, playerId, attacker);
   const defenderStrBefore = cardCurrentStr(state, opponentId, defender);
-  let attackerDamage = applyDamageModifiers(state, playerId, attacker, opponentId, cardAtk(state, playerId, attacker) + std095AttackBonus, { kind: "battle", destination: "card", victimCard: defender });
-  let defenderDamage = applyDamageModifiers(state, opponentId, defender, playerId, cardAtk(state, opponentId, defender), { kind: "battle", destination: "card", victimCard: attacker });
+  let attackerDamage = applyDamageModifiers(state, playerId, attacker, opponentId, cardAtk(state, playerId, attacker) + std095AttackBonus + battleAuraAtkBonus(state, playerId, attacker), { kind: "battle", destination: "card", victimCard: defender });
+  let defenderDamage = applyDamageModifiers(state, opponentId, defender, playerId, cardAtk(state, opponentId, defender) + battleAuraAtkBonus(state, opponentId, defender), { kind: "battle", destination: "card", victimCard: attacker });
   const attackerProtected = defenderDamage > 0 && consumeProtect(state, attacker, "戦闘ダメージ");
   const defenderProtected = attackerDamage > 0 && consumeProtect(state, defender, "戦闘ダメージ");
   if (!attackerProtected) attacker.damage += defenderDamage;

@@ -35,7 +35,6 @@ import { std169ActivateCardEffectCore, std169GetEffectActivationTargets } from "
 import { std179PlaceSelection } from "../../../cards/std/std_179_effects.js";
 import { std182AttackCore2, std182AttackScriptSelection } from "../../../cards/std/std_182_effects.js";
 import { std184PlaceObSelection, std184PlayCardCore } from "../../../cards/std/std_184_effects.js";
-import { std185AttackerSubstituteSelection, std185DefenderSubstituteSelection } from "../../../cards/std/std_185_effects.js";
 import { std192GetEffectActivationTargets2 } from "../../../cards/std/std_192_effects.js";
 import { std196GetEffectActivationTargets2 } from "../../../cards/std/std_196_effects.js";
 import { activateStd203ResponseSelection, std203NormalSpellSelection, std203ResolveSpell, std203ResponseCardApplicable } from "../../../cards/std/std_203_effects.js";
@@ -113,8 +112,6 @@ export const CUSTOM_SELECTION_HANDLERS = Object.freeze({
   "std184-place-ob": std184PlaceObSelection,
   "play-std229": playStd229Selection,
   "std214-attack-cost": std214AttackCostSelection,
-  "std185-defender-substitute": std185DefenderSubstituteSelection,
-  "std185-attacker-substitute": std185AttackerSubstituteSelection,
   "std226-compress": std226CompressSelection,
   "std230-ambush-choice": std230AmbushChoiceSelection,
   "std230-install-hand": std230InstallHandSelection,

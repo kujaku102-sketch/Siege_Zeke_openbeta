@@ -1,9 +1,9 @@
 import { battleStatModifierSpecsFor } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
-import { auraKeywordSpecsFor, conditionalKeywordSpecsFor, continuousStatModifierSpecsFor, mountedKeywordSpecsFor, mountedStatModifierSpecsFor } from "../continuous-effect-specs.js";
+import { auraBattleStatSpecsFor, auraKeywordSpecsFor, conditionalKeywordSpecsFor, continuousStatModifierSpecsFor, mountedKeywordSpecsFor, mountedStatModifierSpecsFor } from "../continuous-effect-specs.js";
 import { hasKeyword } from "./keywords.js";
 import { enabledSymbols } from "./play.js";
-import { activeCards, hasClass } from "./shared.js";
+import { activeCards, cardTraits, hasClass } from "./shared.js";
 import { runtimeSpecValue } from "../effects/generic/action-values.js";
 
 export function battleStatModifierValue(state, playerId, source, stat) {
@@ -15,6 +15,19 @@ export function battleStatModifierValue(state, playerId, source, stat) {
     else throw new Error(`Unsupported battle stat modifier operation: ${spec.operation ?? "(missing)"}`);
   }
   return value;
+}
+
+// 戦闘中だけ効く常在能力: 自分エリアの表向きの提供者が、その戦闘に出ている自分のObへ与えるATK補正の合計。
+export function battleAuraAtkBonus(state, playerId, card) {
+  if (!isObCard(card)) return 0;
+  const player = state.players[playerId];
+  let total = 0;
+  for (const provider of [...player.front, ...player.back].filter((item) => !item.faceDown)) {
+    for (const spec of auraBattleStatSpecsFor(provider.id)) {
+      if (spec.target === "own_trait_ob_all" && cardTraits(card).includes(spec.trait)) total += Number(spec.atk ?? 0);
+    }
+  }
+  return total;
 }
 
 export function continuousEffectConditionMatches(state, playerId, source, condition) {

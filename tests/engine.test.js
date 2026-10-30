@@ -2362,7 +2362,7 @@ test("Neutron access, keyword grant, resident and Proxy effects change game stat
   activateScript(state, "player", babel.uid);
   // the Grasshopper in hand asks about the Script activation; 1.2.1 keeps the next Sp in flight while any choice is open
   assert.equal(state.pending?.request?.continuation?.type, "std179-place");
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "配置しない", selected: [] }), true);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "ドラッグしない", selected: [] }), true);
   const returnedWall = player.hand.find((card) => card.id === "STD-110");
   assert.equal(playCard(state, "player", returnedWall.uid), true);
   assert.ok(player.hand.some((card) => card.uid === returnedWall.uid));
@@ -2614,14 +2614,15 @@ test("conditional trigger runtime resolves movement text through shared events",
   assert.ok(state.events.some((event) => event.type === "card_moved" && event.cardUid === tana.uid));
 });
 
-test("turn-end conditional trigger is reusable regardless of whose turn ends", () => {
+test("a turn-end trigger limited to the opponent's turn end fires only then", () => {
   const state = createGame({ mode: "lab" });
   const hacker = state.players.player.hand.find((card) => card.id === "STD-190");
   playCard(state, "player", hacker.uid, { zone: "back" });
   const before = state.players.ai.fortressStr;
-  endTurn(state);
+  emitGameEvent(state, { type: "turn_ended", playerId: "player" });
+  assert.equal(state.players.ai.fortressStr, before);
+  emitGameEvent(state, { type: "turn_ended", playerId: "ai" });
   assert.equal(state.players.ai.fortressStr, before - 2);
-  assert.ok(state.events.some((event) => event.type === "turn_ended"));
 });
 
 test("generic selection model supports single, exact, up-to, scope and random modes", () => {
@@ -5819,7 +5820,7 @@ test("STD-148 opponent turn window arms that same turn and applies to an own Ob 
   assert.equal(player.memory, memoryBefore - 2);
   assert.equal(source.std148ArmedTurn, state.turnNumber);
   assert.equal(state.pending?.request?.continuation?.type, "std179-place");
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "配置しない", selected: [] }), true);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "ドラッグしない", selected: [] }), true);
   assert.equal(state.pending, null);
   const before = ai.fortressStr;
   assert.equal(attack(state, "ai", attacker.uid, defender.uid), true);
@@ -6163,7 +6164,7 @@ test("STD-179 may place each hand copy after its controller activates a Script",
   script.faceDown = true; player.back = [script]; player.hand = [hopper]; player.registry = [createCardInstance("STD-166", "player", 179003)]; player.memory = 3;
   assert.equal(activateScript(state, "player", script.uid), true);
   assert.equal(state.pending?.request?.continuation?.type, "std179-place");
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "配置する", selected: [] }), true);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "スリープしてドラッグする", selected: [] }), true);
   assert.ok([...player.front, ...player.back].some((card) => card.uid === hopper.uid));
 });
 
@@ -6271,38 +6272,13 @@ test("runtime-connected compiler coverage batch has no residual clauses", () => 
   }
 });
 
-test("STD-185 substitutes for a defending Insect and STD-214 pays its registry attack cost", () => {
+test("STD-214 pays its registry attack cost", () => {
   const state = createGame({ mode: "sandbox" }); const player = state.players.player; const ai = state.players.ai;
   player.hand = []; ai.hand = []; player.front = [createCardInstance("STD-214", "player", 214001)];
   const attacker = player.front[0]; attacker.summoningSick = false; player.registry = [createCardInstance("STD-020", "player", 214002)]; player.memory = 10;
   assert.equal(attack(state, "player", attacker.uid, "ai-fortress"), true);
   assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [player.registry[0].uid] }), true);
   assert.equal(attacker.attackedThisTurn, true);
-  const enemy = createCardInstance("STD-020", "ai", 185001); enemy.summoningSick = false;
-  const insect = createCardInstance("STD-214", "player", 185002); insect.sleep = true;
-  const general = createCardInstance("STD-185", "player", 185003); general.summoningSick = false;
-  state.active = "ai"; ai.front = [enemy]; player.front = [insect, general];
-  assert.equal(attack(state, "ai", enemy.uid, insect.uid), true);
-  assert.equal(state.pending.request.continuation.type, "std185-defender-substitute");
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "クワガタ将軍と戦闘", selected: [] }), true);
-  assert.equal(enemy.attackedThisTurn, true);
-});
-
-test("STD-185 may substitute for an attacking Insect after its declaration costs", () => {
-  const state = createGame({ mode: "sandbox" }); const player = state.players.player; const ai = state.players.ai;
-  player.hand = []; ai.hand = []; player.memory = 10;
-  const insect = createCardInstance("STD-214", "player", 185101); insect.summoningSick = false;
-  const general = createCardInstance("STD-185", "player", 185102); general.summoningSick = false;
-  const registry = createCardInstance("STD-020", "player", 185103);
-  player.front = [insect, general]; player.registry = [registry]; ai.front = [];
-  assert.equal(attack(state, "player", insect.uid, "ai-fortress"), true);
-  assert.equal(state.pending.request.continuation.type, "std214-attack-cost");
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [registry.uid] }), true);
-  assert.equal(state.pending.request.continuation.type, "std185-attacker-substitute");
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "クワガタ将軍と戦闘", selected: [] }), true);
-  assert.equal(general.attackedThisTurn, true);
-  assert.equal(general.sleep, true);
-  assert.equal(insect.attackedThisTurn, false);
 });
 
 test("STD-215/216/217/220 connect registry execution install and leave events", () => {
@@ -7169,7 +7145,7 @@ test("STD048 pauses a successful continuation through STD186 then STD179 selecti
   assert.ok(ai.hand.some((card) => card.uid === ruleDraw.uid)); assert.equal(ai.hand.some((card) => card.uid === effectDraw.uid), false);
   assert.equal(activateScript(state, "player", harvest.uid), true);
   assert.equal(state.pending?.request?.continuation?.type, "std179-place");
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "配置しない", selected: [] }), true);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "ドラッグしない", selected: [] }), true);
   assert.ok(ai.hand.some((card) => card.uid === effectDraw.uid));
   assert.equal(ai.hand.filter((card) => card.uid === ruleDraw.uid).length, 1);
   assert.equal(state.mandatoryDrawContinuation, null);
@@ -7294,8 +7270,9 @@ function simultaneousBackHackerState({ interactive }) {
   player.hand = []; ai.hand = []; player.front = []; ai.front = [];
   player.deck = Array.from({ length: 6 }, (_, index) => createCardInstance("STD-020", "player", 71100 + index));
   ai.deck = Array.from({ length: 6 }, (_, index) => createCardInstance("STD-020", "ai", 71200 + index));
-  player.back = [createCardInstance("STD-190", "player", 71001)];
-  ai.back = [createCardInstance("STD-190", "ai", 71002)];
+  // both Back Hackers answer the active user's turn end as "the opponent's turn end"
+  player.back = [];
+  ai.back = [createCardInstance("STD-190", "ai", 71001), createCardInstance("STD-190", "ai", 71002)];
   player.fortressStr = 2; ai.fortressStr = 2;
   player.incidentsTriggered = [999]; ai.incidentsTriggered = [999];
   return state;
@@ -7304,25 +7281,22 @@ function simultaneousBackHackerState({ interactive }) {
 test("simultaneous turn-end triggers are separate effects: the first lethal one locks and the other never runs", () => {
   const state = simultaneousBackHackerState({ interactive: false });
   assert.equal(endTurn(state), true);
-  // The active user's trigger resolves first (4.7); its completion boundary decides the result.
-  assert.equal(state.winner, "player");
-  assert.equal(state.victory.lockedOutcome, "player");
+  // The first trigger's completion boundary decides the result; the second one is undeclared and never runs.
+  assert.equal(state.winner, "ai");
+  assert.equal(state.victory.lockedOutcome, "ai");
   assert.equal(state.victory.finished, true);
-  assert.equal(state.players.ai.fortressStr, 0);
-  assert.equal(state.players.player.fortressStr, 2, "the undeclared simultaneous trigger of the loser does not run");
-  assert.equal(state.log.filter((entry) => entry.text.includes("バックハッカー: Doors ZXへ2ダメージ")).length, 1);
+  assert.equal(state.players.player.fortressStr, 0);
+  assert.equal(state.players.ai.fortressStr, 2);
+  assert.equal(state.log.filter((entry) => entry.text.includes("バックハッカー: ")).length, 1);
 });
 
 test("a simultaneous trigger thread cancels the remaining items once an earlier item locks the result", () => {
   const state = simultaneousBackHackerState({ interactive: true });
   assert.equal(endTurn(state), true);
-  assert.equal(state.pending?.type, "trigger-order");
-  const own = state.triggerThread.items.find((item) => item.controllerId === "player");
-  assert.equal(resolveTriggerChoice(state, own.id), true);
-  assert.equal(state.winner, "player");
+  assert.equal(state.winner, "ai");
   assert.equal(state.victory.finished, true);
-  assert.deepEqual(state.triggerThread.items.map((item) => `${item.controllerId}:${item.status}`), ["player:resolved", "ai:cancelled-after-victory-lock"]);
-  assert.equal(state.players.player.fortressStr, 2);
+  assert.deepEqual(state.triggerThread.items.map((item) => `${item.controllerId}:${item.status}`), ["ai:resolved", "ai:cancelled-after-victory-lock"]);
+  assert.equal(state.players.player.fortressStr, 0);
 });
 
 test("automatic triggers wait for the parent Spell boundary and do not run after its victory lock", () => {
@@ -8401,25 +8375,6 @@ test("SZTB-097 keeps an STD-003 prompt and resumes cleanup once after accept or 
   });
   const answered = q => chooseSimpleAiIntent(q, 'c').value.action.optionIds[0];
 
-test("a Script that an effect generates and places goes to the back only; a full back sends it to the trash as a rule destruction", () => {
-  const generate = [{ type: "generate", cardIds: ["STD-165"], destination: "place" }];
-  const room = createGame({ mode: "lab", rng: () => 0.5 });
-  const frontBefore = room.players.player.front.length;
-  executeRuntimeActions(room, "player", createCardInstance("STD-170", "player", 17001), generate);
-  assert.equal(room.players.player.back.filter((card) => card.id === "STD-165" && card.faceDown).length, 1);
-  assert.equal(room.players.player.front.length, frontBefore);
-
-  const full = createGame({ mode: "lab", rng: () => 0.5 });
-  const owner = full.players.player;
-  owner.back = Array.from({ length: owner.user.backLimit }, (_, index) => createCardInstance("STD-021", "player", 2100 + index));
-  const fullFrontBefore = owner.front.length;
-  executeRuntimeActions(full, "player", createCardInstance("STD-170", "player", 17002), generate);
-  assert.equal(owner.front.length, fullFrontBefore);
-  assert.equal(owner.back.length, owner.user.backLimit);
-  assert.ok(owner.trash.some((card) => card.id === "STD-165"));
-  assert.ok(full.events.some((event) => event.type === "card_destroyed" && event.cardId === "STD-165" && event.ruleDestruction === true));
-});
-
   test('the CPU tries a different option when the same required input comes back at the same revision', () => {
     // A rejected answer leaves the revision unchanged; repeating it would never advance the match.
     assert.equal(answered(answerQuery('ai-answer-1', 12)), 'o1');
@@ -8445,3 +8400,22 @@ test("a Script that an effect generates and places goes to the back only; a full
     assert.equal(exhausted.error.code, 'AI_NO_LEGAL_ACTION');
   });
 }
+
+test("a Script that an effect generates and places goes to the back only; a full back sends it to the trash as a rule destruction", () => {
+  const generate = [{ type: "generate", cardIds: ["STD-165"], destination: "place" }];
+  const room = createGame({ mode: "lab", rng: () => 0.5 });
+  const frontBefore = room.players.player.front.length;
+  executeRuntimeActions(room, "player", createCardInstance("STD-170", "player", 17001), generate);
+  assert.equal(room.players.player.back.filter((card) => card.id === "STD-165" && card.faceDown).length, 1);
+  assert.equal(room.players.player.front.length, frontBefore);
+
+  const full = createGame({ mode: "lab", rng: () => 0.5 });
+  const owner = full.players.player;
+  owner.back = Array.from({ length: owner.user.backLimit }, (_, index) => createCardInstance("STD-021", "player", 2100 + index));
+  const fullFrontBefore = owner.front.length;
+  executeRuntimeActions(full, "player", createCardInstance("STD-170", "player", 17002), generate);
+  assert.equal(owner.front.length, fullFrontBefore);
+  assert.equal(owner.back.length, owner.user.backLimit);
+  assert.ok(owner.trash.some((card) => card.id === "STD-165"));
+  assert.ok(full.events.some((event) => event.type === "card_destroyed" && event.cardId === "STD-165" && event.ruleDestruction === true));
+});
