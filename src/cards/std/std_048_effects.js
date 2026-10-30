@@ -1,7 +1,7 @@
 import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { resumeMandatoryDrawContinuation } from "../../game/core/draw.js";
 import { getEffectActivationTargets } from "../../game/core/play-effects.js";
-import { hydrateCard } from "../../game/core/setup.js";
+import { hydrateCard } from "../../game/core/prepare.js";
 import { addLog, fail, otherPlayer } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { destroyCard } from "../../game/effects/generic/destroy.js";

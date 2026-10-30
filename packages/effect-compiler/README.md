@@ -7,11 +7,10 @@ Name, license and how it is published are not decided yet (`package.json` holds 
 ## Use
 
 ```js
-import { compileEffectText, hasKeyword, keywordValue } from "effect-compiler";
+import { compileEffectText } from "effect-compiler";
 
 const compiled = compileEffectText("[ログイン]カードを1枚引く。", { category: "Ob" });
 compiled.operations; // [{ type: "draw", ... }]
-hasKeyword({ text: "[QA]" }, "QA"); // true
 ```
 
 Entry: `index.js`. Exports:
@@ -20,17 +19,14 @@ Entry: `index.js`. Exports:
 |---|---|
 | `compileEffectText(sourceText, context)` | text → result object (below). `context.category` is the card category (`Ob`, `Sp`, `Script`, `Code`, ...); `context.id` is only used to find a registered preset. |
 | `normalizeCardCategory(category)` | maps category spellings (`Sc`, ...) to the names the compiler uses |
-| `hasKeyword(card, name)` / `keywordValue(card, name)` | keyword lookup on `card.compiled` (or on `card.text` when it is missing) |
 | `compileSelectionModules(text)` and the three `parse…Module` functions | the selection modules a text describes (look-and-select, dynamic threshold, allocate-and-follow-up) |
 | `registerCardOperationPresets(presets)` | host data, see below |
-| `registerIntrinsicKeywords(table)` | host data, see below |
 
 ## What the host registers (card-specific data stays outside)
 
 The compiler holds only general rules: keywords, zone words, sentence shapes. Anything that belongs to one card is handed in by the host:
 
 - `registerCardOperationPresets({ [cardId]: operation })`: an extra operation that `compileEffectText` appends when `context.id` is that card (each call appends a fresh copy). It also changes how the `partial`/`manual` warnings are filtered for that card.
-- `registerIntrinsicKeywords({ [cardId]: [keywordName, ...] })`: keywords `hasKeyword` reports for that card although its text does not say so.
 
 Registration is global to the module instance. A host that never registers gets the pure text rules.
 

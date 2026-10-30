@@ -1,12 +1,13 @@
-import { compileEffectText, hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { inheritBoardSlot, normalizeBoardSlots } from "../board-slots.js";
 import { isObCard } from "../card-types.js";
 import { placementPermissionSpecsFor } from "../continuous-effect-specs.js";
 import { flattenedLayerCount, normalizeMountedStack } from "../layered-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { resolveEffect } from "./effects.js";
+import { hasKeyword } from "./keywords.js";
 import { resolveLogin, resolveLogout } from "./play-spell.js";
 import { requestedExecutionSlot } from "./play.js";
+import { compiledForCard } from "./prepare.js";
 import { addLog, fail, newActionBlock } from "./shared.js";
 import { consumeSelectedSourceLayers } from "../effects/generic/cost.js";
 import { movedSummoningSick } from "../effects/generic/field-entry.js";
@@ -15,7 +16,7 @@ import { beginAllocationSelectionModule } from "../effects/generic/selection-mod
 import { distributeLayeredFollowers, revealMountedCode, triggerMoved } from "../effects/generic/trash.js";
 
 export function relogPreparationKind(card, layerCount = flattenedLayerCount(card)) {
-  const compiled = compileEffectText(card?.text ?? "", { category: card?.category, id: card?.id });
+  const compiled = compiledForCard(card);
   const operationTypes = new Set((compiled.operations ?? []).map((operation) => operation.type));
   if (operationTypes.has("registry_executable_and_logout_install_self")
     || operationTypes.has("logout_registry_replacement_and_registry_execute")) return "registry";

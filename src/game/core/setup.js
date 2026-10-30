@@ -1,38 +1,14 @@
-import { compileEffectText, keywordValue } from "../../../packages/effect-compiler/index.js";
 import { NEUTRON_DECK, RED_DECK, USER_CARDS, USERS, VENGEANCE_DECK, YELLOW_DECK } from "../../data/cards.js";
 import { START_DECKS } from "../../data/start-decks.js";
 import { TUTORIAL_BLUE_DECK, TUTORIAL_SANDBAG_DECK } from "../../data/tutorial-script.js";
 import { normalizeBoardSlots } from "../board-slots.js";
-import { cardRuntimeRoute } from "../card-runtime-specs.js";
-import { normalizeLayerState } from "../layer-state.js";
 import { expandRuntimeDeck } from "../runtime/factory.js";
 import { drawCardRaw } from "./draw.js";
 import { OPENING_ORDER } from "./opening.js";
+import { hydrateCard } from "./prepare.js";
 import { arrangeBlueTutorial, arrangeLab, arrangeSandbox, arrangeTutorial, arrangeVengeanceTutorial } from "./setup-arrange.js";
 import { runtimeRng, shuffle } from "./shared.js";
 import { startTurn } from "./turn.js";
-
-function normalizeClasses(instance) {
-  const values = instance.classes ?? instance.cardClass ?? instance.className ?? instance.class
-    ?? instance.affiliation ?? instance.tribe ?? instance.species ?? instance["所属"] ?? instance["種族"] ?? [];
-  return [...new Set((Array.isArray(values) ? values : String(values).split(/[\/／]/))
-    .map((value) => String(value).trim()).filter(Boolean))];
-}
-
-export function hydrateCard(instance) {
-  if (!cardRuntimeRoute(instance.id)) throw new Error(`Unregistered card runtime: ${instance.id}`);
-  const compiled = compileEffectText(instance.text, { category: instance.category, id: instance.id });
-  const printedCategory = instance.printedCategory ?? instance.category;
-  return normalizeLayerState({
-    ...instance,
-    category: instance.category === "LOb" ? "Ob" : instance.category,
-    printedCategory,
-    classes: normalizeClasses(instance),
-    compiled,
-    faceDown: instance.faceDown === true,
-    protect: Number(instance.protect ?? keywordValue({ ...instance, compiled }, "PROTECT") ?? 0)
-  });
-}
 
 function buildPlayer(id, user, deck) {
   return {

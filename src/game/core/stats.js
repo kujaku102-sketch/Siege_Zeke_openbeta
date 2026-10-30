@@ -1,7 +1,7 @@
-import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { battleStatModifierSpecsFor } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
 import { auraKeywordSpecsFor, conditionalKeywordSpecsFor, continuousStatModifierSpecsFor, mountedKeywordSpecsFor, mountedStatModifierSpecsFor } from "../continuous-effect-specs.js";
+import { hasKeyword } from "./keywords.js";
 import { enabledSymbols } from "./play.js";
 import { activeCards, hasClass } from "./shared.js";
 import { runtimeSpecValue } from "../effects/generic/action-values.js";

@@ -2,7 +2,7 @@ import { isObCard } from "../../game/card-types.js";
 import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { drawCards } from "../../game/core/draw.js";
 import { recordVictoryFact } from "../../game/core/effects.js";
-import { hydrateCard } from "../../game/core/setup.js";
+import { hydrateCard } from "../../game/core/prepare.js";
 import { addLog, otherPlayer } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { emitCardsGenerated } from "../../game/effects/generic/generate.js";

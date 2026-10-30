@@ -1,7 +1,7 @@
-import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { normalizeBoardSlots } from "../board-slots.js";
 import { flattenMaterialStack, layeredCandidates, layeredSelectionPlan, layeredSpecFor, validatesLayeredSelection } from "../layered-specs.js";
 import { resolveEffect } from "./effects.js";
+import { hasKeyword } from "./keywords.js";
 import { notifyCardExecuted } from "./play-notify.js";
 import { resolveLogin } from "./play-spell.js";
 import { canPlayCard, requestedExecutionSlot } from "./play.js";

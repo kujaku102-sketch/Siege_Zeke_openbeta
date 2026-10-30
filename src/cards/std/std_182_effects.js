@@ -1,8 +1,7 @@
-// STD-182 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
-import { keywordValue } from "../../../packages/effect-compiler/index.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { hasOptionalActivationSpec } from "../../game/trigger-specs.js";
 import { attack, resumeDeferredAttack } from "../../game/core/battle.js";
+import { keywordValue } from "../../game/core/keywords.js";
 import { activateScript } from "../../game/core/scripts.js";
 import { PASS } from "../../game/effects/custom/index.js";
 

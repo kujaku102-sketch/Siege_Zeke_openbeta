@@ -1,14 +1,13 @@
 import { STD_CARDS, VENGEANCE_DECK, VENGEANCE_IDS, NEUTRON_DECK, NEUTRON_IDS, RED_DECK, YELLOW_DECK } from "../cards/std_ex.js";
 import { SZTB_CARDS } from "../cards/sztb_ex.js";
-import { COMPILER_PRESETS, INTRINSIC_KEYWORDS } from "../cards/compiler-presets.js";
-import { registerCardOperationPresets, registerIntrinsicKeywords } from "../../packages/effect-compiler/index.js";
+import { COMPILER_PRESETS } from "../cards/compiler-presets.js";
+import { registerCardOperationPresets } from "../../packages/effect-compiler/index.js";
 
 // The library is assembled from the per-prefix indexes in src/cards/ (STD first, then SZTB: the order of the old single table).
 export const CARD_LIBRARY = Object.freeze({ ...STD_CARDS, ...SZTB_CARDS });
 
 // The effect compiler is a separate SDK that knows no card ids: the card side registers its data with it here.
 registerCardOperationPresets(COMPILER_PRESETS);
-registerIntrinsicKeywords(INTRINSIC_KEYWORDS);
 export const LAB_CARD_IDS = Object.freeze([...Object.keys(CARD_LIBRARY)].sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" })));
 
 export { VENGEANCE_DECK, VENGEANCE_IDS, NEUTRON_DECK, NEUTRON_IDS, RED_DECK, YELLOW_DECK };

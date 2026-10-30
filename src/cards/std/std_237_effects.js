@@ -1,8 +1,8 @@
-import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { CARD_LIBRARY } from "../../data/cards.js";
 import { isObCard } from "../../game/card-types.js";
 import { createRuntimeCard } from "../../game/runtime/factory.js";
-import { hydrateCard } from "../../game/core/setup.js";
+import { hasKeyword } from "../../game/core/keywords.js";
+import { hydrateCard } from "../../game/core/prepare.js";
 import { fail } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { emitCardsGenerated } from "../../game/effects/generic/generate.js";

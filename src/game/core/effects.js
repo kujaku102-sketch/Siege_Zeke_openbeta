@@ -1,8 +1,8 @@
-import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { normalizeBoardSlots } from "../board-slots.js";
 import { isObCard } from "../card-types.js";
 import { mandatoryStateCheckSpecsFor } from "../continuous-effect-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
+import { hasKeyword } from "./keywords.js";
 import { continueDeferredSpellCleanup } from "./play-spell.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { resolveDeclaredResponse, startNextQueuedResponse } from "./response.js";

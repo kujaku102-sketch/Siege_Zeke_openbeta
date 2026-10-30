@@ -1,5 +1,5 @@
 import { createRuntimeCard } from "../../game/runtime/factory.js";
-import { hydrateCard } from "../../game/core/setup.js";
+import { hydrateCard } from "../../game/core/prepare.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
 import { moveCardToTrash } from "../../game/effects/generic/trash.js";

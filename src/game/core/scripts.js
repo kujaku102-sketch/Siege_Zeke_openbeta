@@ -1,4 +1,3 @@
-import { hasKeyword, keywordValue } from "../../../packages/effect-compiler/index.js";
 import { createEventContext, createScriptActivationWindow } from "../activation-windows.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
@@ -6,6 +5,7 @@ import { hasOptionalActivationSpec, optionalSpecsForCard } from "../trigger-spec
 import { resumeDeferredAttack } from "./battle.js";
 import { resumeMandatoryDrawContinuation } from "./draw.js";
 import { continueDeferredDeclaredScriptCleanup, declareEffect, runEffectEntry } from "./effects.js";
+import { hasKeyword, keywordValue } from "./keywords.js";
 import { continueDeferredSpellCleanup } from "./play-spell.js";
 import { enabledSymbols, supportsNormalScriptActivation } from "./play.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";

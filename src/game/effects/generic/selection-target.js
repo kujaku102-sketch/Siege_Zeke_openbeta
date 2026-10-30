@@ -1,5 +1,5 @@
-import { keywordValue } from "../../../../packages/effect-compiler/index.js";
 import { createSelectionRequest } from "../../selection-model.js";
+import { keywordValue } from "../../core/keywords.js";
 import { getEffectTargets } from "../../core/play-effects.js";
 import { findCard, otherPlayer } from "../../core/shared.js";
 import { runtimeSpecMatchesCard } from "./action-values.js";

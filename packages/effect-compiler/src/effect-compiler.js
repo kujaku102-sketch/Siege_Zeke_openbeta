@@ -2,16 +2,10 @@ import { compileSelectionModules } from "./selection-modules.js";
 
 // Data the host registers. The compiler itself knows no card ids.
 const CARD_OPERATION_PRESETS = new Map();
-const INTRINSIC_KEYWORDS = new Map();
 
 // { [cardId]: operation } - an extra operation compileEffectText appends for that card (a fresh copy per call).
 export function registerCardOperationPresets(presets) {
   for (const [id, operation] of Object.entries(presets)) CARD_OPERATION_PRESETS.set(id, operation);
-}
-
-// { [cardId]: [keyword name, ...] } - keywords hasKeyword reports for that card although its text has no such keyword.
-export function registerIntrinsicKeywords(table) {
-  for (const [id, names] of Object.entries(table)) INTRINSIC_KEYWORDS.set(id, [...names]);
 }
 
 const KEYWORD_PATTERNS = [
@@ -524,18 +518,4 @@ export function compileEffectText(sourceText = "", context = {}) {
     ? { triggerConditionRequired: true, effectApplicabilityRequired: true, applicabilityScope: "primary_resolution_group", primaryResolutionGroup, costsPayableRequired: costs.length > 0, triggerSubjectRequirements: referencesTriggerColor ? { faceUp: true, hasColor: true, allowColorless: false } : null, recheckTriggerAtResolution: false }
     : { triggerConditionRequired: false, effectApplicabilityRequired: true, applicabilityScope: "primary_resolution_group", primaryResolutionGroup, costsPayableRequired: costs.length > 0, triggerSubjectRequirements: referencesTriggerColor ? { faceUp: true, hasColor: true, allowColorless: false } : null, recheckTriggerAtResolution: false };
   return { version: 2, sourceText, normalizedText, status, keywords, clauses, costs, operations, selectionModules, selectionSpecs, warnings, reminderTextDetected, activationPolicy: { ...activationPolicy, triggerCardinality, triggerEventPolicy }, resolutionPolicy: { partialApplication: "as_much_as_possible", costsMustBePaidInFull: true }, parentActionPolicy };
-}
-
-export function hasKeyword(card, name) {
-  if (INTRINSIC_KEYWORDS.get(card.id)?.includes(name)) return true;
-  const compiled = card.compiled ?? compileEffectText(card.text);
-  return compiled.keywords.some((keyword) => keyword.name === name && keyword.intrinsic !== false) || card.grantedKeywords?.includes(name);
-}
-
-export function keywordValue(card, name) {
-  const compiled = card.compiled ?? compileEffectText(card.text);
-  const keyword = compiled.keywords.find((item) => item.name === name && item.intrinsic !== false);
-  if (!keyword) return null;
-  if (keyword.value === null && ["PROTECT", "BACKUP"].includes(name)) return 1;
-  return keyword.value;
 }

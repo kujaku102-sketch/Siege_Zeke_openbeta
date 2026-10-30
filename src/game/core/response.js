@@ -1,7 +1,7 @@
-import { keywordValue } from "../../../packages/effect-compiler/index.js";
 import { isObCard } from "../card-types.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { declareEffect, runEffectEntry } from "./effects.js";
+import { keywordValue } from "./keywords.js";
 import { resolveSpell } from "./play-spell.js";
 import { enabledSymbols } from "./play.js";
 import { addLog, otherPlayer } from "./shared.js";

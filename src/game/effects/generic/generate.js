@@ -1,6 +1,6 @@
 import { createRuntimeCard } from "../../runtime/factory.js";
+import { hydrateCard } from "../../core/prepare.js";
 import { openScriptActivationWindow } from "../../core/scripts.js";
-import { hydrateCard } from "../../core/setup.js";
 import { addLog } from "../../core/shared.js";
 import { emitGameEvent } from "../../core/triggers.js";
 import { distributeLayeredFollowers, revealMountedCode } from "./trash.js";

@@ -1,7 +1,7 @@
-import { keywordValue } from "../../../packages/effect-compiler/index.js";
 import { mountedKeywordSpecsFor } from "../continuous-effect-specs.js";
 import { drawCards } from "./draw.js";
 import { recordVictoryFact } from "./effects.js";
+import { keywordValue } from "./keywords.js";
 import { openResponseWindow, startNextQueuedResponse } from "./response.js";
 import { addLog, otherPlayer, sourceCardByName } from "./shared.js";
 import { cardCurrentStr } from "./stats.js";

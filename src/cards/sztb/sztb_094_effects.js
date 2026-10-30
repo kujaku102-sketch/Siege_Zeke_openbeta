@@ -1,7 +1,7 @@
-import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { runEffectEntry } from "../../game/core/effects.js";
+import { hasKeyword } from "../../game/core/keywords.js";
 import { getEffectTargets } from "../../game/core/play-effects.js";
 import { spellNeedsTarget } from "../../game/core/play-spell.js";
 import { playCard } from "../../game/core/play.js";

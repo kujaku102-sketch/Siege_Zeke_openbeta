@@ -1,8 +1,8 @@
-import { hasKeyword, keywordValue } from "../../../../packages/effect-compiler/index.js";
 import { isObCard } from "../../card-types.js";
 import { executionCostModifierSpecsFor, playerValueModifierSpecsFor } from "../../continuous-effect-specs.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
 import { createSelectionRequest } from "../../selection-model.js";
+import { hasKeyword, keywordValue } from "../../core/keywords.js";
 import { getEffectTargets } from "../../core/play-effects.js";
 import { spellNeedsTarget } from "../../core/play-spell.js";
 import { canPlayCard, playCard, playCardCore } from "../../core/play.js";

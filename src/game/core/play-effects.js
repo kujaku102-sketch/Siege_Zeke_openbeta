@@ -1,8 +1,8 @@
-import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { normalizeBoardSlots } from "../board-slots.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
 import { resolveEffect } from "./effects.js";
+import { hasKeyword } from "./keywords.js";
 import { enabledSymbols } from "./play.js";
 import { fail, findCard, newActionBlock } from "./shared.js";
 import { CUSTOM_ACTIVATE_CARD_EFFECT_CORE, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2, CUSTOM_GET_EFFECT_TARGETS, PASS } from "../effects/custom/index.js";

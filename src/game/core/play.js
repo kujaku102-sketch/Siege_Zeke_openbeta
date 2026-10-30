@@ -1,4 +1,3 @@
-import { hasKeyword, keywordValue } from "../../../packages/effect-compiler/index.js";
 import { cardAtBoardSlot, inheritBoardSlot, projectZoneSlots } from "../board-slots.js";
 import { cardPlacementCostSpec } from "../card-runtime-specs.js";
 import { isObCard, isObCategory } from "../card-types.js";
@@ -8,6 +7,7 @@ import { createSelectionRequest } from "../selection-model.js";
 import { hasOptionalActivationSpec } from "../trigger-specs.js";
 import { dealFortressDamage } from "./deal-damage.js";
 import { resolveEffect, resolveMandatoryStateChecks, runEffectEntry } from "./effects.js";
+import { hasKeyword, keywordValue } from "./keywords.js";
 import { getEffectTargets } from "./play-effects.js";
 import { notifyCardExecuted } from "./play-notify.js";
 import { continueDeferredSpellCleanup, resolveLogin, resolveSpell, spellNeedsTarget } from "./play-spell.js";

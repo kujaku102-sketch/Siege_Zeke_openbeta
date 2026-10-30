@@ -2,7 +2,8 @@ import { CARD_LIBRARY, LAB_CARD_IDS } from "../../data/cards.js";
 import { TUTORIAL_BLUE_HAND, TUTORIAL_OPPONENT_STR, TUTORIAL_RED_HAND } from "../../data/tutorial-script.js";
 import { createRuntimeCard } from "../runtime/factory.js";
 import { drawCardRaw } from "./draw.js";
-import { hydrateCard, pullCard } from "./setup.js";
+import { hydrateCard } from "./prepare.js";
+import { pullCard } from "./setup.js";
 import { addLog } from "./shared.js";
 
 // 赤(基本操作)。台本どおりの初手: グレン(インストール用)・兵士(無色)・切込隊長アツト・ジャンクパーツ。

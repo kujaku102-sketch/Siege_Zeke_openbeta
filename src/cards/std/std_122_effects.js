@@ -1,6 +1,6 @@
 import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
-import { hydrateCard } from "../../game/core/setup.js";
+import { hydrateCard } from "../../game/core/prepare.js";
 import { addLog, findCard, isElectronFairy } from "../../game/core/shared.js";
 import { cardAtk, cardMaxStr } from "../../game/core/stats.js";
 import { PASS } from "../../game/effects/custom/index.js";

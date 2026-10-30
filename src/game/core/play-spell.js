@@ -1,8 +1,8 @@
-import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { layeredSpecFor } from "../layered-specs.js";
 import { createSelectionRequest, createSelectionSpec, selectionRequestFromSpec } from "../selection-model.js";
 import { continueStd211DestructionBatch } from "../../cards/std/std_211_effects.js";
+import { hasKeyword } from "./keywords.js";
 import { getActivatableEffects, getEffectActivationTargets, getEffectTargets } from "./play-effects.js";
 import { notifyCardExecuted } from "./play-notify.js";
 import { canExecuteRegistryCard } from "./play-registry.js";

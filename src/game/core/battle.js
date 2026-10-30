@@ -1,4 +1,3 @@
-import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { normalizeBoardSlots } from "../board-slots.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
@@ -9,6 +8,7 @@ import { resolveTrinityEffect } from "../../cards/std/std_121_effects.js";
 import { consumeProtect, dealFortressDamage } from "./deal-damage.js";
 import { drawCards } from "./draw.js";
 import { runEffectEntry } from "./effects.js";
+import { hasKeyword } from "./keywords.js";
 import { addLog, cardTraits, fail, findCard, otherPlayer } from "./shared.js";
 import { battleStatModifierValue, cardAtk, cardCurrentStr, cardHasKeyword, cardHasRuntimeKeyword } from "./stats.js";
 import { emitGameEvent } from "./triggers.js";

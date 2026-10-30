@@ -1,6 +1,6 @@
 import { isObCard } from "../../game/card-types.js";
 import { createRuntimeCard } from "../../game/runtime/factory.js";
-import { hydrateCard } from "../../game/core/setup.js";
+import { hydrateCard } from "../../game/core/prepare.js";
 import { emitCardsGenerated } from "../../game/effects/generic/generate.js";
 import { placeByMode } from "../../game/effects/generic/placement.js";
 

@@ -1,4 +1,4 @@
-import { hasKeyword } from "../../../../packages/effect-compiler/index.js";
+import { hasKeyword } from "../../core/keywords.js";
 
 // Field entry table: the turn each card on the field arrived there. Moving
 // between front and back keeps the entry; leaving the field drops it.
