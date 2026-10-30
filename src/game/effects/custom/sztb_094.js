@@ -1,6 +1,7 @@
 import { isObCard } from "../../card-types.js";
 import { hasKeyword } from "../../effect-compiler.js";
 import { createSelectionRequest } from "../../selection-model.js";
+import { runEffectEntry } from "../../core/effects.js";
 import { getEffectTargets, playCard, spellNeedsTarget } from "../../core/play.js";
 import { findCard, isArmsBandCard, otherPlayer } from "../../core/shared.js";
 import { executionCost, magazineExecutionCandidates } from "../generic/cost.js";
@@ -56,4 +57,8 @@ export function sztb094CounterTargetSelection(state, continuation, result, playe
 
 export function sztb094ResolveLogin2({ state, playerId, card }) {
   beginSztb094Access(state, playerId, card.name);
+}
+
+export function sztb094CounterDrainIndependentEffects({ state, next }) {
+  runEffectEntry(state, next.kind, next.playerId, () => beginSztb094Counter(state, next.playerId, next.sourceUid));
 }

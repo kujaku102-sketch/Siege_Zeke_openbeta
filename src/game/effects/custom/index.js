@@ -76,6 +76,13 @@ import { sztb094ResolveLogin2 } from "./sztb_094.js";
 import { sztb096GetEffectTargets } from "./sztb_096.js";
 import { sztb097ResolveSpell } from "./sztb_097.js";
 import { sztb098ResolveSpell } from "./sztb_098.js";
+import { std003ResolveDeclaredScript } from "./std_003.js";
+import { std018NotifyCardExecuted } from "./std_018.js";
+import { std019NotifyCardExecuted } from "./std_019.js";
+import { std148ResolveDeclaredScript } from "./std_148.js";
+import { std165DrainIndependentEffects } from "./std_165.js";
+import { std217DrainIndependentEffects } from "./std_217.js";
+import { sztb094CounterDrainIndependentEffects } from "./sztb_094.js";
 
 // A handler returns PASS when it did not take over: the caller continues as if the branch had not matched.
 export const PASS = Symbol("custom-effect-pass");
@@ -331,4 +338,26 @@ export const CUSTOM_RESOLVE_CARD_SELECTION_CORE = Object.freeze({
   __proto__: null,
   "STD-238": std238ResolveCardSelectionCore,
   "STD-096": std096ResolveCardSelectionCore
+});
+
+// core/effects.js: card id -> handler
+export const CUSTOM_DRAIN_INDEPENDENT_EFFECTS = Object.freeze({
+  __proto__: null,
+  "STD-217": std217DrainIndependentEffects,
+  "SZTB-094-COUNTER": sztb094CounterDrainIndependentEffects,
+  "STD-165": std165DrainIndependentEffects
+});
+
+// core/effects.js: card id -> handler
+export const CUSTOM_RESOLVE_DECLARED_SCRIPT = Object.freeze({
+  __proto__: null,
+  "STD-003": std003ResolveDeclaredScript,
+  "STD-148": std148ResolveDeclaredScript
+});
+
+// core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_NOTIFY_CARD_EXECUTED = Object.freeze({
+  __proto__: null,
+  "STD-018": std018NotifyCardExecuted,
+  "STD-019": std019NotifyCardExecuted
 });

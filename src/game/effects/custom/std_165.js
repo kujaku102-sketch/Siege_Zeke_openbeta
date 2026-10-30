@@ -1,6 +1,6 @@
 import { isObCard } from "../../card-types.js";
 import { createSelectionRequest } from "../../selection-model.js";
-import { drainIndependentEffects } from "../../core/effects.js";
+import { drainIndependentEffects, runEffectEntry } from "../../core/effects.js";
 import { playCard } from "../../core/play.js";
 import { findCard, hasClass, otherPlayer } from "../../core/shared.js";
 import { destroyCard } from "../generic/placement.js";
@@ -60,4 +60,8 @@ export function std165LoginSelection(state, continuation, result, playerId, play
   state.pending = null;
   const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
   return playCard(state, playerId, uid, { zone, free: true, force: true, ignoreColor: true, placementCause: "effect", placementSource: continuation.sourceName, placementMode: "forced-effect" });
+}
+
+export function std165DrainIndependentEffects({ state, next }) {
+  runEffectEntry(state, next.kind, next.playerId, () => beginStd165ThresholdEffect(state, next.playerId, next.sourceUid));
 }

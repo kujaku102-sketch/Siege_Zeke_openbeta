@@ -1,16 +1,15 @@
 import { normalizeBoardSlots } from "../board-slots.js";
-import { hasKeyword } from "../effect-compiler.js";
-import { createSelectionRequest } from "../selection-model.js";
 import { isObCard } from "../card-types.js";
 import { mandatoryStateCheckSpecsFor } from "../continuous-effect-specs.js";
-import { cardCurrentStr, continuousEffectConditionMatches, dealFortressDamage } from "./battle.js";
+import { hasKeyword } from "../effect-compiler.js";
+import { createSelectionRequest } from "../selection-model.js";
+import { cardCurrentStr, continuousEffectConditionMatches } from "./battle.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { resolveDeclaredResponse, startNextQueuedResponse } from "./response.js";
 import { DECLARED_IF_SCRIPT_IDS } from "./scripts.js";
 import { addLog, findCard, otherPlayer } from "./shared.js";
 import { drainTriggerQueue, emitGameEvent, resumeStalledTriggerThread } from "./triggers.js";
-import { beginStd165ThresholdEffect } from "../effects/custom/std_165.js";
-import { beginSztb094Counter } from "../effects/custom/sztb_094.js";
+import { CUSTOM_DRAIN_INDEPENDENT_EFFECTS, CUSTOM_RESOLVE_DECLARED_SCRIPT } from "../effects/custom/index.js";
 import { executeRuntimeActions, executeTriggerAction } from "../effects/generic/actions.js";
 import { destroyCard, moveCardToTrash } from "../effects/generic/placement.js";
 
@@ -81,9 +80,8 @@ export function drainIndependentEffects(state) {
   if (!next) return;
   state.drainingIndependentEffects = true;
   try {
-    if (next.kind === "STD-217") runEffectEntry(state, next.kind, next.playerId, () => dealFortressDamage(state, otherPlayer(next.playerId), 1, next.playerId, next.sourceName));
-    else if (next.kind === "SZTB-094-COUNTER") runEffectEntry(state, next.kind, next.playerId, () => beginSztb094Counter(state, next.playerId, next.sourceUid));
-    else if (next.kind === "STD-165") runEffectEntry(state, next.kind, next.playerId, () => beginStd165ThresholdEffect(state, next.playerId, next.sourceUid));
+    const customDrainIndependentEffects = CUSTOM_DRAIN_INDEPENDENT_EFFECTS[next.kind];
+    if (customDrainIndependentEffects) customDrainIndependentEffects({ state, next });
   } finally {
     state.drainingIndependentEffects = false;
   }
@@ -199,19 +197,9 @@ export function continueDeferredDeclaredScriptCleanup(state) {
 function resolveDeclaredScript(state, declared) {
   const source = declared.sourceSnapshot;
   state.deferredDeclaredScriptCleanup = { declared, source };
-  if (declared.cardId === "STD-003") {
-    state.players[otherPlayer(declared.playerId)].trashBanUntilTurn = state.turnNumber;
-    addLog(state, `${source.name}: このターン、以降の相手カードのゴミ箱移動をBANへ置換。`, "effect");
-  } else if (declared.cardId === "STD-148") {
-    const live = findCard(state, declared.sourceUid);
-    const opponentTurnStart = declared.activationCause === "event"
-      && declared.eventContext?.type === "turn_started"
-      && declared.eventContext?.eventPlayerId === otherPlayer(declared.playerId);
-    if (opponentTurnStart && live?.playerId === declared.playerId && live.zoneName === "back") {
-      live.card.std148ArmedTurn = state.turnNumber;
-      addLog(state, `${source.name}: この相手ターン中の戦闘時ダメージを有効化。`, "effect");
-    }
-  } else if (declared.runtime) {
+  const customResolveDeclaredScript = CUSTOM_RESOLVE_DECLARED_SCRIPT[declared.cardId];
+  if (customResolveDeclaredScript) customResolveDeclaredScript({ state, declared, source });
+  else if (declared.runtime) {
     executeRuntimeActions(state, declared.playerId, source, declared.runtime.actions, {
       targetUid: declared.eventTargetUid,
       runtime: { records: { eventCardUids: [...declared.eventCardUids] } }

@@ -12,7 +12,7 @@ import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { EVENT_CONTEXT_REQUIRED_IF_IDS, NORMAL_IF_SCRIPT_IDS, openScriptActivationWindow } from "./scripts.js";
 import { addLog, cardTraits, fail, findCard, isArmsBandOb, newActionBlock, otherPlayer, provisional } from "./shared.js";
 import { drainTriggerQueue, emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
-import { CUSTOM_ACTIVATE_CARD_EFFECT_CORE, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2, CUSTOM_GET_EFFECT_TARGETS, CUSTOM_INSTALL_CARD, CUSTOM_NORMAL_SPELL_SELECTION, CUSTOM_PLAY_CARD_CORE, CUSTOM_PLAY_CARD_CORE_2, CUSTOM_PLAY_CARD_CORE_3, CUSTOM_PLAY_CARD_CORE_4, CUSTOM_RESOLVE_LOGIN, CUSTOM_RESOLVE_LOGIN_2, CUSTOM_RESOLVE_SPELL, PASS } from "../effects/custom/index.js";
+import { CUSTOM_ACTIVATE_CARD_EFFECT_CORE, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2, CUSTOM_GET_EFFECT_TARGETS, CUSTOM_INSTALL_CARD, CUSTOM_NORMAL_SPELL_SELECTION, CUSTOM_NOTIFY_CARD_EXECUTED, CUSTOM_PLAY_CARD_CORE, CUSTOM_PLAY_CARD_CORE_2, CUSTOM_PLAY_CARD_CORE_3, CUSTOM_PLAY_CARD_CORE_4, CUSTOM_RESOLVE_LOGIN, CUSTOM_RESOLVE_LOGIN_2, CUSTOM_RESOLVE_SPELL, PASS } from "../effects/custom/index.js";
 import { continueStd211DestructionBatch } from "../effects/custom/std_211.js";
 import { executeCardRuntimeSpec, executeRuntimeActions, runtimeActionFeasible } from "../effects/generic/actions.js";
 import { STD121_PLACEMENT_PERMIT, consumeSelectedSourceLayers, executionCost, magazineExecutionCandidates, ownLayerEntries, placementCostCandidates } from "../effects/generic/cost.js";
@@ -597,9 +597,10 @@ export function notifyCardExecuted(state, executingPlayerId, executedCard, { fir
       const scriptOwner = state.players[scriptOwnerId];
       const scripts = scriptOwner.back.filter((item) => {
         if (item.category !== "Script" || !item.faceDown) return false;
-        if (item.id === "STD-018") return scriptOwnerId !== executingPlayerId && isObCard(executedCard);
-        if (item.id === "STD-019") {
-          return Boolean(executedCard.color) && scriptOwner.hand.some((card) => card.color === executedCard.color);
+        const customNotifyCardExecuted = CUSTOM_NOTIFY_CARD_EXECUTED[item.id];
+        if (customNotifyCardExecuted) {
+          const customResult = customNotifyCardExecuted({ scriptOwnerId, executingPlayerId, executedCard, scriptOwner });
+          if (customResult !== PASS) return customResult;
         }
         return false;
       });
