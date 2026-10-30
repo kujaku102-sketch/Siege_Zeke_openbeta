@@ -5,7 +5,7 @@ import { createRuntimeReferenceState, planRuntimeReferenceCreation } from '../ga
 import { createRuntimeReferenceTokens } from '../game/runtime/reference-token.js';
 import { createRuntimeSession } from '../game/runtime/session.js';
 import { createLocalRuntimeCoordinator } from './local-runtime-port.js';
-import { createTutorialModeController } from './tutorial-mode-controller.js';
+import { createTutorialModeController, tutorialStateData } from './tutorial-mode-controller.js';
 
 const failure = code => ({ ok: false, error: { code } });
 const nonempty = value => typeof value === 'string' && value.length > 0;
@@ -13,10 +13,11 @@ const nonempty = value => typeof value === 'string' && value.length > 0;
 function exactInput(input) {
   if (input === null || typeof input !== 'object' || Object.getPrototypeOf(input) !== Object.prototype) return null;
   const keys = Reflect.ownKeys(input);
-  if (keys.length !== 2 || keys.some(key => typeof key !== 'string'
-    || !['authority', 'sessionGeneration'].includes(key))) return null;
+  // `tutorialState` is optional: the guide's progress of a tutorial match started from a stored snapshot.
+  if (keys.some(key => typeof key !== 'string' || !['authority', 'sessionGeneration', 'tutorialState'].includes(key))
+    || !['authority', 'sessionGeneration'].every(key => keys.includes(key)) || keys.length > 3) return null;
   const result = {};
-  for (const key of ['authority', 'sessionGeneration']) {
+  for (const key of keys) {
     const descriptor = Object.getOwnPropertyDescriptor(input, key);
     if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) return null;
     result[key] = descriptor.value;
@@ -58,8 +59,12 @@ export function createMatchSessionController(input) {
     || Object.is(config.sessionGeneration, -0)) return failure('INVALID_MATCH_SESSION');
   const validatedAuthority = validateLiveAuthority(config.authority);
   if (!validatedAuthority.ok) return failure('INVALID_MATCH_SESSION');
-  const modePolicy = config.authority.metadata.startOptions.mode === 'tutorial'
-    ? createTutorialModeController(config.authority.metadata.startOptions.tutorialId) : null;
+  const startOptions = config.authority.metadata.startOptions;
+  const tutorialState = Object.hasOwn(config, 'tutorialState')
+    ? (startOptions.mode === 'tutorial' ? tutorialStateData(startOptions.tutorialId, config.tutorialState) : null) : undefined;
+  if (tutorialState === null) return failure('INVALID_MATCH_SESSION');
+  const modePolicy = startOptions.mode === 'tutorial'
+    ? createTutorialModeController(startOptions.tutorialId, tutorialState ?? null) : null;
   const coordinator = createLocalRuntimeCoordinator({
     authority: config.authority, sessionGeneration: config.sessionGeneration, modePolicy
   });
@@ -230,6 +235,11 @@ export function createMatchSessionController(input) {
     tutorial() {
       if (!usable()) return failure('MATCH_SESSION_DISPOSED');
       return modePolicy ? { ok: true, value: modePolicy.presentation() } : failure('UNAVAILABLE_MODE');
+    },
+    // The guide's progress as the five items a stored snapshot keeps (tutorial-mode-controller.js).
+    tutorialState() {
+      if (!usable()) return failure('MATCH_SESSION_DISPOSED');
+      return modePolicy ? { ok: true, value: modePolicy.state() } : failure('UNAVAILABLE_MODE');
     },
     advanceTutorial() {
       if (!usable()) return failure('MATCH_SESSION_DISPOSED');

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNewMatchSessionController } from '../src/adapters/match-session-controller.js';
 import { chooseSimpleAiIntent } from '../src/adapters/simple-ai-policy.js';
-import { createTutorialModeController, TUTORIAL_STEP_GUARDS } from '../src/adapters/tutorial-mode-controller.js';
+import { createTutorialModeController, tutorialStateData, TUTORIAL_STEP_GUARDS } from '../src/adapters/tutorial-mode-controller.js';
 
 function setup() {
   const created = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: {
@@ -103,4 +103,35 @@ test('red step 37: the Junk Parts anywhere but under Atto is refused with the gu
     assert.equal(controller.presentation().flow.error, reason, JSON.stringify(action));
   }
   assert.equal(controller.authorize(query, { type: 'mountCard', cardRef: 'r-STD-078', hostRef: 'r-STD-091' }).ok, true);
+});
+
+test('the guide state goes out as five items and comes back into a new controller', () => {
+  const fresh = createTutorialModeController('blue');
+  const out = fresh.state();
+  assert.deepEqual(Object.keys(out).sort(), ['flow', 'opponentActionPending', 'opponentIndex', 'opponentScript', 'stepActionAccepted']);
+  assert.equal(out.stepActionAccepted, false);
+  assert.equal(tutorialStateData('blue', out) !== null, true);
+  const mid = { ...out, flow: { ...out.flow, index: 10 }, opponentScript: 'sandbag-1', opponentIndex: 1, stepActionAccepted: true, opponentActionPending: true };
+  const restored = createTutorialModeController('blue', mid);
+  assert.deepEqual(restored.state(), mid);
+  assert.equal(restored.presentation().flow.index, 10);
+  assert.equal(restored.presentation().opponentScript, 'sandbag-1');
+  assert.throws(() => createTutorialModeController('blue', { ...mid, opponentIndex: 5 }), /TUTORIAL_STATE_INVALID/);
+});
+
+test('guide state data refuses what does not fit the tutorial', () => {
+  const good = createTutorialModeController('basics').state();
+  assert.notEqual(tutorialStateData('basics', good), null);
+  const bad = change => tutorialStateData('basics', structuredClone(change(structuredClone(good))));
+  assert.equal(tutorialStateData('blue', good), null, 'another tutorial');
+  assert.equal(tutorialStateData('nowhere', good), null);
+  assert.equal(bad(state => { state.extra = 1; return state; }), null);
+  assert.equal(bad(state => { state.flow.index = 999; return state; }), null);
+  assert.equal(bad(state => { state.flow.introIndex = 99; return state; }), null);
+  assert.equal(bad(state => { state.flow.error = 'x'; return state; }), null);
+  assert.equal(bad(state => { state.flow.complete = true; return state; }), null);
+  assert.equal(bad(state => { state.opponentScript = 'nowhere'; return state; }), null);
+  assert.equal(bad(state => { state.opponentScript = 'yellow-pass'; state.opponentIndex = 5; return state; }), null);
+  assert.equal(bad(state => { state.stepActionAccepted = 1; return state; }), null);
+  assert.equal(tutorialStateData('basics', null), null);
 });

@@ -38,12 +38,47 @@ function visibleCards(query) {
   return cards;
 }
 
-export function createTutorialModeController(tutorialId = 'basics') {
+// The guide's own progress, as a snapshot restores it into a new controller. Five items: the flow, the
+// opponent's script and its index, whether the current step's action is already accepted, and whether
+// an opponent action awaits its answer. The accepted action itself is never kept (only whether there is
+// one is read), so no card reference is stored. Returns a copy, or null when it does not fit the tutorial.
+const isIndex = (value, max) => Number.isSafeInteger(value) && value >= 0 && value <= max && !Object.is(value, -0);
+const isPlain = (value, names) => value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype
+  && Reflect.ownKeys(value).length === names.length && names.every(name => Object.hasOwn(value, name));
+function introLength(tutorialId) {
   const flow = createTutorialFlow(tutorialId);
-  let acceptedAction = null;
-  let opponentScript = null;
-  let opponentIndex = 0;
-  let opponentActionPending = false;
+  let length = 0;
+  while (!flow.introComplete) { advanceTutorialIntroduction(flow); length += 1; }
+  return length;
+}
+export function tutorialStateData(tutorialId, state) {
+  const steps = tutorialSteps(tutorialId);
+  if (!steps?.length || !isPlain(state, ['flow', 'opponentScript', 'opponentIndex', 'stepActionAccepted', 'opponentActionPending'])) return null;
+  const { flow } = state;
+  if (!isPlain(flow, Object.keys(createTutorialFlow(tutorialId))) || flow.tutorialId !== tutorialId) return null;
+  const intro = introLength(tutorialId);
+  if (typeof flow.introComplete !== 'boolean' || typeof flow.complete !== 'boolean' || flow.error !== '' || flow.pendingAction !== null) return null;
+  if (!isIndex(flow.introIndex, Math.max(intro - 1, 0)) || !isIndex(flow.index, steps.length)) return null;
+  if (flow.introComplete ? flow.introIndex !== Math.max(intro - 1, 0) : intro === 0) return null;
+  if (flow.complete !== (flow.index >= steps.length - 1) || flow.complete && !flow.introComplete) return null;
+  const script = state.opponentScript === null ? null : TUTORIAL_OPPONENT_SCRIPTS[state.opponentScript] ?? null;
+  if (state.opponentScript !== null && (typeof state.opponentScript !== 'string' || !Object.hasOwn(TUTORIAL_OPPONENT_SCRIPTS, state.opponentScript))) return null;
+  // A finished script is cleared but its index stays where the script ended.
+  const longest = Math.max(...Object.values(TUTORIAL_OPPONENT_SCRIPTS).map(rows => rows.length));
+  if (!isIndex(state.opponentIndex, script?.length ?? longest)) return null;
+  if (typeof state.stepActionAccepted !== 'boolean' || typeof state.opponentActionPending !== 'boolean') return null;
+  return structuredClone(state);
+}
+
+export function createTutorialModeController(tutorialId = 'basics', initial = null) {
+  const flow = createTutorialFlow(tutorialId);
+  const restored = initial === null ? null : tutorialStateData(tutorialId, initial);
+  if (initial !== null && !restored) throw new TypeError('TUTORIAL_STATE_INVALID');
+  if (restored) Object.assign(flow, restored.flow);
+  let stepActionAccepted = restored?.stepActionAccepted ?? false;
+  let opponentScript = restored?.opponentScript ?? null;
+  let opponentIndex = restored?.opponentIndex ?? 0;
+  let opponentActionPending = restored?.opponentActionPending ?? false;
   let disposed = false;
   const stepFinished = () => {
     const step = currentTutorialStep(flow);
@@ -51,7 +86,7 @@ export function createTutorialModeController(tutorialId = 'basics') {
     if (step.after) { opponentScript = step.after; opponentIndex = 0; }
     flow.index += 1;
     flow.complete = flow.index >= tutorialSteps(tutorialId).length - 1;
-    acceptedAction = null;
+    stepActionAccepted = false;
   };
   // Every tutorial ends by the player's win: once the result is locked for the player and nothing is
   // left to answer, the guide moves to the closing line (the last step) and the tutorial is complete.
@@ -59,13 +94,14 @@ export function createTutorialModeController(tutorialId = 'basics') {
     flow.index = tutorialSteps(tutorialId).length - 1;
     flow.complete = true;
     flow.error = '';
-    acceptedAction = null;
+    stepActionAccepted = false;
     opponentScript = null;
   };
   const guard = () => TUTORIAL_STEP_GUARDS[tutorialId]?.[flow.index] ?? null;
   const refuse = (code, reason) => { flow.error = reason ?? ''; return failure(code); };
   return Object.freeze({
     presentation() { return structuredClone({ flow, presentation: currentTutorialPresentation(flow), opponentScript, opponentIndex }); },
+    state() { return structuredClone({ flow: { ...flow, error: '' }, opponentScript, opponentIndex, stepActionAccepted, opponentActionPending }); },
     advance() {
       if (disposed) return failure('TUTORIAL_DISPOSED');
       if (!flow.introComplete) advanceTutorialIntroduction(flow);
@@ -113,7 +149,7 @@ export function createTutorialModeController(tutorialId = 'basics') {
         return expected && !opponentActionPending && matches(expected, semantic)
           ? { ok: true, value: null } : failure('TUTORIAL_ACTION_NOT_EXPECTED');
       }
-      if (!flow.introComplete || flow.complete || acceptedAction || opponentScript) return failure('TUTORIAL_ACTION_NOT_EXPECTED');
+      if (!flow.introComplete || flow.complete || stepActionAccepted || opponentScript) return failure('TUTORIAL_ACTION_NOT_EXPECTED');
       const rule = guard(), expect = currentTutorialStep(flow).expect;
       // The step's own card played elsewhere (the Junk Parts alone in the back) is told the same reason.
       if (!matches(expect, semantic)) return rule?.action && semantic.cardId === expect.cardId && semantic.type === expect.type
@@ -130,15 +166,15 @@ export function createTutorialModeController(tutorialId = 'basics') {
       // A choice is the step's own action only when the step expects the answer; a step that
       // leavesChoice is done with the move itself and lets the guide talk over the open choice.
       if (query.status.viewerSeat === playerSeat && (!['answerChoice', 'declineChoice'].includes(action.type) || step?.expect?.type === 'answerChoice')) {
-        acceptedAction = structuredClone(action);
+        stepActionAccepted = true;
       }
-      if (acceptedAction && (query.requiredInput === null || step?.leavesChoice) && query.status.progress !== 'resultLocked') stepFinished();
+      if (stepActionAccepted && (query.requiredInput === null || step?.leavesChoice) && query.status.progress !== 'resultLocked') stepFinished();
       if (opponentActionPending && query.requiredInput === null) {
         opponentIndex += 1;
         opponentActionPending = false;
       }
       if (opponentScript && query.status.activeSeat === playerSeat && query.requiredInput === null) opponentScript = null;
     },
-    dispose() { disposed = true; acceptedAction = null; opponentScript = null; }
+    dispose() { disposed = true; stepActionAccepted = false; opponentScript = null; }
   });
 }
