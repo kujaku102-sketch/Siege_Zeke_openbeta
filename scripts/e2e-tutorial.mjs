@@ -264,7 +264,8 @@ const next = async page => {await readPages(page);await clickVisible(page,'[data
 async function putAway(page) {
   const press=await page.evaluate(() => Boolean(window.__SIMPLE_ZEKE_E2E__.tutorial().value?.presentation?.focus?.some(focus => focus.kind==='button')));
   if (!await page.locator('.live-guide').count() || await page.locator(press ? '.live-guide [data-runtime-guide-next]' : '.live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next],[data-runtime-tutorial-finish])').count()) return;
-  if (!await page.evaluate(() => ['board','hand','console'].every(name => document.querySelector(`[data-live-region="${name}"]`)?.inert))) throw new Error('the match takes input while the guide speaks');
+  const locked=await guideLocks(page);
+  if (!locked.gear || !locked.others) throw new Error('the match takes input while the guide speaks: '+JSON.stringify(locked));
   await clickVisible(page,'.live-guide-text');
   await page.waitForFunction(() => !document.querySelector('.live-guide'),null,{timeout:3000});
   if (await page.evaluate(() => document.querySelector('[data-live-region="board"]')?.inert)) throw new Error('the match still waits with the guide put away');
@@ -276,6 +277,36 @@ async function putAway(page) {
       placed:Boolean(rect) && rect.top>=0 && rect.left>=0 && rect.right<=innerWidth && rect.bottom<=back};});
   if (hint.wants && (!/[ぁ-ゖ]う$/.test(hint.text) || !hint.placed)) throw new Error('the hint is not shown behind the opponent back row: '+JSON.stringify(hint));
   if (!hint.wants && hint.text) throw new Error('a hint on a step that wants no move: '+hint.text);
+}
+// While the guide speaks the match waits, all but the gear (文豪 「歯車押せるようにしよう」, 2026-10-30): the board, the hand
+// and the console's other controls are inert, the gear is not.
+const guideLocks = page => page.evaluate(() => {const gear=document.querySelector('[data-runtime-menu]');
+  return {gear:Boolean(gear) && !gear.closest('[inert]'),others:['board','hand'].every(name => document.querySelector(`[data-live-region="${name}"]`)?.inert)
+    && [...document.querySelectorAll('[data-live-region="console"] :is(button,[data-wire-hit])')].every(node => node===gear || Boolean(node.closest('[inert]')))};});
+// The gear pressed while the guide speaks opens the menu; closed again, the line is where it was and the match still waits.
+async function gearWhileSpeaking(page,label) {
+  const state=() => page.evaluate(() => {const e2e=window.__SIMPLE_ZEKE_E2E__,flow=e2e.tutorial().value.flow,guide=document.querySelector('.live-guide');
+    return JSON.stringify({step:flow.index,intro:flow.introIndex,guide:guide?.dataset.tutorialStep ?? null,page:guide?.dataset.guidePage ?? null,revision:e2e.query().value.status.revision});});
+  const before=await state(),locked=await guideLocks(page);
+  if (!JSON.parse(before).guide) throw new Error('the guide is not speaking at '+label);
+  if (!locked.gear || !locked.others) throw new Error('while the guide speaks only the gear takes input at '+label+': '+JSON.stringify(locked));
+  await clickVisible(page,'[data-runtime-menu]');
+  await page.locator('.runtime-host-options').waitFor({state:'visible',timeout:3000}).catch(() => {throw new Error('the gear did not open the menu at '+label);});
+  if (await state()!==before) throw new Error('opening the menu moved the guide at '+label);
+  await clickVisible(page,'.runtime-host-options [data-live="close-options"]');
+  await page.locator('.runtime-host-options').waitFor({state:'detached',timeout:3000});
+  const after=await state(),relocked=await guideLocks(page);
+  if (after!==before) throw new Error('the menu moved the guide at '+label+': '+before+' -> '+after);
+  if (!relocked.gear || !relocked.others) throw new Error('after the menu the match takes input at '+label+': '+JSON.stringify(relocked));
+}
+// Left from the menu while the guide speaks: back to the title, the match gone, the tutorial not marked done.
+async function leaveFromMenu(page,id) {
+  await clickVisible(page,'[data-runtime-menu]');
+  await clickVisible(page,'.runtime-host-options [data-live="home"]');
+  await page.locator('.r2-entry').waitFor({state:'visible',timeout:5000}).catch(() => {throw new Error(id+': leaving from the menu did not reach the title');});
+  const state=await page.evaluate(() => ({scope:window.__SIMPLE_ZEKE_E2E__.scope(),board:Boolean(document.querySelector('[data-live-region="board"]')),
+    guide:Boolean(document.querySelector('.live-guide')),saved:JSON.parse(localStorage.getItem('sz-tutorial-done') ?? '[]')}));
+  if (state.scope!==null || state.board || state.guide || state.saved.includes(id)) throw new Error(id+': after leaving from the menu: '+JSON.stringify(state));
 }
 // While the guide speaks a real click (a tap on a phone) on what it does not cover changes nothing: cards, popup and
 // pick buttons, slots, the user, the hand button (a phone tap on a card fell on a popup's button left open).
@@ -548,7 +579,9 @@ async function run(page,id) {
     // The author's red script, one speech bubble per "‐" line (44 steps): swordsman, Atto (QA), Glenn for the
     // red symbol, Junk Parts under Atto vs the Guardman.
     const talk=async (from,to) => {for (let index=from;index<=to;index+=1) {await step(page,id,index);await next(page);}};
-    await talk(1,10);
+    await talk(1,2);
+    await step(page,id,3);await gearWhileSpeaking(page,'basics 3');await next(page);
+    await talk(4,10);
     await step(page,id,11);await action(page,'executeCard','STD-021',{zone:'front'});
     await talk(12,12);
     await step(page,id,13);await tryBlockedPlay(page,id,'STD-091');
@@ -592,10 +625,10 @@ async function run(page,id) {
     // The author's blue script, one 「」 a step (28 steps): Nami for the blue symbol, Rutile's access, Frau passing Merc
     // by Hacking, Rutile taken by Merc's Security, the Security Wall's Encryption, and the Assault Program: STR 5 -> 1 -> 0.
     const talk=async (from,to) => {for (let index=from;index<=to;index+=1) {await step(page,id,index);await next(page);}};
-    await step(page,id,1);await action(page,'install','STD-117');
+    await step(page,id,1);await gearWhileSpeaking(page,'blue 1, a move asked');await action(page,'install','STD-117');
     await step(page,id,2);await action(page,'executeCard','STD-107',{zone:'front'});
     // Rutile's access stays open while the guide explains the Login: it is not answered until its own line.
-    await step(page,id,3);await tapWhileSpeaking(page,'blue 3, the access open');await next(page);
+    await step(page,id,3);await tapWhileSpeaking(page,'blue 3, the access open');await gearWhileSpeaking(page,'blue 3, the access open');await next(page);
     await talk(4,5);
     await step(page,id,6);await accessPick(page);
     await step(page,id,7);await action(page,'executeCard','STD-109',{zone:'front'});
@@ -666,6 +699,15 @@ try {
       if ((await read(page)).value.status.matchId!==scope.matchId) throw new Error(id+': skip left the match');
       await completionReturnsToList(page,id);
     }
+    // The tutorial can be left from the menu at any time, the guide speaking: red in its greeting, blue on its first line.
+    for (const id of ['basics','blue']) {
+      await page.evaluate(() => localStorage.removeItem('sz-tutorial-done'));
+      await page.evaluate(id => window.__SIMPLE_ZEKE_E2E__.start('tutorial',id,1),id);
+      await page.locator('.live-guide').waitFor({state:'visible',timeout:5000});
+      await readPages(page);
+      await gearWhileSpeaking(page,id+' opening');
+      await leaveFromMenu(page,id);
+    }
     await context.close();
   }
   if (errors.length) throw new Error('tutorial page errors: '+errors.join(' | '));
@@ -673,7 +715,7 @@ try {
   const unknown=covered.filter(hit => !knownCovered(hit)),known=[...new Set(covered.filter(knownCovered).map(hit => hit.line.replace(/ \d+px²$/,'')))];
   if (screensMode && unknown.length) throw new Error('the guide covers what can be pressed ('+unknown.length+'):\n'+[...new Set(unknown.map(hit => hit.line))].join('\n'));
   if (screensMode && pageIssues.length) throw new Error('guide pages ('+pageIssues.length+'):\n'+[...new Set(pageIssues)].join('\n'));
-  console.log(JSON.stringify({suite:'tutorial',runs,completionReturnsToList:true,offScriptRefused:true,skipToWin:true,requiredBackPreserves:true,
+  console.log(JSON.stringify({suite:'tutorial',runs,completionReturnsToList:true,offScriptRefused:true,skipToWin:true,menuWhileSpeaking:true,requiredBackPreserves:true,
     guideCovers:screensMode ? {unknown:0,known:known.length} : {counted:new Set(covered.map(hit => hit.line)).size},
     leftOpenCovered:[...new Set(leftOpen.map(hit => hit.line.replace(/ \d+px²$/,'')))],guidePages:screensMode ? {issues:0} : {issues:[...new Set(pageIssues)]},
     frameMax:Math.round(frameMax*1000)/10+'%',keyboardMode,screensMode,ok:true}));

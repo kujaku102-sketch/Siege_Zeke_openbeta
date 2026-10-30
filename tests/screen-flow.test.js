@@ -268,12 +268,31 @@ test('tutorial try: the blocked play moves the step on and puts its reason in th
   assert.ok(main.includes("onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}"));
 });
 
+test('while the guide speaks the gear stays live and all else in its region waits; put away, nothing waits', async () => {
+  const { lockRegion } = await import('../src/ui-refresh/runtime-match-surface.js');
+  const node = (name, children = []) => { const self = { name, inert: false, parentElement: null, children };
+    for (const child of children) child.parentElement = self;
+    const all = () => children.flatMap(child => [child, ...child.all()]);
+    return Object.assign(self, { all, querySelector: selector => selector === '[data-runtime-menu]' ? all().find(item => item.name === 'gear') ?? null : null,
+      querySelectorAll: selector => selector === '[inert]' ? all().filter(item => item.inert) : [] }); };
+  const gear = node('gear'), log = node('log'), turn = node('turn', [log]), hud = node('hud', [gear, turn]), meter = node('meter');
+  const console = node('console', [hud, meter]);
+  lockRegion(console, true);
+  assert.deepEqual([console, hud, gear].map(item => item.inert), [false, false, false]);
+  assert.deepEqual([turn, meter].map(item => item.inert), [true, true]);
+  lockRegion(console, false);
+  assert.ok([console, hud, gear, turn, log, meter].every(item => !item.inert));
+  const board = node('board', [node('slot')]);
+  lockRegion(board, true);
+  assert.equal(board.inert, true, 'a region without the gear waits whole');
+});
+
 test('guide pages: one per 「」, each growing the frame as it needs on this screen; turned by buttons and arrows; earlier pages lock the match and hide highlights', async () => {
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
   assert.ok(surface.includes("guidePaging = { key, pages: splitGuidePages(presentation.text).map(page => ({ ...page, grow: Math.max(0, counter.frameHeight(page.text) - base) })) };"));
   assert.ok(surface.includes("const key = `${presentation.text}\\u0000${counter.width}\\u0000${viewport.height}\\u0000${fontEpoch}`;"), 'measured again when the screen or the fonts change');
   assert.ok(surface.includes('return pages ? { page: pages[guidePageShown.index]?.grow ?? 0, step: Math.max(0, ...pages.map(page => page.grow ?? 0)) } : { page: 0, step: 0 };'), 'the page shown, and the step\'s tallest page');
-  assert.ok(surface.includes("for (const name of ['board', 'console', 'hand', 'hand-toggle', 'popup', 'selection', 'detail', 'drawer']) { const host = root.querySelector(`[data-live-region=\"${name}\"]`); if (host) host.inert = reading; }"));
+  assert.ok(surface.includes("for (const name of ['board', 'console', 'hand', 'hand-toggle', 'popup', 'selection', 'detail', 'drawer']) { const host = root.querySelector(`[data-live-region=\"${name}\"]`); if (host) lockRegion(host, reading); }"));
   assert.ok(surface.includes("if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && event.target.closest?.('.live-guide')) {"));
   assert.ok(surface.includes("if (focused) (root.querySelector(delta < 0 && index > 0 ? '.live-guide [data-runtime-guide-prev]' : forward) ?? root.querySelector(forward))?.focus();"), 'focus follows the button pressed, [次へ] on the next page');
   const layout = await readSource('../src/ui-refresh/surface-layout.js');

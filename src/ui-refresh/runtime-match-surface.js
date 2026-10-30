@@ -27,6 +27,17 @@ import { syncTutorialHint } from './wireframe/board-view.js';
 import { currentTutorialHint } from '../data/tutorial-hint.js';
 import { TUTORIAL_STEP_GUARDS } from '../adapters/tutorial-mode-controller.js';
 
+// While the guide speaks a region waits, all but the gear: the menu, and leaving the tutorial from it, stay at
+// hand at any time (文豪, 2026-10-30). Everything beside the gear's way up to the region is locked instead.
+const GUIDE_LOCK_KEEP = '[data-runtime-menu]';
+export function lockRegion(host, locked) {
+  for (const node of host.querySelectorAll('[inert]')) node.inert = false;
+  const keep = locked ? host.querySelector(GUIDE_LOCK_KEEP) : null;
+  host.inert = locked && !keep;
+  for (let node = keep; node && node !== host; node = node.parentElement)
+    for (const sibling of node.parentElement.children) if (sibling !== node) sibling.inert = true;
+}
+
 // One delegated input surface, one session. This module cannot reach the engine
 // and has no legacy fallback. Host owns title/deck/settings and session changes.
 // It wires the parts together; each surface-*.js module owns one concern.
@@ -225,7 +236,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       // While the guide speaks the match waits: past its pages, and on a move's step until a tap puts it away. A popup,
       // pick or detail left open when it comes back waits too (a phone tap on a card fell on a popup's button).
       const reading = Boolean(tutorial.ok && tutorial.value.presentation && !tutorial.value.away);
-      for (const name of ['board', 'console', 'hand', 'hand-toggle', 'popup', 'selection', 'detail', 'drawer']) { const host = root.querySelector(`[data-live-region="${name}"]`); if (host) host.inert = reading; }
+      for (const name of ['board', 'console', 'hand', 'hand-toggle', 'popup', 'selection', 'detail', 'drawer']) { const host = root.querySelector(`[data-live-region="${name}"]`); if (host) lockRegion(host, reading); }
       root.querySelector('.r2-runtime-view')?.classList.toggle('tutorial-reading', reading);
       // Compat render mode: the guide drops its backdrop blur (heavy on WebKit) and keeps an opaque face.
       root.querySelector('.r2-runtime-view')?.classList.toggle('live-low-gpu', lowGpu);
