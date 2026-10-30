@@ -2362,6 +2362,9 @@ test("Neutron access, keyword grant, resident and Proxy effects change game stat
   const babel = player.hand.find((card) => card.id === "STD-118");
   playCard(state, "player", babel.uid, { zone: "back" });
   activateScript(state, "player", babel.uid);
+  // the Grasshopper in hand asks about the Script activation; 1.2.1 keeps the next Sp in flight while any choice is open
+  assert.equal(state.pending?.request?.continuation?.type, "std179-place");
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "配置しない", selected: [] }), true);
   const returnedWall = player.hand.find((card) => card.id === "STD-110");
   assert.equal(playCard(state, "player", returnedWall.uid), true);
   assert.ok(player.hand.some((card) => card.uid === returnedWall.uid));

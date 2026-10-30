@@ -1,88 +1,67 @@
-import { std085LayerPaySelection } from "./std_085.js";
-import { std097BattleChoiceSelection, std097BattlePaySelection } from "./std_097.js";
-import { std099ReplacementMaterialsSelection } from "./std_099.js";
-import { std102PlaceSelection } from "./std_102.js";
-import { activateStd105Selection } from "./std_105.js";
-import { technologyHorizonSelection } from "./std_122.js";
-import { hahanamoriStandbySelection } from "./std_136.js";
-import { std140UpdateChoiceSelection, std140ProtectSelection } from "./std_140.js";
-import { std141ChoiceSelection, std141TurnEndSourceSelection, std141AccessSelection, std141AccessDestinationSelection, std141PlaceYellowObSelection } from "./std_141.js";
-import { activateStd142Effect1Selection, std142TurnEndChoiceSelection, std142DestroySelection, std142SalvageSelection } from "./std_142.js";
-import { std157PlaceSelection } from "./std_157.js";
-import { std157DestroySelection } from "./std_157_162.js";
-import { std162SalvageSelection } from "./std_162.js";
-import { std163DestroySelection, std163ChoiceSelection, std163DamageSelection } from "./std_163.js";
-import { std164ChoiceSelection, std164PoisonSelection } from "./std_164.js";
-import { std165LoginSelection } from "./std_165.js";
-import { std179PlaceSelection } from "./std_179.js";
-import { std182AttackScriptSelection } from "./std_182.js";
-import { std184PlaceObSelection } from "./std_184.js";
-import { std185DefenderSubstituteSelection, std185AttackerSubstituteSelection } from "./std_185.js";
-import { activateStd203ResponseSelection } from "./std_203.js";
-import { std207RevealSelection } from "./std_207.js";
-import { std212RespawnCountSelection } from "./std_212.js";
-import { std214AttackCostSelection } from "./std_214.js";
-import { std223AmbushChoiceSelection, std223AmbushTargetSelection } from "./std_223.js";
-import { std226CompressSelection } from "./std_226.js";
-import { playStd229Selection } from "./std_229.js";
-import { std230AmbushChoiceSelection, std230InstallHandSelection } from "./std_230.js";
-import { sztb094CounterSelectSelection, sztb094CounterTargetSelection } from "./sztb_094.js";
-import { sztb095SpReplacementSelection } from "./sztb_095.js";
-import { sztb097ChoiceSelection, sztb097AccessSelection, sztb097AtkSumSelection, sztb097DestroySelection } from "./sztb_097.js";
-import { sztbJacketPlaceSelection } from "./sztb_jacket.js";
+import { std003ResolveDeclaredScript } from "./std_003.js";
 import { std011GetEffectTargets } from "./std_011.js";
+import { std018NotifyCardExecuted } from "./std_018.js";
+import { std019NotifyCardExecuted } from "./std_019.js";
 import { std034ResponseCardApplicable } from "./std_034.js";
 import { std047ResponseCardApplicable } from "./std_047.js";
 import { std048ActivateCardEffectCore } from "./std_048.js";
 import { std049GetEffectActivationTargets } from "./std_049.js";
-import { std085AttackCore5 } from "./std_085.js";
-import { std086PlayCardCore2 } from "./std_086.js";
+import { std085AttackCore5, std085LayerPaySelection } from "./std_085.js";
 import { std095AttackCore6 } from "./std_095.js";
 import { std096AttackCore, std096ResolveCardSelectionCore } from "./std_096.js";
+import { std097BattleChoiceSelection, std097BattlePaySelection } from "./std_097.js";
+import { std099ReplacementMaterialsSelection } from "./std_099.js";
+import { std102PlaceSelection } from "./std_102.js";
 import { std104ResolveSpell } from "./std_104.js";
-import { std105ActivateScriptCore, std105ActivateScriptCore2 } from "./std_105.js";
-import { std106AttackCore4, std106ActivateCardEffectCore } from "./std_106.js";
+import { activateStd105Selection, std105ActivateScriptCore, std105ActivateScriptCore2 } from "./std_105.js";
+import { std106ActivateCardEffectCore, std106AttackCore4 } from "./std_106.js";
 import { std121ActivateScriptCore } from "./std_121.js";
-import { std122ResolveSpell } from "./std_122.js";
-import { std124ResolveLogin, std124ActivateCardEffectCore } from "./std_124.js";
-import { std136QueuePostAttackSelection } from "./std_136.js";
-import { std140ActivateCardEffectCore } from "./std_140.js";
-import { std142ActivateScriptCore, std142ActivateScriptCore2 } from "./std_142.js";
-import { std157ResolveLogin, std157GetEffectActivationTargets2, std157ActivateCardEffectCore } from "./std_157.js";
-import { std160ResolveLogin, std160ActivateCardEffectCore } from "./std_160.js";
-import { std162ResolveSpell } from "./std_162.js";
-import { std163ResolveSpell } from "./std_163.js";
-import { std167ResponseCardApplicable, std167ResolveDeclaredResponse } from "./std_167.js";
-import { std169GetEffectActivationTargets, std169ActivateCardEffectCore } from "./std_169.js";
-import { std182AttackCore2 } from "./std_182.js";
-import { std184PlayCardCore } from "./std_184.js";
+import { std122ResolveSpell, technologyHorizonSelection } from "./std_122.js";
+import { std124ActivateCardEffectCore, std124ResolveLogin } from "./std_124.js";
+import { hahanamoriStandbySelection, std136QueuePostAttackSelection } from "./std_136.js";
+import { std140ActivateCardEffectCore, std140ProtectSelection, std140UpdateChoiceSelection } from "./std_140.js";
+import { std141AccessDestinationSelection, std141AccessSelection, std141ChoiceSelection, std141PlaceYellowObSelection, std141TurnEndSourceSelection } from "./std_141.js";
+import { activateStd142Effect1Selection, std142ActivateScriptCore, std142ActivateScriptCore2, std142DestroySelection, std142SalvageSelection, std142TurnEndChoiceSelection } from "./std_142.js";
+import { std148ResolveDeclaredScript } from "./std_148.js";
+import { std157DestroySelection } from "./std_157_162.js";
+import { std157ActivateCardEffectCore, std157GetEffectActivationTargets2, std157PlaceSelection, std157ResolveLogin } from "./std_157.js";
+import { std160ActivateCardEffectCore, std160ResolveLogin } from "./std_160.js";
+import { std162ResolveSpell, std162SalvageSelection } from "./std_162.js";
+import { std163ChoiceSelection, std163DamageSelection, std163DestroySelection, std163ResolveSpell } from "./std_163.js";
+import { std164ChoiceSelection, std164PoisonSelection } from "./std_164.js";
+import { std165DrainIndependentEffects, std165LoginSelection } from "./std_165.js";
+import { std167ResolveDeclaredResponse, std167ResponseCardApplicable } from "./std_167.js";
+import { std169ActivateCardEffectCore, std169GetEffectActivationTargets } from "./std_169.js";
+import { std179PlaceSelection } from "./std_179.js";
+import { std182AttackCore2, std182AttackScriptSelection } from "./std_182.js";
+import { std184PlaceObSelection, std184PlayCardCore } from "./std_184.js";
+import { std185AttackerSubstituteSelection, std185DefenderSubstituteSelection } from "./std_185.js";
 import { std192GetEffectActivationTargets2 } from "./std_192.js";
 import { std196GetEffectActivationTargets2 } from "./std_196.js";
-import { std203NormalSpellSelection, std203ResolveSpell, std203ResponseCardApplicable } from "./std_203.js";
+import { activateStd203ResponseSelection, std203NormalSpellSelection, std203ResolveSpell, std203ResponseCardApplicable } from "./std_203.js";
 import { std204ActivateScriptCore } from "./std_204.js";
-import { std207ResolveSpell } from "./std_207.js";
+import { std207ResolveSpell, std207RevealSelection } from "./std_207.js";
 import { std211NormalSpellSelection, std211PlayCardCore4, std211ResolveSpell } from "./std_211.js";
-import { std212ResolveSpell } from "./std_212.js";
-import { std214AttackCore3 } from "./std_214.js";
+import { std212ResolveSpell, std212RespawnCountSelection } from "./std_212.js";
+import { std214AttackCore3, std214AttackCostSelection } from "./std_214.js";
+import { std217DrainIndependentEffects } from "./std_217.js";
 import { std220PlayCardCore3 } from "./std_220.js";
+import { std223AmbushChoiceSelection, std223AmbushTargetSelection } from "./std_223.js";
 import { std224InstallCard } from "./std_224.js";
-import { std227AttackCore, std227ResolveLogin, std227ActivateCardEffectCore } from "./std_227.js";
+import { std226CompressSelection } from "./std_226.js";
+import { std227ActivateCardEffectCore, std227AttackCore, std227ResolveLogin } from "./std_227.js";
 import { std228ActivateCardEffectCore } from "./std_228.js";
-import { std229PlayCardCore, std229ResolveSpell } from "./std_229.js";
+import { playStd229Selection, std229PlayCardCore, std229ResolveSpell } from "./std_229.js";
+import { std230AmbushChoiceSelection, std230InstallHandSelection } from "./std_230.js";
 import { std231ActivateScriptCore } from "./std_231.js";
 import { std237ActivateCardEffectCore } from "./std_237.js";
 import { std238ResolveCardSelectionCore } from "./std_238.js";
-import { sztb094ResolveLogin2 } from "./sztb_094.js";
-import { sztb096GetEffectTargets } from "./sztb_096.js";
-import { sztb097ResolveSpell } from "./sztb_097.js";
+import { sztb094CounterDrainIndependentEffects, sztb094CounterSelectSelection, sztb094CounterTargetSelection, sztb094ResolveLogin2 } from "./sztb_094.js";
+import { sztb095SpReplacementSelection } from "./sztb_095.js";
+import { sztb096GetEffectTargets, sztb096SpellCleanupExtra } from "./sztb_096.js";
+import { sztb097AccessSelection, sztb097AtkSumSelection, sztb097ChoiceSelection, sztb097DestroySelection, sztb097ResolveSpell } from "./sztb_097.js";
 import { sztb098ResolveSpell } from "./sztb_098.js";
-import { std003ResolveDeclaredScript } from "./std_003.js";
-import { std018NotifyCardExecuted } from "./std_018.js";
-import { std019NotifyCardExecuted } from "./std_019.js";
-import { std148ResolveDeclaredScript } from "./std_148.js";
-import { std165DrainIndependentEffects } from "./std_165.js";
-import { std217DrainIndependentEffects } from "./std_217.js";
-import { sztb094CounterDrainIndependentEffects } from "./sztb_094.js";
+import { sztbJacketPlaceSelection } from "./sztb_jacket.js";
 
 // A handler returns PASS when it did not take over: the caller continues as if the branch had not matched.
 export const PASS = Symbol("custom-effect-pass");
@@ -209,15 +188,13 @@ export const CUSTOM_PLAY_CARD_CORE = Object.freeze({
   "STD-184": std184PlayCardCore
 });
 
-// core/play.js: card id -> handler
-export const CUSTOM_PLAY_CARD_CORE_2 = Object.freeze({
+// core/play.js: card id -> extra fields of state.deferredSpellCleanup (what the Sp still has to do before it goes to the trash)
+export const CUSTOM_SPELL_CLEANUP_EXTRA = Object.freeze({
   __proto__: null,
-  "STD-086": std086PlayCardCore2,
-  "STD-211": std086PlayCardCore2,
-  "SZTB-096": std086PlayCardCore2,
-  "SZTB-097": std086PlayCardCore2,
-  "SZTB-098": std086PlayCardCore2,
-  "SZTB-099": std086PlayCardCore2
+  "SZTB-096": sztb096SpellCleanupExtra,
+  "SZTB-097": sztb096SpellCleanupExtra,
+  "SZTB-098": sztb096SpellCleanupExtra,
+  "SZTB-099": sztb096SpellCleanupExtra
 });
 
 // core/play.js: card id -> handler

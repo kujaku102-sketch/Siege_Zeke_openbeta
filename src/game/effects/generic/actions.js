@@ -601,8 +601,8 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
         emitRegistryInstalled(state, playerId, card, source.name);
       }
     } else if (action.type === "move_event_cards" && action.destination === "ban") {
-      banGeneratedCards(state, runtime.records?.eventCardUids ?? [], source.name);
-      if (action.recordAs) runtime.records[action.recordAs] = moved.length;
+      const moved = banGeneratedCards(state, runtime.records?.eventCardUids ?? [], source.name);
+      if (action.recordAs) runtime.records[action.recordAs] = moved;
     } else if (action.type === "move_all" && action.source === "recorded_player_trash" && action.destination === "recorded_player_deck") {
       const target = state.players[runtime.records?.[action.playerRecord]];
       if (!target) return false;

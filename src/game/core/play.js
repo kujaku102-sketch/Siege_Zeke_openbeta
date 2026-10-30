@@ -12,7 +12,7 @@ import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { EVENT_CONTEXT_REQUIRED_IF_IDS, NORMAL_IF_SCRIPT_IDS, openScriptActivationWindow } from "./scripts.js";
 import { addLog, cardTraits, fail, findCard, isArmsBandOb, newActionBlock, otherPlayer, provisional } from "./shared.js";
 import { drainTriggerQueue, emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
-import { CUSTOM_ACTIVATE_CARD_EFFECT_CORE, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2, CUSTOM_GET_EFFECT_TARGETS, CUSTOM_INSTALL_CARD, CUSTOM_NORMAL_SPELL_SELECTION, CUSTOM_NOTIFY_CARD_EXECUTED, CUSTOM_PLAY_CARD_CORE, CUSTOM_PLAY_CARD_CORE_2, CUSTOM_PLAY_CARD_CORE_3, CUSTOM_PLAY_CARD_CORE_4, CUSTOM_RESOLVE_LOGIN, CUSTOM_RESOLVE_LOGIN_2, CUSTOM_RESOLVE_SPELL, PASS } from "../effects/custom/index.js";
+import { CUSTOM_ACTIVATE_CARD_EFFECT_CORE, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2, CUSTOM_GET_EFFECT_TARGETS, CUSTOM_INSTALL_CARD, CUSTOM_NORMAL_SPELL_SELECTION, CUSTOM_NOTIFY_CARD_EXECUTED, CUSTOM_PLAY_CARD_CORE, CUSTOM_PLAY_CARD_CORE_3, CUSTOM_PLAY_CARD_CORE_4, CUSTOM_RESOLVE_LOGIN, CUSTOM_RESOLVE_LOGIN_2, CUSTOM_RESOLVE_SPELL, CUSTOM_SPELL_CLEANUP_EXTRA, PASS } from "../effects/custom/index.js";
 import { continueStd211DestructionBatch } from "../effects/custom/std_211.js";
 import { executeCardRuntimeSpec, executeRuntimeActions, runtimeActionFeasible } from "../effects/generic/actions.js";
 import { STD121_PLACEMENT_PERMIT, consumeSelectedSourceLayers, executionCost, magazineExecutionCandidates, ownLayerEntries, placementCostCandidates } from "../effects/generic/cost.js";
@@ -511,14 +511,14 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
   }
 
   if (card.category === "Sp") {
-    const customPlayCardCore2 = CUSTOM_PLAY_CARD_CORE_2[card.id];
-    if (customPlayCardCore2) customPlayCardCore2({ state, playerId, card, zone, placementCause, placementSource, targetUid, targetUids, selectionScope });
-    else {
-      resolveEffect(state, () => resolveSpell(state, playerId, card, targetUid, { targetUids, selectionScope }));
-      moveCardToTrash(state, playerId, card, card.name);
-      notifyCardExecuted(state, playerId, card);
-      emitCardPlacement(state, playerId, card, zone, placementCause, placementSource);
-    }
+    // 1.2.1: the Sp goes to the trash only after its whole text and every choice it needs are finished.
+    // Until then it stays in flight as state.deferredSpellCleanup (continueDeferredSpellCleanup finishes it).
+    const spellCleanupExtra = CUSTOM_SPELL_CLEANUP_EXTRA[card.id];
+    state.deferredSpellCleanup = { playerId, card, zone, placementCause, placementSource, ...(spellCleanupExtra ? spellCleanupExtra({ card }) : {}) };
+    resolveEffect(state, () => {
+      resolveSpell(state, playerId, card, targetUid, { targetUids, selectionScope });
+      continueDeferredSpellCleanup(state);
+    });
     return true;
   }
 
@@ -615,7 +615,7 @@ export function notifyCardExecuted(state, executingPlayerId, executedCard, { fir
   const pluginIndex = owner.registry.findIndex((card) => card.id === "STD-224" && card.pluginValue === Number(executedCard.cost));
   if (pluginIndex >= 0 && executedCard.category !== "Sp") {
     const [plugin] = owner.registry.splice(pluginIndex, 1);
-    moveCardToTrash(state, plugin.owner ?? ownerId, plugin, plugin.name);
+    moveCardToTrash(state, plugin.owner ?? residentOwnerId, plugin, plugin.name);
     const location = findCard(state, executedCard.uid);
     if (location && ["front", "back"].includes(location.zoneName)) destroyCard(state, executingPlayerId, executedCard.uid, { source: `P-in（${plugin.name}）`, suppressReplacement: true });
     addLog(state, `P-in（${plugin.name}）：メモリ${plugin.pluginValue}を検知し、Pluginと実行カードを破壊。`, "effect");

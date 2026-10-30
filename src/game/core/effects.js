@@ -4,6 +4,7 @@ import { mandatoryStateCheckSpecsFor } from "../continuous-effect-specs.js";
 import { hasKeyword } from "../effect-compiler.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { cardCurrentStr, continuousEffectConditionMatches } from "./battle.js";
+import { continueDeferredSpellCleanup } from "./play.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { resolveDeclaredResponse, startNextQueuedResponse } from "./response.js";
 import { DECLARED_IF_SCRIPT_IDS } from "./scripts.js";
@@ -25,6 +26,7 @@ export function resolveEffect(state, resolver) {
   } finally {
     state.effectDepth -= 1;
     if (state.effectDepth === 0) {
+      continueDeferredSpellCleanup(state);
       resolveMandatoryStateChecks(state);
       // A pending/prompt is an internal choice only when it was opened by this
       // resolution. Queued triggers are intentionally *not* a completion gate.

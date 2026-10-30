@@ -1,7 +1,6 @@
 import { CARD_LIBRARY } from "../../../data/cards.js";
 import { cardRuntimeSpec } from "../../card-runtime-specs.js";
-import { resolveEffect, runEffectEntry } from "../../core/effects.js";
-import { continueDeferredSpellCleanup, resolveSpell } from "../../core/play.js";
+import { runEffectEntry } from "../../core/effects.js";
 import { executeRuntimeActions } from "../generic/actions.js";
 import { resolveCardSelection } from "../generic/selection.js";
 
@@ -23,15 +22,4 @@ export function resolveLuckyShotAdditional(state, playerId, targetUid) {
     selection.afterActions,
     { targetUid, targetUids: [targetUid], runtime: { records: Object.create(null) } }
   ));
-}
-
-export function std086PlayCardCore2({ state, playerId, card, zone, placementCause, placementSource, targetUid, targetUids, selectionScope }) {
-  state.deferredSpellCleanup = {
-    playerId, card, zone, placementCause, placementSource,
-    ...(["SZTB-096", "SZTB-097", "SZTB-098", "SZTB-099"].includes(card.id) ? { postEffect: "arms-band-jacket", postEffectDone: false } : {})
-  };
-  resolveEffect(state, () => {
-    resolveSpell(state, playerId, card, targetUid, { targetUids, selectionScope });
-    continueDeferredSpellCleanup(state);
-  });
 }
