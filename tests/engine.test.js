@@ -825,6 +825,101 @@ test("STD-163 choice 2 selects an enemy Ob and deals three damage", () => {
   assert.equal(state.pending, null);
 });
 
+// 4.7.1: 破壊で誘発したログアウトは、破壊した効果の全文(①/②の選択と適用、発動元のゴミ箱送り)が終わるまで待つ。
+function std163LogoutScenario(rng) {
+  const state = createGame({ mode: "lab", rng });
+  const player = state.players.player; const ai = state.players.ai;
+  player.memory = 9;
+  for (const id of ["STD-150", "STD-020", "STD-163"]) addSandboxCardToHand(state, "player", id);
+  const hand = (id) => player.hand.find((card) => card.id === id);
+  const doll = hand("STD-150"); const plain = hand("STD-020"); const spell = hand("STD-163");
+  assert.equal(playCard(state, "player", doll.uid, { zone: "front" }), true);
+  assert.equal(playCard(state, "player", plain.uid, { zone: "front" }), true);
+  const mercA = createCardInstance("STD-043", "ai", 9101); const mercB = createCardInstance("STD-043", "ai", 9102);
+  mercA.damage = 1;
+  ai.front.splice(0, ai.front.length, mercA, mercB); ai.back.splice(0, ai.back.length);
+  return { state, player, ai, doll, plain, spell, mercA, mercB };
+}
+const std163Choose = (state, scope) => {
+  setSelectionScope(state.pending.request, scope);
+  return resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request));
+};
+const std163Damage = (state, target) => {
+  assert.equal(state.pending.request.continuation.type, "std163-damage");
+  toggleSelection(state.pending.request, target.uid);
+  return resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request));
+};
+
+test("STD-163: the logout of a destroyed Ob waits for the whole effect, so the Mercs are destroyed whatever the random pick", () => {
+  for (const seed of [0, .26, .5, .74, .99]) {
+    const { state, player, ai, doll, plain, spell, mercA, mercB } = std163LogoutScenario(() => seed);
+    assert.equal(playCard(state, "player", spell.uid), true);
+    toggleSelection(state.pending.request, doll.uid); toggleSelection(state.pending.request, plain.uid);
+    assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+    assert.equal(player.trash.some((card) => card.uid === doll.uid) && player.trash.some((card) => card.uid === plain.uid), true, "both of your Obs are destroyed");
+    assert.deepEqual([mercA.damage, mercB.damage], [1, 0], `the logout has not resolved yet (${seed})`);
+
+    assert.equal(std163Choose(state, "②相手Obに3ダメージ"), true);
+    assert.equal(std163Damage(state, mercA), true);
+    assert.equal(ai.trash.some((card) => card.uid === mercA.uid), true, "Merc A (1 + 3) is destroyed");
+    assert.equal(mercB.damage, 0, `still waiting after the first ② (${seed})`);
+    assert.ok(state.pending, "the second choice is open");
+
+    assert.equal(std163Choose(state, "②相手Obに3ダメージ"), true);
+    assert.equal(std163Damage(state, mercB), true);
+    assert.equal(state.pending, null);
+    assert.equal(player.trash.some((card) => card.uid === spell.uid), true, "the Sp is in the trash");
+    assert.deepEqual(ai.trash.map((card) => card.uid).sort(), [mercA.uid, mercB.uid].sort(), `the logout's 1 damage finished Merc B (${seed})`);
+    assert.equal(ai.front.length + ai.back.length, 0);
+  }
+});
+
+test("STD-163: when the effect locks the result, the waiting logout is not declared afterwards", () => {
+  const { state, player, ai, doll, plain, spell, mercA, mercB } = std163LogoutScenario(() => .5);
+  ai.fortressStr = 0;
+  assert.equal(playCard(state, "player", spell.uid), true);
+  toggleSelection(state.pending.request, doll.uid); toggleSelection(state.pending.request, plain.uid);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+  assert.equal(state.winner, null, "nothing is decided in the middle of the text");
+  assert.equal(std163Choose(state, "②相手Obに3ダメージ"), true);
+  assert.equal(std163Damage(state, mercA), true);
+  assert.equal(std163Choose(state, "②相手Obに3ダメージ"), true);
+  assert.equal(std163Damage(state, mercB), true);
+  assert.equal(state.winner, "player", "the result is locked at the effect's completion");
+  assert.equal(state.victory.lockedOutcome, "player");
+  assert.equal(player.trash.some((card) => card.uid === spell.uid), true);
+  assert.equal(ai.trash.some((card) => card.uid === mercB.uid), false, "the logout was never declared, so Merc B only took the ② damage");
+  assert.equal(mercB.damage, 3);
+});
+
+test("STD-157 and STD-162: the destroyed Ob's logout waits for the placement / salvage choice that follows the destroy", () => {
+  for (const [spellId, followUp] of [["STD-157", "std157-place"], ["STD-162", "std162-salvage"]]) {
+    for (const seed of [0, .99]) {
+      const state = createGame({ mode: "lab", rng: () => seed });
+      const player = state.players.player; const ai = state.players.ai;
+      player.memory = 9;
+      addSandboxCardToHand(state, "player", "STD-150");
+      addSandboxCardToHand(state, "player", spellId);
+      if (spellId === "STD-157") addSandboxCardToHand(state, "player", "STD-150");
+      const doll = player.hand.find((card) => card.id === "STD-150");
+      assert.equal(playCard(state, "player", doll.uid, { zone: "front" }), true);
+      const mercA = createCardInstance("STD-043", "ai", 9201); const mercB = createCardInstance("STD-043", "ai", 9202);
+      ai.front.splice(0, ai.front.length, mercA, mercB); ai.back.splice(0, ai.back.length);
+      const spell = player.hand.find((card) => card.id === spellId);
+      assert.equal(playCard(state, "player", spell.uid), true, spellId);
+      toggleSelection(state.pending.request, doll.uid);
+      assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+      assert.equal(player.trash.some((card) => card.uid === doll.uid), true, `${spellId}: the doll is destroyed`);
+      assert.equal(state.pending?.request?.continuation?.type, followUp, `${spellId}: the follow-up choice is open`);
+      assert.deepEqual([mercA.damage, mercB.damage], [0, 0], `${spellId}: the logout waits for the follow-up (${seed})`);
+      toggleSelection(state.pending.request, state.pending.request.candidates[0]);
+      assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+      assert.equal(state.pending, null, spellId);
+      assert.equal(mercA.damage + mercB.damage, 1, `${spellId}: the logout deals its 1 damage once the effect is over (${seed})`);
+    }
+  }
+});
+
 test("STD-142 turn-end effect uses public face-up Sacred Trees and determined destruction count", () => {
   const state = createGame({ mode: "lab" });
   const player = state.players.player; const ai = state.players.ai;

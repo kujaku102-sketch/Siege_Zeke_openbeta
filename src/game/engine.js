@@ -2437,9 +2437,18 @@ function resolveEffect(state, resolver) {
       }
       if (!state.winner) drainIndependentEffects(state);
       if (!state.winner && !state.effectResolution) resumeStalledTriggerThread(state);
-      if (!state.winner) drainTriggerQueue(state);
+      if (!state.winner && !parentEffectAwaitsOwnChoice(state)) drainTriggerQueue(state);
     }
   }
+}
+
+// 4.7.1: 親効果が自分の本文の選択待ちで止まっている間は、破壊・移動・ログアウトなどの自動誘発を流さない。
+// 親効果が最後まで終わった時(awaiting-choice でなくなった時)に、resolveEffect の最後から流れる。
+// 誘発・確認窓が積んだ選択(resolutionMeta を持つ engine:* の選択)は親効果の本文ではないので、待機の理由にしない。
+function parentEffectAwaitsOwnChoice(state) {
+  if (state.effectResolution?.status !== "awaiting-choice") return false;
+  const open = state.pending ?? state.prompt;
+  return Boolean(open) && !open.resolutionMeta;
 }
 
 function recordVictoryFact(state, fact) {
