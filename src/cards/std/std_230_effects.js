@@ -1,7 +1,7 @@
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { attack } from "../../game/core/battle.js";
 import { openNextQueuedSelection } from "../../game/core/projection.js";
-import { otherPlayer } from "../../game/core/shared.js";
+import { otherPlayer, payMemory } from "../../game/core/shared.js";
 import { emitGameEvent } from "../../game/core/triggers.js";
 import { emitRegistryInstalled } from "../../game/effects/generic/placement.js";
 import { moveCardToTrash } from "../../game/effects/generic/trash.js";
@@ -51,7 +51,7 @@ export function std230AmbushChoiceSelection(state, continuation, result, playerI
     attacker.skipStd230Ambush = true;
     return attack(state, continuation.attackerPlayerId, attacker.uid, continuation.targetUid);
   }
-  player.memory -= cost;
+  payMemory(state, playerId, cost, "ambush");
   const opponentId = otherPlayer(playerId); const candidates = state.players[opponentId].hand;
   const cleanup = { playerId, sourceUid: source.uid, attackerPlayerId: continuation.attackerPlayerId, attackerUid: attacker.uid, targetUid: continuation.targetUid };
   if (!candidates.length) { state.std230AmbushCleanup = cleanup; return resumeStd230AmbushCleanup(state); }

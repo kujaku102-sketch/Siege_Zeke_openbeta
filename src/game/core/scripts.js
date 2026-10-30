@@ -10,7 +10,7 @@ import { continueDeferredSpellCleanup } from "./play-spell.js";
 import { enabledSymbols, supportsNormalScriptActivation } from "./play.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { continueDeferredDeclaredResponseCleanup } from "./response.js";
-import { addLog, fail, findCard, otherPlayer } from "./shared.js";
+import { addLog, fail, findCard, otherPlayer, payMemory } from "./shared.js";
 import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_ACTIVATE_SCRIPT_CORE, CUSTOM_ACTIVATE_SCRIPT_CORE_2, PASS } from "../effects/custom/index.js";
 import { runtimeActionFeasible, triggerActionFeasible } from "../effects/generic/action-values.js";
@@ -156,7 +156,7 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
     if (!candidates.some((card) => card.uid === costUid)) return fail(state, "追加コストの条件を満たすカードを選んで。", false);
   }
   if (DECLARED_IF_SCRIPT_IDS.has(script.id) && (prompted || normalIfActivation)) {
-    player.memory -= activationCost;
+    payMemory(state, playerId, activationCost, "script-activation");
     script.faceDown = false;
     if (additionalCost?.type === "discard") {
       const discardIndex = player[additionalCost.source].findIndex((card) => card.uid === costUid);
@@ -198,7 +198,7 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
     if (customResult !== PASS) return customResult;
   }
   const replacementTargetUid = state.prompt?.replacementTargetUid;
-  player.memory -= activationCost;
+  payMemory(state, playerId, activationCost, "script-activation");
   script.faceDown = false;
   if (additionalCost?.type === "discard") {
     const discardIndex = player[additionalCost.source].findIndex((card) => card.uid === costUid);

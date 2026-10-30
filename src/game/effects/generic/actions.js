@@ -8,7 +8,7 @@ import { dealCardDamage, dealFortressDamage } from "../../core/deal-damage.js";
 import { drawCards } from "../../core/draw.js";
 import { hydrateCard } from "../../core/prepare.js";
 import { queueMemoryLimitIncreasePrompt } from "../../core/scripts.js";
-import { addLog, findCard, otherPlayer, shuffle } from "../../core/shared.js";
+import { addLog, findCard, otherPlayer, shuffle, payMemory } from "../../core/shared.js";
 import { resolveMadnessChecks } from "../../core/turn.js";
 import { runtimeSpecCondition, runtimeSpecMatchesCard, runtimeSpecTargets, runtimeSpecValue } from "./action-values.js";
 import { getMaxMemory, ownLayerEntries } from "./cost.js";
@@ -76,7 +76,7 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
     } else if (action.type === "consume_memory") {
       const target = action.target === "enemy_player" ? state.players[enemyId] : player;
       const consumed = Math.min(Math.max(0, amount), Math.max(0, Number(target.memory ?? 0)));
-      target.memory -= consumed;
+      payMemory(state, action.target === "enemy_player" ? enemyId : playerId, consumed, "consume_memory", { role: "result" });
       if (action.recordAs) runtime.records[action.recordAs] = consumed;
       addLog(state, `${source.name}: ${action.target === "enemy_player" ? "相手の" : ""}使用可能メモリを${consumed}消費。`, "effect");
     } else if (action.type === "schedule_delayed") {

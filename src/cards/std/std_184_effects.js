@@ -1,7 +1,7 @@
 // STD-184 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { enabledSymbols } from "../../game/core/play.js";
 import { openNextQueuedSelection } from "../../game/core/projection.js";
-import { addLog, fail } from "../../game/core/shared.js";
+import { addLog, fail, payMemory } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { emitCardPlacement, emitEffectPlacement, failForcedPlacement, placeByMode, placementResult } from "../../game/effects/generic/placement.js";
 
@@ -38,7 +38,7 @@ export function std184PlayCardCore({ card, force, state, playerId, player, place
       player.hand.splice(index, 1); failForcedPlacement(state, card.owner ?? playerId, card, { from: registryExecution ? "registry" : "hand", zone: "back", source: placementSource ?? "効果による強制配置" }); return true;
     }
     player.hand.splice(index, 1);
-    if (!free) player.memory -= setupCost;
+    if (!free) payMemory(state, playerId, setupCost, "script-setup");
     if (!placementResult(player, "back", { mode: placementMode }).ok && placementMode === "forced-effect") {
       failForcedPlacement(state, card.owner ?? playerId, card, { zone: "back", source: placementSource ?? "効果による強制配置" });
       return true;

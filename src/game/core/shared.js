@@ -144,6 +144,14 @@ export function newActionBlock(state) {
   return resultLocked(state) ? RESULT_LOCKED_MESSAGE : state.opening ? OPENING_BLOCKED_MESSAGE : null;
 }
 
+// The one place memory is paid (cost) or taken away by an effect (role "result"). Value for value the same as `player.memory -= amount`.
+export function payMemory(state, playerId, amount, reason, { role = "cost" } = {}) {
+  const player = state.players[playerId];
+  const before = player.memory;
+  player.memory -= amount;
+  trace(state, { tag: role === "cost" ? TRACE_TAGS.COST : TRACE_TAGS.RESULT, op: "consume_memory", playerId, amount, reason, before, after: player.memory });
+}
+
 export function fail(state, message, silent) {
   trace(state, { tag: TRACE_TAGS.CONDITION, result: false, reason: message, silent: Boolean(silent) });
   state.message = message;

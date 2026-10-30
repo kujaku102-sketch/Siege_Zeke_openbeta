@@ -1,6 +1,6 @@
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
-import { findCard } from "../../game/core/shared.js";
+import { findCard, payMemory } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { grantDamageModifier } from "../../game/effects/generic/damage.js";
 import { addTimedModifier } from "../../game/effects/generic/trigger-actions.js";
@@ -40,7 +40,7 @@ export function std140ProtectSelection(state, continuation, result, playerId, pl
 
 export function std140ActivateCardEffectCore({ player, effect, card, playerId, state }) {
   if (effect.kind === "update") {
-    player.memory -= effect.cost;
+    payMemory(state, playerId, effect.cost, "update");
     const request = createSelectionRequest({ mode: "scope", scopeField: "effect", scopeOptions: ["①戦闘保護", "②聖樹をサルベージ"],
       label: `${card.name}: ①か②`, message: card.text,
       continuation: { type: "std140-update-choice", playerId, sourceName: card.name } });

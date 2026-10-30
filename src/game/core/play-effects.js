@@ -4,7 +4,7 @@ import { isObCard } from "../card-types.js";
 import { resolveEffect } from "./effects.js";
 import { hasKeyword } from "./keywords.js";
 import { enabledSymbols } from "./play.js";
-import { fail, findCard, newActionBlock } from "./shared.js";
+import { fail, findCard, newActionBlock, payMemory } from "./shared.js";
 import { CUSTOM_ACTIVATE_CARD_EFFECT_CORE, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2, CUSTOM_GET_EFFECT_TARGETS, PASS } from "../effects/custom/index.js";
 import { runtimeActionFeasible } from "../effects/generic/action-values.js";
 import { executeRuntimeActions } from "../effects/generic/actions.js";
@@ -96,7 +96,7 @@ export function activateCardEffectCore(state, playerId, cardUid, effectId, { tar
     if (!updateRuntime.actions.every((action) => runtimeActionFeasible(state, playerId, card, action, runtime))) {
       return fail(state, "効果を実行できる対象がない。", false);
     }
-    player.memory -= effect.cost;
+    payMemory(state, playerId, effect.cost, "update");
     return executeRuntimeActions(state, playerId, card, updateRuntime.actions, { runtime });
   }
 

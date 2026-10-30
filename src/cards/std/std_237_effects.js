@@ -3,7 +3,7 @@ import { isObCard } from "../../game/card-types.js";
 import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { hasKeyword } from "../../game/core/keywords.js";
 import { hydrateCard } from "../../game/core/prepare.js";
-import { fail } from "../../game/core/shared.js";
+import { fail, payMemory } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { emitCardsGenerated } from "../../game/effects/generic/generate.js";
 import { emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
@@ -14,7 +14,7 @@ export function std237ActivateCardEffectCore({ player, state, effect, playerId, 
     const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
     const ids = Object.values(CARD_LIBRARY).filter((item) => isObCard(item) && !item.token && item.id !== "STD-237").map((item) => item.id);
     if (!ids.length) return fail(state, "生成候補のObがない。", false);
-    player.memory -= effect.cost;
+    payMemory(state, playerId, effect.cost, "update");
     const generated = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, ids[Math.floor(state.rng() * ids.length)], playerId, ++state.tokenSerial + 23700));
     emitCardsGenerated(state, playerId, [generated], card.name);
     generated.summoningSick = !hasKeyword(generated, "QA");

@@ -3,7 +3,7 @@ import { createSelectionRequest } from "../../game/selection-model.js";
 import { attack, continueAttackAfterCost } from "../../game/core/battle.js";
 import { dealCardDamage } from "../../game/core/deal-damage.js";
 import { drawCards } from "../../game/core/draw.js";
-import { findCard } from "../../game/core/shared.js";
+import { findCard, payMemory } from "../../game/core/shared.js";
 import { moveCardToTrash } from "../../game/effects/generic/trash.js";
 
 // handlers (was effects/custom/std_223.js)
@@ -26,7 +26,7 @@ export function std223AmbushTargetSelection(state, continuation, result, playerI
   const target = findCard(state, result.selected[0]);
   if (sourceIndex < 0 || !target || !isObCard(target.card) || player.memory < 2) return false;
   const [source] = player.registry.splice(sourceIndex, 1);
-  player.memory -= 2;
+  payMemory(state, playerId, 2, "ambush");
   moveCardToTrash(state, playerId, source, source.name);
   state.lastDamageOutcome = null;
   dealCardDamage(state, target.playerId, target.card.uid, 3, source.name, { sourcePlayerId: playerId });

@@ -1,5 +1,5 @@
 import { dealFortressDamage } from "../../game/core/deal-damage.js";
-import { addLog, otherPlayer } from "../../game/core/shared.js";
+import { addLog, otherPlayer, payMemory } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
 
@@ -8,7 +8,7 @@ export function std228ActivateCardEffectCore({ playerId, state, player, effect, 
   if (effect.kind === "update") {
     const opponentId = otherPlayer(playerId); const opponent = state.players[opponentId];
     const zones = ["front", "back"];
-    player.memory -= effect.cost;
+    payMemory(state, playerId, effect.cost, "update");
     dealFortressDamage(state, playerId, 3, playerId, card.name);
     const sourceZone = player.front.some((item) => item.uid === card.uid) ? "front" : "back";
     const sourceIndex = player[sourceZone].findIndex((item) => item.uid === card.uid);

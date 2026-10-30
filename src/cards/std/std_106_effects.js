@@ -1,3 +1,4 @@
+import { payMemory } from "../../game/core/shared.js";
 import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { hydrateCard } from "../../game/core/prepare.js";
 import { PASS } from "../../game/effects/custom/index.js";
@@ -20,7 +21,7 @@ export function std106ActivateCardEffectCore({ player, effect, card, state, play
   if (effect.kind === "proxy") {
     let zoneName = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : null;
     if (!zoneName) zoneName = "front";
-    player.memory -= effect.cost;
+    payMemory(state, playerId, effect.cost, "proxy");
     const sourceIndex = player.hand.findIndex((item) => item.uid === card.uid);
     moveCardToTrash(state, playerId, player.hand.splice(sourceIndex, 1)[0], card.name);
     const junk = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, "STD-078", playerId, ++state.tokenSerial + 1600));

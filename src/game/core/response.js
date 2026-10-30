@@ -4,7 +4,7 @@ import { declareEffect, runEffectEntry } from "./effects.js";
 import { keywordValue } from "./keywords.js";
 import { resolveSpell } from "./play-spell.js";
 import { enabledSymbols } from "./play.js";
-import { addLog, otherPlayer } from "./shared.js";
+import { addLog, otherPlayer, payMemory } from "./shared.js";
 import { cardCurrentStr } from "./stats.js";
 import { CUSTOM_RESOLVE_DECLARED_RESPONSE, CUSTOM_RESPONSE_CARD_APPLICABLE, PASS } from "../effects/custom/index.js";
 import { moveCardToTrash } from "../effects/generic/trash.js";
@@ -29,7 +29,7 @@ export function declareResponse(state, playerId, cardUid, { targetUid = null, ta
   const cost = Number(keywordValue(card, "RESPONSE") ?? -1);
   if (cost < 0 || player.memory < cost) return false;
   player.hand.splice(index, 1);
-  player.memory -= cost;
+  payMemory(state, playerId, cost, "response");
   const declared = declareEffect(state, {
     kind: "response", cardId: card.id, playerId, sourceUid: card.uid,
     card, targetUid, targetUids, responseEvent

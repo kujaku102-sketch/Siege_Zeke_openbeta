@@ -3,7 +3,7 @@ import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { drawCards } from "../../game/core/draw.js";
 import { recordVictoryFact } from "../../game/core/effects.js";
 import { hydrateCard } from "../../game/core/prepare.js";
-import { addLog, otherPlayer } from "../../game/core/shared.js";
+import { addLog, otherPlayer, payMemory } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { emitCardsGenerated } from "../../game/effects/generic/generate.js";
 import { setCardSleeping } from "../../game/effects/generic/placement.js";
@@ -23,7 +23,7 @@ export function std124ResolveLogin({ player, card, state, playerId }) {
 
 export function std124ActivateCardEffectCore({ player, effect, card, state, playerId }) {
   if (effect.kind === "proxy") {
-    player.memory -= effect.cost;
+    payMemory(state, playerId, effect.cost, "proxy");
     const sourceIndex = player.hand.findIndex((item) => item.uid === card.uid);
     const [source] = player.hand.splice(sourceIndex, 1);
     moveCardToTrash(state, playerId, source, source.name);

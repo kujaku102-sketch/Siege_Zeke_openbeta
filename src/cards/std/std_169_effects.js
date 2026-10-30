@@ -1,5 +1,5 @@
 import { isObCard } from "../../game/card-types.js";
-import { addLog, fail, findCard, otherPlayer } from "../../game/core/shared.js";
+import { addLog, fail, findCard, otherPlayer, payMemory } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { moveCardToTrash } from "../../game/effects/generic/trash.js";
 
@@ -16,7 +16,7 @@ export function std169ActivateCardEffectCore({ state, targetUid, playerId, playe
   if (effect.kind === "proxy") {
     const target = findCard(state, targetUid);
     if (!target || target.playerId === playerId || !["front", "back"].includes(target.zoneName) || !isObCard(target.card)) return fail(state, "相手Obを選んで。", false);
-    player.memory -= effect.cost;
+    payMemory(state, playerId, effect.cost, "proxy");
     const sourceIndex = player.hand.findIndex((item) => item.uid === card.uid);
     moveCardToTrash(state, playerId, player.hand.splice(sourceIndex, 1)[0], card.name);
     target.card.load = Number(target.card.load ?? 0) + 3;

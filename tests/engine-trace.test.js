@@ -111,3 +111,15 @@ test("a refused action leaves a failed 条件 record", () => {
   const records = collect(() => playCard(state, "player", "missing-uid"));
   assert.ok(records.some((record) => record.tag === TRACE_TAGS.CONDITION && record.result === false));
 });
+
+test("paying memory goes through one entry and leaves a コスト record with the amount and both balances", () => {
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  const soldier = createCardInstance("STD-021", "player", 2101);
+  state.players.player.hand = [soldier]; state.players.player.memory = 5;
+  const records = collect(() => playCard(state, "player", soldier.uid));
+  const costs = records.filter((record) => record.tag === TRACE_TAGS.COST);
+  assert.equal(costs.length, 1);
+  assert.deepEqual([costs[0].op, costs[0].reason, costs[0].playerId, costs[0].amount, costs[0].before, costs[0].after], ["consume_memory", "execution", "player", 2, 5, 3]);
+  assert.equal(state.players.player.memory, 3);
+  assert.ok(records.findIndex((record) => record.tag === TRACE_TAGS.COST) < records.findIndex((record) => record.tag === TRACE_TAGS.RESULT && record.event === "card_placed"));
+});

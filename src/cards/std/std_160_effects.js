@@ -1,6 +1,6 @@
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
-import { addLog, otherPlayer } from "../../game/core/shared.js";
+import { addLog, otherPlayer, payMemory } from "../../game/core/shared.js";
 import { resolveMadnessChecks } from "../../game/core/turn.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { destroyCard } from "../../game/effects/generic/destroy.js";
@@ -21,7 +21,7 @@ export function std160ResolveLogin({ opponent, state, playerId, card }) {
 export function std160ActivateCardEffectCore({ player, effect, card, state, playerId }) {
   if (effect.kind === "proxy") {
     const zoneName = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-    player.memory -= effect.cost;
+    payMemory(state, playerId, effect.cost, "proxy");
     const sourceIndex = player.hand.findIndex((item) => item.uid === card.uid);
     const [source] = player.hand.splice(sourceIndex, 1);
     if (placeByMode(state, playerId, source, { zone: zoneName, from: "hand", source: card.name }) !== "placed") return true;

@@ -1,5 +1,5 @@
 import { createSelectionRequest } from "../../game/selection-model.js";
-import { fail, findCard } from "../../game/core/shared.js";
+import { fail, findCard, payMemory } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { resumeDestroyLkiFollowUp } from "../../game/effects/generic/actions.js";
 import { destroyCard } from "../../game/effects/generic/destroy.js";
@@ -34,7 +34,7 @@ export function std157ActivateCardEffectCore({ state, targetUid, playerId, card,
   if (effect.kind === "update") {
     const target = findCard(state, targetUid);
     if (!target || target.playerId !== playerId || !["front", "back"].includes(target.zoneName) || target.card.uid === card.uid) return fail(state, "破壊する他の自分エリアカードを選んで。", false);
-    player.memory -= effect.cost;
+    payMemory(state, playerId, effect.cost, "update");
     const x = Number(target.card.cost ?? 0);
     (state.destroyLkiFollowUps ??= {})[target.card.uid] = { type: "std157", playerId, sourceName: card.name, x };
     const resolved = destroyCard(state, playerId, target.card.uid, { source: card.name });

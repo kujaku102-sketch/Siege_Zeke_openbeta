@@ -2,7 +2,7 @@ import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { resumeMandatoryDrawContinuation } from "../../game/core/draw.js";
 import { getEffectActivationTargets } from "../../game/core/play-effects.js";
 import { hydrateCard } from "../../game/core/prepare.js";
-import { addLog, fail, otherPlayer } from "../../game/core/shared.js";
+import { addLog, fail, otherPlayer, payMemory } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { destroyCard } from "../../game/effects/generic/destroy.js";
 import { placeByMode } from "../../game/effects/generic/placement.js";
@@ -47,7 +47,7 @@ export function std048ActivateCardEffectCore({ location, state, effect, player, 
       return fail(state, "破壊する相手エリアのカードを選んで。", false);
     }
     let zoneName = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-    player.memory -= cost;
+    payMemory(state, playerId, cost, "proxy");
     player.hand.splice(player.hand.findIndex((item) => item.uid === card.uid), 1);
     if (card.id === "STD-048") player.deck.push(card);
     else {

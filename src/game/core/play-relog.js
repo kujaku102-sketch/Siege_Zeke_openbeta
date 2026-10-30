@@ -8,7 +8,7 @@ import { hasKeyword } from "./keywords.js";
 import { resolveLogin, resolveLogout } from "./play-spell.js";
 import { requestedExecutionSlot } from "./play.js";
 import { compiledForCard } from "./prepare.js";
-import { addLog, fail, newActionBlock } from "./shared.js";
+import { addLog, fail, newActionBlock, payMemory } from "./shared.js";
 import { consumeSelectedSourceLayers } from "../effects/generic/cost.js";
 import { movedSummoningSick } from "../effects/generic/field-entry.js";
 import { emitRegistryInstalled, placeByMode, placementResult, resolveMountedSourceTrigger } from "../effects/generic/placement.js";
@@ -70,7 +70,7 @@ export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount =
   if (preparationKind === "registry") {
     const moveCost = Number(card.cost ?? 0);
     if (player.memory < moveCost) return fail(state, "再実行するメモリが足りない。", false);
-    player.memory -= moveCost;
+    payMemory(state, playerId, moveCost, "re-execution");
     player[sourceZone].splice(index, 1);
     const revealed = revealMountedCode(player[sourceZone], index, card, playerId, sourceZone);
     player.registry.push(card);
@@ -108,7 +108,7 @@ export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount =
     return fail(state, "再実行するメモリが足りない。", false);
   }
 
-  player.memory -= moveCost;
+  payMemory(state, playerId, moveCost, "re-execution");
   if (discountedLayer) {
     const consumed = consumeSelectedSourceLayers(state, playerId, card, [discountedLayer.uid], `${card.name}の移動コスト`);
     if (!consumed) return false;

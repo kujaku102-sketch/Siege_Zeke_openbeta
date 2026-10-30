@@ -1,4 +1,4 @@
-import { addLog, otherPlayer, shuffle } from "../../game/core/shared.js";
+import { addLog, otherPlayer, shuffle, payMemory } from "../../game/core/shared.js";
 import { cardAtk } from "../../game/core/stats.js";
 import { emitGameEvent } from "../../game/core/triggers.js";
 import { PASS } from "../../game/effects/custom/index.js";
@@ -58,7 +58,7 @@ export function std227ResolveLogin({ state, playerId, card }) {
 
 export function std227ActivateCardEffectCore({ player, effect, state, playerId, card }) {
   if (effect.kind === "update") {
-    player.memory -= effect.cost;
+    payMemory(state, playerId, effect.cost, "update");
     resolveImperialRandomInstall(state, playerId, card.name);
     return true;
   }

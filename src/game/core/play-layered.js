@@ -5,7 +5,7 @@ import { hasKeyword } from "./keywords.js";
 import { notifyCardExecuted } from "./play-notify.js";
 import { resolveLogin } from "./play-spell.js";
 import { canPlayCard, requestedExecutionSlot } from "./play.js";
-import { addLog, fail, newActionBlock } from "./shared.js";
+import { addLog, fail, newActionBlock, payMemory } from "./shared.js";
 import { executionCost } from "../effects/generic/cost.js";
 import { placeByMode, placementResult } from "../effects/generic/placement.js";
 
@@ -68,7 +68,7 @@ export function playLayeredCard(state, playerId, uid, materialUids, zone = "fron
   const executionHandIndex = player.hand.findIndex((candidate) => candidate.uid === uid);
   if (executionHandIndex < 0) return fail(state, "レイヤード実行カードが手札から失われた。", false);
   player.hand.splice(executionHandIndex, 1);
-  player.memory -= effectiveCost;
+  payMemory(state, playerId, effectiveCost, "layered-execution");
   card.mounted = materials;
   card.sleep = false;
   card.damage = 0;

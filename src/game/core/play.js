@@ -13,7 +13,7 @@ import { notifyCardExecuted } from "./play-notify.js";
 import { hydrateCard } from "./prepare.js";
 import { continueDeferredSpellCleanup, resolveLogin, resolveSpell, spellNeedsTarget } from "./play-spell.js";
 import { EVENT_CONTEXT_REQUIRED_IF_IDS, NORMAL_IF_SCRIPT_IDS } from "./scripts.js";
-import { addLog, fail, otherPlayer } from "./shared.js";
+import { addLog, fail, otherPlayer, payMemory } from "./shared.js";
 import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_PLAY_CARD_CORE, CUSTOM_PLAY_CARD_CORE_3, CUSTOM_PLAY_CARD_CORE_4, CUSTOM_SPELL_CLEANUP_EXTRA, PASS } from "../effects/custom/index.js";
 import { STD121_PLACEMENT_PERMIT, executionCost, ownLayerEntries, placementCostCandidates } from "../effects/generic/cost.js";
@@ -246,7 +246,7 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
   const customPlayCardCore3 = CUSTOM_PLAY_CARD_CORE_3[card.id];
   if (customPlayCardCore3) customPlayCardCore3({ card, state, registryExecution });
   card.executedFromRegistry = Boolean(registryExecution);
-  if (paidExecutionMemory !== null) player.memory -= paidExecutionMemory;
+  if (paidExecutionMemory !== null) payMemory(state, playerId, paidExecutionMemory, "execution");
   if (magazineAmount > 0) {
     const consumed = [];
     for (const { host, layer } of magazineEntries) {
@@ -277,7 +277,7 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
   delete card.revealedExecutionCost;
   delete card.revealed;
   if (!free && ocDecision && ocMatch) {
-    player.memory -= Number(ocMatch[1]);
+    payMemory(state, playerId, Number(ocMatch[1]), "overclock");
     card.ocPaidAmount = Number(ocMatch[1]);
   } else delete card.ocPaidAmount;
   addLog(state, `${player.user.name}が「${card.name}」を${free && force ? "強制実行" : "実行"}。`, "action");
