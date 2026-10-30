@@ -9,7 +9,8 @@ import { getMaxMemory } from "./cost.js";
 import { destroyCard } from "./destroy.js";
 import { createVengeanceCard, emitCardsGenerated } from "./generate.js";
 import { emitEffectPlacement, placeByMode } from "./placement.js";
-import { openRuntimeAccessSelection, openRuntimeTargetSelection, runtimeSelectionCandidates } from "./selection.js";
+import { openRuntimeAccessSelection } from "./selection-access.js";
+import { openRuntimeTargetSelection, runtimeSelectionCandidates } from "./selection-target.js";
 
 export function executeTriggerAction(state, trigger, action) {
   const { source, event } = trigger;

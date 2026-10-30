@@ -15,7 +15,10 @@ import { getMaxMemory, ownLayerEntries } from "./cost.js";
 import { destroyCard, queueRuntimeDestructionContinuation } from "./destroy.js";
 import { banGeneratedCards, createVengeanceCard, emitCardsGenerated } from "./generate.js";
 import { emitEffectPlacement, emitRegistryInstalled, moveCardByEffect, placeByMode, placeCardByEffect, placementResult, setCardSleeping } from "./placement.js";
-import { openRuntimeAccessSelection, openRuntimeChoiceSelection, openRuntimeDecodeSelection, openRuntimePlayerSelection, openRuntimeRepeatSelectMove, openRuntimeTargetSelection, openRuntimeZoneChoice } from "./selection.js";
+import { openRuntimeAccessSelection } from "./selection-access.js";
+import { openRuntimeChoiceSelection, openRuntimeRepeatSelectMove, openRuntimeZoneChoice } from "./selection-choice.js";
+import { openRuntimeDecodeSelection } from "./selection-decode.js";
+import { openRuntimePlayerSelection, openRuntimeTargetSelection } from "./selection-target.js";
 import { clearComponents, distributeLayeredFollowers, moveCardToTrash, revealMountedCode, triggerMoved } from "./trash.js";
 import { addTimedModifier } from "./trigger-actions.js";
 

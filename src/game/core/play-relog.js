@@ -11,7 +11,7 @@ import { addLog, fail, newActionBlock } from "./shared.js";
 import { consumeSelectedSourceLayers } from "../effects/generic/cost.js";
 import { movedSummoningSick } from "../effects/generic/field-entry.js";
 import { emitRegistryInstalled, placeByMode, placementResult, resolveMountedSourceTrigger } from "../effects/generic/placement.js";
-import { beginAllocationSelectionModule } from "../effects/generic/selection.js";
+import { beginAllocationSelectionModule } from "../effects/generic/selection-modules.js";
 import { distributeLayeredFollowers, revealMountedCode, triggerMoved } from "../effects/generic/trash.js";
 
 export function relogPreparationKind(card, layerCount = flattenedLayerCount(card)) {

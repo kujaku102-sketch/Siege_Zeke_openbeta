@@ -13,7 +13,7 @@ import { CUSTOM_NORMAL_SPELL_SELECTION, CUSTOM_RESOLVE_LOGIN, CUSTOM_RESOLVE_LOG
 import { executeCardRuntimeSpec } from "../effects/generic/actions.js";
 import { ownLayerEntries } from "../effects/generic/cost.js";
 import { emitCardPlacement, placementResult } from "../effects/generic/placement.js";
-import { matchesModuleFilter, moveRemainderToDeck, takeViewedFromDeck } from "../effects/generic/selection.js";
+import { matchesModuleFilter, moveRemainderToDeck, takeViewedFromDeck } from "../effects/generic/selection-modules.js";
 import { moveCardToTrash } from "../effects/generic/trash.js";
 
 export function spellNeedsTarget(card) {

@@ -14,7 +14,7 @@ import { emitGameEvent } from "../../core/triggers.js";
 import { executeRuntimeActions, resumeDestroyLkiFollowUp } from "./actions.js";
 import { continuePlacementCostBatch, settlePlacementCostDestruction } from "./cost.js";
 import { backupLimit, placeByMode, setCardSleeping } from "./placement.js";
-import { runtimeSourceFromContinuation } from "./selection.js";
+import { runtimeSourceFromContinuation } from "./selection-access.js";
 import { moveCardToTrash, revealMountedCode } from "./trash.js";
 
 export function queueRuntimeDestructionContinuation(state, targetUid, continuation) {

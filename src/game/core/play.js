@@ -18,7 +18,7 @@ import { CUSTOM_PLAY_CARD_CORE, CUSTOM_PLAY_CARD_CORE_3, CUSTOM_PLAY_CARD_CORE_4
 import { STD121_PLACEMENT_PERMIT, executionCost, ownLayerEntries, placementCostCandidates } from "../effects/generic/cost.js";
 import { markFieldEntry } from "../effects/generic/field-entry.js";
 import { emitCardPlacement, emitEffectPlacement, failForcedPlacement, placeByMode, placementResult, resolveMountedSourceTrigger } from "../effects/generic/placement.js";
-import { runtimeSpellAccessFailure } from "../effects/generic/selection.js";
+import { runtimeSpellAccessFailure } from "../effects/generic/selection-access.js";
 import { moveCardToTrash } from "../effects/generic/trash.js";
 
 export function supportsNormalScriptActivation(card) {

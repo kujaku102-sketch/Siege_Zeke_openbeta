@@ -17,7 +17,7 @@ import { executeRuntimeActions } from "../effects/generic/actions.js";
 import { applyDamageModifiers, clearDamageModifiers } from "../effects/generic/damage.js";
 import { destroyCard } from "../effects/generic/destroy.js";
 import { setCardSleeping } from "../effects/generic/placement.js";
-import { beginDynamicSelectionModule } from "../effects/generic/selection.js";
+import { beginDynamicSelectionModule } from "../effects/generic/selection-modules.js";
 
 // コストの支払いや付随効果を終えた後に、宣言した攻撃を続ける。支払いで開いた確認(STD-003の窓など)が
 // 残っている間はattack()がfalseを返し、回答ごと拒否されて詰むので、確認が済んでから宣言し直す。

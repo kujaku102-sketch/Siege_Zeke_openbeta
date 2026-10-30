@@ -3,7 +3,8 @@ import { flattenedLayerCount, flattenedLayers } from "../../layered-specs.js";
 import { cardTraits, classKey, findCard, hasClass, hasNoEffectText, isArmsBandCard, otherPlayer } from "../../core/shared.js";
 import { cardHasKeyword } from "../../core/stats.js";
 import { placementResult } from "./placement.js";
-import { runtimePlayerCandidates, runtimeSelectionCandidates, runtimeZoneChoiceOptions } from "./selection.js";
+import { runtimeZoneChoiceOptions } from "./selection-choice.js";
+import { runtimePlayerCandidates, runtimeSelectionCandidates } from "./selection-target.js";
 
 export function resolveVariableExpression(state, playerId, expression) {
   let runtimeExpression = null;
