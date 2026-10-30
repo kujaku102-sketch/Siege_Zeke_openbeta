@@ -5,7 +5,6 @@ import { createRuntimeToken } from "../../runtime/factory.js";
 import { createSelectionRequest } from "../../selection-model.js";
 import { dealCardDamage, dealFortressDamage } from "../../core/deal-damage.js";
 import { drawCards } from "../../core/draw.js";
-import { playCard } from "../../core/play.js";
 import { hydrateCard } from "../../core/prepare.js";
 import { queueMemoryLimitIncreasePrompt } from "../../core/scripts.js";
 import { addLog, findCard, otherPlayer, shuffle } from "../../core/shared.js";
@@ -14,7 +13,7 @@ import { runtimeSpecCondition, runtimeSpecMatchesCard, runtimeSpecTargets, runti
 import { getMaxMemory, ownLayerEntries } from "./cost.js";
 import { destroyCard, queueRuntimeDestructionContinuation } from "./destroy.js";
 import { banGeneratedCards, createVengeanceCard, emitCardsGenerated } from "./generate.js";
-import { emitEffectPlacement, emitRegistryInstalled, moveCardByEffect, placeByMode, placeCardByEffect, placementResult, setCardSleeping } from "./placement.js";
+import { emitCardPlacement, emitEffectPlacement, emitRegistryInstalled, moveCardByEffect, placeByMode, placeCardByEffect, placementResult, setCardSleeping } from "./placement.js";
 import { openRuntimeAccessSelection } from "./selection-access.js";
 import { openRuntimeChoiceSelection, openRuntimeRepeatSelectMove, openRuntimeZoneChoice } from "./selection-choice.js";
 import { openRuntimeDecodeSelection } from "./selection-decode.js";
@@ -421,15 +420,17 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
           generatedPlayer.hand.push(card);
           continue;
         }
-        if (destination === "execute") {
-          generatedPlayer.hand.push(card);
+        if (destination === "place") {
+          // 生成して配置: 効果配置。実行を経由しないのでログインも実行時誘発も起きない(ルールブック付録「実行と効果配置」)。
           const zone = card.category === "Script"
             ? (generatedPlayer.back.length < generatedPlayer.user.backLimit ? "back" : "front")
             : (generatedPlayer.front.length < generatedPlayer.user.frontLimit ? "front" : generatedPlayer.back.length < generatedPlayer.user.backLimit ? "back" : "front");
-          playCard(state, generatedPlayerId, card.uid, {
-            zone, free: Boolean(action.free), force: Boolean(action.forced), ignoreColor: Boolean(action.free),
-            placementCause: "effect", placementSource: source.name, placementMode: action.forced ? "forced-effect" : "normal"
-          });
+          card.summoningSick = zone === "front";
+          if (card.category === "Script") Object.assign(card, { faceDown: true, residentActive: false, sleep: false });
+          if (placeByMode(state, generatedPlayerId, card, { zone, from: "generated", source: source.name }) === "placed") {
+            emitCardPlacement(state, generatedPlayerId, card, zone, "effect", source.name);
+            emitEffectPlacement(state, generatedPlayerId, card, zone, source.name);
+          }
           continue;
         }
         const zone = ["front", "back"].includes(destination)

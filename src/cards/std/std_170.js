@@ -15,8 +15,7 @@ export const definition = {
 
 // runtime spec (was card-runtime-specs.js)
 export const runtimeSpec = spec("update", [op("generate", {
-    cardIds: ["STD-165", "STD-171", "STD-172"], randomOne: true, destination: "execute",
-    free: true, forced: true
+    cardIds: ["STD-165", "STD-171", "STD-172"], randomOne: true, destination: "place"
   })]);
 
 // compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
