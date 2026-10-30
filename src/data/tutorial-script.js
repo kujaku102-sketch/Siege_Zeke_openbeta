@@ -17,7 +17,6 @@ export const TUTORIAL_SANDBAG_DECK = Object.freeze([
   ["STD-027", 3], ["STD-028", 3], ["STD-029", 3], ["STD-031", 3], ["STD-043", 3], ["STD-044", 3], ["STD-004", 1]
 ].map((row) => Object.freeze(row)));
 export const TUTORIAL_OPPONENT_SCRIPTS = Object.freeze({
-  'yellow-demo': Object.freeze([{type:'install',cardId:'STD-125'}, {type:'executeCard',cardId:'STD-131',zone:'front'}, {type:'endTurn'}]),
   'yellow-pass': Object.freeze([{type:'endTurn'}]),
   // 赤チュートリアル: 相手はセキュリティのObガードマンを実行し、スリープさせてターンを終える。
   'guardman-demo': Object.freeze([{type:'executeCard',cardId:'STD-022',zone:'front'}, {type:'endTurn'}]),

@@ -9,7 +9,7 @@ import { pngMetadataText, isApprovedDeckFont } from "../scripts/verify-public-bu
 import { cardArtProfile } from "../src/data/card-art-profiles.js";
 import { ABILITY_BADGES, abilityBadgeDefinition } from "../src/data/ability-badges.js";
 import { NAVIGATOR_ASSETS, tutorialNavigator } from "../src/data/navigator-assets.js";
-import { createTutorialFlow, currentTutorialStep } from "../src/data/tutorial.js";
+import { createTutorialFlow, currentTutorialStep } from "../src/data/tutorial-script.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 test("all entry pages publish the FX-OFF logo as favicon and share image", async () => {

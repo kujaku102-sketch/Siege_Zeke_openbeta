@@ -756,34 +756,6 @@ export const VENGEANCE_DECK = Object.freeze([
     1
   ]
 ]);
-export const VENGEANCE_IDS = Object.freeze([
-  "STD-187",
-  "STD-188",
-  "STD-189",
-  "STD-190",
-  "STD-191",
-  "STD-192",
-  "STD-193",
-  "STD-194",
-  "STD-195",
-  "STD-196",
-  "STD-197",
-  "STD-198",
-  "STD-199",
-  "STD-200",
-  "STD-201",
-  "STD-202",
-  "STD-203",
-  "STD-204",
-  "STD-205",
-  "STD-206",
-  "STD-207",
-  "STD-208",
-  "STD-209",
-  "STD-210",
-  "STD-211",
-  "STD-212"
-]);
 export const NEUTRON_DECK = Object.freeze([
   [
     "STD-107",
@@ -865,26 +837,6 @@ export const NEUTRON_DECK = Object.freeze([
     "STD-108",
     1
   ]
-]);
-export const NEUTRON_IDS = Object.freeze([
-  "STD-107",
-  "STD-108",
-  "STD-109",
-  "STD-110",
-  "STD-111",
-  "STD-112",
-  "STD-113",
-  "STD-114",
-  "STD-115",
-  "STD-116",
-  "STD-117",
-  "STD-118",
-  "STD-119",
-  "STD-120",
-  "STD-121",
-  "STD-122",
-  "STD-123",
-  "STD-124"
 ]);
 export const RED_DECK = Object.freeze([
   [

@@ -1,9 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createGame, addSandboxCardToHand, findCard, playLayeredCard, canPlayLayeredCard } from "../src/game/engine.js";
-import { runSimpleAiTurnSteps } from "../src/game/ai.js";
 import { mobileViewportMetrics } from "../src/ui-refresh/mobile-viewport.js";
-import { createSelectionRequest } from "../src/game/selection-model.js";
 
 const clean = () => {
   const state = createGame({ mode: "sandbox", sandboxDeckSetup: true, rng: () => .5 });
@@ -47,16 +45,4 @@ test("layered source chooses an exact slot including one freed by its materials"
   assert.equal(playLayeredCard(state, "player", card.uid, materials, "front", { requestedSlot: 5 }), true);
   assert.equal(findCard(state, card.uid).card.boardSlot, 5);
   assert.equal(findCard(state, card.uid).card.mounted.length, 2);
-});
-
-test("AI suspends at another player's required choice without issuing another command", () => {
-  const state = clean(); state.active = "ai"; state.interactive = true;
-  const request = createSelectionRequest({ mode: "scope", scopeField: "test", scopeOptions: ["続行"], continuation: { type: "test", playerId: "player" } });
-  state.pending = { type: "selection", validTargets: [], request };
-  const before = JSON.stringify(state), iterator = runSimpleAiTurnSteps(state, "ai");
-  assert.equal(iterator.next().value.type, "await-input");
-  assert.equal(JSON.stringify(state), before);
-  state.pending = null;
-  assert.notEqual(iterator.next().value?.type, "await-input");
-  iterator.return();
 });

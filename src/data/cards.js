@@ -1,4 +1,4 @@
-import { STD_CARDS, VENGEANCE_DECK, VENGEANCE_IDS, NEUTRON_DECK, NEUTRON_IDS, RED_DECK, YELLOW_DECK } from "../cards/std_ex.js";
+import { STD_CARDS, VENGEANCE_DECK, NEUTRON_DECK, RED_DECK, YELLOW_DECK } from "../cards/std_ex.js";
 import { SZTB_CARDS } from "../cards/sztb_ex.js";
 import { COMPILER_PRESETS } from "../cards/compiler-presets.js";
 import { registerCardOperationPresets } from "../../packages/effect-compiler/index.js";
@@ -10,7 +10,7 @@ export const CARD_LIBRARY = Object.freeze({ ...STD_CARDS, ...SZTB_CARDS });
 registerCardOperationPresets(COMPILER_PRESETS);
 export const LAB_CARD_IDS = Object.freeze([...Object.keys(CARD_LIBRARY)].sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" })));
 
-export { VENGEANCE_DECK, VENGEANCE_IDS, NEUTRON_DECK, NEUTRON_IDS, RED_DECK, YELLOW_DECK };
+export { VENGEANCE_DECK, NEUTRON_DECK, RED_DECK, YELLOW_DECK };
 
 export const USER_CARDS = Object.freeze({
   "doors_zx": {
