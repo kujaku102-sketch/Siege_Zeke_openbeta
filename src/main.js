@@ -4,6 +4,7 @@ import './ui-refresh/wireframe/board.css';
 import './ui-refresh/hud-skin.css';
 import './ui-refresh/hud-sprites.css';
 import { createMatchLifecycleController } from './adapters/match-lifecycle-controller.js';
+import { CARD_VERSION, RULE_VERSION } from './game/runtime/versions.js';
 import { mountRuntimeMatch } from './ui-refresh/runtime-match-surface.js';
 import { runtimeShellHtml } from './ui-refresh/runtime-shell-view.js';
 import { patchHtml } from './ui-refresh/dom-patch.js';
@@ -117,7 +118,7 @@ function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.
   const opening = mode === 'ai' && new URLSearchParams(location.search).get('opening') === 'v2.4' ? {openingProtocol:'v2.4'} : {};
   if (mode !== 'tutorial') {const invalid = [player,ai].find(deck => deck && !validateDeck(deck).valid);
     if (invalid) {host.deckBuilder.open = true;host.deckBuilder.draft = structuredClone(invalid);host.notice = `「${invalid.name}」は構築規定の修正が必要です。`;renderShell();return {ok:false,error:{code:'INVALID_DECK'}};}}
-  const result = lifecycle.start({matchId:crypto.randomUUID(),seatIds:['player','ai'],seed,ruleVersion:'2.0-public-staging.13',cardVersion:'beta0.9.1',gameOptions:{
+  const result = lifecycle.start({matchId:crypto.randomUUID(),seatIds:['player','ai'],seed,ruleVersion:RULE_VERSION,cardVersion:CARD_VERSION,gameOptions:{
     ...opening,mode,tutorialId,playerDeckId:mode === 'tutorial' ? 'red' : player ? 'red' : host.playerDeckId,aiDeckId:mode === 'tutorial' ? 'yellow' : ai ? 'yellow' : host.aiDeckId,
     playerDeckRecipe:mode === 'tutorial' ? null : player ? deckToRecipe(player) : null,aiDeckRecipe:mode === 'tutorial' ? null : ai ? deckToRecipe(ai) : null,
     playerUserId:mode === 'tutorial' ? 'doors_zx' : player?.userId ?? host.playerUserId,aiUserId:mode === 'tutorial' ? 'doors_zx' : ai?.userId ?? host.aiUserId,sandboxDeckSetup:mode === 'sandbox'}});

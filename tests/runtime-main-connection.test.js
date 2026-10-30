@@ -686,7 +686,7 @@ const SOURCE_EXCEPTIONS = new Map([
   ['../src/adapters/match-log.js', ['game/engine.js']], // static DECK_OPTIONS labels only
   ['../src/ui/visual-effects.js', ['game/engine.js']]]); // card stat helpers; to move onto the read model
 test('player-facing sources import no engine, legacy AI or selection model beyond the pure public helpers', () => {
-  const allowed = new Set(['game/runtime/selection-contract.js', 'game/deck-builder.js', 'game/card-types.js']);
+  const allowed = new Set(['game/runtime/selection-contract.js', 'game/runtime/versions.js', 'game/deck-builder.js', 'game/card-types.js']);
   const found = [];
   for (const file of playerFacingSources()) {
     const base = new URL(file, import.meta.url), text = readFileSync(base, 'utf8');
