@@ -44,7 +44,9 @@ export function dense(value, code) {
   return result;
 }
 
-export function copyJson(value, code, ancestors = new Set()) {
+// `dropUndefined` is the save side's JSON.stringify reading of a field with no value: the field is left out.
+// The load side keeps it strict, so a file that carries one is still refused.
+export function copyJson(value, code, ancestors = new Set(), dropUndefined = false) {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || Object.is(value, -0)) reject(code);
@@ -54,15 +56,16 @@ export function copyJson(value, code, ancestors = new Set()) {
   if (ancestors.has(value)) reject(code);
   ancestors.add(value);
   try {
-    if (Array.isArray(value)) return dense(value, code).map(item => copyJson(item, code, ancestors));
+    if (Array.isArray(value)) return dense(value, code).map(item => copyJson(item, code, ancestors, dropUndefined));
     ordinary(value, code);
     const result = {};
     for (const key of Reflect.ownKeys(value)) {
       if (typeof key !== 'string') reject(code);
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) reject(code);
+      if (dropUndefined && descriptor.value === undefined) continue;
       Object.defineProperty(result, key, {
-        value: copyJson(descriptor.value, code, ancestors), enumerable: true, writable: true, configurable: true
+        value: copyJson(descriptor.value, code, ancestors, dropUndefined), enumerable: true, writable: true, configurable: true
       });
     }
     return result;

@@ -20,9 +20,9 @@ export function createRuntimeSnapshot(input) {
     const metadata = metadataData(args.metadata, INVALID);
     const liveState = allowedRootKeys(args.engineState, UNSUPPORTED, true);
     validateRootNumbers(liveState);
-    const engineState = copyJson(liveState, UNSUPPORTED);
+    const engineState = copyJson(liveState, UNSUPPORTED, new Set(), true);
     const state = stateData(engineState, { rootCode: UNSUPPORTED, busy: false });
-    const referenceState = copyJson(args.referenceState, STATE);
+    const referenceState = copyJson(args.referenceState, STATE, new Set(), true);
     snapshotState(state, metadata, referenceState, args.revision);
     consistency(metadata, state, args.revision);
     checkRuntime(state, referenceState, metadata, args.revision);

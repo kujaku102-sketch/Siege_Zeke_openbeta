@@ -1,4 +1,5 @@
-import { createNewMatchSessionController } from './match-session-controller.js';
+import { createMatchSessionController, createNewMatchSessionController } from './match-session-controller.js';
+import { loadTutorialCheckpoint } from './tutorial-checkpoint.js';
 import { playTutorialToWin } from './tutorial-autoplay.js';
 
 const failure = code => ({ ok: false, error: { code } });
@@ -15,9 +16,7 @@ export function createMatchLifecycleController({ nextMatchId = () => crypto.rand
     try { onRetire?.(session); } catch { /* keeping a record never blocks leaving a match */ }
     session.dispose();
   };
-  const start = runtimeConfig => {
-    if (disposed) return failure('MATCH_LIFECYCLE_DISPOSED');
-    const created = createNewMatchSessionController({ runtimeConfig, sessionGeneration: generation + 1 });
+  const install = (created, runtimeConfig) => {
     if (!created.ok) return created;
     const next = created.value;
     try { if (current) retire(current); }
@@ -27,8 +26,22 @@ export function createMatchLifecycleController({ nextMatchId = () => crypto.rand
     generation += 1;
     return { ok: true, value: current };
   };
+  const start = runtimeConfig => {
+    if (disposed) return failure('MATCH_LIFECYCLE_DISPOSED');
+    return install(createNewMatchSessionController({ runtimeConfig, sessionGeneration: generation + 1 }), runtimeConfig);
+  };
   return Object.freeze({
     start,
+    // Starts a tutorial as a new match from one of its stored checkpoints (tutorial-checkpoint.js): a new
+    // match id, an empty journal and event feed, the guide where the checkpoint left it. The running match
+    // is replaced like any other start; a rematch starts the same tutorial from its beginning.
+    startFromCheckpoint({ file, checkpointId }) {
+      if (disposed) return failure('MATCH_LIFECYCLE_DISPOSED');
+      const loaded = loadTutorialCheckpoint(file, checkpointId, { matchId: nextMatchId() });
+      if (!loaded.ok) return loaded;
+      const { authority, tutorialState, runtimeConfig } = loaded.value;
+      return install(createMatchSessionController({ authority, sessionGeneration: generation + 1, tutorialState }), runtimeConfig);
+    },
     current() { return !disposed && current ? { ok: true, value: current } : failure('MATCH_UNAVAILABLE'); },
     rematch() {
       if (!config) return failure('MATCH_UNAVAILABLE');
