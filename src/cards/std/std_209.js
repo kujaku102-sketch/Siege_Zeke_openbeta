@@ -1,4 +1,6 @@
 // STD-209 コープス・パッチワーク
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-209",
   "name": "コープス・パッチワーク",
@@ -13,3 +15,19 @@ export const definition = {
   "str": null,
   "cardClass": null
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("spell", [
+    op("destroy", {
+      target: "activation_target", owner: "enemy", zones: ["area"],
+      recordAs: "destroyed_count", recordCategoryAs: "destroyed_category"
+    }),
+    op("generate", {
+      cardIds: ["STD-205", "STD-189"], destination: "hand",
+      condition: { expression: "recorded_value_equals", key: "destroyed_category", value: "Ob" }
+    }),
+    op("generate", {
+      cardIds: ["STD-189", "STD-189"], destination: "hand",
+      condition: { expression: "recorded_value_not_equals", key: "destroyed_category", value: "Ob", requiresKey: true }
+    })
+  ]);

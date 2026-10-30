@@ -1,4 +1,7 @@
 // STD-119 情報管理端末Ⅱ型ソドム
+import { op } from "../kit.js";
+import { createTriggerSpec } from "../../game/activation-windows.js";
+
 export const definition = {
   "id": "STD-119",
   "name": "情報管理端末Ⅱ型ソドム",
@@ -13,3 +16,20 @@ export const definition = {
   "str": null,
   "cardClass": null
 };
+
+// trigger specs (was trigger-specs.js)
+export const triggerSpecs = [
+  createTriggerSpec({
+    id: "STD-119:own-slash-sp-executed", cardId: "STD-119", event: "card_executed", limit: "once_per_turn",
+    conditions: [
+      { type: "source_resident_active" },
+      { type: "event_card_owner_is_source_controller" },
+      { type: "event_card_category", category: "Sp" },
+      { type: "event_card_name_pattern", pattern: "slash_spell" }
+    ],
+    actions: [op("add_counter", { target: "enemy_ob_all", counter: "load", amount: 1 })]
+  })
+];
+
+// uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
+export const sharedTriggerCard = true;

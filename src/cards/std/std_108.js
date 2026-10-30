@@ -1,4 +1,6 @@
 // STD-108 末端エンジニア
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-108",
   "name": "末端エンジニア",
@@ -13,3 +15,8 @@ export const definition = {
   "printedCategory": "Ob",
   "cardClass": null
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("login", [op("access", {
+    filter: { className: "エレクトロンフェアリー" }, count: 1, destination: "hand"
+  })]);

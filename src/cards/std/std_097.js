@@ -1,4 +1,6 @@
 // STD-097 変形合体レッパオー・SS(シールドスタイル)
+import { area, own, exact } from "../kit.js";
+
 export const definition = {
   "id": "STD-097",
   "name": "変形合体レッパオー・SS(シールドスタイル)",
@@ -13,3 +15,6 @@ export const definition = {
   ],
   "text": "[レイヤード:「変形合体レッパオー」1体とレッドパンクス1枚以上][オーバーライド:2X][セキュリティ][コンタクト]このObが戦闘する時、レイヤー1枚を破棄して①を起動できる。①受けるダメージを1にする。"
 };
+
+// layered requirement (was layered-specs.js)
+export const layeredSpec = { groups: [exact(area, { nameIncludes: "変形合体レッパオー", isOb: true }), own(area, { className: "レッドパンクス" })] };

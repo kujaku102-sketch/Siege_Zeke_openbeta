@@ -1,4 +1,7 @@
 // STD-120 情報管理端末Ⅲ型ゴモラ
+import { op } from "../kit.js";
+import { createTriggerSpec } from "../../game/activation-windows.js";
+
 export const definition = {
   "id": "STD-120",
   "name": "情報管理端末Ⅲ型ゴモラ",
@@ -13,3 +16,23 @@ export const definition = {
   "str": null,
   "cardClass": null
 };
+
+// trigger specs (was trigger-specs.js)
+export const triggerSpecs = [
+  createTriggerSpec({
+    id: "STD-120:own-sp-executed", cardId: "STD-120", event: "card_executed", limit: "once_per_turn",
+    conditions: [
+      { type: "source_resident_active" },
+      { type: "event_card_owner_is_source_controller" },
+      { type: "event_card_category", category: "Sp" }
+    ],
+    actions: [op("select_execute_from_trash", {
+      filter: { category: "Sp", namePattern: "slash_spell", maximumCost: 2 },
+      destinationAfterExecution: "deck",
+      shuffleAfter: true
+    })]
+  })
+];
+
+// uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
+export const sharedTriggerCard = true;

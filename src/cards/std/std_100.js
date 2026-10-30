@@ -13,3 +13,14 @@ export const definition = {
   ],
   "text": "これの実行メモリは名称の異なるエリアのクラス：レッドパンクス1つにつき-1される。[QA][セキュリティ]"
 };
+
+// executionCostModifierSpec (was continuous-effect-specs.js)
+export const executionCostModifierSpec = [{
+    type: "modify_execution_cost",
+    target: "source",
+    amount: -1,
+    multiplier: Object.freeze({
+      expression: "own_area_distinct_name_count",
+      filter: Object.freeze({ className: "レッドパンクス" })
+    })
+  }];

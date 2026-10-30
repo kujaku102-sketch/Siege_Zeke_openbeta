@@ -1,4 +1,6 @@
 // STD-110 /セキュリティウォール/*
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-110",
   "name": "/セキュリティウォール/*",
@@ -12,3 +14,6 @@ export const definition = {
   "atk": null,
   "str": null
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("spell", [op("grant_keyword", { target: "own_ob_all", keyword: "ENCRYPTION", duration: "through_next_turn_end" })]);

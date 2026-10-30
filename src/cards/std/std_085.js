@@ -1,4 +1,6 @@
 // STD-085 試作合体レッパオー・ゼロ
+import { area, own, exact } from "../kit.js";
+
 export const definition = {
   "id": "STD-085",
   "name": "試作合体レッパオー・ゼロ",
@@ -13,3 +15,6 @@ export const definition = {
     "レッドパンクス"
   ]
 };
+
+// layered requirement (was layered-specs.js)
+export const layeredSpec = { groups: [own(area, { className: "レッドパンクス", category: "Code" }), exact(area, { className: "ノイド", isOb: true })] };

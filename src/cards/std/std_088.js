@@ -12,3 +12,6 @@ export const definition = {
     "レッドパンクス"
   ]
 };
+
+// placementPermissionSpec (was continuous-effect-specs.js)
+export const placementPermissionSpec = [{ type: "forbid_execution" }];

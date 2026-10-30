@@ -1,28 +1,7 @@
 import { isObCard, matchesCardCategory } from "./card-types.js";
+import { collectSpecs } from "../cards/index.js";
 
-const area = ["front", "back"];
-const own = (zones, filter = {}, minimum = 1, maximum = Infinity) => ({ owner: "self", zones, filter, minimum, maximum });
-const exact = (zones, filter = {}, count = 1) => own(zones, filter, count, count);
-
-const SPECS = Object.freeze({
-  "STD-085": { groups: [own(area, { className: "レッドパンクス", category: "Code" }), exact(area, { className: "ノイド", isOb: true })] },
-  "STD-094": { groups: [exact(area, { className: "ノイド", isOb: true }), own(area, { className: "レッドパンクス" })] },
-  "STD-095": { groups: [exact(area, { nameIncludes: "変形合体レッパオー", isOb: true }), own(area, { className: "レッドパンクス" })] },
-  "STD-096": { groups: [exact(area, { nameIncludes: "変形合体レッパオー", isOb: true }), own(area, { className: "レッドパンクス" })] },
-  "STD-097": { groups: [exact(area, { nameIncludes: "変形合体レッパオー", isOb: true }), own(area, { className: "レッドパンクス" })] },
-  "STD-098": { groups: [exact(area, { nameIncludes: "変形合体レッパオー", isOb: true }), own(area, { printedCategory: "Lyd-Ob" }, 2)] },
-  "STD-099": { groups: [exact(area, { nameIncludes: "変形合体レッパオー", isOb: true }), own(area, { className: "レッドパンクス" })] },
-  "STD-102": { groups: [own(area, { className: "レッドパンクス", isOb: true }), own(area, { nameIncludes: "ジャンク" })] },
-  "STD-106": { groups: [exact(area, { className: "レッドパンクス", isOb: true }), exact(area, { className: "オートメイル" })] },
-  "STD-195": { groups: [own(area, { name: "ドールズ", isOb: true }, 2)] },
-  "STD-205": { groups: [own(area, { isOb: true })] },
-  "STD-232": { groups: [own([...area, "registry"], {}, 2)] },
-  "STD-238": { groups: [exact(area, { isOb: true }), own(["registry"], {})] },
-  "SZTB-092": { groups: [exact(["hand"], { armsBand: true })] },
-  "SZTB-093": { groups: [exact(["hand"], { armsBand: true }), exact(area, { armsBand: true })] },
-  "SZTB-094": { groups: [own(["hand", ...area], { armsBand: true }, 3)] },
-  "SZTB-095": { groups: [own(["hand", ...area], { armsBand: true }, 3)] }
-});
+const SPECS = Object.freeze(collectSpecs("layeredSpec"));
 
 const hasClass = (card, name) => (card?.classes ?? []).includes(name);
 

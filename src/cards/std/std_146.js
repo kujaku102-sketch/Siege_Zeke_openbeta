@@ -1,4 +1,6 @@
 // STD-146 祝福の援軍
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-146",
   "name": "祝福の援軍",
@@ -9,3 +11,15 @@ export const definition = {
   "rulingOverride": "STD-146: NOMとSecurityの和をX、元メモリX未満のObをゴミ箱からデコード",
   "classes": []
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("spell", [op("decode", {
+    filter: {
+      category: "Ob",
+      originalMemoryMaximumExclusive: {
+        expression: "own_trash_filter_union_count",
+        filters: [{ className: "ナイツ・オブ・マキナ" }, { keyword: "SECURITY" }]
+      }
+    },
+    count: 1
+  })]);

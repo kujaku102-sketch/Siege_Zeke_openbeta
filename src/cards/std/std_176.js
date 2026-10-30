@@ -1,4 +1,7 @@
 // STD-176 蜂の大群
+import { op, spec } from "../kit.js";
+import { createTriggerSpec } from "../../game/activation-windows.js";
+
 export const definition = {
   "id": "STD-176",
   "name": "蜂の大群",
@@ -14,3 +17,17 @@ export const definition = {
     "インセクト"
   ]
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("script_activation", [op("grant_keyword", {
+    target: "own_ob_all", keyword: "SLASH", duration: "through_next_turn_end"
+  })]);
+
+// trigger specs (was trigger-specs.js)
+export const triggerSpecs = [
+  createTriggerSpec({
+    id: "STD-176:enemy-turn-start", cardId: "STD-176", event: "turn_started", activation: "optional",
+    conditions: [{ type: "source_zone", zone: "back" }, { type: "source_face_down" }, { type: "event_player_is_enemy" }],
+    actions: []
+  })
+];

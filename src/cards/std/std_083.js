@@ -1,4 +1,6 @@
 // STD-083 マシーナリー・ボルツ
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-083",
   "name": "マシーナリー・ボルツ",
@@ -13,3 +15,9 @@ export const definition = {
     "レッドパンクス"
   ]
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("login", [op("access", {
+    filter: { category: "Lyd-Ob", className: "レッドパンクス" }, mode: "up_to", minimum: 1, maximum: 2,
+    destination: "distribute", destinations: ["hand", "trash"], condition: { expression: "source_is_mounted" }
+  })]);

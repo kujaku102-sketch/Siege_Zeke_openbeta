@@ -1,4 +1,7 @@
 // STD-195 マーダードールズ=トライプビア
+import { op, area, own } from "../kit.js";
+import { createTriggerSpec } from "../../game/activation-windows.js";
+
 export const definition = {
   "id": "STD-195",
   "name": "マーダードールズ=トライプビア",
@@ -15,3 +18,17 @@ export const definition = {
   "printedCategory": "Lyd-Ob",
   "cardClass": "マスターピース"
 };
+
+// layered requirement (was layered-specs.js)
+export const layeredSpec = { groups: [own(area, { name: "ドールズ", isOb: true }, 2)] };
+
+// trigger specs (was trigger-specs.js)
+export const triggerSpecs = [
+  createTriggerSpec({
+    id: "STD-195:self-moved",
+    cardId: "STD-195",
+    event: "card_moved",
+    conditions: [{ type: "event_card_is_source" }],
+    actions: [op("standby", { target: "source" })]
+  })
+];

@@ -1,4 +1,7 @@
 // STD-140 聖樹枝(セフィラリンク)
+import { op } from "../kit.js";
+import { createTriggerSpec } from "../../game/activation-windows.js";
+
 export const definition = {
   "id": "STD-140",
   "name": "聖樹枝(セフィラリンク)",
@@ -11,3 +14,12 @@ export const definition = {
   "activationCost": 0,
   "printedCost": "2-0"
 };
+
+// trigger specs (was trigger-specs.js)
+export const triggerSpecs = [
+  createTriggerSpec({
+    id: "STD-140:battle", cardId: "STD-140", event: "battle_started", activation: "optional",
+    conditions: [{ type: "source_resident_active" }],
+    actions: [op("select", { selector: "one_own_ob", then: "modify_and_prevent_battle_damage", atk: -2, str: 0, duration: "turn" })]
+  })
+];

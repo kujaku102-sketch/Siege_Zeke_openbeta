@@ -1,4 +1,6 @@
 // STD-131 「華守り」
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-131",
   "name": "「華守り」",
@@ -13,3 +15,10 @@ export const definition = {
   ],
   "text": "[セキュリティ][ログアウト]「華守り」1体を手札からドラッグする。"
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("logout", [op("select", {
+    selector: { owner: "self", zones: ["hand"], normalizedName: "華守り" }, count: 1,
+    continueWhenEmpty: true, skipAfterActionsWhenEmpty: true,
+    afterActions: [op("move", { target: "selected_cards", source: "hand", destination: "drag", free: true, forced: true })]
+  })]);

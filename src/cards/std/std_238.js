@@ -1,4 +1,6 @@
 // STD-238 合体怪人 千手のキャノーン
+import { area, own, exact } from "../kit.js";
+
 export const definition = {
   "id": "STD-238",
   "name": "合体怪人 千手のキャノーン",
@@ -10,3 +12,6 @@ export const definition = {
   "classes": [],
   "text": "[レイヤード:自分のOb1体+自分レジストリのカード1枚以上][切断][セキュリティ]攻撃時①を起動できる。①これのレイヤーを2枚消費し、スタンバイする。これを+2/0する。"
 };
+
+// layered requirement (was layered-specs.js)
+export const layeredSpec = { groups: [exact(area, { isOb: true }), own(["registry"], {})] };

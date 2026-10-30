@@ -1,4 +1,6 @@
 // STD-154 不屈マンドラゴラ
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-154",
   "name": "不屈マンドラゴラ",
@@ -12,3 +14,9 @@ export const definition = {
   ],
   "text": "このカードがエリアからゴミ箱に置かれた次ターン開始時、ゴミ箱のこのカードをスリープして配置する。"
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("area_to_trash", [op("schedule_delayed", {
+    event: "turn_started", timing: "next_controller_turn", action: "move_source_from_trash",
+    destination: "choose_area", resetDamage: true, sleep: true
+  })]);

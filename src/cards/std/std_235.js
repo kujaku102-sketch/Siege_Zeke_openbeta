@@ -12,3 +12,11 @@ export const definition = {
   "text": "[コンタクト]これにマウントしたカードがスリープする時、所有ユーザーは2ダメージ受ける。",
   "classes": []
 };
+
+// mountEventSpec (was continuous-effect-specs.js)
+export const mountEventSpec = [{
+    event: "mounted_host_slept",
+    actions: Object.freeze([
+      Object.freeze({ type: "deal_damage", target: "source_owner_user", amount: 2 })
+    ])
+  }];

@@ -12,3 +12,11 @@ export const definition = {
     "レッドパンクス"
   ]
 };
+
+// mandatoryStateCheckSpec (was continuous-effect-specs.js)
+export const mandatoryStateCheckSpec = [{
+    type: "destroy",
+    target: "source",
+    suppressReplacement: false,
+    condition: Object.freeze({ expression: "source_is_not_mounted" })
+  }];

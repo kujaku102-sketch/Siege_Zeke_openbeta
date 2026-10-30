@@ -1,4 +1,6 @@
 // STD-114 戦闘用素体F型 ライラ
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-114",
   "name": "戦闘用素体F型 ライラ",
@@ -16,3 +18,10 @@ export const definition = {
   "printedCategory": "Ob",
   "cardClass": null
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("attack_declared", [op("select", {
+    selector: { owner: "self", zones: ["area"], category: "Ob", excludeSource: true }, count: 1,
+    label: "[ハッキング]を与える他の自分Obを選択",
+    afterActions: [op("grant_keyword", { target: "selected_own_ob", keyword: "HACKING", duration: "game" })]
+  })]);

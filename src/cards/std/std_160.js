@@ -1,4 +1,7 @@
 // STD-160 クトゥルフ(実際のカード表記では━━)
+import { op } from "../kit.js";
+import { createTriggerSpec } from "../../game/activation-windows.js";
+
 export const definition = {
   "id": "STD-160",
   "name": "クトゥルフ(実際のカード表記では━━)",
@@ -12,3 +15,12 @@ export const definition = {
   ],
   "text": "[プロキシ:2]これをエリアに配置し破壊する。その後、「旧支配者」Script1枚にアクセスしそれを山札の上に置く。[ログイン]相手Obすべてとユーザーに「狂気カウンター」を3つ与える。自分ターン開始時、相手ユーザーに「狂気カウンター」を1つ与える。"
 };
+
+// trigger specs (was trigger-specs.js)
+export const triggerSpecs = [
+  createTriggerSpec({
+    id: "STD-160:own-turn-madness", cardId: "STD-160", event: "turn_started",
+    conditions: [{ type: "source_controller_is_event_player" }],
+    actions: [op("add_counter", { target: "enemy_user", counter: "madness", amount: 1 })]
+  })
+];

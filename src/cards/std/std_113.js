@@ -1,4 +1,6 @@
 // STD-113 ビッグシスター
+import { op, spec, multiSpec } from "../kit.js";
+
 export const definition = {
   "id": "STD-113",
   "name": "ビッグシスター",
@@ -16,3 +18,17 @@ export const definition = {
   "printedCategory": "Ob",
   "cardClass": "ニュートロン・セキュリティ/ビルダー"
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = multiSpec(
+    spec("login", [op("select", {
+      selector: { owner: "self", zones: ["hand"], category: "Ob", className: "エレクトロンフェアリー", originalMemoryMaximum: 2 },
+      count: 1,
+      afterActions: [op("move", { target: "selected_cards", source: "hand", destination: "area", free: true, forced: true })]
+    })]),
+    spec("turn_start", [op("select", {
+      selector: { owner: "self", zones: ["hand"], category: "Ob", className: "エレクトロンフェアリー", originalMemoryMaximum: 2 },
+      count: 1,
+      afterActions: [op("move", { target: "selected_cards", source: "hand", destination: "area", free: true, forced: true })]
+    })])
+  );

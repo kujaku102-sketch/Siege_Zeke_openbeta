@@ -12,3 +12,11 @@ export const definition = {
   "text": "[セキュリティ]これにマウントしたカードがスリープする時、所有ユーザーは手札を1枚捨てる。",
   "classes": []
 };
+
+// mountEventSpec (was continuous-effect-specs.js)
+export const mountEventSpec = [{
+    event: "mounted_host_slept",
+    actions: Object.freeze([
+      Object.freeze({ type: "discard", target: "source_owner_hand", count: 1 })
+    ])
+  }];

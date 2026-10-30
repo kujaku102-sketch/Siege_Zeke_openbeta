@@ -1,4 +1,6 @@
 // STD-205 ドールズ・ギガンテス
+import { op, spec, modifier, area, own } from "../kit.js";
+
 export const definition = {
   "id": "STD-205",
   "name": "ドールズ・ギガンテス",
@@ -16,3 +18,20 @@ export const definition = {
   "sourceId": "STD-205",
   "cardClass": "ヴェンジェンス/アーティファクト"
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("login", [op("modify_stats", { target: "source", atk: 1, str: 1, multiplier: { expression: "source_layer_count" }, duration: "game" })]);
+
+// damage modifiers (was damage-modifier-specs.js)
+export const damageModifierSpecs = Object.freeze([
+    modifier({
+      direction: "received",
+      sourceFilter: { classesAny: ["アーティファクト", "マスターピース"] },
+      targetFilter: "provider",
+      destination: "card",
+      amount: -1
+    })
+  ]);
+
+// layered requirement (was layered-specs.js)
+export const layeredSpec = { groups: [own(area, { isOb: true })] };

@@ -1,4 +1,6 @@
 // STD-082 リメイカー・ジェイク
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-082",
   "name": "リメイカー・ジェイク",
@@ -12,3 +14,9 @@ export const definition = {
     "レッドパンクス"
   ]
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("login", [
+    op("mill", { target: "own_deck_top", amount: 1, destination: "trash" }),
+    op("decode", { filter: { category: "Code", originalMemoryMaximum: 3 }, count: 1, destination: "choose_area" })
+  ]);

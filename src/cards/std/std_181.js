@@ -13,3 +13,6 @@ export const definition = {
     "インセクト"
   ]
 };
+
+// attackPermissionSpec (was continuous-effect-specs.js)
+export const attackPermissionSpec = [{ type: "require_attack_condition", condition: "own_script_activated_this_turn" }];

@@ -13,3 +13,12 @@ export const definition = {
   "str": null,
   "cardClass": null
 };
+
+// placement cost spec (was card-runtime-specs.js)
+export const placementCostSpec = Object.freeze({
+    selection: Object.freeze({
+      zones: Object.freeze(["front", "back"]), controller: "any", faceUp: true,
+      namePrefix: "情報管理端末", count: 3, distinctBy: "name"
+    }),
+    payment: Object.freeze({ operation: "destroy", allRequired: true })
+  });

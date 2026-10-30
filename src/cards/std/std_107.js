@@ -1,4 +1,6 @@
 // STD-107 解析用素体A型 ルチル
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-107",
   "name": "解析用素体A型 ルチル",
@@ -16,3 +18,8 @@ export const definition = {
   "printedCategory": "Ob",
   "cardClass": null
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("login", [op("access", {
+    filter: { category: "Sp", nameStartsWith: "/", nameEndsWith: "/*" }, count: 1, destination: "hand"
+  })]);

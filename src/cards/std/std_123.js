@@ -16,3 +16,19 @@ export const definition = {
   "cardClass": "ヴァーチャルファントム",
   "token": true
 };
+
+// conditionalKeywordSpec (was continuous-effect-specs.js)
+export const conditionalKeywordSpec = [{
+    type: "grant_keywords",
+    target: "source",
+    keywords: Object.freeze(["QA", "HACKING"]),
+    condition: Object.freeze({ expression: "source_atk_at_least", amount: 5 })
+  }];
+
+// mandatoryStateCheckSpec (was continuous-effect-specs.js)
+export const mandatoryStateCheckSpec = [{
+    type: "destroy",
+    target: "source",
+    suppressReplacement: true,
+    condition: Object.freeze({ expression: "source_max_str_at_most", amount: 0 })
+  }];

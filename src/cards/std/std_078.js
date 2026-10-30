@@ -10,3 +10,6 @@ export const definition = {
   ],
   "text": "マウントしたObを+1/+1する。(このカードは山札に4枚以上入れられる。)"
 };
+
+// mountedStatModifierSpec (was continuous-effect-specs.js)
+export const mountedStatModifierSpec = [{ type: "modify_stats", target: "mounted_host", atk: 1, str: 1 }];

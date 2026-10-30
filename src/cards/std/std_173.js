@@ -1,4 +1,6 @@
 // STD-173 知らせ虫
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-173",
   "name": "知らせ虫",
@@ -13,3 +15,8 @@ export const definition = {
     "インセクト"
   ]
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("login", [op("access", {
+    filter: { category: "Script", originalSetupMemoryMaximum: 1 }, count: 1, destination: "hand"
+  })]);

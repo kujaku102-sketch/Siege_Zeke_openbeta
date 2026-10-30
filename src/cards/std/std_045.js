@@ -1,4 +1,6 @@
 // STD-045 二刀流剣士 フローレンス
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-045",
   "name": "二刀流剣士 フローレンス",
@@ -13,3 +15,8 @@ export const definition = {
   ],
   "text": "[ログイン]効果テキストを持たないOb1体にアクセスし、それをドラッグする。"
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("login", [op("access", {
+    filter: { category: "Ob", effectText: "none" }, count: 1, destination: "drag", enterSleep: false
+  })]);

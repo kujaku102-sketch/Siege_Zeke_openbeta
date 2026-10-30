@@ -1,4 +1,6 @@
 // STD-117 次世代試作素体Δ型 漣
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-117",
   "name": "次世代試作素体Δ型 漣",
@@ -16,3 +18,19 @@ export const definition = {
   "printedCategory": "Ob",
   "cardClass": null
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("attack_declared", [op("select", {
+    selector: {
+      owner: "self", zones: ["trash"],
+      anyOf: [{ category: "Sp" }, { className: "エレクトロンフェアリー" }]
+    },
+    count: 1, label: "攻撃時にサルベージするカードを選択",
+    afterActions: [op("move", { target: "selected_cards", source: "trash", destination: "hand" })]
+  })]);
+
+// auraKeywordSpec (was continuous-effect-specs.js)
+export const auraKeywordSpec = [
+    { type: "grant_keyword", providerZone: "front", target: "source", keyword: "HACKING" },
+    { type: "grant_keyword", providerZone: "back", target: "own_color_ob_all", color: "青", keyword: "ENCRYPTION" }
+  ];

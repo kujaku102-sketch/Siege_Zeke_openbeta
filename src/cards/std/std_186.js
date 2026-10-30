@@ -1,4 +1,7 @@
 // STD-186 地虫の豊穣
+import { op, spec } from "../kit.js";
+import { createTriggerSpec } from "../../game/activation-windows.js";
+
 export const definition = {
   "id": "STD-186",
   "name": "地虫の豊穣",
@@ -14,3 +17,22 @@ export const definition = {
     "インセクト"
   ]
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("script_activation", [op("draw", { target: "source_controller", amount: 1 })]);
+
+// trigger specs (was trigger-specs.js)
+export const triggerSpecs = [
+  createTriggerSpec({
+    id: "STD-186:enemy-card-drawn",
+    cardId: "STD-186",
+    event: "card_drawn",
+    activation: "optional",
+    conditions: [
+      { type: "source_zone", zone: "back" },
+      { type: "source_face_down" },
+      { type: "event_player_is_enemy" }
+    ],
+    actions: []
+  })
+];

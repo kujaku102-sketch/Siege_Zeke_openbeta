@@ -1,4 +1,6 @@
 // STD-202 骨抜き
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-202",
   "name": "骨抜き",
@@ -13,3 +15,15 @@ export const definition = {
   "str": null,
   "cardClass": null
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("spell", [
+    op("move", {
+      target: "activation_target", owner: "enemy", source: "front", destination: "back",
+      controllerRecord: "moved_controller", sourceZoneRecord: "original_zone"
+    }),
+    op("generate", {
+      cardId: "STD-189", count: 1, destination: { expression: "recorded_value", key: "original_zone" },
+      playerRecord: "moved_controller"
+    })
+  ]);

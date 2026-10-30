@@ -15,3 +15,15 @@ export const definition = {
   "sourceId": "STD-109",
   "printedCategory": "Ob"
 };
+
+// continuousStatModifierSpec (was continuous-effect-specs.js)
+export const continuousStatModifierSpec = [{
+    type: "modify_stats",
+    target: "source",
+    atk: 1,
+    str: 1,
+    condition: Object.freeze({
+      expression: "source_has_any_keyword",
+      keywords: Object.freeze(["HACKING", "ENCRYPTION"])
+    })
+  }];

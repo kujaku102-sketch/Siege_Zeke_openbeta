@@ -1,4 +1,6 @@
 // STD-182 大王サソリ
+import { op, spec } from "../kit.js";
+
 export const definition = {
   "id": "STD-182",
   "name": "大王サソリ",
@@ -13,3 +15,10 @@ export const definition = {
     "インセクト"
   ]
 };
+
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("login", [op("select", {
+    selector: { owner: "self", zones: ["hand"], category: "Script", originalSetupMemoryMaximum: 2 },
+    count: 1,
+    afterActions: [op("move", { target: "selected_cards", source: "hand", destination: "back", free: true, forced: true, asScript: true })]
+  })]);

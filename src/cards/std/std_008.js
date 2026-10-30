@@ -8,3 +8,13 @@ export const definition = {
   "classes": [],
   "text": "相手の実行メモリを+1する。"
 };
+
+// executionCostModifierSpec (was continuous-effect-specs.js)
+export const executionCostModifierSpec = [{
+    type: "modify_execution_cost",
+    amount: 1,
+    providerOwner: "enemy",
+    providerZone: "area",
+    faceUp: true,
+    aggregation: "once"
+  }];

@@ -13,3 +13,12 @@ export const definition = {
   "printedCategory": "Ob",
   "cardClass": null
 };
+
+// auraKeywordSpec (was continuous-effect-specs.js)
+export const auraKeywordSpec = [{
+    type: "grant_keyword",
+    providerZone: "area",
+    target: "own_class_ob_all",
+    className: "エレクトロンフェアリー",
+    keyword: "ENCRYPTION"
+  }];
