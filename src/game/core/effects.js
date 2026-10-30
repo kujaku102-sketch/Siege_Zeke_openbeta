@@ -3,7 +3,7 @@ import { normalizeBoardSlots } from "../board-slots.js";
 import { isObCard } from "../card-types.js";
 import { mandatoryStateCheckSpecsFor } from "../continuous-effect-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
-import { continueDeferredSpellCleanup } from "./play.js";
+import { continueDeferredSpellCleanup } from "./play-spell.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { resolveDeclaredResponse, startNextQueuedResponse } from "./response.js";
 import { DECLARED_IF_SCRIPT_IDS } from "./scripts.js";

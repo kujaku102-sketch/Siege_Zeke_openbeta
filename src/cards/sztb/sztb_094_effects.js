@@ -1,9 +1,10 @@
-// SZTB-094 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
-import { isObCard } from "../../game/card-types.js";
 import { hasKeyword } from "../../../packages/effect-compiler/index.js";
+import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { runEffectEntry } from "../../game/core/effects.js";
-import { getEffectTargets, playCard, spellNeedsTarget } from "../../game/core/play.js";
+import { getEffectTargets } from "../../game/core/play-effects.js";
+import { spellNeedsTarget } from "../../game/core/play-spell.js";
+import { playCard } from "../../game/core/play.js";
 import { findCard, isArmsBandCard, otherPlayer } from "../../game/core/shared.js";
 import { executionCost, magazineExecutionCandidates } from "../../game/effects/generic/cost.js";
 

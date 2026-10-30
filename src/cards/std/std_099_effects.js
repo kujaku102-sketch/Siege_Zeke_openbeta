@@ -1,5 +1,5 @@
 import { inheritBoardSlot } from "../../game/board-slots.js";
-import { resolveLogin } from "../../game/core/play.js";
+import { resolveLogin } from "../../game/core/play-spell.js";
 import { addLog, findCard, hasClass } from "../../game/core/shared.js";
 import { emitGameEvent } from "../../game/core/triggers.js";
 import { resumeDestroyLkiFollowUp } from "../../game/effects/generic/actions.js";

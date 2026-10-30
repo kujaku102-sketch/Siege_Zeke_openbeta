@@ -2,7 +2,7 @@ import { keywordValue } from "../../../../packages/effect-compiler/index.js";
 import { inheritBoardSlot } from "../../board-slots.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
 import { resumeStd230AmbushCleanup } from "../../../cards/std/std_230_effects.js";
-import { resolveLogoutAfterAreaExit } from "../../core/play.js";
+import { resolveLogoutAfterAreaExit } from "../../core/play-spell.js";
 import { openScriptActivationWindow } from "../../core/scripts.js";
 import { addLog, otherPlayer } from "../../core/shared.js";
 import { emitGameEvent } from "../../core/triggers.js";

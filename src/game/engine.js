@@ -1,6 +1,11 @@
 import { CARD_LIBRARY } from "../data/cards.js";
 
-export { supportsNormalScriptActivation, supportsDirectHandObExecution, relogPreparationKind, canDirectRelogAtSlot, installCheck, installCard, configurePlugin, recoverRegistryCard, canExecuteRegistryCard, executeRegistryCard, enabledSymbols, supportsAlternateScriptSetup, canExecuteAtSlot, canPlayCard, spellNeedsTarget, normalSpellSelection, normalExecutionCheck, normalCardEffectSelection, playCard, getEffectTargets, getActivatableEffects, activateCardEffect, getLayeredCandidates, getLayeredRequirement, getLayeredSelectionPlan, canPlayLayeredCard, playLayeredCard, relogCard } from "./core/play.js";
+export { supportsNormalScriptActivation, supportsDirectHandObExecution, enabledSymbols, supportsAlternateScriptSetup, canExecuteAtSlot, canPlayCard, playCard } from "./core/play.js";
+export { relogPreparationKind, canDirectRelogAtSlot, relogCard } from "./core/play-relog.js";
+export { installCheck, installCard, configurePlugin, recoverRegistryCard, canExecuteRegistryCard, executeRegistryCard } from "./core/play-registry.js";
+export { spellNeedsTarget, normalSpellSelection, normalExecutionCheck, normalCardEffectSelection } from "./core/play-spell.js";
+export { getEffectTargets, getActivatableEffects, activateCardEffect } from "./core/play-effects.js";
+export { getLayeredCandidates, getLayeredRequirement, getLayeredSelectionPlan, canPlayLayeredCard, playLayeredCard } from "./core/play-layered.js";
 export { coordinatorProjectionBlocked, buildProjectionSpec, commitProjection, clearProjection, replaceProjection, restoreProjection, cloneForHistory, remember, undo, enqueueLegacyProjection, promoteLegacyQueueHead } from "./core/projection.js";
 export { canAddSandboxCardToHand, addSandboxCardToHand } from "./core/setup-arrange.js";
 export { canOpeningMulligan, canKeepOpeningHand, openingMulligan, keepOpeningHand } from "./core/opening.js";

@@ -1,7 +1,7 @@
 import { CARD_LIBRARY } from "../../data/cards.js";
 import { resultCountGate } from "../../game/effect-operation-library.js";
 import { drawCards } from "../../game/core/draw.js";
-import { continueDeferredSpellCleanup } from "../../game/core/play.js";
+import { continueDeferredSpellCleanup } from "../../game/core/play-spell.js";
 import { addLog, classKey, fail, findCard } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { destroyCard } from "../../game/effects/generic/destroy.js";

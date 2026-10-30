@@ -6,7 +6,8 @@ import { hasOptionalActivationSpec, optionalSpecsForCard } from "../trigger-spec
 import { resumeDeferredAttack } from "./battle.js";
 import { resumeMandatoryDrawContinuation } from "./draw.js";
 import { continueDeferredDeclaredScriptCleanup, declareEffect, runEffectEntry } from "./effects.js";
-import { continueDeferredSpellCleanup, enabledSymbols, supportsNormalScriptActivation } from "./play.js";
+import { continueDeferredSpellCleanup } from "./play-spell.js";
+import { enabledSymbols, supportsNormalScriptActivation } from "./play.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { continueDeferredDeclaredResponseCleanup } from "./response.js";
 import { addLog, fail, findCard, otherPlayer } from "./shared.js";

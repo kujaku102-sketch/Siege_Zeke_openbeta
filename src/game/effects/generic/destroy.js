@@ -7,7 +7,7 @@ import { triggerStd165Threshold } from "../../../cards/std/std_165_effects.js";
 import { settleStd211DestructionContinuation } from "../../../cards/std/std_211_effects.js";
 import { consumeProtect } from "../../core/deal-damage.js";
 import { resolveMandatoryStateChecks } from "../../core/effects.js";
-import { continueDeferredSpellCleanup, resolveLogoutAfterAreaExit } from "../../core/play.js";
+import { continueDeferredSpellCleanup, resolveLogoutAfterAreaExit } from "../../core/play-spell.js";
 import { openScriptActivationWindow, queueScriptPrompt } from "../../core/scripts.js";
 import { addLog, cardTraits, hasClass, otherPlayer } from "../../core/shared.js";
 import { emitGameEvent } from "../../core/triggers.js";
