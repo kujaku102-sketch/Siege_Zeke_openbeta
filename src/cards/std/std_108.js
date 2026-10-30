@@ -9,11 +9,14 @@ export const definition = {
   "cost": 2,
   "atk": 1,
   "str": 2,
-  "classes": [],
+  "classes": [
+    "ニュートロン・セキュリティ",
+    "ギークス"
+  ],
   "text": "[ログイン]エレクトロンフェアリー1枚にアクセスし、それを手札に加える。",
   "sourceId": "STD-108",
   "printedCategory": "Ob",
-  "cardClass": null
+  "cardClass": "ニュートロン・セキュリティ/ギークス"
 };
 
 // runtime spec (was card-runtime-specs.js)

@@ -7,11 +7,14 @@ export const definition = {
   "cost": 4,
   "atk": 1,
   "str": 5,
-  "classes": [],
+  "classes": [
+    "ニュートロン・セキュリティ",
+    "オートメイル"
+  ],
   "text": "[デコイ]自分のエレクトロンフェアリー全ては[暗号化]を得る。",
   "sourceId": "STD-115",
   "printedCategory": "Ob",
-  "cardClass": null
+  "cardClass": "ニュートロン・セキュリティ/オートメイル"
 };
 
 // auraKeywordSpec (was continuous-effect-specs.js)

@@ -4,9 +4,9 @@ export const definition = {
   "name": "プロジェクト=インペリアル",
   "category": "Ob",
   "color": "橙",
-  "cost": 7,
+  "cost": 8,
   "atk": 0,
-  "str": 7,
+  "str": 8,
   "classes": [
     "ヴェンジェンス",
     "マスターピース"

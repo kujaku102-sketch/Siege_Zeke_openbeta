@@ -7,7 +7,7 @@ export const definition = {
   "category": "Script",
   "color": null,
   "cost": 2,
-  "text": "[if:カードを配置した時]そのカードと同じ色の手札1枚を捨て、対象を破壊する。",
+  "text": "[if:カードを配置した時]そのカードと同じ色の自分の手札1枚を捨てて起動する。そのカードを破壊する。",
   "classes": []
 };
 

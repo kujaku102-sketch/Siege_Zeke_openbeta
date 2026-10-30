@@ -466,7 +466,8 @@ export function compileEffectText(sourceText = "", context = {}) {
     const representedLayerThreshold = /レイヤー.*1枚以下.*破壊/.test(clause.text)
       && operations.some((operation) => operation.type === "destroy" && operation.reason === "layer_threshold_after_effect");
     const representedSplitCost = costs.length > 0 && /(?:送る|捨てる|破棄する)ことで$/.test(clause.text);
-    const pureTriggerClause = /^これにObがマウントした時$/.test(clause.text);
+    // 「こうして破壊したなら、」のように、直前の処理の成否だけを条件にして後続の節へつなぐ節(命令は後ろの節にある)
+    const pureTriggerClause = /^これにObがマウントした時$/.test(clause.text) || /^こうして[^、。]+したなら、?$/.test(clause.text);
     const reminderClause = /\[(?:QA|クイックアクション)\]\s*これを持(?:つ|った)Obは配置されたターンに攻撃できます。?/.test(clause.text)
       || /\[レスポンス(?::\d+)?\]\(相手からダメージを受けた時、\[レスポンス\]を持つカードを手札から指定のメモリを消費して使うことができます/.test(clause.text);
     const representedSharedClause = /\[ログイン\]自分のOb1体を破壊して$/.test(clause.text)

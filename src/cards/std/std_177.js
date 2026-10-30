@@ -8,12 +8,9 @@ export const definition = {
   "category": "Sc",
   "printedCategory": "Sc",
   "color": "緑",
-  "cost": 44197,
+  "cost": 2,
   "classes": [],
   "text": "自分のObが戦闘する時、そのObを次のターン終了時まで+2/+2する。",
-  "setupCost": 1,
-  "activationCost": 1,
-  "printedCost": "1-1",
   "traits": [
     "インセクト"
   ]
