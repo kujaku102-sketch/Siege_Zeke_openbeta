@@ -6,7 +6,10 @@ import { finalizeEffectResolution, recordVictoryFact, resolveMandatoryStateCheck
 import { queueMemoryLimitIncreasePrompt } from "./scripts.js";
 import { addLog, fail, findCard, newActionBlock, otherPlayer } from "./shared.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
-import { beginStd048MandatoryDraw, beginSztb094Access, continueStd141TurnEndQueue, destroyCard, distributeLayeredFollowers, emitEffectPlacement, executeCardRuntimeSpec, getMaxMemory, placeByMode, resolveStd049TurnEnd, revealMountedCode, setCardSleeping, syncFieldEntryTurns } from "../engine.js";
+import { executeCardRuntimeSpec } from "../effects/generic/actions.js";
+import { getMaxMemory } from "../effects/generic/cost.js";
+import { destroyCard, distributeLayeredFollowers, emitEffectPlacement, placeByMode, revealMountedCode, setCardSleeping, syncFieldEntryTurns } from "../effects/generic/placement.js";
+import { beginStd048MandatoryDraw, beginSztb094Access, continueStd141TurnEndQueue, resolveStd049TurnEnd } from "../engine.js";
 
 export function drawCardRaw(player) {
   const card = player.deck.pop();

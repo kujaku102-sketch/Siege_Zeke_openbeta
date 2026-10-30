@@ -14,7 +14,11 @@ import { hydrateCard } from "./setup.js";
 import { activeCards, addLog, cardTraits, fail, findCard, hasClass, otherPlayer, sourceCardByName } from "./shared.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { drawCards } from "./turn.js";
-import { applyDamageModifiers, beginDynamicSelectionModule, beginSourceLayerSelection, clearDamageModifiers, createVengeanceCard, destroyCard, emitEffectPlacement, executeRuntimeActions, moveCardToTrash, placeByMode, runtimeSpecValue, setCardSleeping } from "../engine.js";
+import { executeRuntimeActions, runtimeSpecValue } from "../effects/generic/actions.js";
+import { beginSourceLayerSelection } from "../effects/generic/cost.js";
+import { applyDamageModifiers, clearDamageModifiers } from "../effects/generic/damage.js";
+import { createVengeanceCard, destroyCard, emitEffectPlacement, moveCardToTrash, placeByMode, setCardSleeping } from "../effects/generic/placement.js";
+import { beginDynamicSelectionModule } from "../effects/generic/selection.js";
 
 function battleStatModifierValue(state, playerId, source, stat) {
   let value = 0;

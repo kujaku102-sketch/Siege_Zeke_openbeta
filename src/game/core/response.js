@@ -5,7 +5,7 @@ import { cardCurrentStr } from "./battle.js";
 import { declareEffect, runEffectEntry } from "./effects.js";
 import { enabledSymbols, resolveSpell } from "./play.js";
 import { addLog, hasClass, otherPlayer } from "./shared.js";
-import { destroyCard, moveCardToTrash } from "../engine.js";
+import { destroyCard, moveCardToTrash } from "../effects/generic/placement.js";
 
 const RESPONSE_RUNTIME_IDS = new Set(["STD-015", "STD-034", "STD-047", "STD-132", "STD-143", "STD-167", "STD-203", "STD-207"]);
 

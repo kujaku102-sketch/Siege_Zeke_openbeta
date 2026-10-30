@@ -16,7 +16,11 @@ import { hydrateCard } from "./setup.js";
 import { addLog, cardTraits, classKey, fail, findCard, isArmsBandOb, isElectronFairy, newActionBlock, otherPlayer, provisional, shuffle } from "./shared.js";
 import { drainTriggerQueue, emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { drawCards, resolveMadnessChecks } from "./turn.js";
-import { STD121_PLACEMENT_PERMIT, beginAllocationSelectionModule, beginSztb094Access, consumeSelectedSourceLayers, continueStd211DestructionBatch, createVengeanceCard, destroyCard, distributeLayeredFollowers, emitCardPlacement, emitCardsGenerated, emitEffectPlacement, emitRegistryInstalled, executeCardRuntimeSpec, executeRuntimeActions, executionCost, failForcedPlacement, magazineExecutionCandidates, markFieldEntry, matchesModuleFilter, moveCardToTrash, moveRemainderToDeck, movedSummoningSick, ownLayerEntries, placeByMode, placementCostCandidates, placementResult, resolveImperialRandomInstall, resolveMountedSourceTrigger, resumeDestroyLkiFollowUp, revealMountedCode, runtimeActionFeasible, runtimeSpellAccessFailure, setCardSleeping, takeViewedFromDeck, triggerMoved } from "../engine.js";
+import { executeCardRuntimeSpec, executeRuntimeActions, resumeDestroyLkiFollowUp, runtimeActionFeasible } from "../effects/generic/actions.js";
+import { STD121_PLACEMENT_PERMIT, consumeSelectedSourceLayers, executionCost, magazineExecutionCandidates, ownLayerEntries, placementCostCandidates } from "../effects/generic/cost.js";
+import { createVengeanceCard, destroyCard, distributeLayeredFollowers, emitCardPlacement, emitCardsGenerated, emitEffectPlacement, emitRegistryInstalled, failForcedPlacement, markFieldEntry, moveCardToTrash, movedSummoningSick, placeByMode, placementResult, resolveMountedSourceTrigger, revealMountedCode, setCardSleeping, triggerMoved } from "../effects/generic/placement.js";
+import { beginAllocationSelectionModule, matchesModuleFilter, moveRemainderToDeck, runtimeSpellAccessFailure, takeViewedFromDeck } from "../effects/generic/selection.js";
+import { beginSztb094Access, continueStd211DestructionBatch, resolveImperialRandomInstall } from "../engine.js";
 
 export function supportsNormalScriptActivation(card) {
   if (card?.category !== "Script" || EVENT_CONTEXT_REQUIRED_IF_IDS.has(card.id)) return false;

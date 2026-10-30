@@ -12,7 +12,9 @@ import { continueDeferredDeclaredResponseCleanup } from "./response.js";
 import { addLog, fail, findCard, otherPlayer } from "./shared.js";
 import { emitGameEvent } from "./triggers.js";
 import { resumeMandatoryDrawContinuation } from "./turn.js";
-import { continuePlacementCostBatch, createVengeanceCard, emitEffectPlacement, executeRuntimeActions, executeTriggerAction, forceExecuteCard, moveCardToTrash, placeByMode, resumeDeferredDestruction, resumeDeferredTrashMove, runtimeActionFeasible, setCardSleeping, triggerActionFeasible } from "../engine.js";
+import { executeRuntimeActions, executeTriggerAction, runtimeActionFeasible, triggerActionFeasible } from "../effects/generic/actions.js";
+import { continuePlacementCostBatch } from "../effects/generic/cost.js";
+import { createVengeanceCard, emitEffectPlacement, forceExecuteCard, moveCardToTrash, placeByMode, resumeDeferredDestruction, resumeDeferredTrashMove, setCardSleeping } from "../effects/generic/placement.js";
 
 export const DECLARED_IF_SCRIPT_IDS = new Set(["STD-001", "STD-002", "STD-003", "STD-018", "STD-019", "STD-036", "STD-037", "STD-038", "STD-139", "STD-140", "STD-148"]);
 

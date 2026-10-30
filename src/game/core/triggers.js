@@ -7,7 +7,7 @@ import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled,
 import { enabledSymbols } from "./play.js";
 import { queueDeclaredScriptActivationWindow } from "./scripts.js";
 import { addLog, cardsInPlay, findCard, otherPlayer } from "./shared.js";
-import { executeCardRuntimeSpec, executeTriggerAction } from "../engine.js";
+import { executeCardRuntimeSpec, executeTriggerAction } from "../effects/generic/actions.js";
 
 function collectTriggers(state, event) {
   const context = createEventContext(state, event);

@@ -9,7 +9,9 @@ import { resolveDeclaredResponse, startNextQueuedResponse } from "./response.js"
 import { DECLARED_IF_SCRIPT_IDS } from "./scripts.js";
 import { addLog, findCard, otherPlayer } from "./shared.js";
 import { drainTriggerQueue, emitGameEvent, resumeStalledTriggerThread } from "./triggers.js";
-import { beginStd165ThresholdEffect, beginSztb094Counter, destroyCard, executeRuntimeActions, executeTriggerAction, moveCardToTrash } from "../engine.js";
+import { executeRuntimeActions, executeTriggerAction } from "../effects/generic/actions.js";
+import { destroyCard, moveCardToTrash } from "../effects/generic/placement.js";
+import { beginStd165ThresholdEffect, beginSztb094Counter } from "../engine.js";
 
 export function resolveEffect(state, resolver) {
   const ownsResolution = !state.effectResolution;
