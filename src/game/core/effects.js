@@ -58,7 +58,17 @@ function parentEffectAwaitsOwnChoice(state) {
 }
 
 // 選択: what the resolution left open (or closed) compared with what was open when it began.
-function traceChoiceDiff(state, pendingBefore, promptBefore) {
+// who chooses: "random" (the engine draws), "auto" (nothing to choose between), "opponent" (not the effect's controller), else "self"
+function choiceChooser(after, request) {
+  if (request?.mode === "random") return "random";
+  const options = request?.mode === "scope" ? request.scopeOptions?.length : request?.candidates?.length;
+  if (request && options !== undefined && options <= Number(request.minimum ?? 0) && options > 0) return "auto";
+  const controllerId = request?.continuation?.playerId ?? null;
+  const chooserId = after?.playerId ?? controllerId;
+  return controllerId && chooserId && chooserId !== controllerId ? "opponent" : "self";
+}
+
+export function traceChoiceDiff(state, pendingBefore, promptBefore) {
   for (const [kind, before, after] of [["pending", pendingBefore, state.pending], ["prompt", promptBefore, state.prompt]]) {
     if (before === after) continue;
     const request = after?.request;
@@ -66,7 +76,8 @@ function traceChoiceDiff(state, pendingBefore, promptBefore) {
       tag: TRACE_TAGS.SELECT, op: EFFECT_OPERATION_TYPES.SELECT, event: !after ? "closed" : before ? "replaced" : "opened", slot: kind,
       type: after?.type ?? before?.type ?? null, mode: request?.mode ?? null, label: request?.label ?? null,
       candidates: request?.candidates?.length ?? after?.validTargets?.length ?? null,
-      chooserId: request?.continuation?.playerId ?? after?.playerId ?? null, continuation: request?.continuation?.type ?? null
+      chooserId: request?.continuation?.playerId ?? after?.playerId ?? null, continuation: request?.continuation?.type ?? null,
+      chooser: after ? choiceChooser(after, request) : null, controllerId: request?.continuation?.playerId ?? null
     });
   }
 }
@@ -201,9 +212,11 @@ function finishDeclaredScriptCleanup(state) {
   const resident = hasKeyword(source, "RESIDENT");
   if (live) delete live.card.declaredEffectId;
   if (resident && live && live.playerId === declared.playerId && live.zoneName === "back") {
+    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-resident", cardId: source.id, cardUid: source.uid, playerId: declared.playerId });
     live.card.residentActive = true;
     addLog(state, `${source.name}を起動。[レジデント]として場に残る。`, "action");
   } else if (!resident && live && live.playerId === declared.playerId && ["front", "back"].includes(live.zoneName)) {
+    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-to-trash", cardId: source.id, cardUid: source.uid, playerId: declared.playerId });
     state.players[live.playerId][live.zoneName].splice(state.players[live.playerId][live.zoneName].findIndex((card) => card.uid === live.card.uid), 1);
     moveCardToTrash(state, declared.playerId, live.card, source.name);
     addLog(state, `${source.name}の宣言済み効果を解決し、ゴミ箱へ。`, "action");
@@ -274,10 +287,20 @@ function drainDeclaredEffects(state) {
 
 const MANDATORY_STATE_CHECK_PASSES = 8;
 
+// The rule-based state check (5.1), bracketed in the trace by 条件 records (event "state-check") so a reader can tell it from the text.
 export function resolveMandatoryStateChecks(state) {
   // 確認(STD-003の窓など)の回答待ち・保留中の破壊がある間は判定しない。破壊が窓の後ろで保留されているカードを
   // もう一度破壊しようとすると、回答のたびに新しい窓が開いて確認が終わらなくなる。回答後の次の解決で判定する。
-  if (state.prompt || state.deferredDestruction || state.scriptActivationQueue?.length) return;
+  if (state.prompt || state.deferredDestruction || state.scriptActivationQueue?.length) {
+    trace(state, { tag: TRACE_TAGS.CONDITION, event: "state-check", phase: "skipped" });
+    return;
+  }
+  trace(state, { tag: TRACE_TAGS.CONDITION, event: "state-check", phase: "in" });
+  const passes = runStateCheckPasses(state);
+  trace(state, { tag: TRACE_TAGS.CONDITION, event: "state-check", phase: "out", passes });
+}
+
+function runStateCheckPasses(state) {
   // 状態判定は安定するまで繰り返す(破壊した常在効果の源が消えて、別のObがSTR0以下になる場合がある)。
   // STR0以下の破壊は常時の状態判定なので[プロテクト]も[バックアップ]も貫通する(裁定済み)。
   // 破壊不可で破壊が成立しない場合や選択待ち・STD-003の窓が開いた場合は進展なしとして止める。
@@ -306,6 +329,7 @@ export function resolveMandatoryStateChecks(state) {
         }
       }
     }
-    if (!progressed || state.pending || state.prompt || state.deferredDestruction) return;
+    if (!progressed || state.pending || state.prompt || state.deferredDestruction) return pass + 1;
   }
+  return MANDATORY_STATE_CHECK_PASSES;
 }

@@ -1,5 +1,6 @@
 import { createEventContext, createScriptActivationWindow } from "../activation-windows.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
+import { TRACE_TAGS, trace } from "../engine-trace.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { hasOptionalActivationSpec, optionalSpecsForCard } from "../trigger-specs.js";
 import { resumeDeferredAttack } from "./battle.js";
@@ -224,9 +225,11 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
   const resident = hasKeyword(script, "RESIDENT") || script.id === "STD-142";
   if (resident) {
     script.residentActive = true;
+    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-resident", cardId: script.id, cardUid: script.uid, playerId });
     addLog(state, script.id === "STD-142" ? `${script.name}の①を起動し、場に残る。` : `${script.name}を起動。[レジデント]として場に残る。`, "action");
   } else {
     player.back.splice(index, 1);
+    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-to-trash", cardId: script.id, cardUid: script.uid, playerId });
     moveCardToTrash(state, playerId, script, script.name);
     addLog(state, `${script.name}を起動し、解決後にゴミ箱へ。`, "action");
   }

@@ -4,7 +4,7 @@ import { isObCard } from "../card-types.js";
 import { describeOperation } from "../effect-operation-library.js";
 import { TRACE_TAGS, trace, traceActive } from "../engine-trace.js";
 import { specsForEvent } from "../trigger-specs.js";
-import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled, judgeVictory, runEffectEntry } from "./effects.js";
+import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled, judgeVictory, runEffectEntry, traceChoiceDiff } from "./effects.js";
 import { enabledSymbols } from "./play.js";
 import { queueDeclaredScriptActivationWindow } from "./scripts.js";
 import { addLog, cardsInPlay, findCard, otherPlayer } from "./shared.js";
@@ -26,10 +26,16 @@ function executeQueuedTrigger(state, trigger) {
     playerId: trigger.source.playerId, eventType: trigger.event.type, eventId: trigger.event.id ?? null, phase: trigger.runtimePhase ?? null });
   if (trigger.spec.limit === "once_per_turn") state.players[trigger.source.playerId].triggerUsage[trigger.spec.id] = true;
   addLog(state, `誘発: ${trigger.source.card.name}（${trigger.event.type}）`, "effect");
+  const pendingBefore = state.pending, promptBefore = state.prompt;
   if (trigger.runtimePhase) executeCardRuntimeSpec(state, trigger.runtimePhase, trigger.source.playerId, trigger.source.card, {
     continuationMeta: { triggerItemId: trigger.id }
   });
   else for (const action of trigger.spec.actions) executeTriggerAction(state, trigger, action);
+  if (traceActive()) {
+    traceChoiceDiff(state, pendingBefore, promptBefore);
+    // The end of the trigger's text: either it waits for an answer (the answer's resume closes it) or it is done here.
+    trace(state, { tag: TRACE_TAGS.TRIGGER, event: state.pending || state.prompt ? "body-wait" : "body-end", triggerId: trigger.id, how: "direct" });
+  }
   if (!state.pending) trigger.status = "resolved";
   // 同時に誘発した効果は別々の効果。1つ完了した時点で勝敗が決まったら、残りは未宣言のまま実行しない。
   if (!state.pending && !state.prompt) judgeVictory(state, "trigger");
@@ -127,6 +133,8 @@ export function resumeStalledTriggerThread(state) {
 }
 
 export function resumeTriggerThreadAfterSelection(state, itemId) {
+  // The answer to a choice a trigger opened has finished that trigger's text.
+  if (traceActive() && itemId) trace(state, { tag: TRACE_TAGS.TRIGGER, event: "body-end", triggerId: itemId, how: "answered" });
   const thread = state.triggerThread;
   const item = thread?.items.find((entry) => entry.id === itemId && entry.status === "awaiting-selection");
   if (!item) return;

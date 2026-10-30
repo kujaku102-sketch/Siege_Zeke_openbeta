@@ -123,3 +123,28 @@ test("paying memory goes through one entry and leaves a コスト record with th
   assert.equal(state.players.player.memory, 3);
   assert.ok(records.findIndex((record) => record.tag === TRACE_TAGS.COST) < records.findIndex((record) => record.tag === TRACE_TAGS.RESULT && record.event === "card_placed"));
 });
+
+test("a trigger's text is closed by a body record, the choices it opens are traced, and the state check is bracketed", () => {
+  const records = [];
+  setTraceSink((record) => records.push(record));
+  playScenario();
+  setTraceSink(null);
+  const launches = records.filter((record) => record.tag === TRACE_TAGS.LAUNCH && record.via === "trigger");
+  assert.ok(launches.length >= 2);
+  for (const launch of launches) {
+    const mine = records.filter((record) => record.tag === TRACE_TAGS.TRIGGER && record.triggerId === launch.triggerId && /^body-/.test(record.event));
+    const ends = mine.filter((record) => record.event === "body-end");
+    assert.equal(ends.length, 1, launch.triggerId);
+    assert.ok(ends[0].seq > launch.seq);
+    // a trigger that waited for an answer says so first, and is closed by the answer
+    if (mine.some((record) => record.event === "body-wait")) assert.equal(ends[0].how, "answered");
+  }
+  // the choice a trigger opened shows up between its launch and the end of its text, with who chooses
+  const first = launches[0];
+  const opened = records.find((record) => record.tag === TRACE_TAGS.SELECT && record.event === "opened" && record.seq > first.seq);
+  assert.ok(opened && ["self", "opponent", "random", "auto"].includes(opened.chooser));
+  // the state check is bracketed: every "in" is followed by its "out"
+  const checks = records.filter((record) => record.tag === TRACE_TAGS.CONDITION && record.event === "state-check");
+  assert.ok(checks.length > 0);
+  checks.forEach((record, index) => { if (record.phase === "in") assert.equal(checks[index + 1]?.phase, "out"); });
+});
