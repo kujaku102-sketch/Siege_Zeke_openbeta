@@ -4,7 +4,7 @@
 - The beta0.9.1 deployed revision is `76bbe3f892a41264`; beta0.9.2 is planned work, not an implemented release.
 
 - This folder is a standalone staging product. Do not read or write parent workspaces during build, test, verification, or E2E.
-- `src/data/cards.js` is the self-contained public card library. Do not replace it with canonical or source-generated card files.
+- `src/cards/` is the public card library: one file per card (`src/cards/<prefix>/<prefix>_NNN.js`) holding its definition and its spec entries, with the card's own handlers beside it as `<prefix>_NNN_effects.js`, indexed per ID prefix by `src/cards/<prefix>_ex.js` (`std_ex.js` also holds the STD start decks). Card files call the shared library (`src/game/core/`, `src/game/effects/generic/`) for shared processing and hold only logic unique to the card. `src/data/cards.js` assembles `CARD_LIBRARY` from those indexes and keeps its shape. Never replace these files with files generated from canonical or internal source data.
 - Do not add credentials, source spreadsheets, internal audits, Tusk files, logs, or deployment tokens.
 - Keep internal documents, test evidence, original authoring files such as `.ai`/`.psd`, unapproved asset kits, and secrets outside this repository. Already-approved runtime PNG/SVG images stay included. Only the public rulebook and `docs/PUBLIC-DATA-BOUNDARY.md` belong under `docs/`.
 - Do not commit optional `src/assets/fonts-local/` files. Preserve the bundled DotGothic16 OFL notice and the separate rights notices in `NOTICE.md`.
