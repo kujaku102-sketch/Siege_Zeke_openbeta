@@ -5,7 +5,7 @@ import { keywordValue } from "../../effect-compiler.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
 import { RuntimeError } from "../../runtime/factory.js";
 import { createAllocationSpec, createChoiceSpec, createSelectionRequest, createSelectionSpec, isSelectionRequestFeasible, selectionRequestFromSpec } from "../../selection-model.js";
-import { attack, continueAttackAfterCost, dealCardDamage } from "../../core/battle.js";
+import { attack, dealCardDamage } from "../../core/battle.js";
 import { continueDeferredDeclaredScriptCleanup, resolveEffect, runEffectEntry } from "../../core/effects.js";
 import { continueDeferredSpellCleanup, getEffectTargets, playCard, playCardCore, relogCard, resolveSpell } from "../../core/play.js";
 import { openNextQueuedSelection } from "../../core/projection.js";
@@ -14,7 +14,7 @@ import { activateScript } from "../../core/scripts.js";
 import { addLog, findCard, hasClass, otherPlayer, shuffle } from "../../core/shared.js";
 import { emitGameEvent, emitUserAbilityFeedback, resumeStalledTriggerThread, resumeTriggerThreadAfterSelection } from "../../core/triggers.js";
 import { endTurn, resumeMandatoryDrawContinuation } from "../../core/turn.js";
-import { CUSTOM_SELECTION_HANDLERS } from "../custom/index.js";
+import { CUSTOM_RESOLVE_CARD_SELECTION_CORE, CUSTOM_SELECTION_HANDLERS, PASS } from "../custom/index.js";
 import { addTimedModifier, executeRuntimeActions, runtimeActionCandidates, runtimeActionFeasible, runtimeSpecMatchesCard, runtimeSpecValue } from "./actions.js";
 import { beginSourceLayerSelection, consumeSelectedSourceLayers, continuePlacementCostBatch, ownLayerEntries, placementCostCandidates } from "./cost.js";
 import { grantDamageModifier } from "./damage.js";
@@ -600,11 +600,11 @@ function resolveCardSelectionCore(state, continuation, result) {
     const layers = consumeSelectedSourceLayers(state, playerId, source, result.selected, `${source.name}のレイヤーコスト`);
     if (!layers || layers.length !== layerCost) return false;
     source.skipQ3LayerAttackChoice = true;
-    if (source.id === "STD-238") {
-      source.permanentAtk = Number(source.permanentAtk ?? 0) + 2;
-      return continueAttackAfterCost(state, playerId, source.uid, continuation.targetUid, { standbyAfter: true });
+    const customResolveCardSelectionCore = CUSTOM_RESOLVE_CARD_SELECTION_CORE[source.id];
+    if (customResolveCardSelectionCore) {
+      const customResult = customResolveCardSelectionCore({ source, state, playerId, continuation });
+      if (customResult !== PASS) return customResult;
     }
-    if (source.id === "STD-096") return continueAttackAfterCost(state, playerId, source.uid, continuation.targetUid, { standbyAfter: true });
     const candidates = player.trash.filter((card) => isObCard(card) || card.category === "Code");
     const request = createSelectionRequest({ mode: "up_to", candidates: candidates.map((card) => card.uid), minimum: 1, maximum: candidates.length,
       exactBudget: 2, candidateValues: Object.fromEntries(candidates.map((card) => [card.uid, Number(card.cost ?? 0)])),

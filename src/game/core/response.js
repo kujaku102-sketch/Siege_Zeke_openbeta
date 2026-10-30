@@ -4,18 +4,19 @@ import { createSelectionRequest } from "../selection-model.js";
 import { cardCurrentStr } from "./battle.js";
 import { declareEffect, runEffectEntry } from "./effects.js";
 import { enabledSymbols, resolveSpell } from "./play.js";
-import { addLog, hasClass, otherPlayer } from "./shared.js";
-import { destroyCard, moveCardToTrash } from "../effects/generic/placement.js";
+import { addLog, otherPlayer } from "./shared.js";
+import { CUSTOM_RESOLVE_DECLARED_RESPONSE, CUSTOM_RESPONSE_CARD_APPLICABLE, PASS } from "../effects/custom/index.js";
+import { moveCardToTrash } from "../effects/generic/placement.js";
 
 const RESPONSE_RUNTIME_IDS = new Set(["STD-015", "STD-034", "STD-047", "STD-132", "STD-143", "STD-167", "STD-203", "STD-207"]);
 
 function responseCardApplicable(state, playerId, card) {
   const opponent = state.players[otherPlayer(playerId)];
-  if (card.id === "STD-034") return [...opponent.front, ...opponent.back].some(isObCard);
-  if (card.id === "STD-047") return state.players[playerId].deck.some((target) => isObCard(target) && hasClass(target, "フィクサー"));
-  if (card.id === "STD-167") return [...opponent.front, ...opponent.back].some((target) => isObCard(target) && cardCurrentStr(state, otherPlayer(playerId), target) < Number(state.players[playerId].damageReceivedThisTurn ?? 0));
-  if (card.id === "STD-203") return [...state.players[playerId].front, ...state.players[playerId].back].some(isObCard)
-    && [...opponent.front, ...opponent.back].some(isObCard);
+  const customResponseCardApplicable = CUSTOM_RESPONSE_CARD_APPLICABLE[card.id];
+  if (customResponseCardApplicable) {
+    const customResult = customResponseCardApplicable({ opponent, state, playerId });
+    if (customResult !== PASS) return customResult;
+  }
   return true;
 }
 
@@ -72,7 +73,8 @@ export function resolveDeclaredResponse(state, declared) {
   state.deferredDeclaredResponseCleanup = {
     declaredEffectId: declared.id, playerId, card, cost, cleanupStarted: false, cleanupDone: false
   };
-  if (card.id === "STD-167") destroyCard(state, otherPlayer(playerId), targetUid, { source: card.name });
+  const customResolveDeclaredResponse = CUSTOM_RESOLVE_DECLARED_RESPONSE[card.id];
+  if (customResolveDeclaredResponse) customResolveDeclaredResponse({ state, playerId, targetUid, card });
   else resolveSpell(state, playerId, card, targetUid, { targetUids });
   if (!state.pending && !state.prompt) continueDeferredDeclaredResponseCleanup(state);
   return true;

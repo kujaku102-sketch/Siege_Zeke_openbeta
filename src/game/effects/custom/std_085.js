@@ -1,6 +1,7 @@
 import { continueAttackAfterCost } from "../../core/battle.js";
 import { findCard } from "../../core/shared.js";
-import { consumeSelectedSourceLayers } from "../generic/cost.js";
+import { PASS } from "./index.js";
+import { beginSourceLayerSelection, consumeSelectedSourceLayers } from "../generic/cost.js";
 import { destroyCard } from "../generic/placement.js";
 
 export function std085LayerPaySelection(state, continuation, result, playerId, player) {
@@ -17,4 +18,14 @@ export function std085LayerPaySelection(state, continuation, result, playerId, p
     }
     source.skipStd085LayerCost = true;
     return continueAttackAfterCost(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
+}
+
+export function std085AttackCore5({ state, playerId, attacker, targetUid }) {
+  if (attacker.mounted.length && !attacker.skipStd085LayerCost) {
+    return beginSourceLayerSelection(state, playerId, attacker, 1, {
+      type: "std085-layer-pay", playerId, sourceUid: attacker.uid,
+      attackerPlayerId: playerId, attackerUid: attacker.uid, targetUid
+    });
+  }
+  return PASS;
 }

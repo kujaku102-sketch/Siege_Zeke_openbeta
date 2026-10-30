@@ -1,6 +1,7 @@
 import { isObCard } from "../../card-types.js";
 import { createSelectionRequest } from "../../selection-model.js";
 import { findCard } from "../../core/shared.js";
+import { PASS } from "./index.js";
 import { addTimedModifier } from "../generic/actions.js";
 import { grantDamageModifier } from "../generic/damage.js";
 
@@ -34,4 +35,16 @@ export function std140ProtectSelection(state, continuation, result, playerId, pl
   }
   state.pending = null;
   return true;
+}
+
+export function std140ActivateCardEffectCore({ player, effect, card, playerId, state }) {
+  if (effect.kind === "update") {
+    player.memory -= effect.cost;
+    const request = createSelectionRequest({ mode: "scope", scopeField: "effect", scopeOptions: ["①戦闘保護", "②聖樹をサルベージ"],
+      label: `${card.name}: ①か②`, message: card.text,
+      continuation: { type: "std140-update-choice", playerId, sourceName: card.name } });
+    state.pending = { type: "selection", validTargets: [], request };
+    return true;
+  }
+  return PASS;
 }

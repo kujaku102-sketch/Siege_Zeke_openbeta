@@ -1,5 +1,10 @@
-import { addLog } from "../../core/shared.js";
+import { createRuntimeCard } from "../../runtime/factory.js";
+import { getEffectActivationTargets } from "../../core/play.js";
+import { hydrateCard } from "../../core/setup.js";
+import { addLog, fail, otherPlayer } from "../../core/shared.js";
 import { resumeMandatoryDrawContinuation } from "../../core/turn.js";
+import { PASS } from "./index.js";
+import { destroyCard, moveCardToTrash, placeByMode } from "../generic/placement.js";
 
 export function settleStd048MandatoryPlacement(state, pending, placed) {
   const continuation = state.mandatoryDrawContinuation;
@@ -27,4 +32,34 @@ export function beginStd048MandatoryDraw(state, playerId, card, remainingRuleDra
   };
   addLog(state, `${card.name}: ルールによる最初のドローで引いた。配置先を選択。`, "effect");
   return true;
+}
+
+export function std048ActivateCardEffectCore({ location, state, effect, player, playerId, card, effectId, targetUid }) {
+  if (effect.kind === "proxy") {
+    if (location.zoneName !== "hand") return fail(state, "[プロキシ]は手札から起動する。", false);
+    const cost = Number(effect.cost ?? 0);
+    if (player.memory < cost) return fail(state, "メモリ不足。", false);
+    const opponentId = otherPlayer(playerId);
+    if (card.id === "STD-049" && !getEffectActivationTargets(state, playerId, card, effectId).some((target) => target.uid === targetUid)) {
+      return fail(state, "破壊する相手エリアのカードを選んで。", false);
+    }
+    let zoneName = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
+    player.memory -= cost;
+    player.hand.splice(player.hand.findIndex((item) => item.uid === card.uid), 1);
+    if (card.id === "STD-048") player.deck.push(card);
+    else {
+      card.std049ProxyArmed = true;
+      moveCardToTrash(state, playerId, card, card.name);
+    }
+    const calamity = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, "STD-050", playerId, ++state.tokenSerial + 5000));
+    calamity.summoningSick = false;
+    if (placeByMode(state, playerId, calamity, { zone: zoneName, from: "generated", source: card.name }) !== "placed") {
+      if (card.id === "STD-049") delete card.std049ProxyArmed;
+      return true;
+    }
+    if (card.id === "STD-049") destroyCard(state, opponentId, targetUid, { source: card.name });
+    addLog(state, `${card.name}: [プロキシ:6]で災いの明星を配置。`, "effect");
+    return true;
+  }
+  return PASS;
 }

@@ -3,6 +3,7 @@ import { createChoiceSpec, createSelectionRequest, selectionRequestFromSpec } fr
 import { dealCardDamage } from "../../core/battle.js";
 import { findCard, otherPlayer } from "../../core/shared.js";
 import { drawCards } from "../../core/turn.js";
+import { PASS } from "./index.js";
 import { destroyCard } from "../generic/placement.js";
 
 export function continueStd163Choices(state, continuation, remaining) {
@@ -48,4 +49,13 @@ export function std163DamageSelection(state, continuation, result, playerId, pla
   if (target) dealCardDamage(state, target.playerId, target.card.uid, 3, continuation.sourceName, { sourcePlayerId: playerId });
   state.pending = null;
   return continueStd163Choices(state, continuation, continuation.remaining);
+}
+
+export function std163ResolveSpell({ player, card, playerId, state }) {
+  const candidates = [...player.front, ...player.back].filter(isObCard);
+  const request = createSelectionRequest({ mode: "up_to", candidates: candidates.map((target) => target.uid), count: candidates.length, minimum: 0, maximum: candidates.length,
+    candidateLabels: Object.fromEntries(candidates.map((target) => [target.uid, target.name])), label: "破壊処理を行う自分Obを任意選択", message: card.text,
+    continuation: { type: "std163-destroy", playerId, sourceName: card.name } });
+  state.pending = { type: "selection", validTargets: request.candidates, request };
+  return PASS;
 }

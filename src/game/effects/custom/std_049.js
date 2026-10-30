@@ -1,5 +1,6 @@
 import { dealFortressDamage } from "../../core/battle.js";
 import { addLog, otherPlayer } from "../../core/shared.js";
+import { PASS } from "./index.js";
 import { destroyCard, placeByMode } from "../generic/placement.js";
 
 export function resolveStd049TurnEnd(state, activeId) {
@@ -29,4 +30,12 @@ export function resolveStd049TurnEnd(state, activeId) {
       addLog(state, `${source.name}: 災いの明星${destroyed}体を破壊し、5ダメージとデコードを解決。`, "effect");
     }
   }
+}
+
+export function std049GetEffectActivationTargets({ state, playerId, effectId, card }) {
+  if (effectId?.startsWith(`${card.id}:proxy:`)) {
+    const opponent = state.players[otherPlayer(playerId)];
+    return [...opponent.front, ...opponent.back];
+  }
+  return PASS;
 }

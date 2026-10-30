@@ -1,24 +1,21 @@
-import { battleStatModifierSpecsFor, cardRuntimeSpec } from "../card-runtime-specs.js";
-import { attackPermissionSpecsFor, auraKeywordSpecsFor, conditionalKeywordSpecsFor, continuousStatModifierSpecsFor, mountedKeywordSpecsFor, mountedStatModifierSpecsFor } from "../continuous-effect-specs.js";
-import { isObCard } from "../card-types.js";
-import { hasKeyword, keywordValue } from "../effect-compiler.js";
-import { createSelectionRequest, isSelectionRequestFeasible } from "../selection-model.js";
 import { normalizeBoardSlots } from "../board-slots.js";
-import { hasOptionalActivationSpec } from "../trigger-specs.js";
-import { createRuntimeCard } from "../runtime/factory.js";
-import { flattenedLayerCount, normalizeMountedStack } from "../layered-specs.js";
+import { battleStatModifierSpecsFor, cardRuntimeSpec } from "../card-runtime-specs.js";
+import { isObCard } from "../card-types.js";
+import { attackPermissionSpecsFor, auraKeywordSpecsFor, conditionalKeywordSpecsFor, continuousStatModifierSpecsFor, mountedKeywordSpecsFor, mountedStatModifierSpecsFor } from "../continuous-effect-specs.js";
+import { hasKeyword, keywordValue } from "../effect-compiler.js";
+import { flattenedLayerCount } from "../layered-specs.js";
+import { createSelectionRequest } from "../selection-model.js";
 import { recordVictoryFact, runEffectEntry } from "./effects.js";
 import { enabledSymbols } from "./play.js";
 import { openResponseWindow, startNextQueuedResponse } from "./response.js";
-import { hydrateCard } from "./setup.js";
 import { activeCards, addLog, cardTraits, fail, findCard, hasClass, otherPlayer, sourceCardByName } from "./shared.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { drawCards } from "./turn.js";
+import { CUSTOM_ATTACK_CORE, CUSTOM_ATTACK_CORE_2, CUSTOM_ATTACK_CORE_3, CUSTOM_ATTACK_CORE_4, CUSTOM_ATTACK_CORE_5, CUSTOM_ATTACK_CORE_6, CUSTOM_QUEUE_POST_ATTACK_SELECTION, PASS } from "../effects/custom/index.js";
 import { resolveTrinityEffect } from "../effects/custom/std_121.js";
 import { executeRuntimeActions, runtimeSpecValue } from "../effects/generic/actions.js";
-import { beginSourceLayerSelection } from "../effects/generic/cost.js";
 import { applyDamageModifiers, clearDamageModifiers } from "../effects/generic/damage.js";
-import { createVengeanceCard, destroyCard, emitEffectPlacement, placeByMode, setCardSleeping } from "../effects/generic/placement.js";
+import { destroyCard, setCardSleeping } from "../effects/generic/placement.js";
 import { beginDynamicSelectionModule } from "../effects/generic/selection.js";
 
 function battleStatModifierValue(state, playerId, source, stat) {
@@ -171,17 +168,8 @@ export function canAttack(state, playerId, card) {
 
 function queuePostAttackSelection(state, playerId, attacker, defenderUid = null) {
   const player = state.players[playerId];
-  if (attacker.id === "STD-136") {
-    const candidates = [...player.front, ...player.back].filter((card) => isObCard(card) && card.uid !== attacker.uid);
-    if (candidates.length) {
-      const request = createSelectionRequest({
-        mode: "up_to", candidates: candidates.map((card) => card.uid), count: 1, maximum: 1,
-        label: "破壊する他の自分Obを0～1体選択", message: "選んだ場合、このカードをスタンバイする。",
-        continuation: { type: "hahanamori-standby", playerId, sourceUid: attacker.uid, defenderUid }
-      });
-      state.pending = { type: "selection", validTargets: request.candidates, request };
-    }
-  }
+  const customQueuePostAttackSelection = CUSTOM_QUEUE_POST_ATTACK_SELECTION[attacker.id];
+  if (customQueuePostAttackSelection) customQueuePostAttackSelection({ player, attacker, playerId, defenderUid, state });
 }
 
 export function attack(state, playerId, attackerUid, targetUid) {
@@ -196,14 +184,10 @@ export function attack(state, playerId, attackerUid, targetUid) {
 function attackCore(state, playerId, attackerUid, targetUid) {
   const player = state.players[playerId];
   const attacker = player.front.find((card) => card.uid === attackerUid);
-  if (attacker.id === "STD-214" && !attacker.skipStd214AttackCost) {
-    const candidates = player.registry.filter((card) => !card.faceDown);
-    if (!candidates.length) { addLog(state, `${attacker.name}: レジストリから回収できず攻撃失敗。`, "effect"); return true; }
-    const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
-      candidateLabels: Object.fromEntries(candidates.map((card) => [card.uid, card.name])), label: `${attacker.name}: 攻撃宣言時の回収`, message: attacker.text,
-      continuation: { type: "std214-attack-cost", playerId, attackerUid, targetUid } });
-    state.pending = { type: "selection", validTargets: request.candidates, request };
-    return true;
+  const customAttackCore3 = CUSTOM_ATTACK_CORE_3[attacker.id];
+  if (customAttackCore3) {
+    const customResult = customAttackCore3({ player, state, attacker, playerId, attackerUid, targetUid });
+    if (customResult !== PASS) return customResult;
   }
   delete attacker.skipStd214AttackCost;
   if (!attacker.skipStd230Ambush && state.mode !== "lab") {
@@ -219,11 +203,10 @@ function attackCore(state, playerId, attackerUid, targetUid) {
     }
   }
   delete attacker.skipStd230Ambush;
-  if (attacker.id === "STD-085" && attacker.mounted.length && !attacker.skipStd085LayerCost) {
-    return beginSourceLayerSelection(state, playerId, attacker, 1, {
-      type: "std085-layer-pay", playerId, sourceUid: attacker.uid,
-      attackerPlayerId: playerId, attackerUid: attacker.uid, targetUid
-    });
+  const customAttackCore5 = CUSTOM_ATTACK_CORE_5[attacker.id];
+  if (customAttackCore5) {
+    const customResult = customAttackCore5({ state, playerId, attacker, targetUid });
+    if (customResult !== PASS) return customResult;
   }
   delete attacker.skipStd085LayerCost;
   for (const owner of Object.values(state.players)) {
@@ -233,19 +216,10 @@ function attackCore(state, playerId, attackerUid, targetUid) {
       resolveTrinityEffect(state, playerId, trinity.name);
     }
   }
-  if (attacker.id === "STD-182" && !attacker.skipStd182AttackEffect) {
-    const candidates = player.back.filter((script) => script.category === "Script" && script.faceDown
-      && !keywordValue(script, "IF") && !hasOptionalActivationSpec(script.id)
-      && Number(script.activationCost ?? script.cost ?? Infinity) <= 2
-      && player.memory >= Number(script.activationCost ?? script.cost ?? 0));
-    if (candidates.length) {
-      const request = createSelectionRequest({ mode: "up_to", candidates: candidates.map((script) => script.uid), minimum: 0, maximum: 1,
-        candidateLabels: Object.fromEntries(candidates.map((script) => [script.uid, `${script.name} / 起動${script.activationCost ?? script.cost}`])),
-        label: `${attacker.name}: 攻撃時にScriptを起動`, message: attacker.text,
-        continuation: { type: "std182-attack-script", playerId, attackerUid: attacker.uid, targetUid } });
-      state.pending = { type: "selection", validTargets: request.candidates, request };
-      return true;
-    }
+  const customAttackCore2 = CUSTOM_ATTACK_CORE_2[attacker.id];
+  if (customAttackCore2) {
+    const customResult = customAttackCore2({ player, attacker, playerId, targetUid, state });
+    if (customResult !== PASS) return customResult;
   }
   delete attacker.skipStd182AttackEffect;
   const resumeStage = state.attackResumeStage;
@@ -281,14 +255,8 @@ function attackCore(state, playerId, attackerUid, targetUid) {
     }
   }
   delete attacker.skipStd185Substitution;
-  if (attacker.id === "STD-106" && !attacker.resolvingStd106Attack) {
-    attacker.resolvingStd106Attack = true;
-    for (let index = 0; index < 2; index += 1) {
-      const zoneName = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-      const junk = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, "STD-078", playerId, ++state.tokenSerial + 1600));
-      if (placeByMode(state, playerId, junk, { zone: zoneName, from: "generated", source: attacker.name }) === "placed") emitEffectPlacement(state, playerId, junk, zoneName, attacker.name);
-    }
-  }
+  const customAttackCore4 = CUSTOM_ATTACK_CORE_4[attacker.id];
+  if (customAttackCore4) customAttackCore4({ attacker, player, state, playerId });
   if (!attacker.skipStd223Ambush) {
     const defenderId = otherPlayer(playerId);
     const defender = state.players[defenderId];
@@ -306,40 +274,10 @@ function attackCore(state, playerId, attackerUid, targetUid) {
     }
   }
   delete attacker.skipStd223Ambush;
-  if (attacker.id === "STD-227" && !attacker.resolvingStd227Attack && cardAtk(state, playerId, attacker) >= 7) {
-    attacker.resolvingStd227Attack = true;
-    const opponentId = otherPlayer(playerId);
-    const victims = [...state.players[opponentId].front];
-    let generated = 0;
-    for (const victim of victims) {
-      if (!destroyCard(state, opponentId, victim.uid, { source: attacker.name })) continue;
-      const proof = createVengeanceCard(state, "STD-228", opponentId);
-      proof.summoningSick = true;
-      if (placeByMode(state, opponentId, proof, { zone: "front", from: "generated", source: attacker.name }) === "placed") { emitEffectPlacement(state, playerId, proof, "front", attacker.name); generated += 1; }
-    }
-    addLog(state, `${attacker.name}: 相手フロント${victims.length}枚を破壊し、「征服の証」を${generated}枚配置。`, "effect");
-  }
-  if (["STD-096", "STD-102", "STD-238"].includes(attacker.id) && flattenedLayerCount(attacker) >= (attacker.id === "STD-238" ? 2 : 1) && !attacker.skipQ3LayerAttackChoice) {
-    normalizeMountedStack(attacker);
-    if (attacker.id === "STD-102") {
-      normalizeMountedStack(attacker);
-      const hasFeasibleLayer = attacker.mounted.some((layer) => {
-        const candidates = [...player.trash, ...(isObCard(layer) || layer.category === "Code" ? [layer] : [])]
-          .filter((card, index, cards) => (isObCard(card) || card.category === "Code") && cards.findIndex((item) => item.uid === card.uid) === index);
-        const feasibility = createSelectionRequest({ mode: "up_to", candidates: candidates.map((card) => card.uid), minimum: 1, maximum: candidates.length,
-          exactBudget: 2, candidateValues: Object.fromEntries(candidates.map((card) => [card.uid, Number(card.cost ?? 0)])) });
-        return isSelectionRequestFeasible(feasibility);
-      });
-      if (!hasFeasibleLayer) attacker.skipQ3LayerAttackChoice = true;
-    }
-    if (!attacker.skipQ3LayerAttackChoice) {
-      const layerCost = attacker.id === "STD-238" ? 2 : 1;
-      const request = createSelectionRequest({ mode: "scope", scopeField: "layerAttack", scopeOptions: ["起動しない", `レイヤー${layerCost}枚を破棄して起動`],
-        label: `${attacker.name}の攻撃時効果`, message: attacker.text,
-        continuation: { type: "q3-layer-attack-choice", playerId, sourceUid: attacker.uid, targetUid: target.uid } });
-      state.pending = { type: "selection", validTargets: [], request };
-      return true;
-    }
+  const customAttackCore = CUSTOM_ATTACK_CORE[attacker.id];
+  if (customAttackCore) {
+    const customResult = customAttackCore({ attacker, playerId, state, player, target });
+    if (customResult !== PASS) return customResult;
   }
   delete attacker.skipQ3LayerAttackChoice;
   if (target.type !== "fortress") {
@@ -464,10 +402,8 @@ function attackCore(state, playerId, attackerUid, targetUid) {
   const defenderOriginalStr = Number(defender.str ?? 0);
   if (defenderDestroyedByBattle) destroyCard(state, opponentId, defender.uid, { source: "戦闘" });
   if (cardCurrentStr(state, playerId, attacker) <= 0) destroyCard(state, playerId, attacker.uid, { source: "戦闘" });
-  if (attacker.id === "STD-095" && defenderDestroyedByBattle) {
-    dealFortressDamage(state, opponentId, defenderOriginalStr, playerId, attacker.name);
-    addLog(state, `${attacker.name}: 戦闘で破壊した${defender.name}の元のSTR${defenderOriginalStr}ダメージ。`, "effect");
-  }
+  const customAttackCore6 = CUSTOM_ATTACK_CORE_6[attacker.id];
+  if (customAttackCore6) customAttackCore6({ state, opponentId, defenderOriginalStr, playerId, attacker, defender, defenderDestroyedByBattle });
   if (attackerDisconnect) destroyCard(state, opponentId, defender.uid, { source: `${attacker.name}の[切断]` });
   if (defenderDisconnect) destroyCard(state, playerId, attacker.uid, { source: `${defender.name}の[切断]` });
   delete attacker.battleStrBonus;

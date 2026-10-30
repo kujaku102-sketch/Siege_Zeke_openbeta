@@ -1,7 +1,9 @@
+import { CARD_LIBRARY } from "../../../data/cards.js";
 import { resultCountGate } from "../../effect-operation-library.js";
 import { continueDeferredSpellCleanup } from "../../core/play.js";
-import { addLog, classKey, findCard } from "../../core/shared.js";
+import { addLog, classKey, fail, findCard } from "../../core/shared.js";
 import { drawCards } from "../../core/turn.js";
+import { PASS } from "./index.js";
 import { destroyCard } from "../generic/placement.js";
 
 export function continueStd211DestructionBatch(state) {
@@ -34,4 +36,23 @@ export function settleStd211DestructionContinuation(state, targetUid, destroyed)
   if (!Object.keys(state.std211DestructionContinuations).length) delete state.std211DestructionContinuations;
   if (destroyed) state.std211DestructionBatch.destroyedCount += 1;
   return continueStd211DestructionBatch(state);
+}
+
+export function std211NormalSpellSelection() {
+  return { candidates: [], minimum: 0, maximum: 0, groups: [], scopes:
+    [...new Set(Object.values(CARD_LIBRARY).flatMap(item => item.classes ?? []))].sort() };
+}
+
+export function std211PlayCardCore4({ state, force, selectionScope }) {
+  if (!selectionScope) {
+    return fail(state, "破壊するクラスを指定して。", force);
+  }
+  return PASS;
+}
+
+export function std211ResolveSpell({ player, selectionScope, state, playerId, card }) {
+  const targets = [...player.front, ...player.back].filter((target) => (target.classes ?? []).some((value) => classKey(value) === classKey(selectionScope)));
+  state.std211DestructionBatch = { playerId, sourceName: card.name, className: selectionScope, queue: targets.map((target) => target.uid), destroyedCount: 0 };
+  continueStd211DestructionBatch(state);
+  return PASS;
 }

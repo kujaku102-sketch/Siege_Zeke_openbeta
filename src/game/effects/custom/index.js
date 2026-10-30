@@ -30,6 +30,55 @@ import { sztb094CounterSelectSelection, sztb094CounterTargetSelection } from "./
 import { sztb095SpReplacementSelection } from "./sztb_095.js";
 import { sztb097ChoiceSelection, sztb097AccessSelection, sztb097AtkSumSelection, sztb097DestroySelection } from "./sztb_097.js";
 import { sztbJacketPlaceSelection } from "./sztb_jacket.js";
+import { std011GetEffectTargets } from "./std_011.js";
+import { std034ResponseCardApplicable } from "./std_034.js";
+import { std047ResponseCardApplicable } from "./std_047.js";
+import { std048ActivateCardEffectCore } from "./std_048.js";
+import { std049GetEffectActivationTargets } from "./std_049.js";
+import { std085AttackCore5 } from "./std_085.js";
+import { std086PlayCardCore2 } from "./std_086.js";
+import { std095AttackCore6 } from "./std_095.js";
+import { std096AttackCore, std096ResolveCardSelectionCore } from "./std_096.js";
+import { std104ResolveSpell } from "./std_104.js";
+import { std105ActivateScriptCore, std105ActivateScriptCore2 } from "./std_105.js";
+import { std106AttackCore4, std106ActivateCardEffectCore } from "./std_106.js";
+import { std121ActivateScriptCore } from "./std_121.js";
+import { std122ResolveSpell } from "./std_122.js";
+import { std124ResolveLogin, std124ActivateCardEffectCore } from "./std_124.js";
+import { std136QueuePostAttackSelection } from "./std_136.js";
+import { std140ActivateCardEffectCore } from "./std_140.js";
+import { std142ActivateScriptCore, std142ActivateScriptCore2 } from "./std_142.js";
+import { std157ResolveLogin, std157GetEffectActivationTargets2, std157ActivateCardEffectCore } from "./std_157.js";
+import { std160ResolveLogin, std160ActivateCardEffectCore } from "./std_160.js";
+import { std162ResolveSpell } from "./std_162.js";
+import { std163ResolveSpell } from "./std_163.js";
+import { std167ResponseCardApplicable, std167ResolveDeclaredResponse } from "./std_167.js";
+import { std169GetEffectActivationTargets, std169ActivateCardEffectCore } from "./std_169.js";
+import { std182AttackCore2 } from "./std_182.js";
+import { std184PlayCardCore } from "./std_184.js";
+import { std192GetEffectActivationTargets2 } from "./std_192.js";
+import { std196GetEffectActivationTargets2 } from "./std_196.js";
+import { std203NormalSpellSelection, std203ResolveSpell, std203ResponseCardApplicable } from "./std_203.js";
+import { std204ActivateScriptCore } from "./std_204.js";
+import { std207ResolveSpell } from "./std_207.js";
+import { std211NormalSpellSelection, std211PlayCardCore4, std211ResolveSpell } from "./std_211.js";
+import { std212ResolveSpell } from "./std_212.js";
+import { std214AttackCore3 } from "./std_214.js";
+import { std220PlayCardCore3 } from "./std_220.js";
+import { std224InstallCard } from "./std_224.js";
+import { std227AttackCore, std227ResolveLogin, std227ActivateCardEffectCore } from "./std_227.js";
+import { std228ActivateCardEffectCore } from "./std_228.js";
+import { std229PlayCardCore, std229ResolveSpell } from "./std_229.js";
+import { std231ActivateScriptCore } from "./std_231.js";
+import { std237ActivateCardEffectCore } from "./std_237.js";
+import { std238ResolveCardSelectionCore } from "./std_238.js";
+import { sztb094ResolveLogin2 } from "./sztb_094.js";
+import { sztb096GetEffectTargets } from "./sztb_096.js";
+import { sztb097ResolveSpell } from "./sztb_097.js";
+import { sztb098ResolveSpell } from "./sztb_098.js";
+
+// A handler returns PASS when it did not take over: the caller continues as if the branch had not matched.
+export const PASS = Symbol("custom-effect-pass");
 
 // continuation type -> handler of resolveCardSelectionCore (card-specific continuations). Null prototype: only the listed types match.
 export const CUSTOM_SELECTION_HANDLERS = Object.freeze({
@@ -86,4 +135,200 @@ export const CUSTOM_SELECTION_HANDLERS = Object.freeze({
   "technology-horizon": technologyHorizonSelection,
   "std207-reveal": std207RevealSelection,
   "hahanamori-standby": hahanamoriStandbySelection
+});
+
+// core/battle.js: card id -> handler
+export const CUSTOM_QUEUE_POST_ATTACK_SELECTION = Object.freeze({
+  __proto__: null,
+  "STD-136": std136QueuePostAttackSelection
+});
+
+// core/battle.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_ATTACK_CORE = Object.freeze({
+  __proto__: null,
+  "STD-227": std227AttackCore,
+  "STD-096": std096AttackCore,
+  "STD-102": std096AttackCore,
+  "STD-238": std096AttackCore
+});
+
+// core/battle.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_ATTACK_CORE_2 = Object.freeze({
+  __proto__: null,
+  "STD-182": std182AttackCore2
+});
+
+// core/battle.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_ATTACK_CORE_3 = Object.freeze({
+  __proto__: null,
+  "STD-214": std214AttackCore3
+});
+
+// core/battle.js: card id -> handler
+export const CUSTOM_ATTACK_CORE_4 = Object.freeze({
+  __proto__: null,
+  "STD-106": std106AttackCore4
+});
+
+// core/battle.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_ATTACK_CORE_5 = Object.freeze({
+  __proto__: null,
+  "STD-085": std085AttackCore5
+});
+
+// core/battle.js: card id -> handler
+export const CUSTOM_ATTACK_CORE_6 = Object.freeze({
+  __proto__: null,
+  "STD-095": std095AttackCore6
+});
+
+// core/play.js: card id -> handler
+export const CUSTOM_INSTALL_CARD = Object.freeze({
+  __proto__: null,
+  "STD-224": std224InstallCard
+});
+
+// core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_NORMAL_SPELL_SELECTION = Object.freeze({
+  __proto__: null,
+  "STD-211": std211NormalSpellSelection,
+  "STD-203": std203NormalSpellSelection
+});
+
+// core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_PLAY_CARD_CORE = Object.freeze({
+  __proto__: null,
+  "STD-229": std229PlayCardCore,
+  "STD-184": std184PlayCardCore
+});
+
+// core/play.js: card id -> handler
+export const CUSTOM_PLAY_CARD_CORE_2 = Object.freeze({
+  __proto__: null,
+  "STD-086": std086PlayCardCore2,
+  "STD-211": std086PlayCardCore2,
+  "SZTB-096": std086PlayCardCore2,
+  "SZTB-097": std086PlayCardCore2,
+  "SZTB-098": std086PlayCardCore2,
+  "SZTB-099": std086PlayCardCore2
+});
+
+// core/play.js: card id -> handler
+export const CUSTOM_PLAY_CARD_CORE_3 = Object.freeze({
+  __proto__: null,
+  "STD-220": std220PlayCardCore3
+});
+
+// core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_PLAY_CARD_CORE_4 = Object.freeze({
+  __proto__: null,
+  "STD-211": std211PlayCardCore4
+});
+
+// core/play.js: card id -> handler
+export const CUSTOM_RESOLVE_LOGIN = Object.freeze({
+  __proto__: null,
+  "STD-157": std157ResolveLogin,
+  "STD-160": std160ResolveLogin,
+  "STD-227": std227ResolveLogin,
+  "STD-124": std124ResolveLogin
+});
+
+// core/play.js: card id -> handler
+export const CUSTOM_RESOLVE_LOGIN_2 = Object.freeze({
+  __proto__: null,
+  "SZTB-094": sztb094ResolveLogin2
+});
+
+// core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_RESOLVE_SPELL = Object.freeze({
+  __proto__: null,
+  "SZTB-097": sztb097ResolveSpell,
+  "SZTB-098": sztb098ResolveSpell,
+  "STD-229": std229ResolveSpell,
+  "STD-104": std104ResolveSpell,
+  "STD-122": std122ResolveSpell,
+  "STD-203": std203ResolveSpell,
+  "STD-212": std212ResolveSpell,
+  "STD-163": std163ResolveSpell,
+  "STD-211": std211ResolveSpell,
+  "STD-207": std207ResolveSpell,
+  "STD-162": std162ResolveSpell
+});
+
+// core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_GET_EFFECT_TARGETS = Object.freeze({
+  __proto__: null,
+  "STD-011": std011GetEffectTargets,
+  "SZTB-096": sztb096GetEffectTargets
+});
+
+// core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_GET_EFFECT_ACTIVATION_TARGETS = Object.freeze({
+  __proto__: null,
+  "STD-169": std169GetEffectActivationTargets,
+  "STD-049": std049GetEffectActivationTargets
+});
+
+// core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2 = Object.freeze({
+  __proto__: null,
+  "STD-192": std192GetEffectActivationTargets2,
+  "STD-196": std196GetEffectActivationTargets2,
+  "STD-157": std157GetEffectActivationTargets2
+});
+
+// core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_ACTIVATE_CARD_EFFECT_CORE = Object.freeze({
+  __proto__: null,
+  "STD-140": std140ActivateCardEffectCore,
+  "STD-228": std228ActivateCardEffectCore,
+  "STD-237": std237ActivateCardEffectCore,
+  "STD-157": std157ActivateCardEffectCore,
+  "STD-227": std227ActivateCardEffectCore,
+  "STD-048": std048ActivateCardEffectCore,
+  "STD-049": std048ActivateCardEffectCore,
+  "STD-124": std124ActivateCardEffectCore,
+  "STD-106": std106ActivateCardEffectCore,
+  "STD-169": std169ActivateCardEffectCore,
+  "STD-160": std160ActivateCardEffectCore
+});
+
+// core/response.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_RESPONSE_CARD_APPLICABLE = Object.freeze({
+  __proto__: null,
+  "STD-034": std034ResponseCardApplicable,
+  "STD-047": std047ResponseCardApplicable,
+  "STD-167": std167ResponseCardApplicable,
+  "STD-203": std203ResponseCardApplicable
+});
+
+// core/response.js: card id -> handler
+export const CUSTOM_RESOLVE_DECLARED_RESPONSE = Object.freeze({
+  __proto__: null,
+  "STD-167": std167ResolveDeclaredResponse
+});
+
+// core/scripts.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_ACTIVATE_SCRIPT_CORE = Object.freeze({
+  __proto__: null,
+  "STD-142": std142ActivateScriptCore,
+  "STD-105": std105ActivateScriptCore,
+  "STD-204": std204ActivateScriptCore,
+  "STD-121": std121ActivateScriptCore,
+  "STD-231": std231ActivateScriptCore
+});
+
+// core/scripts.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_ACTIVATE_SCRIPT_CORE_2 = Object.freeze({
+  __proto__: null,
+  "STD-142": std142ActivateScriptCore2,
+  "STD-105": std105ActivateScriptCore2
+});
+
+// effects/generic/selection.js: card id -> handler (a handler returns PASS when it did not take the branch)
+export const CUSTOM_RESOLVE_CARD_SELECTION_CORE = Object.freeze({
+  __proto__: null,
+  "STD-238": std238ResolveCardSelectionCore,
+  "STD-096": std096ResolveCardSelectionCore
 });

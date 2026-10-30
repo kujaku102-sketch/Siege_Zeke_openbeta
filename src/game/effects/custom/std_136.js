@@ -1,3 +1,5 @@
+import { isObCard } from "../../card-types.js";
+import { createSelectionRequest } from "../../selection-model.js";
 import { addLog, findCard } from "../../core/shared.js";
 import { destroyCard } from "../generic/placement.js";
 
@@ -14,4 +16,16 @@ export function hahanamoriStandbySelection(state, continuation, result, playerId
   }
   state.pending = null;
   return true;
+}
+
+export function std136QueuePostAttackSelection({ player, attacker, playerId, defenderUid, state }) {
+  const candidates = [...player.front, ...player.back].filter((card) => isObCard(card) && card.uid !== attacker.uid);
+  if (candidates.length) {
+    const request = createSelectionRequest({
+      mode: "up_to", candidates: candidates.map((card) => card.uid), count: 1, maximum: 1,
+      label: "破壊する他の自分Obを0～1体選択", message: "選んだ場合、このカードをスタンバイする。",
+      continuation: { type: "hahanamori-standby", playerId, sourceUid: attacker.uid, defenderUid }
+    });
+    state.pending = { type: "selection", validTargets: request.candidates, request };
+  }
 }

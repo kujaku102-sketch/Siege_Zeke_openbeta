@@ -53,3 +53,7 @@ export function sztb094CounterTargetSelection(state, continuation, result, playe
   state.pending = null;
   return playCard(state, playerId, continuation.spellUid, { targetUid: result.selected[0], allowOffTurn: true });
 }
+
+export function sztb094ResolveLogin2({ state, playerId, card }) {
+  beginSztb094Access(state, playerId, card.name);
+}

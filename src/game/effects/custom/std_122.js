@@ -1,7 +1,9 @@
 import { createRuntimeCard } from "../../runtime/factory.js";
+import { createSelectionRequest } from "../../selection-model.js";
 import { cardAtk, cardMaxStr } from "../../core/battle.js";
 import { hydrateCard } from "../../core/setup.js";
-import { addLog, findCard } from "../../core/shared.js";
+import { addLog, findCard, isElectronFairy } from "../../core/shared.js";
+import { PASS } from "./index.js";
 import { destroyCard, emitEffectPlacement, placeByMode } from "../generic/placement.js";
 
 export function technologyHorizonSelection(state, continuation, result, playerId, player) {
@@ -30,4 +32,15 @@ export function technologyHorizonSelection(state, continuation, result, playerId
     addLog(state, `${continuation.sourceName}: ゴースト2体を生成し+${x}/+${x}。`, "effect");
     state.pending = null;
     return true;
+}
+
+export function std122ResolveSpell({ player, card, playerId, state }) {
+  const candidates = [...player.front, ...player.back].filter(isElectronFairy);
+  const request = createSelectionRequest({
+    mode: "up_to", candidates: candidates.map((item) => item.uid), count: candidates.length, maximum: candidates.length,
+    label: "破壊するエレクトロンフェアリーを任意選択", message: card.text,
+    continuation: { type: "technology-horizon", playerId, sourceName: card.name }
+  });
+  state.pending = { type: "selection", validTargets: request.candidates, request };
+  return PASS;
 }

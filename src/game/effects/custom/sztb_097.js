@@ -2,6 +2,7 @@ import { isObCard } from "../../card-types.js";
 import { createSelectionRequest } from "../../selection-model.js";
 import { cardAtk, cardCurrentStr } from "../../core/battle.js";
 import { addLog, findCard, isArmsBandOb, shuffle } from "../../core/shared.js";
+import { PASS } from "./index.js";
 import { destroyCard } from "../generic/placement.js";
 
 export function sztb097ChoiceSelection(state, continuation, result, playerId, player) {
@@ -63,4 +64,22 @@ export function sztb097DestroySelection(state, continuation, result, playerId, p
   state.pending = null;
   destroyCard(state, target.playerId, target.card.uid, { source: continuation.sourceName });
   return true;
+}
+
+export function sztb097ResolveSpell({ player, state, playerId, card }) {
+  const accessAvailable = player.deck.some((item) => isArmsBandOb(item));
+  const ownOb = [...player.front, ...player.back].filter(isObCard);
+  const maximumAtk = ownOb.reduce((sum, item) => sum + Math.max(0, cardAtk(state, playerId, item)), 0);
+  const destroyAvailable = Object.entries(state.players).some(([ownerId, owner]) => [...owner.front, ...owner.back]
+    .some((item) => isObCard(item) && cardCurrentStr(state, ownerId, item) <= maximumAtk));
+  const scopeOptions = [];
+  if (accessAvailable) scopeOptions.push("①アームズバンドObへアクセス");
+  if (destroyAvailable) scopeOptions.push("②自分Obの合計ATK以下を破壊");
+  if (scopeOptions.length) {
+    const request = createSelectionRequest({ mode: "scope", scopeField: "effect", scopeOptions,
+      label: `${card.name}: いずれかを選択`, message: card.text,
+      continuation: { type: "sztb097-choice", playerId, sourceName: card.name } });
+    state.pending = { type: "selection", validTargets: [], request };
+  }
+  return PASS;
 }

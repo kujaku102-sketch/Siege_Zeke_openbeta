@@ -1,9 +1,8 @@
 import { createEventContext, createScriptActivationWindow } from "../activation-windows.js";
-import { hasKeyword, keywordValue } from "../effect-compiler.js";
-import { hasOptionalActivationSpec, optionalSpecsForCard } from "../trigger-specs.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
+import { hasKeyword, keywordValue } from "../effect-compiler.js";
 import { createSelectionRequest } from "../selection-model.js";
-import { boardSlotOf, cardAtBoardSlot } from "../board-slots.js";
+import { hasOptionalActivationSpec, optionalSpecsForCard } from "../trigger-specs.js";
 import { resumeDeferredAttack } from "./battle.js";
 import { continueDeferredDeclaredScriptCleanup, declareEffect, runEffectEntry } from "./effects.js";
 import { continueDeferredSpellCleanup, enabledSymbols, supportsNormalScriptActivation } from "./play.js";
@@ -12,10 +11,10 @@ import { continueDeferredDeclaredResponseCleanup } from "./response.js";
 import { addLog, fail, findCard, otherPlayer } from "./shared.js";
 import { emitGameEvent } from "./triggers.js";
 import { resumeMandatoryDrawContinuation } from "./turn.js";
-import { resolveTrinityEffect } from "../effects/custom/std_121.js";
+import { CUSTOM_ACTIVATE_SCRIPT_CORE, CUSTOM_ACTIVATE_SCRIPT_CORE_2, PASS } from "../effects/custom/index.js";
 import { executeRuntimeActions, executeTriggerAction, runtimeActionFeasible, triggerActionFeasible } from "../effects/generic/actions.js";
 import { continuePlacementCostBatch } from "../effects/generic/cost.js";
-import { createVengeanceCard, emitEffectPlacement, forceExecuteCard, moveCardToTrash, placeByMode, resumeDeferredDestruction, resumeDeferredTrashMove, setCardSleeping } from "../effects/generic/placement.js";
+import { moveCardToTrash, resumeDeferredDestruction, resumeDeferredTrashMove } from "../effects/generic/placement.js";
 
 export const DECLARED_IF_SCRIPT_IDS = new Set(["STD-001", "STD-002", "STD-003", "STD-018", "STD-019", "STD-036", "STD-037", "STD-038", "STD-139", "STD-140", "STD-148"]);
 
@@ -189,30 +188,10 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
     continuePlacementCostBatch(state);
     return true;
   }
-  if (script.id === "STD-142") {
-    if (player.scriptUsage[`${script.uid}:effect1`]) return fail(state, "このターンは①を起動済み。", false);
-    const candidates = [...player.hand, ...player.trash].filter((card) => card.category === "Script" && card.name.includes("聖樹"));
-    if (!candidates.length) return fail(state, "手札またはゴミ箱に配置できる「聖樹」Scriptがない。", false);
-    if (!selectionUid) {
-      const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
-        candidateLabels: Object.fromEntries(candidates.map((card) => [card.uid, card.name])), label: "配置する「聖樹」Scriptを選択", message: script.text,
-        continuation: { type: "activate-std142-effect1", playerId, scriptUid: uid } });
-      state.pending = { type: "selection", validTargets: request.candidates, request };
-      return true;
-    }
-    if (!candidates.some((card) => card.uid === selectionUid)) return fail(state, "配置する「聖樹」Scriptを選んで。", false);
-  }
-  if (script.id === "STD-105") {
-    const candidates = player.hand.filter((card) => card.printedCategory === "Lyd-Ob" || card.category === "Lyd-Ob");
-    if (!candidates.length) return fail(state, "手札に強制実行できるLyd-Obがない。", false);
-    if (!selectionUid) {
-      const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
-        candidateLabels: Object.fromEntries(candidates.map((card) => [card.uid, card.name])), label: "強制実行するLyd-Ob", message: script.text,
-        continuation: { type: "activate-std105", playerId, scriptUid: uid } });
-      state.pending = { type: "selection", validTargets: request.candidates, request };
-      return true;
-    }
-    if (!candidates.some((card) => card.uid === selectionUid)) return fail(state, "手札のLyd-Obを選んで。", false);
+  const customActivateScriptCore2 = CUSTOM_ACTIVATE_SCRIPT_CORE_2[script.id];
+  if (customActivateScriptCore2) {
+    const customResult = customActivateScriptCore2({ player, script, state, selectionUid, playerId, uid });
+    if (customResult !== PASS) return customResult;
   }
   const replacementTargetUid = state.prompt?.replacementTargetUid;
   player.memory -= activationCost;
@@ -229,62 +208,10 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
       }
     }
   });
-  if (script.id === "STD-142") {
-    player.scriptUsage[`${script.uid}:effect1`] = true;
-    const handIndex = player.hand.findIndex((card) => card.uid === selectionUid);
-    const trashIndex = player.trash.findIndex((card) => card.uid === selectionUid);
-    const [placed] = handIndex >= 0 ? player.hand.splice(handIndex, 1) : player.trash.splice(trashIndex, 1);
-    const origin = handIndex >= 0 ? "hand" : "trash";
-    if (placeByMode(state, playerId, placed, { zone: "back", from: origin, source: script.name, suppressScriptWindow: origin === "trash" }) === "placed") {
-      placed.faceDown = true;
-      placed.cannotActivateTurn = state.turnNumber;
-      addLog(state, `${script.name}: 「${placed.name}」を配置。このターン起動不可。`, "effect");
-    }
-  }
-  if (script.id === "STD-105") {
-    const execution = forceExecuteCard(state, {
-      sourceOwnerId: playerId, controllerId: playerId, sourceZone: "hand", targetZone: "area", cardUid: selectionUid, sourceName: script.name,
-      onPlaced: (placed) => {
-        setCardSleeping(state, playerId, placed);
-        placed.summoningSick = false;
-        placed.grantedKeywords = [...new Set([...(placed.grantedKeywords ?? []), "SECURITY"])];
-      }
-    });
-    if (execution.status === "placed") {
-      state.delayedEffects.push({ event: "turn_ended", dueTurn: state.turnNumber + 1, type: "destroy_card", ownerId: playerId, cardUid: execution.card.uid, sourceName: script.name });
-      addLog(state, `${script.name}: ${execution.card.name}を強制実行し、スリープ・[セキュリティ]を付与。`, "effect");
-    }
-  }
-  if (script.id === "STD-204" && replacementTargetUid) {
-    const target = findCard(state, replacementTargetUid);
-    if (target && ["front", "back"].includes(target.zoneName)) {
-      const targetZone = state.players[target.playerId][target.zoneName];
-      const targetIndex = targetZone.findIndex((card) => card.uid === replacementTargetUid);
-      const [executedOb] = targetZone.splice(targetIndex, 1);
-      executedOb.layerRole = "layered";
-      const gigantes = createVengeanceCard(state, "STD-205", playerId);
-      gigantes.mounted = [executedOb];
-      gigantes.summoningSick = true;
-      const zone = target.zoneName;
-      if (placeByMode(state, playerId, gigantes, { zone, from: target.zoneName, source: script.name }) !== "placed") return true;
-      addLog(state, `${script.name}: ${executedOb.name}の配置を置換し、「ドールズ・ギガンテス」のレイヤーとして配置。`, "effect");
-    }
-  }
-  if (script.id === "STD-121") resolveTrinityEffect(state, state.active, script.name);
-  if (script.id === "STD-231") {
-    const target = findCard(state, state.prompt?.eventContext?.cardUid);
-    if (target && ["front", "back"].includes(target.zoneName)) {
-      const owner = state.players[target.playerId];
-      const context = { controllerId: target.playerId, zoneName: target.zoneName, limit: owner.user?.[`${target.zoneName}Limit`] };
-      const targetSlot = boardSlotOf(owner[target.zoneName], target.card, context);
-      let count = 0;
-      for (const slot of [targetSlot - 1, targetSlot + 1]) {
-        if (slot < 1 || slot > context.limit || cardAtBoardSlot(owner[target.zoneName], slot, context)) continue;
-        const proof = createVengeanceCard(state, "STD-228", playerId);
-        if (placeByMode(state, target.playerId, proof, { zone: target.zoneName, from: "generated", source: script.name, requestedSlot: slot }) === "placed") { emitEffectPlacement(state, target.playerId, proof, target.zoneName, script.name); count += 1; }
-      }
-      addLog(state, `${script.name}: ${target.card.name}の両隣りへ征服の証${count}枚を配置。`, "effect");
-    }
+  const customActivateScriptCore = CUSTOM_ACTIVATE_SCRIPT_CORE[script.id];
+  if (customActivateScriptCore) {
+    const customResult = customActivateScriptCore({ player, script, selectionUid, state, playerId, replacementTargetUid });
+    if (customResult !== PASS) return customResult;
   }
   if (activationWindow?.spec?.actions?.length) {
     if (activationWindow.spec.limit === "once_per_turn") player.triggerUsage[activationWindow.spec.id] = true;

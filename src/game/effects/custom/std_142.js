@@ -1,7 +1,8 @@
 import { createSelectionRequest } from "../../selection-model.js";
 import { activateScript } from "../../core/scripts.js";
-import { findCard } from "../../core/shared.js";
-import { destroyCard } from "../generic/placement.js";
+import { addLog, fail, findCard } from "../../core/shared.js";
+import { PASS } from "./index.js";
+import { destroyCard, placeByMode } from "../generic/placement.js";
 
 export function scheduleStd142TurnEndResume(state, activeId) {
   state.resumeTurnEndAfterSelection = activeId;
@@ -132,4 +133,33 @@ export function std142SalvageSelection(state, continuation, result, playerId, pl
   }
   state.pending = null;
   return scheduleStd142TurnEndResume(state, continuation.activeId);
+}
+
+export function std142ActivateScriptCore({ player, script, selectionUid, state, playerId }) {
+  player.scriptUsage[`${script.uid}:effect1`] = true;
+  const handIndex = player.hand.findIndex((card) => card.uid === selectionUid);
+  const trashIndex = player.trash.findIndex((card) => card.uid === selectionUid);
+  const [placed] = handIndex >= 0 ? player.hand.splice(handIndex, 1) : player.trash.splice(trashIndex, 1);
+  const origin = handIndex >= 0 ? "hand" : "trash";
+  if (placeByMode(state, playerId, placed, { zone: "back", from: origin, source: script.name, suppressScriptWindow: origin === "trash" }) === "placed") {
+    placed.faceDown = true;
+    placed.cannotActivateTurn = state.turnNumber;
+    addLog(state, `${script.name}: 「${placed.name}」を配置。このターン起動不可。`, "effect");
+  }
+  return PASS;
+}
+
+export function std142ActivateScriptCore2({ player, script, state, selectionUid, playerId, uid }) {
+  if (player.scriptUsage[`${script.uid}:effect1`]) return fail(state, "このターンは①を起動済み。", false);
+  const candidates = [...player.hand, ...player.trash].filter((card) => card.category === "Script" && card.name.includes("聖樹"));
+  if (!candidates.length) return fail(state, "手札またはゴミ箱に配置できる「聖樹」Scriptがない。", false);
+  if (!selectionUid) {
+    const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
+      candidateLabels: Object.fromEntries(candidates.map((card) => [card.uid, card.name])), label: "配置する「聖樹」Scriptを選択", message: script.text,
+      continuation: { type: "activate-std142-effect1", playerId, scriptUid: uid } });
+    state.pending = { type: "selection", validTargets: request.candidates, request };
+    return true;
+  }
+  if (!candidates.some((card) => card.uid === selectionUid)) return fail(state, "配置する「聖樹」Scriptを選んで。", false);
+  return PASS;
 }
