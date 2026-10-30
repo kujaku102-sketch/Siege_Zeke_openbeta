@@ -20,10 +20,14 @@ import { executeTriggerAction } from "../effects/generic/trigger-actions.js";
 
 export function resolveEffect(state, resolver) {
   const ownsResolution = !state.effectResolution;
-  if (ownsResolution) state.effectResolution = {
-    id: `EFFECT-${++state.effectSerial}`, kind: "runtime", source: null,
-    playerId: null, status: "resolving"
-  };
+  if (ownsResolution) {
+    state.effectResolution = {
+      id: `EFFECT-${++state.effectSerial}`, kind: "runtime", source: null,
+      playerId: null, status: "resolving"
+    };
+    // An effect that starts without an entry point of its own (a Login/Logout resolved by a re-execution, say) still has a launch record.
+    trace(state, { tag: TRACE_TAGS.LAUNCH, via: "entry", kind: "runtime", playerId: null });
+  }
   const pendingBefore = state.pending, promptBefore = state.prompt;
   state.effectDepth += 1;
   try {
