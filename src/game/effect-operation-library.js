@@ -33,6 +33,8 @@ export const EFFECT_OPERATION_TYPES = Object.freeze({
   MOVE_EACH_DECK_TOP_AS_LAYER: "move_each_deck_top_as_layer",
   APPLY_NUMBERED_EFFECT: "apply_numbered_effect",
   GRANT_KEYWORD: "grant_keyword",
+  GRANT_BACKUP: "grant_backup",
+  GRANT_PROTECT: "grant_protect",
   MODIFY_STATS: "modify_stats",
   MODIFY_EXECUTION_COST: "modify_execution_cost",
   ADD_COUNTER: "add_counter",

@@ -1,6 +1,8 @@
 import { normalizeBoardSlots } from "../board-slots.js";
 import { isObCard } from "../card-types.js";
 import { mandatoryStateCheckSpecsFor } from "../continuous-effect-specs.js";
+import { EFFECT_OPERATION_TYPES } from "../effect-operation-library.js";
+import { TRACE_TAGS, trace, traceActive } from "../engine-trace.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { hasKeyword } from "./keywords.js";
 import { continueDeferredSpellCleanup } from "./play-spell.js";
@@ -22,6 +24,7 @@ export function resolveEffect(state, resolver) {
     id: `EFFECT-${++state.effectSerial}`, kind: "runtime", source: null,
     playerId: null, status: "resolving"
   };
+  const pendingBefore = state.pending, promptBefore = state.prompt;
   state.effectDepth += 1;
   try {
     return resolver();
@@ -30,6 +33,7 @@ export function resolveEffect(state, resolver) {
     if (state.effectDepth === 0) {
       continueDeferredSpellCleanup(state);
       resolveMandatoryStateChecks(state);
+      if (traceActive()) traceChoiceDiff(state, pendingBefore, promptBefore);
       // A pending/prompt is an internal choice only when it was opened by this
       // resolution. Queued triggers are intentionally *not* a completion gate.
       if (state.pending || state.prompt) {
@@ -53,6 +57,20 @@ function parentEffectAwaitsOwnChoice(state) {
   return Boolean(open) && !open.resolutionMeta;
 }
 
+// 選択: what the resolution left open (or closed) compared with what was open when it began.
+function traceChoiceDiff(state, pendingBefore, promptBefore) {
+  for (const [kind, before, after] of [["pending", pendingBefore, state.pending], ["prompt", promptBefore, state.prompt]]) {
+    if (before === after) continue;
+    const request = after?.request;
+    trace(state, {
+      tag: TRACE_TAGS.SELECT, op: EFFECT_OPERATION_TYPES.SELECT, event: !after ? "closed" : before ? "replaced" : "opened", slot: kind,
+      type: after?.type ?? before?.type ?? null, mode: request?.mode ?? null, label: request?.label ?? null,
+      candidates: request?.candidates?.length ?? after?.validTargets?.length ?? null,
+      chooserId: request?.continuation?.playerId ?? after?.playerId ?? null, continuation: request?.continuation?.type ?? null
+    });
+  }
+}
+
 export function recordVictoryFact(state, fact) {
   (state.victoryFacts ??= []).push({ ...fact, effectId: state.effectResolution?.id ?? null });
 }
@@ -70,6 +88,7 @@ export function runEffectEntry(state, kind, playerId, resolver) {
   } else {
     state.effectResolution.status = "resolving";
   }
+  trace(state, { tag: TRACE_TAGS.LAUNCH, via: "entry", kind, playerId });
   normalizeBoardSlots(state);
   try {
     return resolveEffect(state, resolver);
@@ -109,6 +128,9 @@ export function lockVictoryIfDecided(state) {
     lockedAtEffectId: state.effectResolution?.id ?? null,
     finished: false
   };
+  if (traceActive() && (state.triggerQueue.length || state.activationWindows.length)) {
+    trace(state, { tag: TRACE_TAGS.TRIGGER, event: "discarded-on-lock", queued: state.triggerQueue.map((trigger) => trigger.id), windows: state.activationWindows.length });
+  }
   state.pending = null; state.prompt = null; state.triggerQueue = [];
   state.scriptActivationQueue = []; state.activationWindows = [];
   state.selectionQueue = []; state.deferredAttack = null;
@@ -119,7 +141,11 @@ export function lockVictoryIfDecided(state) {
 
 export function finalizeEffectResolution(state) {
   const completedResolution = state.effectResolution;
+  trace(state, { tag: TRACE_TAGS.JUDGE, phase: "in", kind: completedResolution?.kind ?? null });
+  const lockedBefore = Boolean(state.victory?.lockedOutcome);
   lockVictoryIfDecided(state);
+  trace(state, { tag: TRACE_TAGS.JUDGE, phase: "out", kind: completedResolution?.kind ?? null,
+    locked: Boolean(state.victory?.lockedOutcome), lockedNow: Boolean(state.victory?.lockedOutcome) && !lockedBefore, winner: state.winner ?? null });
   if (completedResolution?.declaredEffectId && state.resolvingDeclaredEffect?.id === completedResolution.declaredEffectId) {
     state.resolvingDeclaredEffect.status = "resolved";
     state.resolvingDeclaredEffect = null;

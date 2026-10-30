@@ -2,6 +2,7 @@ import { collectActivationWindows, createEventContext } from "../activation-wind
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
 import { describeOperation } from "../effect-operation-library.js";
+import { TRACE_TAGS, trace, traceActive } from "../engine-trace.js";
 import { specsForEvent } from "../trigger-specs.js";
 import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled, lockVictoryIfDecided, runEffectEntry } from "./effects.js";
 import { enabledSymbols } from "./play.js";
@@ -21,6 +22,8 @@ function collectTriggers(state, event) {
 
 function executeQueuedTrigger(state, trigger) {
   trigger.status = "resolving";
+  trace(state, { tag: TRACE_TAGS.LAUNCH, via: "trigger", triggerId: trigger.id, cardId: trigger.source.card.id, cardUid: trigger.source.card.uid,
+    playerId: trigger.source.playerId, eventType: trigger.event.type, eventId: trigger.event.id ?? null, phase: trigger.runtimePhase ?? null });
   if (trigger.spec.limit === "once_per_turn") state.players[trigger.source.playerId].triggerUsage[trigger.spec.id] = true;
   addLog(state, `誘発: ${trigger.source.card.name}（${trigger.event.type}）`, "effect");
   if (trigger.runtimePhase) executeCardRuntimeSpec(state, trigger.runtimePhase, trigger.source.playerId, trigger.source.card, {
@@ -47,7 +50,10 @@ function advanceTriggerThread(state) {
   const thread = state.triggerThread;
   if (!thread || thread.status !== "resolving") return;
   if (state.winner) {
-    for (const item of thread.items.filter((entry) => entry.status === "pending")) item.status = "cancelled-after-victory-lock";
+    for (const item of thread.items.filter((entry) => entry.status === "pending")) {
+      item.status = "cancelled-after-victory-lock";
+      trace(state, { tag: TRACE_TAGS.TRIGGER, event: "discarded-on-lock", threadId: thread.id, itemId: item.id, controllerId: item.controllerId });
+    }
     return finishTriggerThread(state);
   }
   const unresolved = thread.items.filter((item) => item.status === "pending");
@@ -64,6 +70,7 @@ function advanceTriggerThread(state) {
     return;
   }
   const item = choices[0];
+  trace(state, { tag: TRACE_TAGS.TRIGGER, event: "order-chosen", threadId: thread.id, itemId: item.id, controllerId: item.controllerId, auto: true });
   item.status = "resolving";
   executeQueuedTrigger(state, item.trigger);
   if (state.pending?.type === "selection") {
@@ -93,6 +100,7 @@ function resolveTriggerChoiceCore(state, itemId) {
   // スレッド終了時に誰も開かないまま取り残されて盤面が止まる。
   if (state.pending?.type === "trigger-order") state.pending = null;
   state.processingTriggers = true;
+  trace(state, { tag: TRACE_TAGS.TRIGGER, event: "order-chosen", threadId: thread.id, itemId: item.id, controllerId: item.controllerId, auto: false });
   item.status = "resolving";
   executeQueuedTrigger(state, item.trigger);
   if (state.pending?.type === "selection") {
@@ -176,6 +184,7 @@ function drainTriggerQueueCore(state) {
       }))
     };
     state.processingTriggers = true;
+    if (traceActive()) trace(state, { tag: TRACE_TAGS.TRIGGER, event: "thread-opened", threadId: state.triggerThread.id, items: state.triggerThread.items.map((item) => item.id) });
     advanceTriggerThread(state);
     return;
   }
@@ -209,6 +218,10 @@ export function emitGameEvent(state, event) {
   if (normalized.type !== "user_ability_feedback") syncMonoColorFeedback(state);
   if (state.events.length > 200) state.events.shift();
   const windows = collectTriggers(state, normalized);
+  if (traceActive()) for (const window of windows) {
+    trace(state, { tag: TRACE_TAGS.TRIGGER, event: "queued", triggerId: window.id, cardId: window.source?.card?.id ?? null, cardUid: window.source?.card?.uid ?? null,
+      playerId: window.source?.playerId ?? null, eventType: normalized.type, eventId: normalized.id, optional: Boolean(window.optional) });
+  }
   state.triggerQueue.push(...windows.filter((window) => !window.optional));
   for (const window of windows.filter((item) => item.optional)) queueDeclaredScriptActivationWindow(state, window);
   if (state.effectDepth === 0) drainTriggerQueue(state);
