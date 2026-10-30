@@ -56,9 +56,16 @@ function logSource(state, text, tone) {
   return { cardId: source.id, actor: owners.length === 1 ? owners[0] : tone === "action" ? state.active : null };
 }
 
+// Log ids count up from the newest entry's id, so they depend only on the log itself (no clock, no extra state key).
+function nextLogId(log) {
+  const last = String(log.at(-1)?.id ?? "");
+  const serial = /^L(\d+)$/.exec(last);
+  return `L${serial ? Number(serial[1]) + 1 : log.length + 1}`;
+}
+
 export function addLog(state, text, tone = "info", details = {}) {
   const source = logSource(state, text, tone);
-  state.log.push({ id: `${Date.now()}-${state.log.length}`, text, tone, turn: state.turnNumber, ...source, ...details });
+  state.log.push({ id: nextLogId(state.log), text, tone, turn: state.turnNumber, ...source, ...details });
   if (state.log.length > 120) state.log.shift();
 }
 

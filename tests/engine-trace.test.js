@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createCardInstance } from "../src/data/cards.js";
+import { addLog } from "../src/game/core/shared.js";
 import { EFFECT_OPERATION_TYPES } from "../src/game/effect-operation-library.js";
 import { TRACE_TAGS, setTraceSink } from "../src/game/engine-trace.js";
 import { attack, createGame, resolveAccessDragPlacement, resolveCardSelection, resolveTriggerChoice } from "../src/game/engine.js";
@@ -60,4 +61,15 @@ test("a trace sink is off by default and setTraceSink(null) switches it off", ()
   setTraceSink(null);
   playScenario();
   assert.equal(records.length, 0);
+});
+
+test("log ids are a deterministic counter that survives the 120-entry cap", () => {
+  const first = createGame({ mode: "ai", rng: () => 0.5 });
+  const second = createGame({ mode: "ai", rng: () => 0.5 });
+  for (const state of [first, second]) for (let i = 0; i < 130; i += 1) addLog(state, `entry ${i}`);
+  assert.deepEqual(first.log.map((entry) => entry.id), second.log.map((entry) => entry.id));
+  assert.equal(first.log.length, 120);
+  assert.equal(new Set(first.log.map((entry) => entry.id)).size, 120);
+  const ids = first.log.map((entry) => Number(entry.id.slice(1)));
+  assert.ok(ids.every((id, index) => index === 0 || id === ids[index - 1] + 1));
 });
