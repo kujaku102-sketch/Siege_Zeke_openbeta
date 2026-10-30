@@ -2,7 +2,9 @@ import { CARD_LIBRARY } from "../data/cards.js";
 
 export { supportsNormalScriptActivation, supportsDirectHandObExecution, relogPreparationKind, canDirectRelogAtSlot, installCheck, installCard, configurePlugin, recoverRegistryCard, canExecuteRegistryCard, executeRegistryCard, enabledSymbols, supportsAlternateScriptSetup, canExecuteAtSlot, canPlayCard, spellNeedsTarget, normalSpellSelection, normalExecutionCheck, normalCardEffectSelection, playCard, getEffectTargets, getActivatableEffects, activateCardEffect, getLayeredCandidates, getLayeredRequirement, getLayeredSelectionPlan, canPlayLayeredCard, playLayeredCard, relogCard } from "./core/play.js";
 export { coordinatorProjectionBlocked, buildProjectionSpec, commitProjection, clearProjection, replaceProjection, restoreProjection, cloneForHistory, remember, undo, enqueueLegacyProjection, promoteLegacyQueueHead } from "./core/projection.js";
-export { canAddSandboxCardToHand, addSandboxCardToHand, canOpeningMulligan, canKeepOpeningHand, openingMulligan, keepOpeningHand, DECK_OPTIONS, createGame } from "./core/setup.js";
+export { canAddSandboxCardToHand, addSandboxCardToHand } from "./core/setup-arrange.js";
+export { canOpeningMulligan, canKeepOpeningHand, openingMulligan, keepOpeningHand } from "./core/opening.js";
+export { DECK_OPTIONS, createGame } from "./core/setup.js";
 export { resolveVariableExpression } from "./effects/generic/actions.js";
 export { resolveTriggerChoice, emitGameEvent } from "./core/triggers.js";
 export { finishGameIfSettled } from "./core/effects.js";
