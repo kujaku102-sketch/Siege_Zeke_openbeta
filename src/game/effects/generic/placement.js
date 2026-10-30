@@ -5,10 +5,6 @@ import { evaluatePlacement } from "../../placement-policy.js";
 import { createSelectionRequest } from "../../selection-model.js";
 import { dealFortressDamage } from "../../core/deal-damage.js";
 import { drawCards } from "../../core/draw.js";
-import { resolveEffect } from "../../core/effects.js";
-import { notifyCardExecuted } from "../../core/play-notify.js";
-import { resolveLogin } from "../../core/play-spell.js";
-import { hydrateCard } from "../../core/prepare.js";
 import { enqueueSelection, selectionProjectionMeta } from "../../core/projection.js";
 import { addLog, cardTraits, fail, otherPlayer } from "../../core/shared.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "../../core/triggers.js";
@@ -174,26 +170,6 @@ export function emitRegistryInstalled(state, playerId, card, source = "インス
     enqueueSelection(state, { type: "selection", validTargets: request.candidates, request }, selectionProjectionMeta("engine:std226-compress", opponentId));
   }
   return event;
-}
-
-export function forceExecuteCard(state, { sourceOwnerId, controllerId, cardUid, sourceZone, targetZone, sourceName = "強制実行", onPlaced = null } = {}) {
-  const sourcePlayer = state.players[sourceOwnerId];
-  const controller = state.players[controllerId];
-  const sourceCards = sourcePlayer?.[sourceZone];
-  if (!Array.isArray(sourceCards) || !controller || !["area", "front", "back"].includes(targetZone)) return { status: "invalid" };
-  const sourceIndex = sourceCards.findIndex((card) => card.uid === cardUid);
-  if (sourceIndex < 0) return { status: "missing" };
-  const [sourceCard] = sourceCards.splice(sourceIndex, 1);
-  const card = hydrateCard(sourceCard);
-  const zoneName = targetZone === "area"
-    ? (controller.front.length < controller.user.frontLimit ? "front" : controller.back.length < controller.user.backLimit ? "back" : "front")
-    : targetZone;
-  if (placeByMode(state, controllerId, card, { zone: zoneName, from: sourceZone, source: sourceName, mode: "forced-effect" }) !== "placed") return { status: "failed-placement", card };
-  onPlaced?.(card, zoneName);
-  resolveEffect(state, () => resolveLogin(state, controllerId, card));
-  notifyCardExecuted(state, controllerId, card);
-  emitCardPlacement(state, controllerId, card, zoneName, "effect", sourceName);
-  return { status: "placed", card, zoneName };
 }
 
 export function placeCardByEffect(state, { sourceOwnerId, controllerId, cardUid, sourceZone, targetZone, sourceName = "効果配置", placementMode = "forced-effect", placementCause = "effect", underUid = null, onPlaced = null } = {}) {

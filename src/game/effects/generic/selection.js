@@ -8,7 +8,7 @@ import { resumeMandatoryDrawContinuation } from "../../core/draw.js";
 import { continueDeferredDeclaredScriptCleanup, resolveEffect, runEffectEntry } from "../../core/effects.js";
 import { relogCard } from "../../core/play-relog.js";
 import { continueDeferredSpellCleanup, resolveSpell } from "../../core/play-spell.js";
-import { playCard, playCardCore } from "../../core/play.js";
+import { forceExecute, playCard, playCardCore } from "../../core/play.js";
 import { openNextQueuedSelection } from "../../core/projection.js";
 import { continueDeferredDeclaredResponseCleanup } from "../../core/response.js";
 import { activateScript } from "../../core/scripts.js";
@@ -321,7 +321,9 @@ function resolveCardSelectionCore(state, continuation, result) {
     const [selected] = source.splice(index, 1);
     player.hand.push(selected);
     state.pending = null;
-    const executed = playCard(state, playerId, selected.uid, { free: module.followUp?.executionCost === 0 });
+    const executed = module.followUp?.executionCost === 0
+      ? forceExecute(state, playerId, selected.uid, { zone: "front", placementMode: "normal", ignoreColor: false })
+      : playCard(state, playerId, selected.uid);
     if (!executed) {
       const handIndex = player.hand.findIndex((card) => card.uid === selected.uid);
       if (handIndex >= 0) player.hand.splice(handIndex, 1);

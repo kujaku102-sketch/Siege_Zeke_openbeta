@@ -1,7 +1,7 @@
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { drainIndependentEffects, runEffectEntry } from "../../game/core/effects.js";
-import { playCard } from "../../game/core/play.js";
+import { forceExecute } from "../../game/core/play.js";
 import { findCard, hasClass, otherPlayer } from "../../game/core/shared.js";
 import { destroyCard } from "../../game/effects/generic/destroy.js";
 
@@ -60,7 +60,7 @@ export function std165LoginSelection(state, continuation, result, playerId, play
   }
   state.pending = null;
   const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-  return playCard(state, playerId, uid, { zone, free: true, force: true, ignoreColor: true, placementCause: "effect", placementSource: continuation.sourceName, placementMode: "forced-effect" });
+  return forceExecute(state, playerId, uid, { zone, placementSource: continuation.sourceName });
 }
 
 export function std165DrainIndependentEffects({ state, next }) {

@@ -559,7 +559,7 @@ test('S02-SESSION-26: Patchwork and delayed respawn generation use real public c
   audit(respawn);
 });
 
-test('S02-SESSION-27: random generation followed by forced execution registers one card', () => {
+test('S02-SESSION-27: random generation followed by placement registers one card', () => {
   const state = fresh();
   const source = execute(state, add(state, 'STD-170'));
   const before = structuredClone(state.runtimeContext);

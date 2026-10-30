@@ -10,6 +10,7 @@ import { resolveEffect, resolveMandatoryStateChecks, runEffectEntry } from "./ef
 import { hasKeyword, keywordValue } from "./keywords.js";
 import { getEffectTargets } from "./play-effects.js";
 import { notifyCardExecuted } from "./play-notify.js";
+import { hydrateCard } from "./prepare.js";
 import { continueDeferredSpellCleanup, resolveLogin, resolveSpell, spellNeedsTarget } from "./play-spell.js";
 import { EVENT_CONTEXT_REQUIRED_IF_IDS, NORMAL_IF_SCRIPT_IDS } from "./scripts.js";
 import { addLog, fail, otherPlayer } from "./shared.js";
@@ -17,7 +18,7 @@ import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_PLAY_CARD_CORE, CUSTOM_PLAY_CARD_CORE_3, CUSTOM_PLAY_CARD_CORE_4, CUSTOM_SPELL_CLEANUP_EXTRA, PASS } from "../effects/custom/index.js";
 import { STD121_PLACEMENT_PERMIT, executionCost, ownLayerEntries, placementCostCandidates } from "../effects/generic/cost.js";
 import { markFieldEntry } from "../effects/generic/field-entry.js";
-import { emitCardPlacement, emitEffectPlacement, failForcedPlacement, placeByMode, placementResult, resolveMountedSourceTrigger } from "../effects/generic/placement.js";
+import { emitCardPlacement, failForcedPlacement, placeByMode, placementResult, resolveMountedSourceTrigger } from "../effects/generic/placement.js";
 import { runtimeSpellAccessFailure } from "../effects/generic/selection-access.js";
 import { moveCardToTrash } from "../effects/generic/trash.js";
 
@@ -107,7 +108,7 @@ export function canPlayCard(state, playerId, card, { ignoreColor = false, free =
   return { ok: true };
 }
 
-export function playCardCore(state, playerId, uid, { targetUid = null, targetUids = [], selectionScope = null, free = false, ignoreColor = false, force = false, allowOffTurn = false, zone = "front", baseUid = null, underUid = null, placementCause = "execution", placementSource = null, placementMode = "normal", ocDecision = null, magazineDecision = null, magazineLayerUids = [], registryExecution = false, registryOriginIndex = null, asScript = false, placementCostPermit = null, requestedSlot = null } = {}) {
+export function playCardCore(state, playerId, uid, { targetUid = null, targetUids = [], selectionScope = null, free = false, ignoreColor = false, force = false, allowOffTurn = false, zone = "front", baseUid = null, underUid = null, placementCause = "execution", placementSource = null, placementMode = "normal", ocDecision = null, magazineDecision = null, magazineLayerUids = [], registryExecution = false, registryOriginIndex = null, asScript = false, placementCostPermit = null, requestedSlot = null, onPlaced = null } = {}) {
   const player = state.players[playerId];
   const index = player.hand.findIndex((card) => card.uid === uid);
   if (index < 0) return fail(state, "そのカードは手札にない。", force);
@@ -217,12 +218,12 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
   if (magazineAmount > 0 && (uniqueMagazineLayerUids.length !== magazineAmount || magazineEntries.length !== magazineAmount)) {
     return fail(state, `弾倉に使用する自分のレイヤーを${magazineAmount}枚選んで。`, force);
   }
-  const check = canPlayCard(state, playerId, card, { free: free || Boolean(card.dragFree), ignoreColor, force, allowOffTurn, zone, baseUid, underUid, placementMode, executionCostReduction: magazineAmount });
+  const check = canPlayCard(state, playerId, card, { free, ignoreColor, force, allowOffTurn, zone, baseUid, underUid, placementMode, executionCostReduction: magazineAmount });
   if (!check.ok) return fail(state, check.reason, force);
-  const firstObExecutionDiscount = !free && !card.dragFree && player.user.abilityKey === "do_or_isnt"
+  const firstObExecutionDiscount = !free && player.user.abilityKey === "do_or_isnt"
     && isObCard(card) && player.firstObExecutionTurn !== state.turnNumber
     && [...player.front, ...player.back].filter(isObCard).length <= 2;
-  const paidExecutionMemory = !free && !card.dragFree
+  const paidExecutionMemory = !free
     ? Math.max(0, executionCost(card, state, playerId) - magazineAmount)
     : null;
   const optionalEmptyTarget = card.id === "STD-015" && getEffectTargets(state, otherPlayer(playerId), card).length === 0;
@@ -279,8 +280,7 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
     player.memory -= Number(ocMatch[1]);
     card.ocPaidAmount = Number(ocMatch[1]);
   } else delete card.ocPaidAmount;
-  delete card.dragFree;
-  addLog(state, `${player.user.name}が「${card.name}」を${free ? "ドラッグ" : "実行"}。`, "action");
+  addLog(state, `${player.user.name}が「${card.name}」を${free && force ? "強制実行" : "実行"}。`, "action");
 
   const placement = placementResult(player, zone, { addedSlots: baseUid || underUid ? 0 : 1, mode: placementMode });
   if (card.category !== "Sp" && !placement.ok && placement.mode === "forced-effect") {
@@ -320,10 +320,10 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
   } else {
     if (placeByMode(state, playerId, card, { zone, mode: placementMode, from: "hand", source: placementSource ?? "実行", requestedSlot }) !== "placed") return true;
   }
+  onPlaced?.(card, zone);
   resolveEffect(state, () => resolveLogin(state, playerId, card));
   notifyCardExecuted(state, playerId, card, { firstObExecutionDiscount, paidExecutionMemory });
   emitCardPlacement(state, playerId, card, zone, placementCause, placementSource);
-  if (placementCause === "effect") emitEffectPlacement(state, playerId, card, zone, placementSource);
   return true;
 }
 
@@ -332,7 +332,17 @@ export function playCard(state, playerId, uid, options = {}) {
     // Reject a new explicit-slot command before entering/mutating effect state.
     if (state.winner || state.victory?.lockedOutcome || state.pending || state.prompt || state.effectResolution) return false;
     const card = state.players[playerId]?.hand.find(item => item.uid === uid);
-    if (!card || !canExecuteAtSlot(state, playerId, card, { ...options, free: options.free || Boolean(card.dragFree) }).ok) return false;
+    if (!card || !canExecuteAtSlot(state, playerId, card, options).ok) return false;
   }
   return runEffectEntry(state, "card", playerId, () => playCardCore(state, playerId, uid, options));
+}
+
+// 強制実行(ルールブック4.3): 効果が指定した手札のカードを、実行メモリを払わず実行する。通常実行と同じ playCardCore を通るので、
+// ログインと card_executing / card_executed はここからだけ出る。配置は効果配置ではない(card_effect_placed は出さない)。
+export function forceExecute(state, playerId, uid, { zone = null, placementSource = null, placementMode = "forced-effect", ignoreColor = true, onPlaced = null } = {}) {
+  const player = state.players[playerId];
+  const handIndex = player.hand.findIndex((card) => card.uid === uid);
+  if (handIndex >= 0) player.hand[handIndex] = hydrateCard(player.hand[handIndex]);
+  const targetZone = zone ?? (player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front");
+  return playCard(state, playerId, uid, { zone: targetZone, free: true, force: true, ignoreColor, placementCause: "effect", placementSource, placementMode, onPlaced });
 }

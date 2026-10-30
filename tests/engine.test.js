@@ -4,6 +4,7 @@ import { compileEffectText, normalizeCardCategory } from "../packages/effect-com
 import { CARD_LIBRARY, LAB_CARD_IDS, createCardInstance, createToken, normalizeCardClasses } from "../src/data/cards.js";
 import { CARD_ART } from "../src/data/card-art.generated.js";
 import { isObCard } from "../src/game/card-types.js";
+import { placeCardByEffect } from "../src/game/effects/generic/placement.js";
 const STD_SUPPORTED_CARDS = CARD_LIBRARY;
 const VENGEANCE_CARDS = Object.fromEntries(Object.entries(CARD_LIBRARY).filter(([id]) => /^STD-(18[7-9]|19\d|20\d|21[0-2])$/.test(id)));
 const NEUTRON_CARDS = Object.fromEntries(Object.entries(CARD_LIBRARY).filter(([id]) => /^STD-(10[7-9]|11\d|12[0-4])$/.test(id)));
@@ -201,14 +202,14 @@ test("STD-183 triggers on own Script activation and Insect effect placement only
   addSandboxCardToHand(state, "player", "STD-173");
   insect = player.hand.find((card) => card.id === "STD-173");
   const beforeEffect = state.players.ai.fortressStr;
-  assert.equal(playCard(state, "player", insect.uid, { zone: "back", force: true, free: true, placementCause: "effect", placementSource: "test effect" }), true);
+  assert.equal(placeCardByEffect(state, { sourceOwnerId: "player", controllerId: "player", sourceZone: "hand", targetZone: "back", cardUid: insect.uid, sourceName: "test effect" }).status, "placed");
   assert.equal(state.players.ai.fortressStr, beforeEffect - 2);
   assert.ok(state.events.some((event) => event.type === "card_effect_placed" && event.cardUid === insect.uid && event.traits.includes("インセクト")));
 
   addSandboxCardToHand(state, "player", "STD-020");
   const nonInsect = player.hand.find((card) => card.id === "STD-020");
   const beforeNonInsect = state.players.ai.fortressStr;
-  assert.equal(playCard(state, "player", nonInsect.uid, { zone: "back", force: true, free: true, placementCause: "effect", placementSource: "test effect" }), true);
+  assert.equal(placeCardByEffect(state, { sourceOwnerId: "player", controllerId: "player", sourceZone: "hand", targetZone: "back", cardUid: nonInsect.uid, sourceName: "test effect" }).status, "placed");
   assert.equal(state.players.ai.fortressStr, beforeNonInsect);
 });
 

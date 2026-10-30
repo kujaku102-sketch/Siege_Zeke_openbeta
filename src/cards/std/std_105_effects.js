@@ -3,7 +3,8 @@ import { createSelectionRequest } from "../../game/selection-model.js";
 import { activateScript } from "../../game/core/scripts.js";
 import { addLog, fail } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { forceExecuteCard, setCardSleeping } from "../../game/effects/generic/placement.js";
+import { forceExecute } from "../../game/core/play.js";
+import { setCardSleeping } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_105.js)
 export function activateStd105Selection(state, continuation, result, playerId, player) {
@@ -12,17 +13,18 @@ export function activateStd105Selection(state, continuation, result, playerId, p
 }
 
 export function std105ActivateScriptCore({ state, playerId, selectionUid, script }) {
-  const execution = forceExecuteCard(state, {
-    sourceOwnerId: playerId, controllerId: playerId, sourceZone: "hand", targetZone: "area", cardUid: selectionUid, sourceName: script.name,
+  forceExecute(state, playerId, selectionUid, {
+    placementSource: script.name,
     onPlaced: (placed) => {
       setCardSleeping(state, playerId, placed);
       placed.summoningSick = false;
       placed.grantedKeywords = [...new Set([...(placed.grantedKeywords ?? []), "SECURITY"])];
     }
   });
-  if (execution.status === "placed") {
-    state.delayedEffects.push({ event: "turn_ended", dueTurn: state.turnNumber + 1, type: "destroy_card", ownerId: playerId, cardUid: execution.card.uid, sourceName: script.name });
-    addLog(state, `${script.name}: ${execution.card.name}を強制実行し、スリープ・[セキュリティ]を付与。`, "effect");
+  const placed = state.players[playerId].front.concat(state.players[playerId].back).find((card) => card.uid === selectionUid);
+  if (placed) {
+    state.delayedEffects.push({ event: "turn_ended", dueTurn: state.turnNumber + 1, type: "destroy_card", ownerId: playerId, cardUid: placed.uid, sourceName: script.name });
+    addLog(state, `${script.name}: ${placed.name}を強制実行し、スリープ・[セキュリティ]を付与。`, "effect");
   }
   return PASS;
 }
