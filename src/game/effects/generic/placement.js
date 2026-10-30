@@ -15,10 +15,14 @@ import { hydrateCard } from "../../core/setup.js";
 import { addLog, cardTraits, fail, findCard, hasClass, otherPlayer } from "../../core/shared.js";
 import { emitGameEvent, emitUserAbilityFeedback, resumeTriggerThreadAfterSelection } from "../../core/triggers.js";
 import { drawCards } from "../../core/turn.js";
+import { settleStd048MandatoryPlacement } from "../custom/std_048.js";
+import { settleStd142DestructionContinuation } from "../custom/std_142.js";
+import { triggerStd165Threshold } from "../custom/std_165.js";
+import { settleStd211DestructionContinuation } from "../custom/std_211.js";
+import { resumeStd230AmbushCleanup } from "../custom/std_230.js";
 import { executeCardRuntimeSpec, executeRuntimeActions, resumeDestroyLkiFollowUp } from "./actions.js";
 import { continuePlacementCostBatch, settlePlacementCostDestruction } from "./cost.js";
 import { runtimeSourceFromContinuation } from "./selection.js";
-import { resumeStd230AmbushCleanup, settleStd048MandatoryPlacement, settleStd142DestructionContinuation, settleStd211DestructionContinuation, triggerStd165Threshold } from "../../engine.js";
 
 export function moveCardToTrash(state, ownerId, card, source = "移動", { suppressScriptWindow = false, fromArea = false, ruleDestruction = null } = {}) {
   const owner = state.players[ownerId];

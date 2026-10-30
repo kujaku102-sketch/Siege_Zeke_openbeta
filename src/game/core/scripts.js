@@ -4,7 +4,7 @@ import { hasOptionalActivationSpec, optionalSpecsForCard } from "../trigger-spec
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { boardSlotOf, cardAtBoardSlot } from "../board-slots.js";
-import { resolveTrinityEffect, resumeDeferredAttack } from "./battle.js";
+import { resumeDeferredAttack } from "./battle.js";
 import { continueDeferredDeclaredScriptCleanup, declareEffect, runEffectEntry } from "./effects.js";
 import { continueDeferredSpellCleanup, enabledSymbols, supportsNormalScriptActivation } from "./play.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
@@ -12,6 +12,7 @@ import { continueDeferredDeclaredResponseCleanup } from "./response.js";
 import { addLog, fail, findCard, otherPlayer } from "./shared.js";
 import { emitGameEvent } from "./triggers.js";
 import { resumeMandatoryDrawContinuation } from "./turn.js";
+import { resolveTrinityEffect } from "../effects/custom/std_121.js";
 import { executeRuntimeActions, executeTriggerAction, runtimeActionFeasible, triggerActionFeasible } from "../effects/generic/actions.js";
 import { continuePlacementCostBatch } from "../effects/generic/cost.js";
 import { createVengeanceCard, emitEffectPlacement, forceExecuteCard, moveCardToTrash, placeByMode, resumeDeferredDestruction, resumeDeferredTrashMove, setCardSleeping } from "../effects/generic/placement.js";

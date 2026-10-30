@@ -14,10 +14,11 @@ import { hydrateCard } from "./setup.js";
 import { activeCards, addLog, cardTraits, fail, findCard, hasClass, otherPlayer, sourceCardByName } from "./shared.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { drawCards } from "./turn.js";
+import { resolveTrinityEffect } from "../effects/custom/std_121.js";
 import { executeRuntimeActions, runtimeSpecValue } from "../effects/generic/actions.js";
 import { beginSourceLayerSelection } from "../effects/generic/cost.js";
 import { applyDamageModifiers, clearDamageModifiers } from "../effects/generic/damage.js";
-import { createVengeanceCard, destroyCard, emitEffectPlacement, moveCardToTrash, placeByMode, setCardSleeping } from "../effects/generic/placement.js";
+import { createVengeanceCard, destroyCard, emitEffectPlacement, placeByMode, setCardSleeping } from "../effects/generic/placement.js";
 import { beginDynamicSelectionModule } from "../effects/generic/selection.js";
 
 function battleStatModifierValue(state, playerId, source, stat) {
@@ -181,14 +182,6 @@ function queuePostAttackSelection(state, playerId, attacker, defenderUid = null)
       state.pending = { type: "selection", validTargets: request.candidates, request };
     }
   }
-}
-
-export function resolveTrinityEffect(state, activePlayerId, sourceName) {
-  const active = state.players[activePlayerId];
-  if (active.hand.length >= 3) for (const card of active.hand.splice(0, 3)) moveCardToTrash(state, activePlayerId, card, sourceName);
-  else dealFortressDamage(state, activePlayerId, 3, otherPlayer(activePlayerId), sourceName);
-  drawCards(state, activePlayerId, 2);
-  addLog(state, `${sourceName}: アクティブユーザーが手札3枚を捨てるか3ダメージ、その後2枚ドロー。`, "effect");
 }
 
 export function attack(state, playerId, attackerUid, targetUid) {
