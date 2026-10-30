@@ -5,6 +5,7 @@ import { addLog } from "../src/game/core/shared.js";
 import { EFFECT_OPERATION_TYPES } from "../src/game/effect-operation-library.js";
 import { TRACE_TAGS, setTraceSink } from "../src/game/engine-trace.js";
 import { attack, createGame, destroyCard, playCard, resolveAccessDragPlacement, resolveCardSelection, resolveTriggerChoice } from "../src/game/engine.js";
+import { runEffectEntry } from "../src/game/core/effects.js";
 
 // Two triggers fire at once (a trigger thread), one needs a choice, a drag placement follows.
 function playScenario() {
@@ -147,4 +148,34 @@ test("a trigger's text is closed by a body record, the choices it opens are trac
   const checks = records.filter((record) => record.tag === TRACE_TAGS.CONDITION && record.event === "state-check");
   assert.ok(checks.length > 0);
   checks.forEach((record, index) => { if (record.phase === "in") assert.equal(checks[index + 1]?.phase, "out"); });
+});
+
+test("an answered trigger is judged before the thread's next trigger starts, and that trigger is not inside an open effect", () => {
+  const records = [];
+  setTraceSink((record) => records.push(record));
+  playScenario();
+  setTraceSink(null);
+  const launches = records.filter((record) => record.tag === TRACE_TAGS.LAUNCH && record.via === "trigger");
+  assert.ok(launches.length >= 2);
+  const [first, second] = launches;
+  const firstEnd = records.find((record) => record.tag === TRACE_TAGS.TRIGGER && record.event === "body-end" && record.triggerId === first.triggerId);
+  const judgedBetween = records.some((record) => record.tag === TRACE_TAGS.JUDGE && record.phase === "out" && record.seq > firstEnd.seq && record.seq < second.seq);
+  assert.ok(firstEnd.seq < second.seq);
+  assert.ok(judgedBetween, "the first trigger's completion is judged before the second one starts");
+  assert.equal(second.effectId, null);
+});
+
+test("the rule-based state check runs inside the effect: before its judgement, and what it raises waits until after it", () => {
+  const state = createGame({ mode: "ai", rng: () => 0.5 });
+  const victim = createCardInstance("STD-131", "player", 13101);
+  victim.summoningSick = false;
+  state.players.player.front = [victim];
+  const records = collect(() => runEffectEntry(state, "test", "player", () => { victim.damage = 99; }));
+  const order = records.map((record) => record.tag + (record.event ? ":" + record.event : "") + (record.phase ? ":" + record.phase : ""));
+  const checkOut = order.indexOf("条件:state-check:out");
+  const judgeOut = order.indexOf("判定:out");
+  const trigger = records.findIndex((record) => record.tag === TRACE_TAGS.LAUNCH && record.via === "trigger");
+  assert.ok(order.includes("置換:attempt"), "the card was destroyed by the state check");
+  assert.ok(checkOut > -1 && checkOut < judgeOut);
+  assert.ok(trigger === -1 || trigger > judgeOut, "a trigger raised by the destruction starts only after the effect is judged");
 });

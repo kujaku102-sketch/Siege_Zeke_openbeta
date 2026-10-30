@@ -33,20 +33,31 @@ export function resolveEffect(state, resolver) {
   try {
     return resolver();
   } finally {
-    state.effectDepth -= 1;
-    if (state.effectDepth === 0) {
+    const outermost = state.effectDepth === 1;
+    let judged = false;
+    if (outermost) {
+      // Still inside the effect (effectDepth has not dropped, so triggers raised here only queue): its source cleanup, the
+      // rule-based state check (5.1: always on) and its judgement come before any waiting trigger starts (4.7.1, 1.2.1).
       continueDeferredSpellCleanup(state);
       resolveMandatoryStateChecks(state);
       if (traceActive()) traceChoiceDiff(state, pendingBefore, promptBefore);
+      if (!state.pending && !state.prompt && state.effectResolution) {
+        judgeVictory(state, state.effectResolution.kind ?? null);
+        judged = true;
+      }
+    }
+    state.effectDepth -= 1;
+    if (outermost) {
       // A pending/prompt is an internal choice only when it was opened by this
       // resolution. Queued triggers are intentionally *not* a completion gate.
       if (state.pending || state.prompt) {
         if (state.effectResolution) state.effectResolution.status = "awaiting-choice";
       } else if (state.effectResolution) {
-        finalizeEffectResolution(state);
+        finalizeEffectResolution(state, { judged });
       }
       if (!state.winner) drainIndependentEffects(state);
-      if (!state.winner && !state.effectResolution) resumeStalledTriggerThread(state);
+      // A trigger whose choice was answered inside this effect carries on once the effect is judged (also after a lock, to close the thread).
+      if (!state.effectResolution) resumeStalledTriggerThread(state);
       if (!state.winner && !parentEffectAwaitsOwnChoice(state)) drainTriggerQueue(state);
     }
   }
@@ -55,7 +66,7 @@ export function resolveEffect(state, resolver) {
 // 4.7.1: 親効果が自分の本文の選択待ちで止まっている間は、破壊・移動・ログアウトなどの自動誘発を流さない。
 // 親効果が最後まで終わった時(awaiting-choice でなくなった時)に、resolveEffect の最後から流れる。
 // 誘発・確認窓が積んだ選択(resolutionMeta を持つ engine:* の選択)は親効果の本文ではないので、待機の理由にしない。
-function parentEffectAwaitsOwnChoice(state) {
+export function parentEffectAwaitsOwnChoice(state) {
   if (state.effectResolution?.status !== "awaiting-choice") return false;
   const open = state.pending ?? state.prompt;
   return Boolean(open) && !open.resolutionMeta;
@@ -163,9 +174,9 @@ export function judgeVictory(state, kind) {
     locked: Boolean(state.victory?.lockedOutcome), lockedNow: Boolean(state.victory?.lockedOutcome) && !lockedBefore, winner: state.winner ?? null });
 }
 
-export function finalizeEffectResolution(state) {
+export function finalizeEffectResolution(state, { judged = false } = {}) {
   const completedResolution = state.effectResolution;
-  judgeVictory(state, completedResolution?.kind ?? null);
+  if (!judged) judgeVictory(state, completedResolution?.kind ?? null);
   if (completedResolution?.declaredEffectId && state.resolvingDeclaredEffect?.id === completedResolution.declaredEffectId) {
     state.resolvingDeclaredEffect.status = "resolved";
     state.resolvingDeclaredEffect = null;

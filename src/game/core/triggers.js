@@ -4,7 +4,7 @@ import { isObCard } from "../card-types.js";
 import { describeOperation } from "../effect-operation-library.js";
 import { TRACE_TAGS, trace, traceActive } from "../engine-trace.js";
 import { specsForEvent } from "../trigger-specs.js";
-import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled, judgeVictory, runEffectEntry, traceChoiceDiff } from "./effects.js";
+import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled, judgeVictory, parentEffectAwaitsOwnChoice, resolveMandatoryStateChecks, runEffectEntry, traceChoiceDiff } from "./effects.js";
 import { enabledSymbols } from "./play.js";
 import { queueDeclaredScriptActivationWindow } from "./scripts.js";
 import { addLog, cardsInPlay, findCard, otherPlayer } from "./shared.js";
@@ -36,6 +36,8 @@ function executeQueuedTrigger(state, trigger) {
     // The end of the trigger's text: either it waits for an answer (the answer's resume closes it) or it is done here.
     trace(state, { tag: TRACE_TAGS.TRIGGER, event: state.pending || state.prompt ? "body-wait" : "body-end", triggerId: trigger.id, how: "direct" });
   }
+  // 5.1: the rule-based state check is part of the effect (before its judgement); what it raises waits in the queue (4.7.1).
+  if (!state.pending && !state.prompt) resolveMandatoryStateChecks(state);
   if (!state.pending) trigger.status = "resolved";
   // 同時に誘発した効果は別々の効果。1つ完了した時点で勝敗が決まったら、残りは未宣言のまま実行しない。
   if (!state.pending && !state.prompt) judgeVictory(state, "trigger");
@@ -132,12 +134,20 @@ export function resumeStalledTriggerThread(state) {
   if (item) resumeTriggerThreadAfterSelection(state, item.id);
 }
 
+const bodyEndTraced = new WeakSet();
+
 export function resumeTriggerThreadAfterSelection(state, itemId) {
-  // The answer to a choice a trigger opened has finished that trigger's text.
-  if (traceActive() && itemId) trace(state, { tag: TRACE_TAGS.TRIGGER, event: "body-end", triggerId: itemId, how: "answered" });
   const thread = state.triggerThread;
   const item = thread?.items.find((entry) => entry.id === itemId && entry.status === "awaiting-selection");
+  // The answer to a choice a trigger opened has finished that trigger's text (said once, however often the item is looked at).
+  if (traceActive() && itemId && !bodyEndTraced.has(item ?? {})) {
+    if (item) bodyEndTraced.add(item);
+    trace(state, { tag: TRACE_TAGS.TRIGGER, event: "body-end", triggerId: itemId, how: "answered" });
+  }
   if (!item) return;
+  // The answer is an effect of its own: its judgement (and the state check before it) comes first. When the effect ends,
+  // resumeStalledTriggerThread picks this item up and goes on to the thread's next trigger.
+  if (state.effectDepth > 0) return;
   item.status = "resolved";
   thread.currentControllerId = otherPlayer(item.controllerId);
   state.processingTriggers = true;
@@ -172,7 +182,7 @@ function settleVictoryFactsOutsideResolution(state) {
 }
 
 function drainTriggerQueueCore(state) {
-  if (state.processingTriggers || state.effectDepth > 0) return;
+  if (state.processingTriggers || state.effectDepth > 0 || parentEffectAwaitsOwnChoice(state)) return;
   if ((state.interactive || state.runtimeContext) && state.triggerQueue.length > 1 && !state.triggerThread?.status?.includes("resolving")) {
     const triggers = state.triggerQueue.splice(0);
     state.triggerThread = {
