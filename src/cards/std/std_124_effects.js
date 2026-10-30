@@ -5,7 +5,9 @@ import { recordVictoryFact } from "../../game/core/effects.js";
 import { hydrateCard } from "../../game/core/setup.js";
 import { addLog, otherPlayer } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { emitCardsGenerated, moveCardToTrash, setCardSleeping } from "../../game/effects/generic/placement.js";
+import { emitCardsGenerated } from "../../game/effects/generic/generate.js";
+import { setCardSleeping } from "../../game/effects/generic/placement.js";
+import { moveCardToTrash } from "../../game/effects/generic/trash.js";
 
 // handlers (was effects/custom/std_124.js)
 export function std124ResolveLogin({ player, card, state, playerId }) {

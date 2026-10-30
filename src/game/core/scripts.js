@@ -14,7 +14,8 @@ import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_ACTIVATE_SCRIPT_CORE, CUSTOM_ACTIVATE_SCRIPT_CORE_2, PASS } from "../effects/custom/index.js";
 import { executeRuntimeActions, executeTriggerAction, runtimeActionFeasible, triggerActionFeasible } from "../effects/generic/actions.js";
 import { continuePlacementCostBatch } from "../effects/generic/cost.js";
-import { moveCardToTrash, resumeDeferredDestruction, resumeDeferredTrashMove } from "../effects/generic/placement.js";
+import { resumeDeferredDestruction } from "../effects/generic/destroy.js";
+import { moveCardToTrash, resumeDeferredTrashMove } from "../effects/generic/trash.js";
 
 export const DECLARED_IF_SCRIPT_IDS = new Set(["STD-001", "STD-002", "STD-003", "STD-018", "STD-019", "STD-036", "STD-037", "STD-038", "STD-139", "STD-140", "STD-148"]);
 

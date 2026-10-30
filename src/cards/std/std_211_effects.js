@@ -4,7 +4,7 @@ import { drawCards } from "../../game/core/draw.js";
 import { continueDeferredSpellCleanup } from "../../game/core/play.js";
 import { addLog, classKey, fail, findCard } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { destroyCard } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
 
 // handlers (was effects/custom/std_211.js)
 export function continueStd211DestructionBatch(state) {

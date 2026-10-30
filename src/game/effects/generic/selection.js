@@ -20,7 +20,9 @@ import { CUSTOM_RESOLVE_CARD_SELECTION_CORE, CUSTOM_SELECTION_HANDLERS, PASS } f
 import { addTimedModifier, executeRuntimeActions, runtimeActionCandidates, runtimeActionFeasible, runtimeSpecMatchesCard, runtimeSpecValue } from "./actions.js";
 import { beginSourceLayerSelection, consumeSelectedSourceLayers, continuePlacementCostBatch, ownLayerEntries, placementCostCandidates } from "./cost.js";
 import { grantDamageModifier } from "./damage.js";
-import { destroyCard, moveCardToTrash, placementResult, setCardSleeping } from "./placement.js";
+import { destroyCard } from "./destroy.js";
+import { placementResult, setCardSleeping } from "./placement.js";
+import { moveCardToTrash } from "./trash.js";
 
 function runtimeAccessCandidates(player, action, referenceCard = null) {
   return player.deck.filter((card) => runtimeSpecMatchesCard(card, action.filter, referenceCard));

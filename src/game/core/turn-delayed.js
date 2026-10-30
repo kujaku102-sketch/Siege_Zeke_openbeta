@@ -1,7 +1,9 @@
 import { createSelectionRequest } from "../selection-model.js";
 import { addLog, otherPlayer } from "./shared.js";
 import { startTurn } from "./turn.js";
-import { destroyCard, emitEffectPlacement, placeByMode, setCardSleeping, syncFieldEntryTurns } from "../effects/generic/placement.js";
+import { destroyCard } from "../effects/generic/destroy.js";
+import { syncFieldEntryTurns } from "../effects/generic/field-entry.js";
+import { emitEffectPlacement, placeByMode, setCardSleeping } from "../effects/generic/placement.js";
 
 export function resolveDelayedTrashMove(state, effect) {
   const owner = state.players[effect.ownerId];

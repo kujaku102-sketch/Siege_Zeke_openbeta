@@ -4,7 +4,7 @@ import { attack, continueAttackAfterCost } from "../../game/core/battle.js";
 import { dealCardDamage } from "../../game/core/deal-damage.js";
 import { drawCards } from "../../game/core/draw.js";
 import { findCard } from "../../game/core/shared.js";
-import { moveCardToTrash } from "../../game/effects/generic/placement.js";
+import { moveCardToTrash } from "../../game/effects/generic/trash.js";
 
 // handlers (was effects/custom/std_223.js)
 export function std223AmbushChoiceSelection(state, continuation, result, playerId, player) {

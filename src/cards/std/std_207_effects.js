@@ -1,8 +1,7 @@
-// STD-207 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { addLog } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { createVengeanceCard, emitCardsGenerated } from "../../game/effects/generic/placement.js";
+import { createVengeanceCard, emitCardsGenerated } from "../../game/effects/generic/generate.js";
 
 // handlers (was effects/custom/std_207.js)
 export function std207RevealSelection(state, continuation, result, playerId, player) {

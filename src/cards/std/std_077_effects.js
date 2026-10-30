@@ -1,7 +1,7 @@
 import { CARD_LIBRARY } from "../../data/cards.js";
 import { drawCards } from "../../game/core/draw.js";
 import { addLog, fail, findCard, hasClass, provisional } from "../../game/core/shared.js";
-import { moveCardToTrash } from "../../game/effects/generic/placement.js";
+import { moveCardToTrash } from "../../game/effects/generic/trash.js";
 
 // handlers (was effects/custom/std_077.js)
 export function resolveSamLogin(state, playerId, discardUid) {

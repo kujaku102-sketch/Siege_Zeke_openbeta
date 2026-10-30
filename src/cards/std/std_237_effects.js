@@ -1,12 +1,12 @@
-// STD-237 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
+import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { CARD_LIBRARY } from "../../data/cards.js";
 import { isObCard } from "../../game/card-types.js";
-import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { hydrateCard } from "../../game/core/setup.js";
 import { fail } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { emitCardsGenerated, emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
+import { emitCardsGenerated } from "../../game/effects/generic/generate.js";
+import { emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_237.js)
 export function std237ActivateCardEffectCore({ player, state, effect, playerId, card }) {

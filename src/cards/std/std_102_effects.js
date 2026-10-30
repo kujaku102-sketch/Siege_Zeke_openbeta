@@ -1,7 +1,7 @@
-// STD-102 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { continueAttackAfterCost } from "../../game/core/battle.js";
 import { findCard } from "../../game/core/shared.js";
-import { destroyCard, placeByMode } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
+import { placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_102.js)
 export function std102PlaceSelection(state, continuation, result, playerId, player) {

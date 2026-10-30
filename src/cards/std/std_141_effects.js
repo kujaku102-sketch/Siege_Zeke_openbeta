@@ -1,8 +1,8 @@
-// STD-141 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { findCard, otherPlayer, shuffle } from "../../game/core/shared.js";
-import { emitEffectPlacement, moveCardToTrash, placeByMode } from "../../game/effects/generic/placement.js";
+import { emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
+import { moveCardToTrash } from "../../game/effects/generic/trash.js";
 
 // handlers (was effects/custom/std_141.js)
 export function scheduleStd141TurnEndResume(state, activeId) {

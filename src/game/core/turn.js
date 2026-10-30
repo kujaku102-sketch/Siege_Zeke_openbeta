@@ -14,7 +14,7 @@ import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { completeTurnAfterDelayedEffects, resolveTurnEndDelayedEffects, resolveTurnStartDelayedEffects } from "./turn-delayed.js";
 import { executeCardRuntimeSpec } from "../effects/generic/actions.js";
 import { getMaxMemory } from "../effects/generic/cost.js";
-import { distributeLayeredFollowers, revealMountedCode } from "../effects/generic/placement.js";
+import { distributeLayeredFollowers, revealMountedCode } from "../effects/generic/trash.js";
 
 function rollMadness(state, count) {
   let total = 0;

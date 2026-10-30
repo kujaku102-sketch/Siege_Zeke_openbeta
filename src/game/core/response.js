@@ -6,7 +6,7 @@ import { enabledSymbols, resolveSpell } from "./play.js";
 import { addLog, otherPlayer } from "./shared.js";
 import { cardCurrentStr } from "./stats.js";
 import { CUSTOM_RESOLVE_DECLARED_RESPONSE, CUSTOM_RESPONSE_CARD_APPLICABLE, PASS } from "../effects/custom/index.js";
-import { moveCardToTrash } from "../effects/generic/placement.js";
+import { moveCardToTrash } from "../effects/generic/trash.js";
 
 const RESPONSE_RUNTIME_IDS = new Set(["STD-015", "STD-034", "STD-047", "STD-132", "STD-143", "STD-167", "STD-203", "STD-207"]);
 

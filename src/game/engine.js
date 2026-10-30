@@ -20,7 +20,8 @@ export { getAttackTargets, canAttack, attack } from "./core/battle.js";
 export { dealCardDamage, dealFortressDamage } from "./core/deal-damage.js";
 export { resolveLuckyShotAdditional } from "../cards/std/std_086_effects.js";
 export { declineResponse, activateResponse } from "./core/response.js";
-export { destroyCard, discardMountedCard, resolveAccessDragPlacement } from "./effects/generic/placement.js";
+export { destroyCard, discardMountedCard } from "./effects/generic/destroy.js";
+export { resolveAccessDragPlacement } from "./effects/generic/access-drag.js";
 export { findCard } from "./core/shared.js";
 
 export { CARD_LIBRARY };

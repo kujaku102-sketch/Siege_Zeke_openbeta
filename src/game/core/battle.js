@@ -15,7 +15,8 @@ import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_ATTACK_CORE, CUSTOM_ATTACK_CORE_2, CUSTOM_ATTACK_CORE_3, CUSTOM_ATTACK_CORE_4, CUSTOM_ATTACK_CORE_5, CUSTOM_ATTACK_CORE_6, CUSTOM_QUEUE_POST_ATTACK_SELECTION, PASS } from "../effects/custom/index.js";
 import { executeRuntimeActions } from "../effects/generic/actions.js";
 import { applyDamageModifiers, clearDamageModifiers } from "../effects/generic/damage.js";
-import { destroyCard, setCardSleeping } from "../effects/generic/placement.js";
+import { destroyCard } from "../effects/generic/destroy.js";
+import { setCardSleeping } from "../effects/generic/placement.js";
 import { beginDynamicSelectionModule } from "../effects/generic/selection.js";
 
 // コストの支払いや付随効果を終えた後に、宣言した攻撃を続ける。支払いで開いた確認(STD-003の窓など)が

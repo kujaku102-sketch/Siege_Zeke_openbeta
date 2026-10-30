@@ -1,8 +1,8 @@
-// SZTB-096 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { isObCard } from "../../game/card-types.js";
 import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { hydrateCard } from "../../game/core/setup.js";
-import { emitCardsGenerated, placeByMode } from "../../game/effects/generic/placement.js";
+import { emitCardsGenerated } from "../../game/effects/generic/generate.js";
+import { placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/sztb_096.js)
 export function sztb096GetEffectTargets({ cards }) {

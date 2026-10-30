@@ -15,8 +15,11 @@ import { addLog, cardTraits, classKey, findCard, hasClass, hasNoEffectText, isAr
 import { cardHasKeyword } from "../../core/stats.js";
 import { resolveMadnessChecks } from "../../core/turn.js";
 import { getMaxMemory, ownLayerEntries } from "./cost.js";
-import { banGeneratedCards, clearComponents, createVengeanceCard, destroyCard, distributeLayeredFollowers, emitCardsGenerated, emitEffectPlacement, emitRegistryInstalled, moveCardByEffect, moveCardToTrash, placeByMode, placeCardByEffect, placementResult, queueRuntimeDestructionContinuation, revealMountedCode, setCardSleeping, triggerMoved } from "./placement.js";
+import { destroyCard, queueRuntimeDestructionContinuation } from "./destroy.js";
+import { banGeneratedCards, createVengeanceCard, emitCardsGenerated } from "./generate.js";
+import { emitEffectPlacement, emitRegistryInstalled, moveCardByEffect, placeByMode, placeCardByEffect, placementResult, setCardSleeping } from "./placement.js";
 import { openRuntimeAccessSelection, openRuntimeChoiceSelection, openRuntimeDecodeSelection, openRuntimePlayerSelection, openRuntimeRepeatSelectMove, openRuntimeTargetSelection, openRuntimeZoneChoice, runtimePlayerCandidates, runtimeSelectionCandidates, runtimeZoneChoiceOptions } from "./selection.js";
+import { clearComponents, distributeLayeredFollowers, moveCardToTrash, revealMountedCode, triggerMoved } from "./trash.js";
 
 export function executeTriggerAction(state, trigger, action) {
   const { source, event } = trigger;

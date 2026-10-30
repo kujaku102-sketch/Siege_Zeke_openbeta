@@ -1,8 +1,8 @@
-// STD-106 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { hydrateCard } from "../../game/core/setup.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { emitEffectPlacement, moveCardToTrash, placeByMode } from "../../game/effects/generic/placement.js";
+import { emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
+import { moveCardToTrash } from "../../game/effects/generic/trash.js";
 
 // handlers (was effects/custom/std_106.js)
 export function std106AttackCore4({ attacker, player, state, playerId }) {

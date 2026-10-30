@@ -3,7 +3,7 @@ import { createSelectionRequest } from "../../game/selection-model.js";
 import { addLog, findCard, isArmsBandOb, shuffle } from "../../game/core/shared.js";
 import { cardAtk, cardCurrentStr } from "../../game/core/stats.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { destroyCard } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
 
 // handlers (was effects/custom/sztb_097.js)
 export function sztb097ChoiceSelection(state, continuation, result, playerId, player) {

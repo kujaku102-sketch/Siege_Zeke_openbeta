@@ -4,7 +4,8 @@ import { hydrateCard } from "../../game/core/setup.js";
 import { addLog, findCard, isElectronFairy } from "../../game/core/shared.js";
 import { cardAtk, cardMaxStr } from "../../game/core/stats.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { destroyCard, emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
+import { emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_122.js)
 export function technologyHorizonSelection(state, continuation, result, playerId, player) {

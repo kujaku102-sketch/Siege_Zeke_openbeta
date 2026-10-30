@@ -1,10 +1,10 @@
-// STD-160 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { addLog, otherPlayer } from "../../game/core/shared.js";
 import { resolveMadnessChecks } from "../../game/core/turn.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { destroyCard, emitCardPlacement, placeByMode } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
+import { emitCardPlacement, placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_160.js)
 export function std160ResolveLogin({ opponent, state, playerId, card }) {

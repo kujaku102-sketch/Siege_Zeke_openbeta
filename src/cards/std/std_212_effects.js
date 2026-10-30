@@ -1,7 +1,8 @@
 import { addLog } from "../../game/core/shared.js";
 import { completeTurnAfterDelayedEffects } from "../../game/core/turn-delayed.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { createVengeanceCard, placeByMode } from "../../game/effects/generic/placement.js";
+import { createVengeanceCard } from "../../game/effects/generic/generate.js";
+import { placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_212.js)
 export function std212RespawnCountSelection(state, continuation, result, playerId, player) {

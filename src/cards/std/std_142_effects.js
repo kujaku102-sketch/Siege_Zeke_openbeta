@@ -1,9 +1,9 @@
-// STD-142 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { activateScript } from "../../game/core/scripts.js";
 import { addLog, fail, findCard } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { destroyCard, placeByMode } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
+import { placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_142.js)
 export function scheduleStd142TurnEndResume(state, activeId) {

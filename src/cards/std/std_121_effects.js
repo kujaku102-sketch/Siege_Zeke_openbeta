@@ -2,7 +2,7 @@ import { dealFortressDamage } from "../../game/core/deal-damage.js";
 import { drawCards } from "../../game/core/draw.js";
 import { addLog, otherPlayer } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { moveCardToTrash } from "../../game/effects/generic/placement.js";
+import { moveCardToTrash } from "../../game/effects/generic/trash.js";
 
 // handlers (was effects/custom/std_121.js)
 export function resolveTrinityEffect(state, activePlayerId, sourceName) {

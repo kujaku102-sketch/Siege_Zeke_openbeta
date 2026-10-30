@@ -1,8 +1,7 @@
-// STD-136 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { addLog, findCard } from "../../game/core/shared.js";
-import { destroyCard } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
 
 // handlers (was effects/custom/std_136.js)
 export function hahanamoriStandbySelection(state, continuation, result, playerId, player) {

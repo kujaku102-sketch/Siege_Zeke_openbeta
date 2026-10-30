@@ -1,9 +1,8 @@
-// STD-085 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { continueAttackAfterCost } from "../../game/core/battle.js";
 import { findCard } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { beginSourceLayerSelection, consumeSelectedSourceLayers } from "../../game/effects/generic/cost.js";
-import { destroyCard } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
 
 // handlers (was effects/custom/std_085.js)
 export function std085LayerPaySelection(state, continuation, result, playerId, player) {

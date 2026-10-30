@@ -1,7 +1,7 @@
 import { isObCard } from "../../game/card-types.js";
 import { otherPlayer } from "../../game/core/shared.js";
 import { cardCurrentStr } from "../../game/core/stats.js";
-import { destroyCard } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
 
 // handlers (was effects/custom/std_167.js)
 export function std167ResponseCardApplicable({ opponent, state, playerId }) {

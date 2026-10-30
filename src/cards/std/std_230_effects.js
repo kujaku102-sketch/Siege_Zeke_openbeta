@@ -1,10 +1,10 @@
-// STD-230 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { attack } from "../../game/core/battle.js";
 import { openNextQueuedSelection } from "../../game/core/projection.js";
 import { otherPlayer } from "../../game/core/shared.js";
 import { emitGameEvent } from "../../game/core/triggers.js";
-import { emitRegistryInstalled, moveCardToTrash } from "../../game/effects/generic/placement.js";
+import { emitRegistryInstalled } from "../../game/effects/generic/placement.js";
+import { moveCardToTrash } from "../../game/effects/generic/trash.js";
 
 // handlers (was effects/custom/std_230.js)
 export function resumeStd230AmbushCleanup(state) {

@@ -1,10 +1,9 @@
-// STD-165 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { drainIndependentEffects, runEffectEntry } from "../../game/core/effects.js";
 import { playCard } from "../../game/core/play.js";
 import { findCard, hasClass, otherPlayer } from "../../game/core/shared.js";
-import { destroyCard } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
 
 // handlers (was effects/custom/std_165.js)
 export function beginStd165ThresholdEffect(state, playerId, sourceUid) {

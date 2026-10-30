@@ -2,7 +2,9 @@ import { addLog, otherPlayer, shuffle } from "../../game/core/shared.js";
 import { cardAtk } from "../../game/core/stats.js";
 import { emitGameEvent } from "../../game/core/triggers.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { createVengeanceCard, destroyCard, emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
+import { createVengeanceCard } from "../../game/effects/generic/generate.js";
+import { emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_227.js)
 export function resolveImperialRandomInstall(state, playerId, sourceName) {

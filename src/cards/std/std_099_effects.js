@@ -1,11 +1,10 @@
-// STD-099 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { inheritBoardSlot } from "../../game/board-slots.js";
 import { resolveLogin } from "../../game/core/play.js";
 import { addLog, findCard, hasClass } from "../../game/core/shared.js";
 import { emitGameEvent } from "../../game/core/triggers.js";
 import { resumeDestroyLkiFollowUp } from "../../game/effects/generic/actions.js";
 import { continuePlacementCostBatch } from "../../game/effects/generic/cost.js";
-import { settleDestructionContinuations } from "../../game/effects/generic/placement.js";
+import { settleDestructionContinuations } from "../../game/effects/generic/destroy.js";
 
 // handlers (was effects/custom/std_099.js)
 export function std099ReplacementMaterialsSelection(state, continuation, result, playerId, player) {

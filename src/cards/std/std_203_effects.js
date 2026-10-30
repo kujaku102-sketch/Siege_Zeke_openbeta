@@ -5,7 +5,7 @@ import { dealCardDamage } from "../../game/core/deal-damage.js";
 import { declareResponse } from "../../game/core/response.js";
 import { findCard, otherPlayer } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { destroyCard } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
 
 // handlers (was effects/custom/std_203.js)
 export function activateStd203Response(state, playerId, cardUid, selectedUids, responseEvent) {

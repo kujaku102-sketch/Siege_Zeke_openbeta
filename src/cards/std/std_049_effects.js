@@ -1,7 +1,8 @@
 import { dealFortressDamage } from "../../game/core/deal-damage.js";
 import { addLog, otherPlayer } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { destroyCard, placeByMode } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
+import { placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_049.js)
 export function resolveStd049TurnEnd(state, activeId) {

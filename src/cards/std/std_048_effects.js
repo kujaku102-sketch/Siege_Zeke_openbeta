@@ -4,7 +4,9 @@ import { getEffectActivationTargets } from "../../game/core/play.js";
 import { hydrateCard } from "../../game/core/setup.js";
 import { addLog, fail, otherPlayer } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { destroyCard, moveCardToTrash, placeByMode } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
+import { placeByMode } from "../../game/effects/generic/placement.js";
+import { moveCardToTrash } from "../../game/effects/generic/trash.js";
 
 // handlers (was effects/custom/std_048.js)
 export function settleStd048MandatoryPlacement(state, pending, placed) {

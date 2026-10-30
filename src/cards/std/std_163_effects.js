@@ -4,7 +4,7 @@ import { dealCardDamage } from "../../game/core/deal-damage.js";
 import { drawCards } from "../../game/core/draw.js";
 import { findCard, otherPlayer } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { destroyCard } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
 
 // handlers (was effects/custom/std_163.js)
 export function continueStd163Choices(state, continuation, remaining) {

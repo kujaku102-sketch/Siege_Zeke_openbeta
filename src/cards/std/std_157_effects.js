@@ -1,9 +1,9 @@
-// STD-157 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { fail, findCard } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { resumeDestroyLkiFollowUp } from "../../game/effects/generic/actions.js";
-import { destroyCard, placeCardByEffect } from "../../game/effects/generic/placement.js";
+import { destroyCard } from "../../game/effects/generic/destroy.js";
+import { placeCardByEffect } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_157.js)
 export function std157PlaceSelection(state, continuation, result, playerId, player) {

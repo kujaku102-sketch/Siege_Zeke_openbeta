@@ -1,12 +1,13 @@
-import { executionCostModifierSpecsFor, playerValueModifierSpecsFor } from "../../continuous-effect-specs.js";
+import { hasKeyword, keywordValue } from "../../../../packages/effect-compiler/index.js";
 import { isObCard } from "../../card-types.js";
+import { executionCostModifierSpecsFor, playerValueModifierSpecsFor } from "../../continuous-effect-specs.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
 import { createSelectionRequest } from "../../selection-model.js";
-import { hasKeyword, keywordValue } from "../../../../packages/effect-compiler/index.js";
 import { canPlayCard, getEffectTargets, playCard, playCardCore, spellNeedsTarget } from "../../core/play.js";
 import { addLog, fail, findCard, otherPlayer } from "../../core/shared.js";
 import { runtimeSpecMatchesCard } from "./actions.js";
-import { destroyCard, moveCardToTrash } from "./placement.js";
+import { destroyCard } from "./destroy.js";
+import { moveCardToTrash } from "./trash.js";
 
 export const STD121_PLACEMENT_PERMIT = Symbol("STD-121 placement cost paid");
 

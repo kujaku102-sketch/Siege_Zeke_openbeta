@@ -7,7 +7,7 @@ import { addLog, otherPlayer, sourceCardByName } from "./shared.js";
 import { cardCurrentStr } from "./stats.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { applyDamageModifiers } from "../effects/generic/damage.js";
-import { destroyCard } from "../effects/generic/placement.js";
+import { destroyCard } from "../effects/generic/destroy.js";
 
 export function consumeProtect(state, card, source) {
   if (card.protect === undefined) card.protect = Number(keywordValue(card, "PROTECT") ?? 0);

@@ -1,8 +1,8 @@
-// STD-231 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { boardSlotOf, cardAtBoardSlot } from "../../game/board-slots.js";
 import { addLog, findCard } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { createVengeanceCard, emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
+import { createVengeanceCard } from "../../game/effects/generic/generate.js";
+import { emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_231.js)
 export function std231ActivateScriptCore({ state, playerId, script }) {
