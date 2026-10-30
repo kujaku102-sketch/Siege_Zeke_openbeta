@@ -3,6 +3,8 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
 import { clickEntryControl } from "./e2e-entry-crt.mjs";
+// The tutorial list is the one in the data (a new color joins it), all unfinished in a cleared browser.
+import { TUTORIAL_ITEMS } from "../src/ui-refresh/tutorial-items.js";
 
 const args = process.argv.slice(2);
 const victoryMode = args.includes("--victory");
@@ -43,7 +45,8 @@ async function checkEntryFlow(page) {
   await page.locator('[data-mode="tutorial"]').click();
   await page.locator('[data-flow-screen="tutorial-select"]').waitFor({ state: "visible" });
   const items = await page.locator("[data-tutorial-item]").evaluateAll(nodes => nodes.map(node => `${node.dataset.tutorialItem}:${node.dataset.done}`));
-  if (items.join() !== "basics:false,vengeance:false") throw new Error(`tutorial list is wrong: ${items}`);
+  const expected = TUTORIAL_ITEMS.map(item => `${item.id}:false`).join();
+  if (items.join() !== expected) throw new Error(`tutorial list is wrong: ${items} (expected ${expected})`);
   const menu = await page.locator(".r2-utilities button").boundingBox();
   if (!menu || menu.width < 44 || menu.height < 44) throw new Error(`flow screen menu is under 44 CSS px: ${JSON.stringify(menu)}`);
   // The options window leaves the focus on <body>: Escape still closes it, and the next Escape goes back.
@@ -184,9 +187,12 @@ try {
   const mobileGuide = mobilePage.locator(".live-guide");
   const mobileGuideAudit = await mobileGuide.evaluate(node => {
     const rect = node.getBoundingClientRect();
-    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, viewportWidth: innerWidth, viewportHeight: innerHeight, speechPointerEvents: getComputedStyle(node.querySelector(".live-guide-speech")).pointerEvents };
+    const gear = document.querySelector("[data-runtime-menu]");
+    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, viewportWidth: innerWidth, viewportHeight: innerHeight, speechPointerEvents: getComputedStyle(node.querySelector(".live-guide-speech")).pointerEvents,
+      boardWaits: Boolean(document.querySelector('[data-live-region="board"]')?.inert), gearLive: Boolean(gear) && !gear.closest("[inert]") };
   });
-  if (mobileGuideAudit.left < 0 || mobileGuideAudit.top < 0 || mobileGuideAudit.right > mobileGuideAudit.viewportWidth || mobileGuideAudit.bottom > mobileGuideAudit.viewportHeight || mobileGuideAudit.speechPointerEvents !== "none") throw new Error(`mobile guide is clipped or blocks board input: ${JSON.stringify(mobileGuideAudit)}`);
+  // While the guide speaks its line takes the tap and the match waits, all but the gear (文豪, 2026-10-28 and 2026-10-30).
+  if (mobileGuideAudit.left < 0 || mobileGuideAudit.top < 0 || mobileGuideAudit.right > mobileGuideAudit.viewportWidth || mobileGuideAudit.bottom > mobileGuideAudit.viewportHeight || mobileGuideAudit.speechPointerEvents === "none" || !mobileGuideAudit.boardWaits || !mobileGuideAudit.gearLive) throw new Error(`mobile guide is clipped, or the match does not wait for it with the gear live: ${JSON.stringify(mobileGuideAudit)}`);
   await advanceTutorialIntroduction(mobilePage);
   await readGuidePages(mobilePage);
   const startButton = mobilePage.locator('[data-runtime-tutorial-next]');
@@ -200,7 +206,7 @@ try {
   if (!detailAudit.effect || !detailAudit.runtime || !detailAudit.inViewport || !await mobilePage.locator(".r2-popup").count()) throw new Error(`mobile card detail or operation popup is invalid: ${JSON.stringify(detailAudit)}`);
   await mobilePage.close();
 
-  console.log(JSON.stringify({ environment: manifest.release.environment, revision: manifest.release.buildRevision, cardCount: manifest.publicCardPool.cardCount, entryRoutes: 4, entryFlow: true, liveTutorialGuide: true, tutorialFocus: true, deckBuilder: true, separatedLayers: true, pacedAiTurn: true, mobilePwa: true, mobileGuideClickThrough: true, mobileDetail: true, ok: true }));
+  console.log(JSON.stringify({ environment: manifest.release.environment, revision: manifest.release.buildRevision, cardCount: manifest.publicCardPool.cardCount, entryRoutes: 4, entryFlow: true, liveTutorialGuide: true, tutorialFocus: true, deckBuilder: true, separatedLayers: true, pacedAiTurn: true, mobilePwa: true, mobileGuideWaits: true, mobileDetail: true, ok: true }));
 } finally {
   await browser.close();
 }
