@@ -1,7 +1,6 @@
-// STD-167 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { isObCard } from "../../game/card-types.js";
-import { cardCurrentStr } from "../../game/core/battle.js";
 import { otherPlayer } from "../../game/core/shared.js";
+import { cardCurrentStr } from "../../game/core/stats.js";
 import { destroyCard } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_167.js)

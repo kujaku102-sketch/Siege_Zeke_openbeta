@@ -1,8 +1,7 @@
-// STD-203 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { boardSlotOf, cardAtBoardSlot } from "../../game/board-slots.js";
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
-import { dealCardDamage } from "../../game/core/battle.js";
+import { dealCardDamage } from "../../game/core/deal-damage.js";
 import { declareResponse } from "../../game/core/response.js";
 import { findCard, otherPlayer } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";

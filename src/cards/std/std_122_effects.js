@@ -1,9 +1,8 @@
-// STD-122 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { createRuntimeCard } from "../../game/runtime/factory.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
-import { cardAtk, cardMaxStr } from "../../game/core/battle.js";
 import { hydrateCard } from "../../game/core/setup.js";
 import { addLog, findCard, isElectronFairy } from "../../game/core/shared.js";
+import { cardAtk, cardMaxStr } from "../../game/core/stats.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { destroyCard, emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
 

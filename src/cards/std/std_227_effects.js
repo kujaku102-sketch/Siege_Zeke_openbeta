@@ -1,6 +1,5 @@
-// STD-227 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
-import { cardAtk } from "../../game/core/battle.js";
 import { addLog, otherPlayer, shuffle } from "../../game/core/shared.js";
+import { cardAtk } from "../../game/core/stats.js";
 import { emitGameEvent } from "../../game/core/triggers.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { createVengeanceCard, destroyCard, emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";

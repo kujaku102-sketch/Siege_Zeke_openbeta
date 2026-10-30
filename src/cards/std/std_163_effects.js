@@ -1,6 +1,6 @@
 import { isObCard } from "../../game/card-types.js";
 import { createChoiceSpec, createSelectionRequest, selectionRequestFromSpec } from "../../game/selection-model.js";
-import { dealCardDamage } from "../../game/core/battle.js";
+import { dealCardDamage } from "../../game/core/deal-damage.js";
 import { drawCards } from "../../game/core/draw.js";
 import { findCard, otherPlayer } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";

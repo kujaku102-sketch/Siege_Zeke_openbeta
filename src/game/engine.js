@@ -15,7 +15,9 @@ export { restSecurity, canActivateTurbo, activateTurbo } from "./core/turn-actio
 export { activateScript, declinePrompt } from "./core/scripts.js";
 export { resolveCardSelection } from "./effects/generic/selection.js";
 export { resolveSamLogin } from "../cards/std/std_077_effects.js";
-export { cardAtk, cardMaxStr, cardCurrentStr, cardHasKeyword, getAttackTargets, canAttack, attack, dealCardDamage, dealFortressDamage } from "./core/battle.js";
+export { cardAtk, cardMaxStr, cardCurrentStr, cardHasKeyword } from "./core/stats.js";
+export { getAttackTargets, canAttack, attack } from "./core/battle.js";
+export { dealCardDamage, dealFortressDamage } from "./core/deal-damage.js";
 export { resolveLuckyShotAdditional } from "../cards/std/std_086_effects.js";
 export { declineResponse, activateResponse } from "./core/response.js";
 export { destroyCard, discardMountedCard, resolveAccessDragPlacement } from "./effects/generic/placement.js";

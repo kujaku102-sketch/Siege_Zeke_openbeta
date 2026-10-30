@@ -1,4 +1,4 @@
-import { dealFortressDamage } from "../../game/core/battle.js";
+import { dealFortressDamage } from "../../game/core/deal-damage.js";
 import { drawCards } from "../../game/core/draw.js";
 import { addLog, otherPlayer } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";

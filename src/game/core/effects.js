@@ -1,14 +1,14 @@
+import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { normalizeBoardSlots } from "../board-slots.js";
 import { isObCard } from "../card-types.js";
 import { mandatoryStateCheckSpecsFor } from "../continuous-effect-specs.js";
-import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { createSelectionRequest } from "../selection-model.js";
-import { cardCurrentStr, continuousEffectConditionMatches } from "./battle.js";
 import { continueDeferredSpellCleanup } from "./play.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { resolveDeclaredResponse, startNextQueuedResponse } from "./response.js";
 import { DECLARED_IF_SCRIPT_IDS } from "./scripts.js";
 import { addLog, findCard, otherPlayer } from "./shared.js";
+import { cardCurrentStr, continuousEffectConditionMatches } from "./stats.js";
 import { drainTriggerQueue, emitGameEvent, resumeStalledTriggerThread } from "./triggers.js";
 import { CUSTOM_DRAIN_INDEPENDENT_EFFECTS, CUSTOM_RESOLVE_DECLARED_SCRIPT } from "../effects/custom/index.js";
 import { executeRuntimeActions, executeTriggerAction } from "../effects/generic/actions.js";

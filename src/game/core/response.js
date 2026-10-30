@@ -1,10 +1,10 @@
-import { isObCard } from "../card-types.js";
 import { keywordValue } from "../../../packages/effect-compiler/index.js";
+import { isObCard } from "../card-types.js";
 import { createSelectionRequest } from "../selection-model.js";
-import { cardCurrentStr } from "./battle.js";
 import { declareEffect, runEffectEntry } from "./effects.js";
 import { enabledSymbols, resolveSpell } from "./play.js";
 import { addLog, otherPlayer } from "./shared.js";
+import { cardCurrentStr } from "./stats.js";
 import { CUSTOM_RESOLVE_DECLARED_RESPONSE, CUSTOM_RESPONSE_CARD_APPLICABLE, PASS } from "../effects/custom/index.js";
 import { moveCardToTrash } from "../effects/generic/placement.js";
 

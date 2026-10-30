@@ -1,7 +1,7 @@
 import { isObCard } from "../card-types.js";
-import { cardHasKeyword } from "./battle.js";
 import { queueMemoryLimitIncreasePrompt } from "./scripts.js";
 import { addLog, fail, newActionBlock } from "./shared.js";
+import { cardHasKeyword } from "./stats.js";
 import { emitUserAbilityFeedback } from "./triggers.js";
 import { getMaxMemory } from "../effects/generic/cost.js";
 import { setCardSleeping } from "../effects/generic/placement.js";

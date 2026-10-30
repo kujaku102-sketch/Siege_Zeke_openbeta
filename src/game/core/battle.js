@@ -1,55 +1,22 @@
-import { hasKeyword, keywordValue } from "../../../packages/effect-compiler/index.js";
+import { hasKeyword } from "../../../packages/effect-compiler/index.js";
 import { normalizeBoardSlots } from "../board-slots.js";
-import { battleStatModifierSpecsFor, cardRuntimeSpec } from "../card-runtime-specs.js";
+import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
-import { attackPermissionSpecsFor, auraKeywordSpecsFor, conditionalKeywordSpecsFor, continuousStatModifierSpecsFor, mountedKeywordSpecsFor, mountedStatModifierSpecsFor } from "../continuous-effect-specs.js";
+import { attackPermissionSpecsFor } from "../continuous-effect-specs.js";
 import { flattenedLayerCount } from "../layered-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { resolveTrinityEffect } from "../../cards/std/std_121_effects.js";
+import { consumeProtect, dealFortressDamage } from "./deal-damage.js";
 import { drawCards } from "./draw.js";
-import { recordVictoryFact, runEffectEntry } from "./effects.js";
-import { enabledSymbols } from "./play.js";
-import { openResponseWindow, startNextQueuedResponse } from "./response.js";
-import { activeCards, addLog, cardTraits, fail, findCard, hasClass, otherPlayer, sourceCardByName } from "./shared.js";
-import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
+import { runEffectEntry } from "./effects.js";
+import { addLog, cardTraits, fail, findCard, otherPlayer } from "./shared.js";
+import { battleStatModifierValue, cardAtk, cardCurrentStr, cardHasKeyword, cardHasRuntimeKeyword } from "./stats.js";
+import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_ATTACK_CORE, CUSTOM_ATTACK_CORE_2, CUSTOM_ATTACK_CORE_3, CUSTOM_ATTACK_CORE_4, CUSTOM_ATTACK_CORE_5, CUSTOM_ATTACK_CORE_6, CUSTOM_QUEUE_POST_ATTACK_SELECTION, PASS } from "../effects/custom/index.js";
-import { executeRuntimeActions, runtimeSpecValue } from "../effects/generic/actions.js";
+import { executeRuntimeActions } from "../effects/generic/actions.js";
 import { applyDamageModifiers, clearDamageModifiers } from "../effects/generic/damage.js";
 import { destroyCard, setCardSleeping } from "../effects/generic/placement.js";
 import { beginDynamicSelectionModule } from "../effects/generic/selection.js";
-
-function battleStatModifierValue(state, playerId, source, stat) {
-  let value = 0;
-  for (const spec of battleStatModifierSpecsFor(source.id).filter((item) => item.stat === stat)) {
-    const amount = Number(runtimeSpecValue(state, playerId, source, spec.value));
-    if (spec.operation === "add") value += amount;
-    else if (spec.operation === "set") value = amount;
-    else throw new Error(`Unsupported battle stat modifier operation: ${spec.operation ?? "(missing)"}`);
-  }
-  return value;
-}
-
-export function continuousEffectConditionMatches(state, playerId, source, condition) {
-  if (!condition) return true;
-  if (condition.expression === "source_has_any_keyword") {
-    return condition.keywords.some((keyword) => cardHasRuntimeKeyword(state, playerId, source, keyword));
-  }
-  if (condition.expression === "source_atk_at_least") return cardAtk(state, playerId, source) >= Number(condition.amount ?? 0);
-  if (condition.expression === "source_max_str_at_most") return cardMaxStr(state, playerId, source) <= Number(condition.amount ?? 0);
-  if (condition.expression === "source_is_not_mounted") return (source.mounted?.length ?? 0) === 0;
-  throw new Error(`Unsupported continuous effect condition: ${condition.expression ?? "(missing)"}`);
-}
-
-function continuousStatModifierValue(state, playerId, source, stat) {
-  return continuousStatModifierSpecsFor(source.id)
-    .filter((item) => continuousEffectConditionMatches(state, playerId, source, item.condition))
-    .reduce((sum, item) => sum + Number(item[stat] ?? 0), 0);
-}
-
-function mountedStatModifierValue(source, stat) {
-  return (source.mounted ?? []).reduce((sum, provider) => sum
-    + mountedStatModifierSpecsFor(provider.id).reduce((providerSum, spec) => providerSum + Number(spec[stat] ?? 0), 0), 0);
-}
 
 // コストの支払いや付随効果を終えた後に、宣言した攻撃を続ける。支払いで開いた確認(STD-003の窓など)が
 // 残っている間はattack()がfalseを返し、回答ごと拒否されて詰むので、確認が済んでから宣言し直す。
@@ -72,66 +39,6 @@ export function resumeDeferredAttack(state) {
   delete state.attackResumeStage;
   if (deferred.standbyAfter && findCard(state, deferred.attackerUid)) findCard(state, deferred.attackerUid).card.sleep = false;
   return result;
-}
-
-export function cardAtk(state, playerId, card) {
-  let value = Number(card.atk ?? 0) + Number(card.tempAtk ?? 0) + Number(card.permanentAtk ?? 0) - Number(card.load ?? 0);
-  value += (card.timedModifiers ?? []).filter((item) => state.turnNumber <= item.expiresAfterTurn).reduce((sum, item) => sum + Number(item.atk ?? 0), 0);
-  value += mountedStatModifierValue(card, "atk");
-  if (card.id === "STD-227") {
-    const colors = new Set(Object.values(state.players).flatMap((player) => player.registry.map((item) => item.color).filter(Boolean)));
-    value += colors.size;
-  }
-  value += continuousStatModifierValue(state, playerId, card, "atk");
-  const player = state.players[playerId];
-  if (player.user.abilityKey === "mono_color" && isObCard(card) && enabledSymbols(player).length === 1) value += 1;
-  // スタッツに0未満は存在しない
-  return Math.max(0, value);
-}
-
-export function cardMaxStr(_state, _playerId, card) {
-  let value = Number(card.str ?? 0) + Number(card.tempStr ?? 0) + Number(card.permanentStr ?? 0) + Number(card.battleStrBonus ?? 0) - Number(card.load ?? 0);
-  value += (card.timedModifiers ?? []).filter((item) => _state.turnNumber <= item.expiresAfterTurn).reduce((sum, item) => sum + Number(item.str ?? 0), 0);
-  value += mountedStatModifierValue(card, "str");
-  value += continuousStatModifierValue(_state, _playerId, card, "str");
-  return value;
-}
-
-export function cardCurrentStr(state, playerId, card) {
-  return Math.max(0, cardMaxStr(state, playerId, card) - card.damage);
-}
-
-function cardHasPrintedOrGrantedKeyword(card, name) {
-  if (hasKeyword(card, name)) return true;
-  if ((card.timedModifiers ?? []).some((item) => item.keyword === name)) return true;
-  return card.mounted?.some((provider) => mountedKeywordSpecsFor(provider.id).some((spec) =>
-    spec.keyword === name && (!spec.consumedFlag || !provider[spec.consumedFlag])
-  )) ?? false;
-}
-
-export function cardHasKeyword(cardOrState, nameOrPlayerId, maybeCard = null, maybeName = null) {
-  if (maybeCard && maybeName) return cardHasRuntimeKeyword(cardOrState, nameOrPlayerId, maybeCard, maybeName);
-  return cardHasPrintedOrGrantedKeyword(cardOrState, nameOrPlayerId);
-}
-
-function cardHasRuntimeKeyword(state, playerId, card, name) {
-  if (cardHasPrintedOrGrantedKeyword(card, name)) return true;
-  if ((card.timedModifiers ?? []).some((item) => item.keyword === name && state.turnNumber <= item.expiresAfterTurn)) return true;
-  if (conditionalKeywordSpecsFor(card.id).some((spec) =>
-    spec.keywords.includes(name) && continuousEffectConditionMatches(state, playerId, card, spec.condition)
-  )) return true;
-  const player = state.players[playerId];
-  for (const [zone, providers] of Object.entries({ front: player.front, back: player.back })) {
-    for (const provider of providers.filter((item) => !item.faceDown)) {
-      for (const spec of auraKeywordSpecsFor(provider.id)) {
-        if (spec.keyword !== name || (spec.providerZone !== "area" && spec.providerZone !== zone)) continue;
-        if (spec.target === "source" && provider.uid === card.uid) return true;
-        if (spec.target === "own_class_ob_all" && isObCard(card) && hasClass(card, spec.className)) return true;
-        if (spec.target === "own_color_ob_all" && isObCard(card) && card.color === spec.color) return true;
-      }
-    }
-  }
-  return name === "CONTACT" && card.name === "ドールズ" && activeCards(state, playerId, "STD-198").length > 0;
 }
 
 export function getAttackTargets(state, attackerPlayerId, attacker) {
@@ -412,113 +319,4 @@ function attackCore(state, playerId, attackerUid, targetUid) {
   delete attacker.resolvingStd106Attack;
   delete attacker.resolvingStd227Attack;
   return true;
-}
-
-export function consumeProtect(state, card, source) {
-  if (card.protect === undefined) card.protect = Number(keywordValue(card, "PROTECT") ?? 0);
-  if (Number(card.protect ?? 0) > 0) {
-    card.protect -= 1;
-    addLog(state, `${card.name}の[プロテクト]が${source}を無効。残り${card.protect}。`, "effect");
-    return true;
-  }
-  const mountedProtection = card.mounted?.map((provider) => ({
-    provider,
-    spec: mountedKeywordSpecsFor(provider.id).find((spec) => spec.keyword === "PROTECT" && (!spec.consumedFlag || !provider[spec.consumedFlag]))
-  })).find((entry) => entry.spec);
-  if (!mountedProtection) return false;
-  if (mountedProtection.spec.consumedFlag) mountedProtection.provider[mountedProtection.spec.consumedFlag] = true;
-  addLog(state, `${mountedProtection.provider.name}が与えた[プロテクト]が${source}を無効。`, "effect");
-  return true;
-}
-
-export function dealCardDamage(state, ownerId, uid, amount, source = "効果", { sourcePlayerId = otherPlayer(ownerId), kind = "effect" } = {}) {
-  const player = state.players[ownerId];
-  const card = [...player.front, ...player.back].find((item) => item.uid === uid);
-  if (!card) return false;
-  const sourceCard = sourceCardByName(state, sourcePlayerId, source);
-  amount = applyDamageModifiers(state, sourcePlayerId, sourceCard, ownerId, amount, { kind, destination: "card", victimCard: card });
-  if (amount > 0 && consumeProtect(state, card, `${source}によるダメージ`)) {
-    state.lastDamageOutcome = { targetUid: uid, amount: 0, destructionDetermined: false, prevented: true };
-    return true;
-  }
-  const strBefore = cardCurrentStr(state, ownerId, card);
-  card.damage += amount;
-  addLog(state, `${source}: ${card.name}に${amount}ダメージ。残りSTR ${cardCurrentStr(state, ownerId, card)}。`, "effect");
-  emitGameEvent(state, {
-    type: "card_damaged",
-    playerId: ownerId,
-    ownerId,
-    cardUid: card.uid,
-    cardId: card.id,
-    cardName: card.name,
-    category: card.category,
-    amount,
-    sourcePlayerId, sourceUid: sourceCard?.uid ?? null,
-    strBefore, strAfter: cardCurrentStr(state, ownerId, card),
-    source
-  });
-  const destructionDetermined = cardCurrentStr(state, ownerId, card) <= 0;
-  state.lastDamageOutcome = { targetUid: uid, amount, destructionDetermined, prevented: false };
-  if (destructionDetermined) destroyCard(state, ownerId, uid, { source });
-  return true;
-}
-
-export function dealFortressDamage(state, victimId, amount, sourcePlayerId, source = "攻撃", { kind = "effect" } = {}) {
-  const victim = state.players[victimId];
-  const sourcePlayer = state.players[sourcePlayerId];
-  amount = applyDamageModifiers(state, sourcePlayerId, sourceCardByName(state, sourcePlayerId, source), victimId, amount, { kind, destination: "user" });
-  if (state.damagePenaltyPlayerId === sourcePlayerId && state.damagePenaltyTurn === state.turnNumber && victimId !== sourcePlayerId) {
-    amount = Math.max(0, amount - Number(state.extraTurnDamagePenalty ?? 2));
-  }
-  if (victim.user.abilityKey === "kickass") amount *= 2;
-  if (victim.user.abilityKey === "kickass" && amount > 0) emitUserAbilityFeedback(state, "kickass", victimId, victimId, {
-    branch: "damage-doubled", before: amount / 2, after: amount, steps: [{ kind: "multiply", target: { kind: "player_stat", playerId: victimId, metric: "damage" }, before: amount / 2, factor: 2, after: amount }]
-  });
-  if (victim.user.abilityKey === "dimension_innovation") {
-    const banCount = Math.min(amount, victim.deck.length);
-    for (let index = 0; index < banCount; index += 1) victim.ban.push(victim.deck.pop());
-    addLog(state, `${victim.user.abilityName}: ${amount}ダメージを置換し、山札${banCount}枚をBAN。`, "effect");
-    if (amount > 0 && banCount > 0) emitUserAbilityFeedback(state, "dimension_innovation", victimId, victimId, {
-      branch: "damage-replaced", before: amount, after: banCount, strBefore: victim.fortressStr, strAfter: victim.fortressStr, outcome: "ban", steps: [{ kind: "transfer", from: { kind: "zone_count", playerId: victimId, zone: "deck" }, to: { kind: "zone_count", playerId: victimId, zone: "ban" }, count: banCount }]
-    });
-    if (kind === "attack") addLog(state, `${source}が${victim.user.name}を攻撃。ダメージは置換され、STRは変動なし。`, "damage", {
-      actor: sourcePlayerId, cardId: sourceCardByName(state, sourcePlayerId, source)?.id ?? null,
-      combat: { targetName: victim.user.name, damage: 0, targetStrBefore: victim.fortressStr, targetStrAfter: victim.fortressStr }
-    });
-    return banCount;
-  }
-  const before = victim.fortressStr;
-  victim.fortressStr = Math.max(0, victim.fortressStr - amount);
-  if (victim.user.abilityKey === "recovery_boot" && victim.fortressStr <= 0) {
-    victim.fortressStr = 1;
-    addLog(state, `${victim.user.abilityName}: STRを1へ回復。`, "effect");
-    emitUserAbilityFeedback(state, "recovery_boot", victimId, victimId, { branch: "recovered", before: 0, after: 1, steps: [{ kind: "value_change", target: { kind: "player_stat", playerId: victimId, metric: "str" }, before: 0, after: 1 }] });
-  }
-  victim.damageReceivedThisTurn = Number(victim.damageReceivedThisTurn ?? 0) + amount;
-  const sourceCard = kind === "attack" ? sourceCardByName(state, sourcePlayerId, source) : null;
-  if (kind === "attack") addLog(state, `${source}が${victim.user.name}を攻撃。${amount}ダメージ、STR ${before}→${victim.fortressStr}。`, "damage", {
-    actor: sourcePlayerId, cardId: sourceCard?.id ?? null,
-    combat: { targetName: victim.user.name, damage: amount, targetStrBefore: before, targetStrAfter: victim.fortressStr }
-  });
-  else addLog(state, `${source}: ${victim.user.name}へ${amount}ダメージ。STR ${before}→${victim.fortressStr}。`, "damage");
-  if (amount > 0) emitGameEvent(state, { type: "user_damaged", playerId: victimId, ownerId: victimId,
-    amount, kind, sourcePlayerId, source,
-    sourceUid: sourceCardByName(state, sourcePlayerId, source)?.uid ?? null,
-    strBefore: before, strAfter: victim.fortressStr });
-  const triggered = victim.user.incidents.filter((threshold) =>
-    before > threshold && victim.fortressStr <= threshold && !victim.incidentsTriggered.includes(threshold)
-  );
-  for (const threshold of triggered) {
-    victim.incidentsTriggered.push(threshold);
-    victim.permanentMemory += 1;
-    victim.memory += 1;
-    drawCards(state, sourcePlayerId, 1);
-    addLog(state, `INCIDENT ${threshold}: ${victim.user.name}のメモリ上限+1・アクティブメモリ1回復、${sourcePlayer.user.name}が1ドロー。`, "incident");
-  }
-  if (victim.fortressStr <= 0) recordVictoryFact(state, { type: "str-zero", playerId: victimId, sourcePlayerId });
-  if ((state.interactive || state.runtimeContext) && amount > 0 && sourcePlayerId !== victimId) {
-    const queued = { playerId: victimId, event: { sourcePlayerId, source, amount, kind } };
-    if (state.resolvingResponse) (state.responseEventQueue ??= []).push(queued);
-    else openResponseWindow(state, queued.playerId, queued.event) || startNextQueuedResponse(state);
-  }
 }

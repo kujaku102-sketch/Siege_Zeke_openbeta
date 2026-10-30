@@ -11,7 +11,7 @@ import { settleStd142DestructionContinuation } from "../../../cards/std/std_142_
 import { triggerStd165Threshold } from "../../../cards/std/std_165_effects.js";
 import { settleStd211DestructionContinuation } from "../../../cards/std/std_211_effects.js";
 import { resumeStd230AmbushCleanup } from "../../../cards/std/std_230_effects.js";
-import { consumeProtect, dealFortressDamage } from "../../core/battle.js";
+import { consumeProtect, dealFortressDamage } from "../../core/deal-damage.js";
 import { drawCards } from "../../core/draw.js";
 import { resolveEffect, resolveMandatoryStateChecks, runEffectEntry } from "../../core/effects.js";
 import { continueDeferredSpellCleanup, notifyCardExecuted, resolveLogin, resolveLogoutAfterAreaExit } from "../../core/play.js";
