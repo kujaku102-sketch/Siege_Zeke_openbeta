@@ -1,6 +1,7 @@
 import { isObCard } from "../../card-types.js";
 import { createSelectionRequest } from "../../selection-model.js";
 import { drainIndependentEffects } from "../../core/effects.js";
+import { playCard } from "../../core/play.js";
 import { findCard, hasClass, otherPlayer } from "../../core/shared.js";
 import { destroyCard } from "../generic/placement.js";
 
@@ -46,4 +47,17 @@ export function triggerStd165Threshold(state) {
     }
   }
   if (!state.effectResolution && !state.pending && !state.prompt) drainIndependentEffects(state);
+}
+
+export function std165LoginSelection(state, continuation, result, playerId, player) {
+  const uid = result.selected[0];
+  let index = player.hand.findIndex((card) => card.uid === uid && isObCard(card) && hasClass(card, "旧支配者"));
+  if (index < 0) {
+    index = player.trash.findIndex((card) => card.uid === uid && isObCard(card) && hasClass(card, "旧支配者"));
+    if (index < 0) return false;
+    player.hand.push(player.trash.splice(index, 1)[0]);
+  }
+  state.pending = null;
+  const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
+  return playCard(state, playerId, uid, { zone, free: true, force: true, ignoreColor: true, placementCause: "effect", placementSource: continuation.sourceName, placementMode: "forced-effect" });
 }

@@ -1,6 +1,8 @@
-import { createSelectionRequest } from "../../selection-model.js";
 import { isObCard } from "../../card-types.js";
-import { findCard, isArmsBandCard } from "../../core/shared.js";
+import { hasKeyword } from "../../effect-compiler.js";
+import { createSelectionRequest } from "../../selection-model.js";
+import { getEffectTargets, playCard, spellNeedsTarget } from "../../core/play.js";
+import { findCard, isArmsBandCard, otherPlayer } from "../../core/shared.js";
 import { executionCost, magazineExecutionCandidates } from "../generic/cost.js";
 
 export function beginSztb094Counter(state, playerId, sourceUid) {
@@ -26,4 +28,28 @@ export function beginSztb094Access(state, playerId, sourceName, { resumeTurnEndA
     continuation: { type: "access-to-hand", playerId, sourceName, ...(resumeTurnEndActiveId ? { resumeTurnEndActiveId } : {}) } });
   state.pending = { type: "selection", validTargets: request.candidates, request };
   return true;
+}
+
+export function sztb094CounterSelectSelection(state, continuation, result, playerId, player) {
+  const source = findCard(state, continuation.sourceUid)?.card;
+  const spell = player.hand.find((item) => item.uid === result.selected[0] && item.category === "Sp" && hasKeyword(item, "MAGAZINE"));
+  if (!spell) { state.pending = null; return true; }
+  if (!source || source.sleep) return false;
+  source.sleep = true;
+  if (spellNeedsTarget(spell)) {
+    const targets = getEffectTargets(state, otherPlayer(playerId), spell);
+    if (!targets.length) { source.sleep = false; state.pending = null; return false; }
+    const request = createSelectionRequest({ mode: "single", candidates: targets.map((item) => item.uid), count: 1,
+      candidateLabels: Object.fromEntries(targets.map((item) => [item.uid, item.name])), label: `${spell.name}: 対象を選択`, message: spell.text,
+      continuation: { type: "sztb094-counter-target", playerId, spellUid: spell.uid, sourceUid: source.uid } });
+    state.pending = { type: "selection", validTargets: request.candidates, request };
+    return true;
+  }
+  state.pending = null;
+  return playCard(state, playerId, spell.uid, { allowOffTurn: true });
+}
+
+export function sztb094CounterTargetSelection(state, continuation, result, playerId, player) {
+  state.pending = null;
+  return playCard(state, playerId, continuation.spellUid, { targetUid: result.selected[0], allowOffTurn: true });
 }

@@ -1,5 +1,7 @@
+import { isObCard } from "../../card-types.js";
 import { createSelectionRequest } from "../../selection-model.js";
-import { findCard, otherPlayer } from "../../core/shared.js";
+import { findCard, otherPlayer, shuffle } from "../../core/shared.js";
+import { emitEffectPlacement, moveCardToTrash, placeByMode } from "../generic/placement.js";
 
 export function scheduleStd141TurnEndResume(state, activeId) {
   state.resumeTurnEndAfterSelection = activeId;
@@ -60,4 +62,66 @@ export function continueStd141TurnEndQueue(state, activeId) {
     return true;
   }
   return false;
+}
+
+export function std141ChoiceSelection(state, continuation, result, playerId, player) {
+  const choice = result.scope;
+  if (choice === "③5枚以上") {
+    const candidates = player.hand.filter((card) => isObCard(card) && card.color === "黄");
+    if (!candidates.length) { state.pending = null; return scheduleStd141TurnEndResume(state, continuation.activeId); }
+    const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
+      label: "配置する黄のOb", message: continuation.sourceName,
+      continuation: { type: "std141-place-yellow-ob", playerId, sourceUid: continuation.sourceUid, sourceName: continuation.sourceName, activeId: continuation.activeId } });
+    state.pending = { type: "selection", validTargets: request.candidates, request };
+    return true;
+  }
+  const count = choice === "②3枚以上" ? 3 : 2;
+  const candidates = player.deck.filter((card) => card.name.includes("聖樹"));
+  if (candidates.length < count) { state.pending = null; return scheduleStd141TurnEndResume(state, continuation.activeId); }
+  const request = createSelectionRequest({ mode: "exact", candidates: candidates.map((card) => card.uid), count,
+    label: `アクセスする「聖樹」カード${count}枚`, message: continuation.sourceName,
+    continuation: { type: "std141-access", playerId, sourceUid: continuation.sourceUid, sourceName: continuation.sourceName, count, installOne: count === 3, activeId: continuation.activeId } });
+  state.pending = { type: "selection", validTargets: request.candidates, request };
+  return true;
+}
+
+export function std141TurnEndSourceSelection(state, continuation, result, playerId, player) {
+  state.pending = null;
+  const sourceUid = result.selected[0];
+  if (!sourceUid || !takeStd141TurnEndSource(state, playerId, sourceUid)) return scheduleStd141TurnEndResume(state, continuation.activeId);
+  return openStd141EffectChoice(state, playerId, continuation.activeId, sourceUid);
+}
+
+export function std141AccessSelection(state, continuation, result, playerId, player) {
+  const selected = result.selected.map((uid) => player.deck.find((card) => card.uid === uid)).filter(Boolean);
+  player.deck = player.deck.filter((card) => !result.selected.includes(card.uid));
+  player.deck = shuffle(player.deck, state.rng);
+  const request = createSelectionRequest({ mode: "single", candidates: selected.map((card) => card.uid), count: 1,
+    candidateLabels: Object.fromEntries(selected.map((card) => [card.uid, card.name])), label: continuation.installOne ? "設置する1枚" : "手札に加える1枚", message: continuation.sourceName,
+    continuation: { type: "std141-access-destination", playerId, sourceUid: continuation.sourceUid, sourceName: continuation.sourceName, selected, installOne: continuation.installOne, activeId: continuation.activeId } });
+  state.pending = { type: "selection", validTargets: request.candidates, request };
+  return true;
+}
+
+export function std141AccessDestinationSelection(state, continuation, result, playerId, player) {
+  const chosen = continuation.selected.find((card) => card.uid === result.selected[0]);
+  if (!chosen) return false;
+  const rest = continuation.selected.filter((card) => card.uid !== chosen.uid);
+  if (continuation.installOne) {
+    if (placeByMode(state, playerId, chosen, { zone: "back", from: "deck", source: continuation.sourceName }) === "placed") chosen.faceDown = true;
+  } else player.hand.push(chosen);
+  for (const remainder of rest) moveCardToTrash(state, playerId, remainder, continuation.sourceName ?? "残りのカード");
+  state.pending = null;
+  return scheduleStd141TurnEndResume(state, continuation.activeId);
+}
+
+export function std141PlaceYellowObSelection(state, continuation, result, playerId, player) {
+  const index = player.hand.findIndex((card) => card.uid === result.selected[0] && isObCard(card) && card.color === "黄");
+  if (index >= 0) {
+    const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
+    const [card] = player.hand.splice(index, 1); card.summoningSick = true;
+    if (placeByMode(state, playerId, card, { zone, from: "hand", source: continuation.sourceName }) === "placed") emitEffectPlacement(state, playerId, card, zone, continuation.sourceName);
+  }
+  state.pending = null;
+  return scheduleStd141TurnEndResume(state, continuation.activeId);
 }

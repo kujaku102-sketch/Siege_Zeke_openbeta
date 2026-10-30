@@ -1,30 +1,24 @@
-import { hasKeyword, keywordValue } from "../../effect-compiler.js";
-import { createAllocationSpec, createChoiceSpec, createSelectionRequest, createSelectionSpec, isSelectionRequestFeasible, selectionRequestFromSpec } from "../../selection-model.js";
 import { CARD_LIBRARY } from "../../../data/cards.js";
-import { createRuntimeCard, RuntimeError } from "../../runtime/factory.js";
 import { cardPlacementCostSpec, cardRuntimeSpec } from "../../card-runtime-specs.js";
 import { isObCard, matchesCardCategory } from "../../card-types.js";
-import { inheritBoardSlot } from "../../board-slots.js";
+import { keywordValue } from "../../effect-compiler.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
-import { attack, cardAtk, cardCurrentStr, cardMaxStr, continueAttackAfterCost, dealCardDamage, resumeDeferredAttack } from "../../core/battle.js";
+import { RuntimeError } from "../../runtime/factory.js";
+import { createAllocationSpec, createChoiceSpec, createSelectionRequest, createSelectionSpec, isSelectionRequestFeasible, selectionRequestFromSpec } from "../../selection-model.js";
+import { attack, continueAttackAfterCost, dealCardDamage } from "../../core/battle.js";
 import { continueDeferredDeclaredScriptCleanup, resolveEffect, runEffectEntry } from "../../core/effects.js";
-import { continueDeferredSpellCleanup, finalizeDeferredSpellCleanup, getEffectTargets, playCard, playCardCore, relogCard, resolveLogin, resolveSpell, spellNeedsTarget } from "../../core/play.js";
+import { continueDeferredSpellCleanup, getEffectTargets, playCard, playCardCore, relogCard, resolveSpell } from "../../core/play.js";
 import { openNextQueuedSelection } from "../../core/projection.js";
 import { continueDeferredDeclaredResponseCleanup } from "../../core/response.js";
 import { activateScript } from "../../core/scripts.js";
-import { hydrateCard } from "../../core/setup.js";
-import { addLog, findCard, hasClass, isArmsBandOb, otherPlayer, shuffle } from "../../core/shared.js";
+import { addLog, findCard, hasClass, otherPlayer, shuffle } from "../../core/shared.js";
 import { emitGameEvent, emitUserAbilityFeedback, resumeStalledTriggerThread, resumeTriggerThreadAfterSelection } from "../../core/triggers.js";
-import { completeTurnAfterDelayedEffects, drawCards, endTurn, resumeMandatoryDrawContinuation } from "../../core/turn.js";
-import { openStd141EffectChoice, scheduleStd141TurnEndResume, takeStd141TurnEndSource } from "../custom/std_141.js";
-import { continueStd142DestroyResolution, scheduleStd142TurnEndResume } from "../custom/std_142.js";
-import { continueStd163Choices } from "../custom/std_163.js";
-import { activateStd203Response } from "../custom/std_203.js";
-import { resumeStd230AmbushCleanup } from "../custom/std_230.js";
-import { addTimedModifier, executeRuntimeActions, resumeDestroyLkiFollowUp, runtimeActionCandidates, runtimeActionFeasible, runtimeSpecMatchesCard, runtimeSpecValue } from "./actions.js";
+import { endTurn, resumeMandatoryDrawContinuation } from "../../core/turn.js";
+import { CUSTOM_SELECTION_HANDLERS } from "../custom/index.js";
+import { addTimedModifier, executeRuntimeActions, runtimeActionCandidates, runtimeActionFeasible, runtimeSpecMatchesCard, runtimeSpecValue } from "./actions.js";
 import { beginSourceLayerSelection, consumeSelectedSourceLayers, continuePlacementCostBatch, ownLayerEntries, placementCostCandidates } from "./cost.js";
 import { grantDamageModifier } from "./damage.js";
-import { createVengeanceCard, destroyCard, emitCardsGenerated, emitEffectPlacement, emitRegistryInstalled, moveCardToTrash, placeByMode, placeCardByEffect, placementResult, setCardSleeping, settleDestructionContinuations } from "./placement.js";
+import { destroyCard, moveCardToTrash, placementResult, setCardSleeping } from "./placement.js";
 
 function runtimeAccessCandidates(player, action, referenceCard = null) {
   return player.deck.filter((card) => runtimeSpecMatchesCard(card, action.filter, referenceCard));
@@ -398,6 +392,8 @@ export function beginAllocationSelectionModule(state, playerId, card) {
 function resolveCardSelectionCore(state, continuation, result) {
   const playerId = continuation.playerId ?? "player";
   const player = state.players[playerId];
+  const customHandler = CUSTOM_SELECTION_HANDLERS[continuation.type];
+  if (customHandler) return customHandler(state, continuation, result, playerId, player);
   if (continuation.type === "placement-cost-destroy") {
     const source = player.hand.find((card) => card.uid === continuation.sourceUid && card.id === "STD-121");
     const spec = source ? cardPlacementCostSpec(source.id) : null;
@@ -486,66 +482,6 @@ function resolveCardSelectionCore(state, continuation, result) {
     }
     return destroyCard(state, playerId, continuation.targetUid, { source: continuation.source, suppressReplacement: true, piercing: Boolean(continuation.piercing) });
   }
-  if (continuation.type === "std099-replacement-materials") {
-    const targetLocation = findCard(state, continuation.targetUid);
-    const sourceIndex = player.hand.findIndex((card) => card.uid === continuation.sourceUid);
-    if (!targetLocation || sourceIndex < 0 || result.selected.length < 1) return false;
-    const [sourceCard] = player.hand.splice(sourceIndex, 1);
-    const targetZone = player[targetLocation.zoneName];
-    const [targetCard] = targetZone.splice(targetZone.findIndex((card) => card.uid === continuation.targetUid), 1);
-    const materials = [];
-    for (const uid of result.selected) {
-      const location = findCard(state, uid);
-      if (!location || location.playerId !== playerId || !["front", "back"].includes(location.zoneName) || !hasClass(location.card, "レッドパンクス")) continue;
-      const materialZone = player[location.zoneName];
-      materials.push(...materialZone.splice(materialZone.findIndex((card) => card.uid === uid), 1));
-    }
-    targetCard.layerRole = "layered";
-    for (const material of materials) material.layerRole = "layered";
-    sourceCard.mounted = [targetCard, ...materials];
-    sourceCard.sleep = false;
-    sourceCard.summoningSick = true;
-    inheritBoardSlot(sourceCard, targetCard, { controllerId: playerId, zoneName: targetLocation.zoneName });
-    player[targetLocation.zoneName].push(sourceCard);
-    state.pending = null;
-    emitGameEvent(state, { type: "card_destroyed", playerId, ownerId: playerId, cardUid: targetCard.uid, cardId: targetCard.id,
-      cardName: targetCard.name, category: targetCard.category, from: targetLocation.zoneName, to: "layer", source: continuation.source, replaced: true });
-    resolveLogin(state, playerId, sourceCard);
-    addLog(state, `${sourceCard.name}: ${targetCard.name}の破壊を置換し、レイヤーとして無償ログイン。`, "effect");
-    settleDestructionContinuations(state, targetCard.uid, true);
-    resumeDestroyLkiFollowUp(state, targetCard.uid);
-    continuePlacementCostBatch(state);
-    return true;
-  }
-  if (["std157-destroy", "std162-destroy"].includes(continuation.type)) {
-    const location = findCard(state, result.selected[0]);
-    if (!location || location.playerId !== playerId) return false;
-    const target = location.card;
-    const x = continuation.type === "std157-destroy" ? Number(target.cost ?? 0) : Number(target.str ?? 0);
-    (state.destroyLkiFollowUps ??= {})[target.uid] = { type: continuation.type === "std157-destroy" ? "std157" : "std162", playerId, sourceName: continuation.sourceName, x };
-    state.pending = null;
-    const resolved = destroyCard(state, playerId, target.uid, { source: continuation.sourceName });
-    if (!state.pending) resumeDestroyLkiFollowUp(state, target.uid);
-    return resolved;
-  }
-  if (continuation.type === "std157-place") {
-    state.pending = null;
-    const zone = player.front.length < player.user.frontLimit ? "front" : "back";
-    // エリアが埋まっていて置けなかった時はルール破壊で処理済み。効果全体は巻き戻さない
-    return ["placed", "failed-placement"].includes(placeCardByEffect(state, {
-      sourceOwnerId: playerId, controllerId: playerId, sourceZone: "hand", targetZone: zone, cardUid: result.selected[0], sourceName: continuation.sourceName,
-      onPlaced: (card) => { card.summoningSick = zone === "front"; }
-    }).status);
-  }
-  if (continuation.type === "std162-salvage") {
-    for (const uid of result.selected) {
-      const index = player.trash.findIndex((card) => card.uid === uid && isObCard(card));
-      if (index >= 0) player.hand.push(...player.trash.splice(index, 1));
-    }
-    state.pending = null;
-    addLog(state, `${continuation.sourceName}: Ob${result.selected.length}枚をサルベージ。`, "effect");
-    return true;
-  }
   if (continuation.type === "play-card-oc") {
     const pay = result.scope === `+${continuation.amount}払う`;
     state.pending = null;
@@ -562,97 +498,6 @@ function resolveCardSelectionCore(state, continuation, result) {
     emitGameEvent(state, { type: "registry_left", playerId, ownerId: source.card.owner ?? playerId,
       cardUid: source.card.uid, cardId: source.card.id, cardName: source.card.name, category: source.card.category, reason: "execute" });
     return true;
-  }
-  if (continuation.type === "sztb-jacket-place") {
-    const zone = result.scope === "バック" ? "back" : "front";
-    const jacket = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, "SZTB-091", playerId, ++state.tokenSerial + 900));
-    emitCardsGenerated(state, playerId, [jacket], continuation.sourceName);
-    placeByMode(state, playerId, jacket, { zone, mode: "forced-effect", from: "generated", source: continuation.sourceName });
-    state.pending = null;
-    return true;
-  }
-  if (continuation.type === "sztb095-sp-replacement") {
-    state.pending = null;
-    return finalizeDeferredSpellCleanup(state, { replacementHostUid: result.selected[0] ?? null });
-  }
-  if (continuation.type === "sztb097-choice") {
-    if (result.scope === "①アームズバンドObへアクセス") {
-      const candidates = player.deck.filter(isArmsBandOb);
-      if (!candidates.length) { state.pending = null; return true; }
-      const request = createSelectionRequest({ mode: "single", candidates: candidates.map((item) => item.uid), count: 1,
-        candidateLabels: Object.fromEntries(candidates.map((item) => [item.uid, item.name])), label: "アームズバンドObへアクセス", message: continuation.sourceName,
-        continuation: { type: "sztb097-access", playerId, sourceName: continuation.sourceName } });
-      state.pending = { type: "selection", validTargets: request.candidates, request };
-      return true;
-    }
-    const candidates = [...player.front, ...player.back].filter(isObCard);
-    const request = createSelectionRequest({ mode: "up_to", candidates: candidates.map((item) => item.uid), count: candidates.length, minimum: 0, maximum: candidates.length,
-      candidateLabels: Object.fromEntries(candidates.map((item) => [item.uid, `${item.name} / ATK ${cardAtk(state, playerId, item)}`])),
-      label: "合計ATKへ加える自分Obを任意選択", message: "0枚で確定した場合、後続処理は行わない。",
-      continuation: { type: "sztb097-atk-sum", playerId, sourceName: continuation.sourceName } });
-    state.pending = { type: "selection", validTargets: request.candidates, request };
-    return true;
-  }
-  if (continuation.type === "sztb097-access") {
-    const index = player.deck.findIndex((item) => item.uid === result.selected[0] && isArmsBandOb(item));
-    if (index < 0) return false;
-    const [accessed] = player.deck.splice(index, 1);
-    player.deck = shuffle(player.deck, state.rng);
-    player.hand.push(accessed);
-    state.pending = null;
-    addLog(state, `${continuation.sourceName}: ${accessed.name}へアクセスし手札へ加えた。`, "effect");
-    return true;
-  }
-  if (continuation.type === "sztb097-atk-sum") {
-    const selected = result.selected.map((uid) => findCard(state, uid)).filter((entry) => entry?.playerId === playerId
-      && ["front", "back"].includes(entry.zoneName) && isObCard(entry.card));
-    if (!selected.length) {
-      if (state.deferredSpellCleanup) state.deferredSpellCleanup.postEffectDone = true;
-      state.pending = null;
-      addLog(state, `${continuation.sourceName}: 0体を選択したため、後続処理を行わず終了。`, "effect");
-      return true;
-    }
-    const totalAtk = selected.reduce((sum, entry) => sum + Math.max(0, cardAtk(state, playerId, entry.card)), 0);
-    const targets = Object.entries(state.players).flatMap(([ownerId, owner]) => [...owner.front, ...owner.back]
-      .filter((item) => isObCard(item) && cardCurrentStr(state, ownerId, item) <= totalAtk)
-      .map((item) => ({ ownerId, card: item })));
-    if (!targets.length) return false;
-    const request = createSelectionRequest({ mode: "single", candidates: targets.map((entry) => entry.card.uid), count: 1,
-      candidateLabels: Object.fromEntries(targets.map((entry) => [entry.card.uid, `${entry.card.name} / STR ${cardCurrentStr(state, entry.ownerId, entry.card)}`])),
-      label: `合計ATK ${totalAtk} 以下のObを破壊`, message: continuation.sourceName,
-      continuation: { type: "sztb097-destroy", playerId, sourceName: continuation.sourceName, totalAtk } });
-    state.pending = { type: "selection", validTargets: request.candidates, request };
-    return true;
-  }
-  if (continuation.type === "sztb097-destroy") {
-    const target = findCard(state, result.selected[0]);
-    if (!target || !["front", "back"].includes(target.zoneName) || !isObCard(target.card)
-      || cardCurrentStr(state, target.playerId, target.card) > continuation.totalAtk) return false;
-    state.pending = null;
-    destroyCard(state, target.playerId, target.card.uid, { source: continuation.sourceName });
-    return true;
-  }
-  if (continuation.type === "sztb094-counter-select") {
-    const source = findCard(state, continuation.sourceUid)?.card;
-    const spell = player.hand.find((item) => item.uid === result.selected[0] && item.category === "Sp" && hasKeyword(item, "MAGAZINE"));
-    if (!spell) { state.pending = null; return true; }
-    if (!source || source.sleep) return false;
-    source.sleep = true;
-    if (spellNeedsTarget(spell)) {
-      const targets = getEffectTargets(state, otherPlayer(playerId), spell);
-      if (!targets.length) { source.sleep = false; state.pending = null; return false; }
-      const request = createSelectionRequest({ mode: "single", candidates: targets.map((item) => item.uid), count: 1,
-        candidateLabels: Object.fromEntries(targets.map((item) => [item.uid, item.name])), label: `${spell.name}: 対象を選択`, message: spell.text,
-        continuation: { type: "sztb094-counter-target", playerId, spellUid: spell.uid, sourceUid: source.uid } });
-      state.pending = { type: "selection", validTargets: request.candidates, request };
-      return true;
-    }
-    state.pending = null;
-    return playCard(state, playerId, spell.uid, { allowOffTurn: true });
-  }
-  if (continuation.type === "sztb094-counter-target") {
-    state.pending = null;
-    return playCard(state, playerId, continuation.spellUid, { targetUid: result.selected[0], allowOffTurn: true });
   }
   if (continuation.type === "play-card-magazine-confirm") {
     const useMagazine = result.scope === "使用する";
@@ -702,128 +547,6 @@ function resolveCardSelectionCore(state, continuation, result) {
     emitGameEvent(state, { type: "registry_left", playerId, ownerId: source.card.owner ?? playerId,
       cardUid: source.card.uid, cardId: source.card.id, cardName: source.card.name, category: source.card.category, reason: "execute" });
     return true;
-  }
-  if (continuation.type === "activate-std203-response") {
-    state.pending = null;
-    return activateStd203Response(state, playerId, continuation.cardUid, result.selected, continuation.responseEvent);
-  }
-  if (continuation.type === "std141-choice") {
-    const choice = result.scope;
-    if (choice === "③5枚以上") {
-      const candidates = player.hand.filter((card) => isObCard(card) && card.color === "黄");
-      if (!candidates.length) { state.pending = null; return scheduleStd141TurnEndResume(state, continuation.activeId); }
-      const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
-        label: "配置する黄のOb", message: continuation.sourceName,
-        continuation: { type: "std141-place-yellow-ob", playerId, sourceUid: continuation.sourceUid, sourceName: continuation.sourceName, activeId: continuation.activeId } });
-      state.pending = { type: "selection", validTargets: request.candidates, request };
-      return true;
-    }
-    const count = choice === "②3枚以上" ? 3 : 2;
-    const candidates = player.deck.filter((card) => card.name.includes("聖樹"));
-    if (candidates.length < count) { state.pending = null; return scheduleStd141TurnEndResume(state, continuation.activeId); }
-    const request = createSelectionRequest({ mode: "exact", candidates: candidates.map((card) => card.uid), count,
-      label: `アクセスする「聖樹」カード${count}枚`, message: continuation.sourceName,
-      continuation: { type: "std141-access", playerId, sourceUid: continuation.sourceUid, sourceName: continuation.sourceName, count, installOne: count === 3, activeId: continuation.activeId } });
-    state.pending = { type: "selection", validTargets: request.candidates, request };
-    return true;
-  }
-  if (continuation.type === "std141-turn-end-source") {
-    state.pending = null;
-    const sourceUid = result.selected[0];
-    if (!sourceUid || !takeStd141TurnEndSource(state, playerId, sourceUid)) return scheduleStd141TurnEndResume(state, continuation.activeId);
-    return openStd141EffectChoice(state, playerId, continuation.activeId, sourceUid);
-  }
-  if (continuation.type === "std140-update-choice") {
-    if (result.scope === "①戦闘保護") {
-      const candidates = [...player.front, ...player.back].filter(isObCard);
-      if (!candidates.length) { state.pending = null; return true; }
-      const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
-        label: "-2/0し戦闘ダメージを無効にするOb", message: continuation.sourceName,
-        continuation: { type: "std140-protect", playerId, sourceName: continuation.sourceName } });
-      state.pending = { type: "selection", validTargets: request.candidates, request };
-      return true;
-    }
-    const candidates = player.trash.filter((card) => card.name.includes("聖樹") && card.name !== "聖樹枝(セフィラリンク)");
-    if (!candidates.length) { state.pending = null; return true; }
-    const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
-      label: "サルベージする『聖樹枝』以外の聖樹カード", message: continuation.sourceName,
-      continuation: { type: "salvage-selected", playerId, sourceName: continuation.sourceName } });
-    state.pending = { type: "selection", validTargets: request.candidates, request };
-    return true;
-  }
-  if (continuation.type === "std223-ambush-choice") {
-    const attacker = findCard(state, continuation.attackerUid)?.card;
-    if (!attacker) return false;
-    attacker.skipStd223Ambush = true;
-    if (result.scope === "起動しない") { state.pending = null; return attack(state, continuation.attackerPlayerId, attacker.uid, continuation.attackTargetUid); }
-    const candidates = Object.values(state.players).flatMap((current) => [...current.front, ...current.back]).filter(isObCard);
-    const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
-      label: "異次元ショットで3ダメージを与えるOb", message: continuation.sourceName,
-      continuation: { type: "std223-ambush-target", playerId, sourceUid: continuation.sourceUid, sourceName: continuation.sourceName,
-        attackerPlayerId: continuation.attackerPlayerId, attackerUid: attacker.uid, attackTargetUid: continuation.attackTargetUid } });
-    state.pending = { type: "selection", validTargets: request.candidates, request };
-    return true;
-  }
-  if (continuation.type === "std223-ambush-target") {
-    const sourceIndex = player.registry.findIndex((card) => card.uid === continuation.sourceUid && card.id === "STD-223");
-    const target = findCard(state, result.selected[0]);
-    if (sourceIndex < 0 || !target || !isObCard(target.card) || player.memory < 2) return false;
-    const [source] = player.registry.splice(sourceIndex, 1);
-    player.memory -= 2;
-    moveCardToTrash(state, playerId, source, source.name);
-    state.lastDamageOutcome = null;
-    dealCardDamage(state, target.playerId, target.card.uid, 3, source.name, { sourcePlayerId: playerId });
-    if (state.lastDamageOutcome?.destructionDetermined) drawCards(state, playerId, 1);
-    state.pending = null;
-    const attacker = findCard(state, continuation.attackerUid)?.card;
-    if (!attacker) return true;
-    // 3ダメージで破壊されたObの「自分Obが破壊された時」Script確認などが開いている間は、確認が済んでから宣言し直す。
-    // 3ダメージを受けた攻撃者自身が[バックアップ]や破壊で攻撃できなくなった場合は、宣言した攻撃がそこで終わる(回答は拒否しない)。
-    continueAttackAfterCost(state, continuation.attackerPlayerId, attacker.uid, continuation.attackTargetUid);
-    return true;
-  }
-  if (continuation.type === "std140-protect") {
-    const target = findCard(state, result.selected[0])?.card;
-    if (target) {
-      addTimedModifier(state, target, { atk: -2, str: 0, duration: "turn" }, continuation.sourceName);
-      grantDamageModifier(target, {
-        direction: "received", damageKind: "battle", operation: "set", amount: 0,
-        duration: "turn", activeTurn: state.turnNumber
-      });
-    }
-    state.pending = null;
-    return true;
-  }
-  if (continuation.type === "std141-access") {
-    const selected = result.selected.map((uid) => player.deck.find((card) => card.uid === uid)).filter(Boolean);
-    player.deck = player.deck.filter((card) => !result.selected.includes(card.uid));
-    player.deck = shuffle(player.deck, state.rng);
-    const request = createSelectionRequest({ mode: "single", candidates: selected.map((card) => card.uid), count: 1,
-      candidateLabels: Object.fromEntries(selected.map((card) => [card.uid, card.name])), label: continuation.installOne ? "設置する1枚" : "手札に加える1枚", message: continuation.sourceName,
-      continuation: { type: "std141-access-destination", playerId, sourceUid: continuation.sourceUid, sourceName: continuation.sourceName, selected, installOne: continuation.installOne, activeId: continuation.activeId } });
-    state.pending = { type: "selection", validTargets: request.candidates, request };
-    return true;
-  }
-  if (continuation.type === "std141-access-destination") {
-    const chosen = continuation.selected.find((card) => card.uid === result.selected[0]);
-    if (!chosen) return false;
-    const rest = continuation.selected.filter((card) => card.uid !== chosen.uid);
-    if (continuation.installOne) {
-      if (placeByMode(state, playerId, chosen, { zone: "back", from: "deck", source: continuation.sourceName }) === "placed") chosen.faceDown = true;
-    } else player.hand.push(chosen);
-    for (const remainder of rest) moveCardToTrash(state, playerId, remainder, continuation.sourceName ?? "残りのカード");
-    state.pending = null;
-    return scheduleStd141TurnEndResume(state, continuation.activeId);
-  }
-  if (continuation.type === "std141-place-yellow-ob") {
-    const index = player.hand.findIndex((card) => card.uid === result.selected[0] && isObCard(card) && card.color === "黄");
-    if (index >= 0) {
-      const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-      const [card] = player.hand.splice(index, 1); card.summoningSick = true;
-      if (placeByMode(state, playerId, card, { zone, from: "hand", source: continuation.sourceName }) === "placed") emitEffectPlacement(state, playerId, card, zone, continuation.sourceName);
-    }
-    state.pending = null;
-    return scheduleStd141TurnEndResume(state, continuation.activeId);
   }
   if (continuation.type === "relog-layer-discount") {
     const useLayerDiscount = result.scope === "レイヤー1枚を破棄して1メモリ";
@@ -891,94 +614,6 @@ function resolveCardSelectionCore(state, continuation, result) {
     state.pending = { type: "selection", validTargets: request.candidates, request };
     return true;
   }
-  if (continuation.type === "std097-battle-choice") {
-    const sourceLocation = findCard(state, continuation.sourceUid);
-    state.pending = null;
-    if (!sourceLocation) return false;
-    const source = sourceLocation.card;
-    if (result.scope === "レイヤー1枚を破棄して①を起動") {
-      return beginSourceLayerSelection(state, sourceLocation.playerId, source, 1, {
-        type: "std097-battle-pay", playerId: sourceLocation.playerId, sourceUid: source.uid,
-        attackerPlayerId: continuation.attackerPlayerId, attackerUid: continuation.attackerUid, targetUid: continuation.targetUid
-      });
-    }
-    source.skipStd097BattleChoice = true;
-    return attack(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
-  }
-  if (continuation.type === "std097-battle-pay") {
-    const sourceLocation = findCard(state, continuation.sourceUid);
-    state.pending = null;
-    if (!sourceLocation) return false;
-    const source = sourceLocation.card;
-    const layers = consumeSelectedSourceLayers(state, sourceLocation.playerId, source, result.selected, `${source.name}のレイヤーコスト`);
-    if (!layers || layers.length !== 1) return false;
-    source.skipStd097BattleChoice = true;
-    grantDamageModifier(source, {
-      direction: "received", damageKind: "battle", operation: "cap_max", amount: 1, duration: "battle"
-    });
-    return continueAttackAfterCost(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
-  }
-  if (continuation.type === "std085-layer-pay") {
-    const sourceLocation = findCard(state, continuation.sourceUid);
-    state.pending = null;
-    if (!sourceLocation) return false;
-    const source = sourceLocation.card;
-    const layers = consumeSelectedSourceLayers(state, sourceLocation.playerId, source, result.selected, `${source.name}の攻撃時コスト`);
-    if (!layers || layers.length !== 1) return false;
-    source.permanentAtk = Number(source.permanentAtk ?? 0) + 2;
-    if (source.mounted.length + 1 <= 1) {
-      destroyCard(state, sourceLocation.playerId, source.uid, { source: `${source.name}のレイヤー閾値判定` });
-      return true;
-    }
-    source.skipStd085LayerCost = true;
-    return continueAttackAfterCost(state, continuation.attackerPlayerId, continuation.attackerUid, continuation.targetUid);
-  }
-  if (continuation.type === "std102-place") {
-    const source = findCard(state, continuation.sourceUid)?.card;
-    for (const uid of result.selected) {
-      const index = player.trash.findIndex((card) => card.uid === uid);
-      if (index < 0) continue;
-      const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-      const [card] = player.trash.splice(index, 1);
-      placeByMode(state, playerId, card, { zone, from: "trash", source: continuation.sourceName, suppressScriptWindow: true });
-    }
-    state.pending = null;
-    if (source && source.mounted.length === 0) destroyCard(state, playerId, source.uid, { source: `${source.name}のレイヤー閾値` });
-    const sourceLocation = source ? findCard(state, source.uid) : null;
-    return sourceLocation && ["front", "back"].includes(sourceLocation.zoneName)
-      ? continueAttackAfterCost(state, playerId, source.uid, continuation.targetUid)
-      : true;
-  }
-  if (continuation.type === "std164-choice") {
-    const opponentId = otherPlayer(playerId);
-    const opponent = state.players[opponentId];
-    state.pending = null;
-    if (result.choice.startsWith("①")) {
-      if (opponent.hand.length) moveCardToTrash(state, opponentId, opponent.hand.shift(), continuation.sourceName ?? "手札破棄");
-      resumeTriggerThreadAfterSelection(state, continuation.triggerItemId);
-      return true;
-    }
-    const candidates = [...opponent.front, ...opponent.back].filter(isObCard);
-    if (!candidates.length) {
-      resumeTriggerThreadAfterSelection(state, continuation.triggerItemId);
-      return true;
-    }
-    const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
-      label: "毒カウンターを置く相手Ob", message: continuation.sourceName,
-      continuation: { type: "std164-poison", playerId, sourceName: continuation.sourceName, triggerItemId: continuation.triggerItemId } });
-    state.pending = { type: "selection", validTargets: request.candidates, request };
-    return true;
-  }
-  if (continuation.type === "std164-poison") {
-    const target = findCard(state, result.selected[0])?.card;
-    if (target) {
-      target.counters ??= {};
-      target.counters.poison = Number(target.counters.poison ?? 0) + 2;
-    }
-    state.pending = null;
-    resumeTriggerThreadAfterSelection(state, continuation.triggerItemId);
-    return true;
-  }
   if (continuation.type === "q2-access-hand") {
     const index = player.deck.findIndex((item) => item.uid === result.selected[0]);
     if (index < 0) return false;
@@ -999,93 +634,6 @@ function resolveCardSelectionCore(state, continuation, result) {
     state.pending = null;
     addLog(state, `${continuation.sourceName}: ${card.name}へアクセスし山札の上へ。`, "effect");
     return true;
-  }
-  if (continuation.type === "std212-respawn-count") {
-    const count = Math.min(continuation.maximum, Math.max(0, Number(result.scope) || 0));
-    let generated = 0;
-    for (let index = 0; index < count; index += 1) {
-      const zoneName = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-      const card = createVengeanceCard(state, "STD-189", playerId);
-      card.summoningSick = zoneName === "front";
-      if (placeByMode(state, playerId, card, { zone: zoneName, from: "generated", source: continuation.sourceName }) === "placed") generated += 1;
-    }
-    addLog(state, `${continuation.sourceName}: 破壊されたOb ${continuation.maximum}枚を参照し、「ドールズ」を${generated}枚生成。`, "effect");
-    state.pending = null;
-    return completeTurnAfterDelayedEffects(state, continuation.activeId);
-  }
-  if (continuation.type === "activate-std142-effect1") {
-    state.pending = null;
-    return activateScript(state, playerId, continuation.scriptUid, { selectionUid: result.selected[0] });
-  }
-  if (continuation.type === "std163-destroy") {
-    for (const uid of result.selected) destroyCard(state, playerId, uid, { source: continuation.sourceName });
-    state.pending = null;
-    if (!result.selected.length) return true;
-    const request = selectionRequestFromSpec(createChoiceSpec({ options: ["①カードを2枚引く", "②相手Obに3ダメージ"] }), {
-      label: `残り${result.selected.length}回：①または②`, message: continuation.sourceName,
-      continuation: { type: "std163-choice", playerId, sourceName: continuation.sourceName, remaining: result.selected.length }
-    });
-    state.pending = { type: "selection", validTargets: [], request };
-    return true;
-  }
-  if (continuation.type === "std163-choice") {
-    state.pending = null;
-    if (result.choice.startsWith("①")) {
-      drawCards(state, playerId, 2);
-      return continueStd163Choices(state, continuation, continuation.remaining - 1);
-    }
-    const opponentId = otherPlayer(playerId);
-    const candidates = [...state.players[opponentId].front, ...state.players[opponentId].back].filter(isObCard);
-    if (!candidates.length) return continueStd163Choices(state, continuation, continuation.remaining - 1);
-    const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
-      candidateLabels: Object.fromEntries(candidates.map((card) => [card.uid, card.name])), label: "3ダメージを与える相手Ob", message: continuation.sourceName,
-      continuation: { ...continuation, type: "std163-damage", remaining: continuation.remaining - 1 } });
-    state.pending = { type: "selection", validTargets: request.candidates, request };
-    return true;
-  }
-  if (continuation.type === "std163-damage") {
-    const target = findCard(state, result.selected[0]);
-    if (target) dealCardDamage(state, target.playerId, target.card.uid, 3, continuation.sourceName, { sourcePlayerId: playerId });
-    state.pending = null;
-    return continueStd163Choices(state, continuation, continuation.remaining);
-  }
-  if (continuation.type === "std142-turn-end-choice") {
-    state.pending = null;
-    if (!result.selected.length) {
-      return scheduleStd142TurnEndResume(state, continuation.activeId);
-    }
-    const source = findCard(state, continuation.sourceUid);
-    if (!source || source.card.faceDown === true || source.card.id !== "STD-142") {
-      return scheduleStd142TurnEndResume(state, continuation.activeId);
-    }
-    (state.std142DestructionContinuations ??= {})[source.card.uid] = {
-      type: "source",
-      playerId,
-      activeId: continuation.activeId,
-      sourceName: continuation.sourceName
-    };
-    destroyCard(state, source.playerId, source.card.uid, { source: `${source.card.name}の②起動コスト` });
-    return true;
-  }
-  if (continuation.type === "std142-destroy") {
-    state.pending = null;
-    if (!result.selected.length) return scheduleStd142TurnEndResume(state, continuation.activeId);
-    state.std142DestroyBatch = {
-      playerId,
-      activeId: continuation.activeId,
-      sourceName: continuation.sourceName,
-      queue: [...result.selected],
-      destroyedCount: 0
-    };
-    return continueStd142DestroyResolution(state);
-  }
-  if (continuation.type === "std142-salvage") {
-    for (const uid of result.selected) {
-      const index = player.trash.findIndex((card) => card.uid === uid);
-      if (index >= 0) player.hand.push(...player.trash.splice(index, 1));
-    }
-    state.pending = null;
-    return scheduleStd142TurnEndResume(state, continuation.activeId);
   }
   if (continuation.type === "user-savage-salvage") {
     for (const uid of result.selected) {
@@ -1284,22 +832,6 @@ function resolveCardSelectionCore(state, continuation, result) {
     state.pending = null;
     return activateScript(state, playerId, continuation.scriptUid, { costUid: result.selected[0] });
   }
-  if (continuation.type === "activate-std105") {
-    state.pending = null;
-    return activateScript(state, playerId, continuation.scriptUid, { selectionUid: result.selected[0] });
-  }
-  if (continuation.type === "std165-login") {
-    const uid = result.selected[0];
-    let index = player.hand.findIndex((card) => card.uid === uid && isObCard(card) && hasClass(card, "旧支配者"));
-    if (index < 0) {
-      index = player.trash.findIndex((card) => card.uid === uid && isObCard(card) && hasClass(card, "旧支配者"));
-      if (index < 0) return false;
-      player.hand.push(player.trash.splice(index, 1)[0]);
-    }
-    state.pending = null;
-    const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-    return playCard(state, playerId, uid, { zone, free: true, force: true, ignoreColor: true, placementCause: "effect", placementSource: continuation.sourceName, placementMode: "forced-effect" });
-  }
   if (continuation.type === "trigger-selected-entity-action") {
     const uid = result.selected[0];
     const action = continuation.action;
@@ -1318,130 +850,6 @@ function resolveCardSelectionCore(state, continuation, result) {
     state.pending = null;
     if (continuation.triggerItemId) resumeTriggerThreadAfterSelection(state, continuation.triggerItemId);
     return true;
-  }
-  if (continuation.type === "std179-place") {
-    state.pending = null;
-    if (result.scope !== "配置する") { openNextQueuedSelection(state); return true; }
-    const card = player.hand.find((item) => item.uid === continuation.sourceUid && item.id === "STD-179");
-    if (!card) { openNextQueuedSelection(state); return true; }
-    const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-    const placed = placeCardByEffect(state, {
-      sourceOwnerId: playerId, controllerId: playerId, sourceZone: "hand", targetZone: zone, cardUid: card.uid, sourceName: continuation.sourceName,
-      onPlaced: (placedCard) => { placedCard.summoningSick = zone === "front"; }
-    }).status === "placed";
-    openNextQueuedSelection(state);
-    return placed;
-  }
-  if (continuation.type === "std182-attack-script") {
-    state.pending = null;
-    const attacker = player.front.find((item) => item.uid === continuation.attackerUid && item.id === "STD-182");
-    if (!attacker) return false;
-    attacker.skipStd182AttackEffect = true;
-    if (!result.selected.length) return attack(state, playerId, attacker.uid, continuation.targetUid);
-    const script = player.back.find((item) => item.uid === result.selected[0] && item.category === "Script" && item.faceDown
-      && Number(item.activationCost ?? item.cost ?? Infinity) <= 2);
-    if (!script) return attack(state, playerId, attacker.uid, continuation.targetUid);
-    state.deferredAttack = { stage: "std182-script", playerId, attackerUid: attacker.uid, targetUid: continuation.targetUid };
-    const activated = activateScript(state, playerId, script.uid);
-    if (!activated) { state.deferredAttack = null; return attack(state, playerId, attacker.uid, continuation.targetUid); }
-    resumeDeferredAttack(state);
-    return true;
-  }
-  if (continuation.type === "std184-place-ob") {
-    state.pending = null;
-    if (result.scope !== "Obとして配置する") { openNextQueuedSelection(state); return true; }
-    const index = player.back.findIndex((item) => item.uid === continuation.sourceUid && item.id === "STD-184" && item.std184Script && item.faceDown);
-    if (index < 0) { openNextQueuedSelection(state); return true; }
-    const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length - 1 < player.user.backLimit ? "back" : "front";
-    const [card] = player.back.splice(index, 1);
-    card.category = "Ob";
-    delete card.std184Script;
-    card.faceDown = false;
-    card.residentActive = false;
-    card.sleep = false;
-    card.damage = 0;
-    card.summoningSick = zone === "front";
-    if (placeByMode(state, playerId, card, { zone, from: "back", source: continuation.sourceName }) !== "placed") { openNextQueuedSelection(state); return true; }
-    emitEffectPlacement(state, playerId, card, zone, continuation.sourceName);
-    addLog(state, `${continuation.sourceName}: Script状態からObとして${zone === "front" ? "フロント" : "バック"}へ配置。`, "effect");
-    openNextQueuedSelection(state);
-    return true;
-  }
-  if (continuation.type === "play-std229") {
-    state.pending = null;
-    const resume = continuation.options?.requestedSlot != null ? playCardCore : playCard;
-    return resume(state, playerId, continuation.sourceUid, { ...continuation.options, targetUids: result.selected });
-  }
-  if (continuation.type === "std214-attack-cost") {
-    const index = player.registry.findIndex((item) => item.uid === result.selected[0]);
-    const attacker = player.front.find((item) => item.uid === continuation.attackerUid && item.id === "STD-214");
-    state.pending = null;
-    if (index < 0 || !attacker) return false;
-    const [recovered] = player.registry.splice(index, 1); player.hand.push(recovered);
-    emitGameEvent(state, { type: "registry_left", playerId, ownerId: recovered.owner ?? playerId, cardUid: recovered.uid, cardId: recovered.id, cardName: recovered.name, category: recovered.category, reason: "attack-cost" });
-    attacker.skipStd214AttackCost = true;
-    return attack(state, playerId, attacker.uid, continuation.targetUid);
-  }
-  if (continuation.type === "std185-defender-substitute") {
-    state.pending = null;
-    const attacker = state.players[continuation.attackerPlayerId].front.find((item) => item.uid === continuation.attackerUid);
-    if (!attacker) return false;
-    attacker.skipStd185Substitution = true;
-    const targetUid = result.scope === "クワガタ将軍と戦闘" ? continuation.generalUid : continuation.originalTargetUid;
-    return attack(state, continuation.attackerPlayerId, attacker.uid, targetUid);
-  }
-  if (continuation.type === "std185-attacker-substitute") {
-    state.pending = null;
-    const original = player.front.find((item) => item.uid === continuation.attackerUid);
-    const general = player.front.find((item) => item.uid === continuation.generalUid && item.id === "STD-185" && !item.sleep);
-    if (!original || !general) return false;
-    if (result.scope !== "クワガタ将軍と戦闘") {
-      original.skipStd185AttackerSubstitution = true;
-      return attack(state, playerId, original.uid, continuation.targetUid);
-    }
-    general.skipStd230Ambush = true;
-    general.skipStd185AttackerSubstitution = true;
-    return attack(state, playerId, general.uid, continuation.targetUid);
-  }
-  if (continuation.type === "std226-compress") {
-    state.pending = null;
-    if (!result.selected.length) { openNextQueuedSelection(state); return true; }
-    const source = [...player.front, ...player.back].find((item) => item.uid === continuation.sourceUid && item.id === "STD-226" && !item.sleep);
-    const target = findCard(state, result.selected[0]);
-    if (source && target?.zoneName === "registry") { setCardSleeping(state, playerId, source); target.card.faceDown = true; }
-    openNextQueuedSelection(state);
-    return true;
-  }
-  if (continuation.type === "std230-ambush-choice") {
-    state.pending = null;
-    const attacker = state.players[continuation.attackerPlayerId].front.find((item) => item.uid === continuation.attackerUid);
-    if (!attacker) return false;
-    if (result.scope !== "[アンブッシュ:3]を起動") { attacker.skipStd230Ambush = true; return attack(state, continuation.attackerPlayerId, attacker.uid, continuation.targetUid); }
-    const sourceIndex = player.registry.findIndex((item) => item.uid === continuation.sourceUid && item.id === "STD-230" && !item.faceDown);
-    const source = sourceIndex >= 0 ? player.registry[sourceIndex] : null;
-    const cost = Number(source?.cost ?? 0);
-    if (!source || player.memory < cost || player.registry.length < cost) {
-      attacker.skipStd230Ambush = true;
-      return attack(state, continuation.attackerPlayerId, attacker.uid, continuation.targetUid);
-    }
-    player.memory -= cost;
-    const opponentId = otherPlayer(playerId); const candidates = state.players[opponentId].hand;
-    const cleanup = { playerId, sourceUid: source.uid, attackerPlayerId: continuation.attackerPlayerId, attackerUid: attacker.uid, targetUid: continuation.targetUid };
-    if (!candidates.length) { state.std230AmbushCleanup = cleanup; return resumeStd230AmbushCleanup(state); }
-    const request = createSelectionRequest({ mode: "single", candidates: candidates.map((item) => item.uid), count: 1,
-      candidateLabels: Object.fromEntries(candidates.map((item) => [item.uid, item.name])), label: "相手手札からレジストリへ加える1枚", message: continuation.sourceName,
-      continuation: { type: "std230-install-hand", playerId, opponentId, cleanup } });
-    state.pending = { type: "selection", validTargets: request.candidates, request };
-    return true;
-  }
-  if (continuation.type === "std230-install-hand") {
-    const opponent = state.players[continuation.opponentId];
-    const chosenIndex = opponent.hand.findIndex((item) => item.uid === result.selected[0]);
-    if (chosenIndex >= 0) { const [chosen] = opponent.hand.splice(chosenIndex, 1); player.registry.push(chosen); emitRegistryInstalled(state, playerId, chosen, "悪の発明"); }
-    if (opponent.hand.length) { const randomIndex = Math.floor(state.rng() * opponent.hand.length); const [random] = opponent.hand.splice(randomIndex, 1); player.registry.push(random); emitRegistryInstalled(state, playerId, random, "悪の発明"); }
-    state.pending = null;
-    state.std230AmbushCleanup = continuation.cleanup;
-    return resumeStd230AmbushCleanup(state);
   }
   if (continuation.type === "mounted-event-discard") {
     if (result.selected.length !== continuation.count) return false;
@@ -1468,33 +876,6 @@ function resolveCardSelectionCore(state, continuation, result) {
     state.pending = null;
     return true;
   }
-  if (continuation.type === "technology-horizon") {
-    if (!result.selected.length) {
-      state.pending = null;
-      addLog(state, `${continuation.sourceName}: 0体選択のため①以降を処理しない。`, "effect");
-      return true;
-    }
-    const names = [];
-    for (const uid of result.selected) {
-      const location = findCard(state, uid);
-      if (location && destroyCard(state, location.playerId, uid, { source: continuation.sourceName })) names.push(location.card.name);
-    }
-    if (!names.length) { state.pending = null; return true; }
-    const x = names.reduce((sum, name) => sum + player.trash.filter((card) => card.name === name).length * 2, 0);
-    for (let index = 0; index < 2; index += 1) {
-      const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front";
-      const ghost = hydrateCard(createRuntimeCard(state.runtimeContext ?? null, "STD-123", playerId, ++state.tokenSerial + 1200));
-      ghost.permanentAtk = x;
-      ghost.permanentStr = x;
-      ghost.summoningSick = cardAtk(state, playerId, ghost) < 5;
-      if (placeByMode(state, playerId, ghost, { zone, from: "generated", source: continuation.sourceName }) !== "placed") continue;
-      emitEffectPlacement(state, playerId, ghost, zone, continuation.sourceName);
-      if (cardMaxStr(state, playerId, ghost) <= 0) destroyCard(state, playerId, ghost.uid, { source: "STR0以下の状態判定", suppressReplacement: true });
-    }
-    addLog(state, `${continuation.sourceName}: ゴースト2体を生成し+${x}/+${x}。`, "effect");
-    state.pending = null;
-    return true;
-  }
   if (continuation.type === "runtime-execute-from-trash") {
     const index = player.trash.findIndex((card) => card.uid === result.selected[0]);
     if (index < 0) return false;
@@ -1507,15 +888,6 @@ function resolveCardSelectionCore(state, continuation, result) {
     }
     addLog(state, `${continuation.sourceName}: ${spell.name}をゴミ箱から起動し${continuation.destinationAfterExecution === "deck" ? "デッキへ戻した" : "処理した"}。`, "effect");
     if (continuation.triggerItemId) resumeTriggerThreadAfterSelection(state, continuation.triggerItemId);
-    return true;
-  }
-  if (continuation.type === "std207-reveal") {
-    const target = player.hand.find((item) => item.uid === result.selected[0] && item.color === "紫");
-    if (!target) return false;
-    target.revealed = true;
-    target.turnCostModifier = Number(target.turnCostModifier ?? 0) - 2;
-    addLog(state, `クラフト・パッチワーク: ${target.name}を公開。このターン実行メモリ-2。`, "effect");
-    state.pending = null;
     return true;
   }
   if (continuation.type === "destroy-selected") {
@@ -1552,20 +924,6 @@ function resolveCardSelectionCore(state, continuation, result) {
     dealCardDamage(state, location.playerId, location.card.uid, continuation.amount, continuation.sourceName);
     state.pending = null;
     openNextQueuedSelection(state);
-    return true;
-  }
-  if (continuation.type === "hahanamori-standby") {
-    const source = findCard(state, continuation.sourceUid)?.card;
-    if (!source) return false;
-    if (result.selected.length) {
-      const target = findCard(state, result.selected[0]);
-      if (target) destroyCard(state, target.playerId, target.card.uid, { source: source.name, suppressReplacement: true });
-      source.sleep = false;
-      const defender = findCard(state, continuation.defenderUid)?.card;
-      if (defender) defender.skipStandby = true;
-      addLog(state, `${source.name}: 他のObを破壊してスタンバイ。戦闘相手は次の開始時にスタンバイしない。`, "effect");
-    }
-    state.pending = null;
     return true;
   }
   return false;

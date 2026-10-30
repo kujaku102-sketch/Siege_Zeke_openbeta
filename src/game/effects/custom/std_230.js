@@ -1,7 +1,9 @@
+import { createSelectionRequest } from "../../selection-model.js";
 import { attack } from "../../core/battle.js";
 import { openNextQueuedSelection } from "../../core/projection.js";
+import { otherPlayer } from "../../core/shared.js";
 import { emitGameEvent } from "../../core/triggers.js";
-import { moveCardToTrash } from "../generic/placement.js";
+import { emitRegistryInstalled, moveCardToTrash } from "../generic/placement.js";
 
 export function resumeStd230AmbushCleanup(state) {
   const cleanup = state.std230AmbushCleanup;
@@ -33,4 +35,37 @@ export function resumeStd230AmbushCleanup(state) {
   if (!attacker) return true;
   attacker.skipStd230Ambush = true;
   return attack(state, cleanup.attackerPlayerId, attacker.uid, cleanup.targetUid);
+}
+
+export function std230AmbushChoiceSelection(state, continuation, result, playerId, player) {
+  state.pending = null;
+  const attacker = state.players[continuation.attackerPlayerId].front.find((item) => item.uid === continuation.attackerUid);
+  if (!attacker) return false;
+  if (result.scope !== "[アンブッシュ:3]を起動") { attacker.skipStd230Ambush = true; return attack(state, continuation.attackerPlayerId, attacker.uid, continuation.targetUid); }
+  const sourceIndex = player.registry.findIndex((item) => item.uid === continuation.sourceUid && item.id === "STD-230" && !item.faceDown);
+  const source = sourceIndex >= 0 ? player.registry[sourceIndex] : null;
+  const cost = Number(source?.cost ?? 0);
+  if (!source || player.memory < cost || player.registry.length < cost) {
+    attacker.skipStd230Ambush = true;
+    return attack(state, continuation.attackerPlayerId, attacker.uid, continuation.targetUid);
+  }
+  player.memory -= cost;
+  const opponentId = otherPlayer(playerId); const candidates = state.players[opponentId].hand;
+  const cleanup = { playerId, sourceUid: source.uid, attackerPlayerId: continuation.attackerPlayerId, attackerUid: attacker.uid, targetUid: continuation.targetUid };
+  if (!candidates.length) { state.std230AmbushCleanup = cleanup; return resumeStd230AmbushCleanup(state); }
+  const request = createSelectionRequest({ mode: "single", candidates: candidates.map((item) => item.uid), count: 1,
+    candidateLabels: Object.fromEntries(candidates.map((item) => [item.uid, item.name])), label: "相手手札からレジストリへ加える1枚", message: continuation.sourceName,
+    continuation: { type: "std230-install-hand", playerId, opponentId, cleanup } });
+  state.pending = { type: "selection", validTargets: request.candidates, request };
+  return true;
+}
+
+export function std230InstallHandSelection(state, continuation, result, playerId, player) {
+  const opponent = state.players[continuation.opponentId];
+  const chosenIndex = opponent.hand.findIndex((item) => item.uid === result.selected[0]);
+  if (chosenIndex >= 0) { const [chosen] = opponent.hand.splice(chosenIndex, 1); player.registry.push(chosen); emitRegistryInstalled(state, playerId, chosen, "悪の発明"); }
+  if (opponent.hand.length) { const randomIndex = Math.floor(state.rng() * opponent.hand.length); const [random] = opponent.hand.splice(randomIndex, 1); player.registry.push(random); emitRegistryInstalled(state, playerId, random, "悪の発明"); }
+  state.pending = null;
+  state.std230AmbushCleanup = continuation.cleanup;
+  return resumeStd230AmbushCleanup(state);
 }

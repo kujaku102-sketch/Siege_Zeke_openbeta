@@ -11,3 +11,8 @@ export function activateStd203Response(state, playerId, cardUid, selectedUids, r
     targetUid: enemy.card.uid, targetUids: [own.card.uid, enemy.card.uid], responseEvent
   });
 }
+
+export function activateStd203ResponseSelection(state, continuation, result, playerId, player) {
+  state.pending = null;
+  return activateStd203Response(state, playerId, continuation.cardUid, result.selected, continuation.responseEvent);
+}

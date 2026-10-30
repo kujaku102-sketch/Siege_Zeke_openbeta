@@ -1,4 +1,5 @@
 import { createSelectionRequest } from "../../selection-model.js";
+import { activateScript } from "../../core/scripts.js";
 import { findCard } from "../../core/shared.js";
 import { destroyCard } from "../generic/placement.js";
 
@@ -85,4 +86,50 @@ export function settleStd142DestructionContinuation(state, uid, destroyed) {
     return continueStd142DestroyResolution(state);
   }
   return false;
+}
+
+export function activateStd142Effect1Selection(state, continuation, result, playerId, player) {
+  state.pending = null;
+  return activateScript(state, playerId, continuation.scriptUid, { selectionUid: result.selected[0] });
+}
+
+export function std142TurnEndChoiceSelection(state, continuation, result, playerId, player) {
+  state.pending = null;
+  if (!result.selected.length) {
+    return scheduleStd142TurnEndResume(state, continuation.activeId);
+  }
+  const source = findCard(state, continuation.sourceUid);
+  if (!source || source.card.faceDown === true || source.card.id !== "STD-142") {
+    return scheduleStd142TurnEndResume(state, continuation.activeId);
+  }
+  (state.std142DestructionContinuations ??= {})[source.card.uid] = {
+    type: "source",
+    playerId,
+    activeId: continuation.activeId,
+    sourceName: continuation.sourceName
+  };
+  destroyCard(state, source.playerId, source.card.uid, { source: `${source.card.name}の②起動コスト` });
+  return true;
+}
+
+export function std142DestroySelection(state, continuation, result, playerId, player) {
+  state.pending = null;
+  if (!result.selected.length) return scheduleStd142TurnEndResume(state, continuation.activeId);
+  state.std142DestroyBatch = {
+    playerId,
+    activeId: continuation.activeId,
+    sourceName: continuation.sourceName,
+    queue: [...result.selected],
+    destroyedCount: 0
+  };
+  return continueStd142DestroyResolution(state);
+}
+
+export function std142SalvageSelection(state, continuation, result, playerId, player) {
+  for (const uid of result.selected) {
+    const index = player.trash.findIndex((card) => card.uid === uid);
+    if (index >= 0) player.hand.push(...player.trash.splice(index, 1));
+  }
+  state.pending = null;
+  return scheduleStd142TurnEndResume(state, continuation.activeId);
 }
