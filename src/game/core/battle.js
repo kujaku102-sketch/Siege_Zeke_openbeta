@@ -181,7 +181,8 @@ function attackCore(state, playerId, attackerUid, targetUid) {
   }
   delete attacker.skipDynamicSelectionAttackEffect;
   const attackRuntime = cardRuntimeSpec(attacker.id, "attack_declared");
-  if (attackRuntime && !attacker.skipRuntimeAttackEffect) {
+  // A resume after the declaration (the opponent's window) or after the battle starts has already had its attack-time effect.
+  if (attackRuntime && !attacker.skipRuntimeAttackEffect && resumeStage !== "after-declare" && resumeStage !== "after-battle") {
     const opened = executeRuntimeActions(state, playerId, attacker, attackRuntime.actions, {
       targetUid: target.uid,
       continuationMeta: {

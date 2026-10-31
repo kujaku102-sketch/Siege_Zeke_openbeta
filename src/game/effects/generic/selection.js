@@ -3,7 +3,7 @@ import { cardPlacementCostSpec } from "../../card-runtime-specs.js";
 import { isObCard } from "../../card-types.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
 import { createAllocationSpec, createSelectionRequest, isSelectionRequestFeasible, selectionRequestFromSpec } from "../../selection-model.js";
-import { attack } from "../../core/battle.js";
+import { attack, continueAttackAfterCost } from "../../core/battle.js";
 import { dealCardDamage } from "../../core/deal-damage.js";
 import { resumeMandatoryDrawContinuation } from "../../core/draw.js";
 import { continueDeferredDeclaredScriptCleanup, resolveEffect, runEffectEntry } from "../../core/effects.js";
@@ -333,7 +333,8 @@ function resolveCardSelectionCore(state, continuation, result) {
     const attacker = findCard(state, continuation.sourceUid)?.card;
     if (continuation.resumeAttack && attacker) {
       attacker.skipDynamicSelectionAttackEffect = true;
-      return attack(state, playerId, attacker.uid, continuation.targetUid);
+      // The forced execution can open a window of its own (an opposing Script's activation question); the attack goes on after it.
+      return continueAttackAfterCost(state, playerId, attacker.uid, continuation.targetUid);
     }
     return executed;
   }
@@ -398,6 +399,7 @@ function resolveCardSelectionCore(state, continuation, result) {
         return true;
       }
       if (state.pending || state.prompt) {
+        attacker.skipRuntimeAttackEffect = true;
         state.deferredAttack = { stage: "start", playerId, attackerUid: attacker.uid, targetUid: continuation.targetUid };
         return resolved;
       }
