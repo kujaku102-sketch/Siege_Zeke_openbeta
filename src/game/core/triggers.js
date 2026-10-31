@@ -99,7 +99,7 @@ function advanceTriggerThread(state) {
   trace(state, { tag: TRACE_TAGS.TRIGGER, event: "order-chosen", threadId: thread.id, itemId: item.id, controllerId: item.controllerId, auto: true });
   item.status = "resolving";
   executeQueuedTrigger(state, item.trigger);
-  if (state.pending?.type === "selection") {
+  if (state.pending || state.prompt) {
     item.status = "awaiting-selection";
     state.processingTriggers = false;
     return;
@@ -129,7 +129,7 @@ function resolveTriggerChoiceCore(state, itemId) {
   trace(state, { tag: TRACE_TAGS.TRIGGER, event: "order-chosen", threadId: thread.id, itemId: item.id, controllerId: item.controllerId, auto: false });
   item.status = "resolving";
   executeQueuedTrigger(state, item.trigger);
-  if (state.pending?.type === "selection") {
+  if (state.pending || state.prompt) {
     item.status = "awaiting-selection";
     state.processingTriggers = false;
     return true;
