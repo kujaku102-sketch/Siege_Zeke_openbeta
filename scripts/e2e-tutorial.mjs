@@ -409,7 +409,9 @@ async function opponentTurnLoads(page,id) {
     loaded+=1;
   }
   if (!loaded) throw new Error(id+': no checkpoint in an opponent turn');
+  loadedTurns[id]=loaded;
 }
+const loadedTurns={};
 // A step that asks to press something to see it moves on once it is open; the next line waits until it is closed
 // (文豪, 2026-10-28): the info button (held, let go), Atto's QA badge in its detail, the Junk Parts' detail.
 async function pressAsked(page,id,index,open,close) {
@@ -725,7 +727,16 @@ try {
       await clickVisible(page,'[data-runtime-tutorial-skip]');
       await page.waitForFunction(matchId => {const now=window.__SIMPLE_ZEKE_E2E__.scope();return now && now.matchId!==matchId;},scope.matchId,{timeout:10000})
         .catch(() => {throw new Error(id+': skip did not start the win board as a new match');});
+      const won=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.scope().matchId);
       await completionReturnsToList(page,id);
+      // Left, the skipped match is kept like a played one: its record marked as begun from the win board and not
+      // replayable, and its log (the one sent when sending is on) carrying the same mark (文豪 #3, 2026-10-31).
+      const kept=await page.evaluate(won => {const shelf=key => JSON.parse(localStorage.getItem(key) ?? '[]');
+        return {log:shelf('sz-match-logs').find(item => item.matchId===won) ?? null,replay:shelf('sz-replays').find(item => item.game?.matchId===won) ?? null};},won);
+      const mark=from => from?.kind==='tutorial-checkpoint' && from.tutorialId===id && from.checkpointId==='win' && from.revision>0;
+      if (!mark(kept.log?.startedFrom) || kept.log.finished!==true || !mark(kept.replay?.startedFrom) || kept.replay.replayable!==false || kept.replay.commands?.length!==0)
+        throw new Error(id+': the skipped match is not kept with its mark: '+JSON.stringify({log:kept.log && {startedFrom:kept.log.startedFrom,finished:kept.log.finished},
+          replay:kept.replay && {startedFrom:kept.replay.startedFrom,replayable:kept.replay.replayable,commands:kept.replay.commands?.length}}));
     }
     // Started from a checkpoint in the opponent's scripted turn, the turn plays on as in the played tutorial.
     if (profile===profiles[0]) for (const id of ['basics','blue','vengeance']) await opponentTurnLoads(page,id);
@@ -745,7 +756,7 @@ try {
   const unknown=covered.filter(hit => !knownCovered(hit)),known=[...new Set(covered.filter(knownCovered).map(hit => hit.line.replace(/ \d+px²$/,'')))];
   if (screensMode && unknown.length) throw new Error('the guide covers what can be pressed ('+unknown.length+'):\n'+[...new Set(unknown.map(hit => hit.line))].join('\n'));
   if (screensMode && pageIssues.length) throw new Error('guide pages ('+pageIssues.length+'):\n'+[...new Set(pageIssues)].join('\n'));
-  console.log(JSON.stringify({suite:'tutorial',runs,completionReturnsToList:true,offScriptRefused:true,skipToWin:true,menuWhileSpeaking:true,requiredBackPreserves:true,
+  console.log(JSON.stringify({suite:'tutorial',runs,completionReturnsToList:true,offScriptRefused:true,skipToWin:true,skippedKeptWithMark:true,opponentTurnLoads:loadedTurns,menuWhileSpeaking:true,requiredBackPreserves:true,
     guideCovers:screensMode ? {unknown:0,known:known.length} : {counted:new Set(covered.map(hit => hit.line)).size},
     leftOpenCovered:[...new Set(leftOpen.map(hit => hit.line.replace(/ \d+px²$/,'')))],guidePages:screensMode ? {issues:0} : {issues:[...new Set(pageIssues)]},
     frameMax:Math.round(frameMax*1000)/10+'%',keyboardMode,screensMode,ok:true}));
