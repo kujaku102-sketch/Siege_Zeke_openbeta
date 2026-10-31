@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
+import { buildTutorialCheckpoints } from './build-tutorial-snapshots.mjs';
 
 // --screens: the 1920×1080 and 1280×720 PCs and the iPhone 852×393 / 932×430 at DPR3, where the guide takes a third of
 // the height (文豪, 2026-10-27).
@@ -385,6 +386,30 @@ async function opponentTurnTaps(page,id) {
   const end=await state();
   if (end.notice || end.active!==end.viewer || end.memory?.current!==end.memory?.max) throw new Error(id+': after the opponent turn: '+JSON.stringify({start,end}));
 }
+// Each checkpoint in the opponent's scripted turn (the test repository's step-by-step points, built here the same way),
+// started as a new match: the script plays on with no notice, and the turn ends where the played tutorial's next point
+// stands (its revision and step), the player's turn begun, memory refilled.
+async function opponentTurnLoads(page,id) {
+  const file=buildTutorialCheckpoints(id),points=file.checkpoints;
+  let loaded=0;
+  for (const [index,point] of points.entries()) {
+    if (point.tutorial.opponentScript===null) continue;
+    const after=points.slice(index+1).find(next => next.tutorial.opponentScript===null);
+    const one={...file,snapshots:{[point.snapshot]:file.snapshots[point.snapshot]},checkpoints:[point]};
+    const started=await page.evaluate(({one,checkpointId}) => window.__SIMPLE_ZEKE_E2E__.startFromCheckpoint(one,checkpointId),{one,checkpointId:point.id});
+    if (!started.ok) throw new Error(`${id} ${point.id}: the checkpoint did not start: ${JSON.stringify(started)}`);
+    await page.waitForFunction(() => window.__SIMPLE_ZEKE_E2E__.tutorial().value?.opponentScript===null,null,{timeout:20000})
+      .catch(() => {throw new Error(`${id} ${point.id} (${point.at}): the loaded opponent turn never ended`);});
+    const end=await page.evaluate(() => {const query=window.__SIMPLE_ZEKE_E2E__.query().value,flow=window.__SIMPLE_ZEKE_E2E__.tutorial().value.flow;
+      return {revision:query.status.revision,step:flow.index,active:query.observation.activeSeat,viewer:query.status.viewerSeat,
+        memory:query.observation.seats.find(seat => seat.seatId===query.status.viewerSeat)?.memory,notice:document.querySelector('.r2-notice')?.textContent ?? ''};});
+    const want={revision:Number(after.snapshot.slice(1)),step:after.tutorial.flow.index};
+    if (end.notice || end.revision!==want.revision || end.step!==want.step || end.active!==end.viewer || end.memory?.current!==end.memory?.max)
+      throw new Error(`${id} ${point.id} (${point.at}): after the loaded opponent turn ${JSON.stringify(end)}, the played tutorial ${JSON.stringify(want)}`);
+    loaded+=1;
+  }
+  if (!loaded) throw new Error(id+': no checkpoint in an opponent turn');
+}
 // A step that asks to press something to see it moves on once it is open; the next line waits until it is closed
 // (文豪, 2026-10-28): the info button (held, let go), Atto's QA badge in its detail, the Junk Parts' detail.
 async function pressAsked(page,id,index,open,close) {
@@ -548,6 +573,8 @@ async function completionReturnsToList(page,id) {
     result:Boolean(document.querySelector('.r2-result')),won:window.__SIMPLE_ZEKE_E2E__.query().value?.status.lockedOutcome?.winnerSeat,
     opponentStr:window.__SIMPLE_ZEKE_E2E__.query().value?.observation.seats.find(seat => seat.seatId!=='player')?.fortressStr}));
   if (!closing.text.includes('勝利') || closing.skip || closing.result || closing.won!=='player' || closing.opponentStr!==0) throw new Error('closing line wrong: '+JSON.stringify(closing));
+  // The win, played or skipped to, keeps the result window's dots behind the closing line (from the state, not the feed).
+  if (!await page.locator('.r2-tutorial-win[data-outcome="win"] canvas.r2-result-fx').count()) throw new Error(id+': no win dots behind the closing line');
   await clickVisible(page,'[data-runtime-tutorial-finish]');
   await page.locator('[data-flow-screen="tutorial-select"]').waitFor({state:'visible',timeout:10000});
   const state=await page.evaluate(id => ({scope:window.__SIMPLE_ZEKE_E2E__.scope(),done:document.querySelector(`[data-tutorial-item="${id}"]`)?.dataset.done,
@@ -684,8 +711,8 @@ try {
     const page=await context.newPage();
     page.on('pageerror',error => errors.push(error.message));
     for (const id of ['basics','blue','vengeance']) {await run(page,id);runs.push({profile:profile.label,tutorial:id});}
-    // [スキップ] jumps, in the same match, to the tutorial's own win (the opponent at STR 0, the closing line) and
-    // counts as cleared (文豪, 2026-10-29): from blue's first line, and from inside purple's committed required choice.
+    // [スキップ] starts the tutorial's own win board as a new match (the opponent at STR 0, the closing line) and
+    // counts as cleared (文豪, 2026-10-29 and 2026-10-31): from blue's first line, and from inside purple's committed required choice.
     for (const id of ['blue','vengeance']) {
       await page.evaluate(() => localStorage.removeItem('sz-tutorial-done'));
       await page.evaluate(id => window.__SIMPLE_ZEKE_E2E__.start('tutorial',id,1),id);
@@ -696,9 +723,12 @@ try {
       }
       const scope=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.scope());
       await clickVisible(page,'[data-runtime-tutorial-skip]');
-      if ((await read(page)).value.status.matchId!==scope.matchId) throw new Error(id+': skip left the match');
+      await page.waitForFunction(matchId => {const now=window.__SIMPLE_ZEKE_E2E__.scope();return now && now.matchId!==matchId;},scope.matchId,{timeout:10000})
+        .catch(() => {throw new Error(id+': skip did not start the win board as a new match');});
       await completionReturnsToList(page,id);
     }
+    // Started from a checkpoint in the opponent's scripted turn, the turn plays on as in the played tutorial.
+    if (profile===profiles[0]) for (const id of ['basics','blue','vengeance']) await opponentTurnLoads(page,id);
     // The tutorial can be left from the menu at any time, the guide speaking: red in its greeting, blue on its first line.
     for (const id of ['basics','blue']) {
       await page.evaluate(() => localStorage.removeItem('sz-tutorial-done'));
