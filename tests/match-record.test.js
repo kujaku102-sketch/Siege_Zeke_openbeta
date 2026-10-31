@@ -202,3 +202,26 @@ test('the page CSP lets the log sender reach its endpoint and a picked logo vide
   assert.ok(directive('media-src').includes('blob:'), 'a <video> on an object URL falls to media-src, not connect-src');
   assert.equal(directive('connect-src').includes('*'), false);
 });
+
+import { createMatchAuthority } from '../src/adapters/match-session-controller.js';
+import { createMatchRecord } from '../src/game/runtime/match-record.js';
+
+test('a record begun from a stored point carries the mark; a bad mark, or a later start without one, is refused', () => {
+  const start = createMatchAuthority(runtimeConfig('ai', 'record-start')).value;
+  const later = { ...start, revision: 7 };
+  const mark = { kind: 'tutorial-checkpoint', tutorialId: 'blue', checkpointId: 'p012', revision: 7 };
+  const plain = createMatchRecord(start).value;
+  assert.deepEqual(Object.keys(plain), ['kind', 'schemaVersion', 'game', 'commands']);
+  const marked = createMatchRecord(later, mark);
+  assert.equal(marked.ok, true);
+  assert.deepEqual(marked.value.startedFrom, mark);
+  assert.equal(marked.value.replayable, false);
+  assert.deepEqual(marked.value.commands, []);
+  assert.equal(createMatchRecord(later).error.code, 'RECORD_NOT_AT_START');
+  for (const bad of [{ ...mark, revision: 6 }, { ...mark, kind: 'other' }, { ...mark, checkpointId: '' }, { ...mark, extra: 1 },
+    { kind: mark.kind, tutorialId: 'blue', checkpointId: 'p1' }, 'p012', undefined]) {
+    assert.equal(createMatchRecord(later, bad === undefined ? 5 : bad).error.code, 'RECORD_START_INVALID');
+  }
+  assert.equal(createLocalRuntimeCoordinator({ authority: later, sessionGeneration: 1, startedFrom: { ...mark, revision: 6 } }).error.code, 'INVALID_LOCAL_RUNTIME');
+  assert.equal(createLocalRuntimeCoordinator({ authority: later, sessionGeneration: 1, startedFrom: mark }).ok, true);
+});

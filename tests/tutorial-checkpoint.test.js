@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMatchLifecycleController } from '../src/adapters/match-lifecycle-controller.js';
+import { archiveRetiredMatch } from '../src/adapters/match-archive.js';
+import { replayMatchRecord } from '../src/adapters/match-replay.js';
+import { loadStored, MATCH_LOGS, REPLAYS } from '../src/adapters/match-record-store.js';
+import worker from '../cloudflare/match-log/src/index.js';
 import { createMatchSessionController } from '../src/adapters/match-session-controller.js';
 import { playTutorialToWin } from '../src/adapters/tutorial-autoplay.js';
 import { loadTutorialCheckpoint } from '../src/adapters/tutorial-checkpoint.js';
@@ -104,7 +108,7 @@ test('a checkpoint starts as a new match: new id, empty journal and feed, the gu
   assert.equal(query.status.matchId, session.scope().matchId);
   assert.equal(query.status.revision, file.snapshots[point.snapshot].revision);
   assert.deepEqual(session.takeEvents().value, []);
-  assert.equal(session.matchRecord().error.code, 'MATCH_RECORD_UNAVAILABLE');
+  assert.deepEqual(session.matchRecord().value.commands, [], 'its record starts empty, from the stored point');
   assert.deepEqual(session.tutorialState().value, point.tutorial);
   const again = host.rematch();
   assert.equal(again.ok, true, JSON.stringify(again));
@@ -151,4 +155,77 @@ test('a new match from stored points plays on to the win', () => {
     assert.equal(started.value.tutorial().value.flow.complete, true);
     host.dispose();
   }
+});
+
+const memoryStorage = () => { const items = new Map(); return { getItem: key => items.get(key) ?? null, setItem: (key, value) => { items.set(key, value); } }; };
+
+test('a match begun from a checkpoint has a record that says where it began and cannot be replayed', () => {
+  const { file } = built('vengeance');
+  const last = file.checkpoints.at(-1);
+  const host = lifecycle();
+  const session = host.startFromCheckpoint({ file, checkpointId: last.id }).value;
+  const record = session.matchRecord();
+  assert.equal(record.ok, true, JSON.stringify(record));
+  const revision = file.snapshots[last.snapshot].revision;
+  assert.deepEqual(record.value.startedFrom, { kind: 'tutorial-checkpoint', tutorialId: 'vengeance', checkpointId: last.id, revision });
+  assert.equal(record.value.replayable, false);
+  assert.deepEqual(record.value.commands, []);
+  assert.equal(record.value.game.matchId, session.scope().matchId);
+  assert.equal(record.value.summary.commandCount, 0);
+  assert.equal(record.value.summary.finished, true);
+  assert.deepEqual(replayMatchRecord(record.value), { ok: false, error: { code: 'RECORD_NOT_REPLAYABLE' } });
+  // a record of a match begun at its first command carries neither key
+  const fresh = host.start(tutorialBuildConfig('vengeance')).value.matchRecord().value;
+  assert.equal(Object.hasOwn(fresh, 'startedFrom') || Object.hasOwn(fresh, 'replayable'), false);
+  assert.equal(replayMatchRecord(fresh).ok, true);
+  host.dispose();
+});
+
+test('a finished match begun from a checkpoint is kept and sent without a command; an unfinished one is not', () => {
+  const { file } = built('vengeance');
+  const storage = memoryStorage(), sent = [];
+  const host = createMatchLifecycleController({ nextMatchId: () => crypto.randomUUID(),
+    onRetire: session => archiveRetiredMatch(session, { storage, sendEnabled: true, send: log => { sent.push(log); return true; }, now: new Date(0) }) });
+  const early = file.checkpoints.find(item => item.at === 'step 2');
+  assert.equal(host.startFromCheckpoint({ file, checkpointId: early.id }).ok, true);
+  assert.equal(host.startFromCheckpoint({ file, checkpointId: file.checkpoints.at(-1).id }).ok, true);
+  const finishedId = host.current().value.scope().matchId;
+  host.dispose();
+  assert.deepEqual(loadStored(storage, REPLAYS).map(item => item.game.matchId), [finishedId], 'the unfinished one left nothing');
+  assert.deepEqual(loadStored(storage, MATCH_LOGS).map(item => item.matchId), [finishedId]);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].startedFrom.kind, 'tutorial-checkpoint');
+  assert.equal(sent[0].finished, true);
+  assert.equal(sent[0].result, 'you');
+  assert.deepEqual(sent[0].log, []);
+});
+
+test('the log worker accepts the log of a match begun from a checkpoint', async () => {
+  const { file } = built('blue');
+  const sent = [];
+  const host = createMatchLifecycleController({ nextMatchId: () => crypto.randomUUID(),
+    onRetire: session => archiveRetiredMatch(session, { storage: memoryStorage(), sendEnabled: true, send: log => { sent.push(log); return true; }, now: new Date(Date.UTC(2026, 9, 31)) }) });
+  host.startFromCheckpoint({ file, checkpointId: file.checkpoints.at(-1).id });
+  host.dispose();
+  assert.equal(sent.length, 1);
+  const kept = new Map();
+  const env = { MATCH_LOGS: { get: async key => kept.get(key) ?? null, put: async (key, value) => { kept.set(key, value); } } };
+  const post = body => worker.fetch(new Request('https://log.siegezeke.online/match-logs', { method: 'POST', body, headers: { origin: 'https://siegezeke.online' } }), env);
+  const text = JSON.stringify(sent[0]);
+  assert.equal((await post(text)).status, 204);
+  assert.equal([...kept.values()][0], text);
+  assert.equal((await post(text)).status, 204, 'the same body again is a success');
+});
+
+test('play after a checkpoint is recorded from there, still not replayable', () => {
+  const { file } = built('vengeance');
+  const point = file.checkpoints.find(item => item.at === 'step 8' && item.tutorial.opponentScript === null);
+  const host = lifecycle();
+  const session = host.startFromCheckpoint({ file, checkpointId: point.id }).value;
+  assert.equal(playTutorialToWin({ session }).ok, true);
+  const record = session.matchRecord().value;
+  assert.ok(record.commands.length > 0);
+  assert.equal(record.replayable, false);
+  assert.equal(replayMatchRecord(record).error.code, 'RECORD_NOT_REPLAYABLE');
+  host.dispose();
 });

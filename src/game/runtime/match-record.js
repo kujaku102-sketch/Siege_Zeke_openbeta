@@ -60,15 +60,33 @@ export function recordedCardDefinition(engineState, encoded) {
   return ref ? definitionOf(engineState, ref) : null;
 }
 
-export function createMatchRecord(authority) {
+// A match that began from a stored point (a tutorial checkpoint) rather than from its first command is
+// recorded too, with where it began and the mark `replayable: false`: its board is not in the record, so
+// it cannot be played again from the start. Records of matches that began at revision 0 get neither key.
+export const MATCH_RECORD_START_KINDS = Object.freeze(['tutorial-checkpoint']);
+
+function startedFromData(value, revision) {
+  if (value === null || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return null;
+  const keys = Reflect.ownKeys(value);
+  if (keys.length !== 4 || ['kind', 'tutorialId', 'checkpointId', 'revision'].some(key => !keys.includes(key))) return null;
+  const { kind, tutorialId, checkpointId } = value;
+  const named = text => typeof text === 'string' && text.length > 0;
+  if (!MATCH_RECORD_START_KINDS.includes(kind) || !named(tutorialId) || !named(checkpointId) || value.revision !== revision) return null;
+  return { kind, tutorialId, checkpointId, revision };
+}
+
+export function createMatchRecord(authority, startedFrom = null) {
   const { metadata, engineState } = authority;
   const seed = engineState.runtimeContext?.rngState?.seed;
-  if (authority.revision !== 0 || !Number.isSafeInteger(seed)) return failure('RECORD_NOT_AT_START');
+  const from = startedFrom === null ? null : startedFromData(startedFrom, authority.revision);
+  if (startedFrom !== null && !from) return failure('RECORD_START_INVALID');
+  if ((from === null && authority.revision !== 0) || !Number.isSafeInteger(seed)) return failure('RECORD_NOT_AT_START');
   return { ok: true, value: {
     kind: MATCH_RECORD_KIND, schemaVersion: MATCH_RECORD_VERSION,
     game: { matchId: metadata.matchId, seatIds: [...metadata.seatIds], seed,
       ruleVersion: metadata.ruleVersion, cardVersion: metadata.cardVersion,
       gameOptions: structuredClone(metadata.startOptions) },
+    ...(from ? { startedFrom: from, replayable: false } : {}),
     commands: []
   } };
 }

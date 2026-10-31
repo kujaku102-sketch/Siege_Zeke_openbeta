@@ -22,7 +22,7 @@ function withMatchId(value, matchId) {
 
 // file: the tutorial checkpoint file (see scripts/build-tutorial-snapshots.mjs).
 // Returns what a new match session needs: the authority (with an empty journal), the guide's state,
-// and the runtime config that starts the same tutorial from its beginning (what a rematch uses).
+// where the match began (the mark its record carries), and the runtime config that starts the same tutorial from its beginning (what a rematch uses).
 export function loadTutorialCheckpoint(file, checkpointId, { matchId, ruleVersion = RULE_VERSION, cardVersion = CARD_VERSION } = {}) {
   if (!plain(file) || file.format !== TUTORIAL_CHECKPOINT_FORMAT || file.schemaVersion !== TUTORIAL_CHECKPOINT_SCHEMA
     || !nonempty(file.tutorialId) || !plain(file.snapshots) || !Array.isArray(file.checkpoints)
@@ -45,6 +45,7 @@ export function loadTutorialCheckpoint(file, checkpointId, { matchId, ruleVersio
   if (!validateLiveAuthority(authority).ok) return failure('TUTORIAL_CHECKPOINT_INVALID');
   return { ok: true, value: {
     authority, tutorialState,
+    startedFrom: { kind: 'tutorial-checkpoint', tutorialId: file.tutorialId, checkpointId, revision },
     runtimeConfig: { matchId, seatIds: [...metadata.seatIds], seed: engineState.runtimeContext.rngState.seed, ruleVersion, cardVersion,
       gameOptions: structuredClone(options) }
   } };

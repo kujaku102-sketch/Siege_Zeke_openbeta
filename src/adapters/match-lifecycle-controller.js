@@ -39,8 +39,8 @@ export function createMatchLifecycleController({ nextMatchId = () => crypto.rand
       if (disposed) return failure('MATCH_LIFECYCLE_DISPOSED');
       const loaded = loadTutorialCheckpoint(file, checkpointId, { matchId: nextMatchId() });
       if (!loaded.ok) return loaded;
-      const { authority, tutorialState, runtimeConfig } = loaded.value;
-      return install(createMatchSessionController({ authority, sessionGeneration: generation + 1, tutorialState }), runtimeConfig);
+      const { authority, tutorialState, startedFrom, runtimeConfig } = loaded.value;
+      return install(createMatchSessionController({ authority, sessionGeneration: generation + 1, tutorialState, startedFrom }), runtimeConfig);
     },
     current() { return !disposed && current ? { ok: true, value: current } : failure('MATCH_UNAVAILABLE'); },
     rematch() {

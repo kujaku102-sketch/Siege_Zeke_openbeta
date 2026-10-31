@@ -5,7 +5,9 @@ import { MATCH_LOGS, REPLAYS, saveStored } from './match-record-store.js';
 // browser, and a finished match's log is sent when the player switched sending on.
 export function archiveRetiredMatch(session, { storage, sendEnabled = false, send = null, now = new Date() }) {
   const replay = session?.matchRecord?.();
-  if (!replay?.ok || !replay.value.commands.length) return { kept: false, sent: false };
+  // A match begun from a stored point (the skipped tutorial) is kept and sent once finished, even with no command played.
+  const worth = replay?.ok && (replay.value.commands.length > 0 || Object.hasOwn(replay.value, 'startedFrom') && replay.value.summary.finished);
+  if (!worth) return { kept: false, sent: false };
   saveStored(storage, REPLAYS, { ...replay.value, savedAt: now.toISOString() });
   const viewer = replay.value.game.seatIds[0];
   const feed = session.port(viewer).value?.events({ afterEventId: null });

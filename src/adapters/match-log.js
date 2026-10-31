@@ -26,6 +26,7 @@ export function buildMatchLog(replay, events, now = new Date()) {
     matchId: game.matchId, endedAt: now.toISOString(),
     ruleVersion: game.ruleVersion, cardVersion: game.cardVersion,
     mode: options.mode, finished: summary.finished,
+    ...(replay.startedFrom ? { startedFrom: structuredClone(replay.startedFrom) } : {}),
     result: summary.outcome?.kind === 'draw' ? 'draw' : winner ?? 'none', turns: summary.turns,
     players: {
       you: player(you, options.playerUserId, options.playerDeckRecipe, options.playerDeckId),

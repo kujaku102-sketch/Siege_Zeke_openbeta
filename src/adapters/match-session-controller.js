@@ -13,9 +13,10 @@ const nonempty = value => typeof value === 'string' && value.length > 0;
 function exactInput(input) {
   if (input === null || typeof input !== 'object' || Object.getPrototypeOf(input) !== Object.prototype) return null;
   const keys = Reflect.ownKeys(input);
-  // `tutorialState` is optional: the guide's progress of a tutorial match started from a stored snapshot.
-  if (keys.some(key => typeof key !== 'string' || !['authority', 'sessionGeneration', 'tutorialState'].includes(key))
-    || !['authority', 'sessionGeneration'].every(key => keys.includes(key)) || keys.length > 3) return null;
+  // `tutorialState` and `startedFrom` are optional: the guide's progress, and where the match began, of a
+  // tutorial match started from a stored snapshot.
+  if (keys.some(key => typeof key !== 'string' || !['authority', 'sessionGeneration', 'tutorialState', 'startedFrom'].includes(key))
+    || !['authority', 'sessionGeneration'].every(key => keys.includes(key)) || keys.length > 4) return null;
   const result = {};
   for (const key of keys) {
     const descriptor = Object.getOwnPropertyDescriptor(input, key);
@@ -66,7 +67,8 @@ export function createMatchSessionController(input) {
   const modePolicy = startOptions.mode === 'tutorial'
     ? createTutorialModeController(startOptions.tutorialId, tutorialState ?? null) : null;
   const coordinator = createLocalRuntimeCoordinator({
-    authority: config.authority, sessionGeneration: config.sessionGeneration, modePolicy
+    authority: config.authority, sessionGeneration: config.sessionGeneration, modePolicy,
+    ...(Object.hasOwn(config, 'startedFrom') ? { startedFrom: config.startedFrom } : {})
   });
   if (!coordinator.ok) return failure(`MATCH_SESSION_${coordinator.error.code}`);
   const metadata = authorityMetadata(config.authority);
