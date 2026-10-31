@@ -2,26 +2,38 @@ import { findCard } from '../../engine.js';
 import { CARD_LIBRARY } from '../../../data/cards.js';
 import { buildRuntimeIdentityIndex } from '../bridge.js';
 import { buildRuntimeReferenceFrame } from '../reference-frame.js';
-import { findRuntimeCardReference } from '../references.js';
+import { createRuntimeReferenceLookup } from '../references.js';
 import { optionId } from './shared.js';
 
+// The card reference of a uid, or null. The identity index, the reference frame and the checked reference
+// state are built on the first uid and kept for the rest: one engine state, one build.
+export function cardReferenceResolver(engineState, referenceState, metadata, viewerSeat) {
+  let basis;
+  const build = () => {
+    const index = buildRuntimeIdentityIndex(engineState);
+    if (!index.ok) return null;
+    const frame = buildRuntimeReferenceFrame(engineState);
+    if (!frame.ok) return null;
+    const lookup = createRuntimeReferenceLookup(referenceState, frame.value, viewerSeat);
+    return lookup.ok ? { entries: index.value.entries, lookup: lookup.value } : null;
+  };
+  return uid => {
+    const alias = engineState.runtimeContext.uidAliases.find(item => item.uid === uid);
+    if (!alias) return null;
+    basis ??= build() ?? false;
+    if (!basis) return null;
+    const entry = basis.entries.find(item => item.identity.instanceId === alias.identity.instanceId);
+    return entry && entry.identity.matchId === metadata.matchId ? basis.lookup.find(entry.identity) : null;
+  };
+}
+
 export function cardReference(engineState, referenceState, metadata, viewerSeat, uid) {
-  const index = buildRuntimeIdentityIndex(engineState);
-  if (!index.ok) return null;
-  const alias = engineState.runtimeContext.uidAliases.find(item => item.uid === uid);
-  if (!alias) return null;
-  const entry = index.value.entries.find(item => item.identity.instanceId === alias.identity.instanceId);
-  if (!entry) return null;
-  const frame = buildRuntimeReferenceFrame(engineState);
-  if (!frame.ok) return null;
-  const found = findRuntimeCardReference(referenceState, {
-    frame: frame.value, matchId: metadata.matchId, viewerSeat, identity: entry.identity
-  });
-  return found.ok ? found.value.cardRef : null;
+  return cardReferenceResolver(engineState, referenceState, metadata, viewerSeat)(uid);
 }
 
 export function cardOptions(engineState, referenceState, metadata, actorSeat, candidates, labels = {}, surfacePermission = false) {
   const actorId = metadata.seatIds[0] === actorSeat ? 'player' : 'ai';
+  const reference = cardReferenceResolver(engineState, referenceState, metadata, actorSeat);
   return candidates.map((uid, index) => {
     const found = findCard(engineState, uid);
     const visible = found && (found.playerId === actorId && found.zoneName === 'hand'
@@ -30,7 +42,7 @@ export function cardOptions(engineState, referenceState, metadata, actorSeat, ca
     const definition = visible ? CARD_LIBRARY[found.card.id] : null;
     return {
       optionId: optionId(index), kind: 'card',
-      cardRef: cardReference(engineState, referenceState, metadata, actorSeat, uid),
+      cardRef: reference(uid),
       label: visible ? (typeof labels?.[uid] === 'string' ? labels[uid] : found.card.name) : null,
       ...(definition ? { preview: { definitionId:definition.id,name:definition.name,
         definition:{id:definition.id,name:definition.name,category:definition.category,color:definition.color ?? null,
