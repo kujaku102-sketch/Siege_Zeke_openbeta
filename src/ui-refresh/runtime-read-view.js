@@ -5,7 +5,7 @@ import { abilityBadgeDefinition } from '../data/ability-badges.js';
 import { selectionRequestHtml, selectionEyeHtml, isBoardPick, isBoardSlotRequest, isSinglePick, requestTitle } from './choice-read-view.js';
 import { requiredSelectionRequest } from '../game/runtime/selection-contract.js';
 import { validSelectionAnswer } from '../game/runtime/selection-contract.js';
-import { runtimeLogHtml, runtimeResultHtml } from './runtime-log-view.js';
+import { runtimeLogHtml, runtimeResultHtml, tutorialWinHtml } from './runtime-log-view.js';
 import { cardEffectHtml } from '../ui/ability-help.js';
 import { abilityTextHtml } from '../ui/ability-help.js';
 import { cardArtProfile } from '../data/card-art-profiles.js';
@@ -279,8 +279,8 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
     selection,
     log: wants('log') ? model.ui.logOpen ? runtimeLogHtml(presentation.log ?? [], model.match.viewerSeat) : '' : null,
     menu: wants('menu') ? model.ui.menuOpen ? '<aside class="r2-modal" role="dialog" aria-label="メニュー"><section><button data-runtime-menu>閉じる</button><button data-runtime-rematch>再戦</button><button data-runtime-title>タイトルに戻る</button></section></aside>' : '' : null,
-    // A tutorial ends in its own closing line (guideHtml), not in the match result window.
-    result: wants('result') ? presentation.resultDismissed || presentation.tutorial ? '' : runtimeResultHtml(model.match) : null
+    // A tutorial ends in its own closing line (guideHtml), not in the match result window; its win keeps the window's dots.
+    result: wants('result') ? presentation.tutorial ? tutorialWinHtml(model.match) : presentation.resultDismissed ? '' : runtimeResultHtml(model.match) : null
   };
 }
 

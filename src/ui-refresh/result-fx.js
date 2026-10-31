@@ -9,7 +9,7 @@ export function syncResultFx(root, enabled) {
   active?.dispose();
   active = null;
   if (!canvas) return;
-  const outcome = canvas.closest(".r2-result")?.dataset.outcome;
+  const outcome = canvas.closest("[data-outcome]")?.dataset.outcome;
   const dispose = outcome === "win" ? confetti(canvas) : scanShader(canvas, outcome === "draw" ? [1,.75,.27] : [1,.19,.45]);
   if (dispose) active = { canvas, dispose };
 }

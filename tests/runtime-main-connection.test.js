@@ -476,14 +476,15 @@ function runScriptedOpponent(session) {
   assert.equal(session.tutorial().value.opponentScript,null);
 }
 // After the winning attack the guide shows the closing line with one way on (back to the list), no skip,
-// and the match result window stays away: the tutorial ends in its own line.
+// and the match result window stays away: the tutorial ends in its own line, the window's win dots behind it.
 function assertClosingLine(session,lastIndex,closing=/勝利。/) {
   const flow=session.tutorial().value.flow;
   assert.equal(flow.complete,true);assert.equal(flow.index,lastIndex);
   const ui=createMatchUiController({session,viewerSeat:'a'}).value,read=ui.read().value;
   const html=runtimeGameHtml(read.model,{...read,tutorial:session.tutorial().value});
   assert.match(html,/data-runtime-tutorial-finish/);assert.match(html,closing);
-  assert.doesNotMatch(html,/data-runtime-tutorial-skip/);assert.doesNotMatch(html,/r2-result/);
+  assert.doesNotMatch(html,/data-runtime-tutorial-skip/);assert.doesNotMatch(html,/class="r2-result /);
+  assert.match(html,/<div class="r2-tutorial-win" data-outcome="win" aria-hidden="true"><canvas class="r2-result-fx"><\/canvas><\/div>/);
   ui.dispose?.();
 }
 const refusedFor=(session,port,action,reason)=>{

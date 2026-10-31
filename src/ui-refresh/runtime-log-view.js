@@ -270,6 +270,13 @@ export function runtimeLogHtml(events, viewerSeat) {
   return `<aside class="r2-log" role="dialog" aria-label="対戦ログ"><header><div><small>BATTLE RECORD <i>//</i> LOG.SYS</small><h2>対戦ログ</h2></div><button data-runtime-log aria-label="対戦ログを閉じる">×</button></header><div class="r2-log-scroll">${rows || '<p>行動はまだない</p>'}</div></aside>`;
 }
 
+// A tutorial's win, played or skipped to: the result window's dots fall behind the closing line. Read from the state,
+// not from the event feed: a win board started as a new match has no events.
+export function tutorialWinHtml(match) {
+  if (!match.finished || !match.lockedOutcome?.winnerSeat || match.lockedOutcome.winnerSeat !== match.viewerSeat) return '';
+  return '<div class="r2-tutorial-win" data-outcome="win" aria-hidden="true"><canvas class="r2-result-fx"></canvas></div>';
+}
+
 export function runtimeResultHtml(match) {
   if (!match.finished) return '';
   const outcome = match.lockedOutcome;
