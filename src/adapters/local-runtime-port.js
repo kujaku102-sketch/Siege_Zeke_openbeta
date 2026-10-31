@@ -85,7 +85,7 @@ export function createLocalRuntimeCoordinator(input) {
     return failure('INVALID_LOCAL_RUNTIME');
   }
   const keys = Reflect.ownKeys(input);
-  if (keys.length < 2 || keys.length > 3 || keys.some(key => typeof key !== 'string' || !['authority', 'sessionGeneration', 'modePolicy'].includes(key))) {
+  if (keys.length < 2 || keys.length > 4 || keys.some(key => typeof key !== 'string' || !['authority', 'sessionGeneration', 'modePolicy', 'startedFrom'].includes(key))) {
     return failure('INVALID_LOCAL_RUNTIME');
   }
   const authorityDescriptor = Object.getOwnPropertyDescriptor(input, 'authority');
@@ -96,6 +96,9 @@ export function createLocalRuntimeCoordinator(input) {
   const policyDescriptor = Object.getOwnPropertyDescriptor(input, 'modePolicy');
   if (policyDescriptor && (!policyDescriptor.enumerable || !Object.hasOwn(policyDescriptor, 'value'))) return failure('INVALID_LOCAL_RUNTIME');
   const modePolicy = policyDescriptor?.value ?? null;
+  // Optional: where a match began when not at its first command (a stored tutorial checkpoint).
+  const startedDescriptor = Object.getOwnPropertyDescriptor(input, 'startedFrom');
+  if (startedDescriptor && (!startedDescriptor.enumerable || !Object.hasOwn(startedDescriptor, 'value'))) return failure('INVALID_LOCAL_RUNTIME');
   if (modePolicy !== null && ['authorize', 'accepted'].some(key => {
     const method = Object.getOwnPropertyDescriptor(modePolicy, key);
     return !method || !Object.hasOwn(method, 'value') || typeof method.value !== 'function';
@@ -118,8 +121,10 @@ export function createLocalRuntimeCoordinator(input) {
   const eventFeeds = new Map(seatIds.map(id => [id, []]));
   const eventFaults = new Set();
   const sandboxActions = new Set(['sandboxAddCard', 'sandboxSelectActiveSeat']);
-  // Only a match watched from its first command can be played again.
-  const started = createMatchRecord(authority);
+  // Only a match watched from its first command can be played again; one begun from a stored point is recorded
+  // from there and marked as not replayable.
+  const started = createMatchRecord(authority, startedDescriptor ? startedDescriptor.value : null);
+  if (startedDescriptor && !started.ok) return failure('INVALID_LOCAL_RUNTIME');
   let record = started.ok ? started.value : null;
   const commit = (binding, intent, capability = false) => {
     if (!active) return failure('PORT_COORDINATOR_DISPOSED');

@@ -9,6 +9,8 @@ const failure = (code, index = null) => ({ ok: false, error: { code, ...(index =
 // Each command must be accepted again, or the record does not describe this build.
 export function replayMatchRecord(record) {
   if (record?.kind !== MATCH_RECORD_KIND || record.schemaVersion !== MATCH_RECORD_VERSION) return failure('RECORD_UNSUPPORTED');
+  // A match begun from a stored point has no board in its record to start from.
+  if (Object.hasOwn(record, 'startedFrom') || record.replayable === false) return failure('RECORD_NOT_REPLAYABLE');
   const created = createMatchAuthority(structuredClone(record.game));
   if (!created.ok) return created;
   let authority = created.value;
