@@ -1,17 +1,37 @@
-// Decorative only: game results and controls remain HTML when WebGL is unavailable.
-// A loss or a draw gets the scanning shader; a win gets dot confetti.
+// Decorative only: the end screen's outcome and buttons stay HTML. A win gets dot confetti; a defeat the same confetti
+// with noise running through it once it is up, and on (文豪, 2026-11-01); a draw nothing for now.
 let active = null;
 
 export function syncResultFx(root, enabled) {
   const canvas = enabled && !matchMedia("(prefers-reduced-motion: reduce)").matches
     ? root.querySelector(".r2-result-fx") : null;
-  if (active?.canvas === canvas) return;
+  // A patch keeps the canvas when only the outcome changes (the other seat's view): the effect restarts for it.
+  const outcome = canvas?.closest("[data-outcome]")?.dataset.outcome;
+  if (active?.canvas === canvas && active?.outcome === outcome) return;
   active?.dispose();
   active = null;
   if (!canvas) return;
-  const outcome = canvas.closest("[data-outcome]")?.dataset.outcome;
-  const dispose = outcome === "win" ? confetti(canvas) : scanShader(canvas, outcome === "draw" ? [1,.75,.27] : [1,.19,.45]);
-  if (dispose) active = { canvas, dispose };
+  const dispose = outcome === "win" ? confetti(canvas) : outcome === "defeat" ? confetti(canvas, { noise: true }) : null;
+  if (dispose) active = { canvas, outcome, dispose };
+}
+
+// The defeat's noise: it starts once the burst is up and grows to full over a second, then keeps running. Bands of the
+// screen torn sideways under a red or cyan cast, static, and scan lines, so it reads as a broken signal, not more dots.
+export const NOISE = Object.freeze({ after: 0.9, rise: 1, tears: 5, shift: 9, static: .03, lines: 3,
+  colors: ["#ff3d5a","#29dbff","#9aa3b5","#f6f8fc"], casts: ["#ff3d5a38","#29dbff30"] });
+
+// Pure: one frame of noise on a width x height dot grid at strength 0..1.
+export function noiseFrame(random, width, height, strength) {
+  if (strength <= 0) return { tears: [], dots: [], lines: [] };
+  const tears = Array.from({ length: Math.max(1, Math.round(NOISE.tears * strength * (.5 + random()))) }, () => {
+    const y = Math.floor(random() * height), h = 1 + Math.floor(random() * 4);
+    return { y, h: Math.min(h, height - y), dx: Math.round((random() * 2 - 1) * NOISE.shift * strength) || 1,
+      cast: NOISE.casts[Math.floor(random() * NOISE.casts.length)] };
+  });
+  const dots = Array.from({ length: Math.round(width * height * NOISE.static * strength) }, () => ({
+    x: Math.floor(random() * width), y: Math.floor(random() * height), color: NOISE.colors[Math.floor(random() * NOISE.colors.length)] }));
+  const lines = Array.from({ length: Math.max(1, Math.round(NOISE.lines * strength)) }, () => Math.floor(random() * height));
+  return { tears, dots, lines };
 }
 
 // PS1 style confetti: square dots on a coarse grid, stepped at a low frame rate.
@@ -43,12 +63,12 @@ export function stepPiece(piece, dt) {
   return piece;
 }
 
-function confetti(canvas) {
-  const g = canvas.getContext("2d");
+function confetti(canvas, { noise = false } = {}) {
+  const g = canvas.getContext("2d", noise ? { willReadFrequently: true } : undefined);
   if (!g) return null;
   canvas.classList.add("is-dots");
   const random = Math.random;
-  let width = 0, height = 0, pieces = [], frame = 0, last = 0, stopped = false;
+  let width = 0, height = 0, pieces = [], frame = 0, last = 0, started = 0, stopped = false;
   const resize = () => {
     const w = Math.max(1, Math.round(canvas.clientWidth / CONFETTI.dot)), h = Math.max(1, Math.round(canvas.clientHeight / CONFETTI.dot));
     if (w === width && h === height) return;
@@ -61,7 +81,7 @@ function confetti(canvas) {
     frame = requestAnimationFrame(draw);
     if (last && now - last < 1000 / CONFETTI.fps) return;
     const dt = last ? Math.min(.1, (now - last) / 1000) : 0;
-    last = now;
+    last = now; started ||= now;
     resize();
     g.clearRect(0, 0, width, height);
     for (let i = 0; i < pieces.length; i++) {
@@ -72,63 +92,17 @@ function confetti(canvas) {
       g.fillStyle = face < .35 ? "#0b1424" : piece.color;
       g.fillRect(Math.round(piece.x), Math.round(piece.y), face < .35 ? 1 : piece.size, piece.size);
     }
+    if (noise) {
+      const shown = noiseFrame(random, width, height, Math.min(1, Math.max(0, ((now - started) / 1000 - NOISE.after) / NOISE.rise)));
+      for (const tear of shown.tears) {
+        g.putImageData(g.getImageData(0, tear.y, width, tear.h), tear.dx, tear.y);
+        g.fillStyle = tear.cast; g.fillRect(0, tear.y, width, tear.h);
+      }
+      for (const dot of shown.dots) { g.fillStyle = dot.color; g.fillRect(dot.x, dot.y, 1, 1); }
+      g.fillStyle = "#ff3d5a55";
+      for (const line of shown.lines) g.fillRect(0, line, width, 1);
+    }
   };
   frame = requestAnimationFrame(draw);
   return () => { stopped = true; cancelAnimationFrame(frame); canvas.classList.remove("is-dots"); };
-}
-
-function scanShader(canvas, tintColor) {
-  const gl = canvas.getContext("webgl", { alpha: true, antialias: false, powerPreference: "low-power" });
-  if (!gl) return null;
-  const compile = (type, source) => {
-    const shader = gl.createShader(type);
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
-    gl.deleteShader(shader);
-    return null;
-  };
-  const vertex = compile(gl.VERTEX_SHADER, "attribute vec2 p; varying vec2 uv; void main(){uv=p*.5+.5;gl_Position=vec4(p,0.,1.);}");
-  const fragment = compile(gl.FRAGMENT_SHADER, `precision mediump float;
-    varying vec2 uv; uniform float t; uniform float aspect; uniform vec3 tint;
-    float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-    void main(){
-      vec2 q=uv; q.x*=aspect;
-      float ray=pow(max(0.,1.-abs(q.y-.5-0.05*sin(q.x*7.+t*.8))*5.),7.);
-      float grid=max(step(.982,fract(q.x*21.+t*.05)),step(.987,fract(q.y*30.-t*.08)))*.11;
-      float scan=step(.91,h(vec2(floor(q.y*110.),floor(t*11.))))*.18;
-      float sparks=step(.997,h(floor(q*vec2(150.,85.))+floor(t*9.)))*.6;
-      float pulse=.55+.45*sin(t*2.5+q.x*10.);
-      vec3 color=tint*(ray*.55+grid*pulse+scan+sparks);
-      gl_FragColor=vec4(color,clamp(ray*.27+grid+scan+sparks,0.,.62));
-    }`);
-  if (!vertex || !fragment) { if (vertex) gl.deleteShader(vertex); if (fragment) gl.deleteShader(fragment); return null; }
-  const program = gl.createProgram();
-  gl.attachShader(program, vertex); gl.attachShader(program, fragment); gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { gl.deleteShader(vertex); gl.deleteShader(fragment); gl.deleteProgram(program); return null; }
-  const buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]), gl.STATIC_DRAW);
-  gl.useProgram(program);
-  gl.enableVertexAttribArray(gl.getAttribLocation(program,"p"));
-  gl.vertexAttribPointer(gl.getAttribLocation(program,"p"),2,gl.FLOAT,false,0,0);
-  const time = gl.getUniformLocation(program,"t"), aspect = gl.getUniformLocation(program,"aspect"), tint = gl.getUniformLocation(program,"tint");
-  gl.uniform3fv(tint, tintColor);
-  let frame = 0, stopped = false;
-  const started = performance.now();
-  const draw = now => {
-    if (stopped) return;
-    const width = Math.max(1,Math.round(canvas.clientWidth * Math.min(devicePixelRatio || 1,2)));
-    const height = Math.max(1,Math.round(canvas.clientHeight * Math.min(devicePixelRatio || 1,2)));
-    if (canvas.width !== width || canvas.height !== height) { canvas.width=width; canvas.height=height; gl.viewport(0,0,width,height); }
-    gl.uniform1f(time,(now-started)/1000);
-    gl.uniform1f(aspect,width/height);
-    gl.drawArrays(gl.TRIANGLES,0,6);
-    frame = requestAnimationFrame(draw);
-  };
-  frame = requestAnimationFrame(draw);
-  // A lost context ends this decoration (the result stays HTML); it is not drawn again.
-  const lost = event => { event.preventDefault(); stopped = true; cancelAnimationFrame(frame); canvas.hidden = true; };
-  canvas.addEventListener("webglcontextlost", lost);
-  return () => { canvas.removeEventListener("webglcontextlost", lost); stopped = true; cancelAnimationFrame(frame); gl.deleteBuffer(buffer); gl.deleteProgram(program); gl.deleteShader(vertex); gl.deleteShader(fragment); };
 }

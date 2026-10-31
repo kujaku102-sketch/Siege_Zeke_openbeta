@@ -262,7 +262,7 @@ test("a tap on the guide's line goes to the guide, a tap on its buttons to the b
 
 test("while the guide speaks the match takes no input; a tap puts it away until the next step or a new reason", async () => {
   const surface = await readSource("../src/ui-refresh/runtime-match-surface.js");
-  assert.ok(surface.includes("const reading = Boolean(tutorial.ok && tutorial.value.presentation && !tutorial.value.away);"));
+  assert.ok(surface.includes("const reading = Boolean(tutorial.ok && tutorial.value.presentation && !tutorial.value.away && !tutorial.value.ended);"), 'the end screen is not locked');
   assert.ok(surface.includes("const forward = root.querySelector(press ? '.live-guide [data-runtime-guide-next]' : '.live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next])');"), "a step pointing at a button to press is a move");
   assert.ok(surface.includes("if (forward) { forward.click(); return; }\n    guideAway = { step: pageStep(tutorial.value.flow), reason: guideReason(tutorial.value) };"), "[次へ] where there is one, else put away");
   assert.ok(surface.includes("if (guideAway && guideAway.step !== pageStep(tutorial.value.flow)) guideAway = null;"), "back on the next step");
@@ -303,6 +303,41 @@ test("a picked, dragged-over or pointed-at board frame glows itself, no box over
   assert.ok(!/\d(px|rem)\b/.test(hand), "sizes in --u ratios only");
   const layout = await readSource("../src/ui-refresh/surface-layout.js");
   assert.ok(layout.includes("zone:`:is(.zone,.wire-board .board-slot:not([data-card-ref]))[data-seat=\"${seat}\"][data-zone=\"${focus.zone}\"]`"), "a zone on the 3D board is pointed at by its empty slots");
+});
+
+test("the end screen (文豪, 2026-11-01): CONGRATULATION! / DEFEAT / DRAW with save log, match menu and home; a tutorial's without the log and to its list", async () => {
+  const { runtimeResultHtml, RESULT_TITLES } = await import("../src/ui-refresh/runtime-log-view.js");
+  const match = (lockedOutcome, finished = true) => ({ finished, viewerSeat: "a", lockedOutcome });
+  assert.equal(runtimeResultHtml(match({ kind: "win", winnerSeat: "a" }, false)), "", "only once the match is finished");
+  const win = runtimeResultHtml(match({ kind: "win", winnerSeat: "a" }));
+  assert.match(win, /data-outcome="win"/);assert.match(win, />CONGRATULATION!<\/h2>/, "spelled as 文豪 wrote it");
+  assert.match(win, /<nav class="r2-result-actions"><button data-runtime-save-log>対戦ログを保存<\/button><button data-runtime-to-menu>対戦メニューに戻る<\/button><button data-runtime-title>ホームに戻る<\/button><\/nav>/);
+  assert.doesNotMatch(win, /data-runtime-rematch|data-runtime-result-close/, "the old window's buttons are gone");
+  assert.match(runtimeResultHtml(match({ kind: "win", winnerSeat: "b" })), /data-outcome="defeat"[\s\S]*>DEFEAT<\/h2>/);
+  assert.match(runtimeResultHtml(match({ kind: "draw" })), /data-outcome="draw"[\s\S]*>DRAW<\/h2>/);
+  const tutorial = runtimeResultHtml(match({ kind: "win", winnerSeat: "a" }), { tutorial: true });
+  assert.doesNotMatch(tutorial, /data-runtime-save-log/);assert.match(tutorial, /<button data-runtime-to-menu>チュートリアル選択へ<\/button><button data-runtime-title>ホームに戻る<\/button>/);
+  assert.deepEqual(Object.keys(RESULT_TITLES), ["win", "defeat", "draw"]);
+  const css = await readSource("../src/ui-refresh/result.css");
+  const actions = css.slice(css.indexOf(".r2-result-actions {"), css.indexOf(".r2-result-fx.is-dots"));
+  assert.ok(!/\d(px|rem)\b/.test(actions.replace("max(2.75rem,", "").replace("max(1rem,", "")), "sizes in --u ratios (a touch target's floor aside)");
+  const clicks = await readSource("../src/ui-refresh/surface-clicks.js");
+  assert.ok(clicks.includes("['data-runtime-tutorial-finish', c => c.endTutorial()],") && clicks.includes("['data-runtime-save-log', c => c.onSaveLog()],") && clicks.includes("['data-runtime-to-menu', c => c.onToMenu()],"));
+  assert.ok(!clicks.includes("data-runtime-result-close"));
+});
+
+test("the end screen's effect: a win's confetti; a defeat's confetti with noise rising after the burst and running on; a draw none", async () => {
+  const { NOISE, noiseFrame } = await import("../src/ui-refresh/result-fx.js");
+  let seed = 7;const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  assert.deepEqual(noiseFrame(random, 320, 180, 0), { tears: [], dots: [], lines: [] }, "nothing before it starts");
+  const full = noiseFrame(random, 320, 180, 1);
+  assert.ok(full.tears.length >= 1 && full.tears.every(tear => tear.y >= 0 && tear.y + tear.h <= 180 && tear.dx !== 0 && Math.abs(tear.dx) <= NOISE.shift && NOISE.casts.includes(tear.cast)));
+  assert.ok(full.lines.length === NOISE.lines && full.lines.every(line => line >= 0 && line < 180), "scan lines every frame at full strength");
+  assert.equal(full.dots.length, Math.round(320 * 180 * NOISE.static));
+  assert.ok(full.dots.every(dot => dot.x >= 0 && dot.x < 320 && dot.y >= 0 && dot.y < 180 && NOISE.colors.includes(dot.color)));
+  const fx = await readSource("../src/ui-refresh/result-fx.js");
+  assert.ok(fx.includes('const dispose = outcome === "win" ? confetti(canvas) : outcome === "defeat" ? confetti(canvas, { noise: true }) : null;'));
+  assert.ok(!fx.includes("scanShader"), "the old WebGL scan is gone");
 });
 
 test("a refused move: its card shakes where it stands, and the notice sits centred just above the hand", async () => {

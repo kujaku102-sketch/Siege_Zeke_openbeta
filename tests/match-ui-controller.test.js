@@ -58,11 +58,11 @@ test('rendered execution selection uses cards, current board structure and resul
   assert.match(html, /admin-row/);
   assert.match(html, /board-pick-guide/);
   assert.doesNotMatch(html, /data-runtime-confirm/);
-  assert.doesNotMatch(html, /data-runtime-rematch/);
+  assert.doesNotMatch(html, /class="r2-result /);
   const finished = { ...read.model, match: { ...read.model.match, finished: true,
     lockedOutcome: { kind: 'win', winnerSeat: 'a' } } };
-  assert.match(runtimeGameHtml(finished), /YOU WIN/);
-  assert.match(runtimeGameHtml(finished), /data-runtime-rematch/);
+  assert.match(runtimeGameHtml(finished), /CONGRATULATION!/);
+  assert.match(runtimeGameHtml(finished), /data-runtime-save-log/);
   assert.equal(ui.toggleMenu().value.model.ui.menuOpen, true);
   assert.equal(ui.toggleMenu().value.model.ui.menuOpen, false);
 });

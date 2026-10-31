@@ -270,17 +270,16 @@ export function runtimeLogHtml(events, viewerSeat) {
   return `<aside class="r2-log" role="dialog" aria-label="対戦ログ"><header><div><small>BATTLE RECORD <i>//</i> LOG.SYS</small><h2>対戦ログ</h2></div><button data-runtime-log aria-label="対戦ログを閉じる">×</button></header><div class="r2-log-scroll">${rows || '<p>行動はまだない</p>'}</div></aside>`;
 }
 
-// A tutorial's win, played or skipped to: the result window's dots fall behind the closing line. Read from the state,
-// not from the event feed: a win board started as a new match has no events.
-export function tutorialWinHtml(match) {
-  if (!match.finished || !match.lockedOutcome?.winnerSeat || match.lockedOutcome.winnerSeat !== match.viewerSeat) return '';
-  return '<div class="r2-tutorial-win" data-outcome="win" aria-hidden="true"><canvas class="r2-result-fx"></canvas></div>';
-}
+// The match's end screen (文豪, 2026-11-01), for a match and a tutorial alike: CONGRATULATION! with the dots, DEFEAT
+// with the dots and noise running through them, and the ways on. A draw is not in 文豪's word yet: DRAW, no effect.
+// A tutorial has no log to save and goes back to its own list. Read from the state, not from the event feed: a win
+// board started as a new match has no events.
+export const RESULT_TITLES = Object.freeze({ win: 'CONGRATULATION!', defeat: 'DEFEAT', draw: 'DRAW' });
 
-export function runtimeResultHtml(match) {
+export function runtimeResultHtml(match, { tutorial = false } = {}) {
   if (!match.finished) return '';
   const outcome = match.lockedOutcome;
   const kind = outcome?.kind === 'draw' ? 'draw' : outcome?.winnerSeat === match.viewerSeat ? 'win' : 'defeat';
-  const result = { win:'YOU WIN', defeat:'DEFEAT', draw:'DRAW' }[kind];
-  return `<aside class="r2-result is-${kind}" role="dialog" aria-label="対局結果" data-outcome="${kind}"><canvas class="r2-result-fx" aria-hidden="true"></canvas><h2 data-text="${result}">${result}</h2><button data-runtime-result-close>閉じる</button><button data-runtime-rematch>再戦</button><button data-runtime-title>タイトルに戻る</button></aside>`;
+  const title = RESULT_TITLES[kind];
+  return `<aside class="r2-result is-${kind}" role="dialog" aria-label="対局結果" data-outcome="${kind}"><canvas class="r2-result-fx" aria-hidden="true"></canvas><h2 data-text="${title}">${title}</h2><nav class="r2-result-actions">${tutorial ? '' : '<button data-runtime-save-log>対戦ログを保存</button>'}<button data-runtime-to-menu>${tutorial ? 'チュートリアル選択へ' : '対戦メニューに戻る'}</button><button data-runtime-title>ホームに戻る</button></nav></aside>`;
 }

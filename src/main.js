@@ -26,6 +26,7 @@ import { registerPwa } from './pwa.js';
 import { MATCH_LOGS, REPLAYS, loadStored, storedExport } from './adapters/match-record-store.js';
 import { archiveRetiredMatch } from './adapters/match-archive.js';
 import { sendMatchLog } from './adapters/match-log-sender.js';
+import { buildMatchLog } from './adapters/match-log.js';
 import { TUTORIAL_WIN_CHECKPOINT, loadTutorialWinBoard } from './tutorial-boards/index.js';
 
 // Host preferences never hold an engine state. One lifecycle owns the single
@@ -110,7 +111,7 @@ function attachSession(next) {
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
     effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;renderShell();},onTitle:leaveMatch,
     onRematch:() => {const result = lifecycle.rematch();if (result.ok) attachSession(result.value);else notice(result.error.code);},
-    onTutorialSkip:() => replaceTutorial(false),onTutorialComplete:() => replaceTutorial(true),onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}});
+    onTutorialSkip:skipTutorial,onSaveLog:saveMatchLog,onToMenu:() => leaveMatch(nextScreen('game',host.mode === 'tutorial' ? 'tutorial-complete' : 'match-menu')),onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}});
   if (mounted.ok) surface = mounted.value;else notice(mounted.error.code);
 }
 function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.getRandomValues(new Uint32Array(1))[0]) {
@@ -126,16 +127,21 @@ function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.
   if (result.ok) {host.mode = mode;host.tutorialId = tutorialId;attachSession(result.value);} else notice(result.error.code);
   return result;
 }
-// A finished tutorial (won, closing line shown) returns to the list on its [一覧へ戻る] (V092-08 Q4);
-// a skipped one starts its own win board as a new match, the opponent at STR 0 and the closing line
-// (文豪, 2026-10-29 and 2026-10-31), so it counts as cleared like a played one. The match left is retired like any replaced one.
-async function replaceTutorial(complete) {
-  if (complete) return leaveMatch(nextScreen('game','tutorial-complete'));
+// A finished match or tutorial ends on the end screen, whose buttons leave for the match menu (the tutorial list) or the
+// title (文豪, 2026-11-01). A skipped tutorial starts its own win board as a new match, the opponent at STR 0 and the closing
+// line (文豪, 2026-10-29 and 2026-10-31), so it counts as cleared like a played one. The match left is retired like any replaced one.
+async function skipTutorial() {
   const generation = shellGeneration, board = await loadTutorialWinBoard(host.tutorialId);
   // Left, or skipped already, while the board was read: nothing to skip any more.
   if (generation !== shellGeneration) return;
   const result = board.ok ? lifecycle.startFromCheckpoint({file:board.value,checkpointId:TUTORIAL_WIN_CHECKPOINT}) : board;
   if (result.ok) attachSession(result.value);else notice(result.error.code);}
+// The end screen's [対戦ログを保存]: this match's log as it stands, in the stored logs' own export form.
+function saveMatchLog() {
+  const replay = session?.matchRecord?.(), feed = replay?.ok ? session.port(session.scope().seatIds[0]).value?.events({afterEventId:null}) : null;
+  if (!feed?.ok) return notice(feed?.error?.code ?? replay?.error?.code ?? 'MATCH_RECORD_UNAVAILABLE');
+  downloadStored('match-log',MATCH_LOGS,[buildMatchLog(replay.value,feed.value.events,new Date())]);}
+function downloadStored(name,place,items) {const link = document.createElement('a');link.href = URL.createObjectURL(new Blob([storedExport(place,items)],{type:'application/json'}));link.download = `siege-zeke-${name}-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);}
 // Leaving a won tutorial by any way marks it finished in this browser (Q5).
 const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;
 function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = screen;host.options = false;host.catalogOpen = false;host.notice = '';renderShell(true);
@@ -194,7 +200,7 @@ root.addEventListener('click',event => {
     if (index < 0) host.savedDecks.push(draft);else host.savedDecks[index] = draft;host.savedDecks = saveDeckCollection(host.savedDecks);deck.draft = structuredClone(draft);}
   else if (button.hasAttribute('data-deck-delete')) {host.savedDecks = saveDeckCollection(host.savedDecks.filter(item => item.id !== deck.draft.id));newDeckDraft();}
   else if (button.hasAttribute('data-deck-export')) {const link = document.createElement('a');link.href = URL.createObjectURL(new Blob([JSON.stringify(host.savedDecks,null,2)],{type:'application/json'}));link.download = 'simple-zeke-decks.json';link.click();URL.revokeObjectURL(link.href);return;}
-  else if (d.storedExport) {const place = d.storedExport === 'logs' ? MATCH_LOGS : REPLAYS;const link = document.createElement('a');link.href = URL.createObjectURL(new Blob([storedExport(place,loadStored(localStorage,place))],{type:'application/json'}));link.download = `siege-zeke-${d.storedExport}-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);return;}
+  else if (d.storedExport) {const place = d.storedExport === 'logs' ? MATCH_LOGS : REPLAYS;downloadStored(d.storedExport,place,loadStored(localStorage,place));return;}
   else if (button.hasAttribute('data-toggle-send-logs')) {host.sendMatchLogs = !host.sendMatchLogs;localStorage.setItem(SEND_LOGS_STORAGE_KEY,host.sendMatchLogs ? 'on' : 'off');}
   else if (button.hasAttribute('data-title-tap-details')) {host.tapDetails = !host.tapDetails;surface?.configure({tapDetails:host.tapDetails});}
   else if (button.hasAttribute('data-toggle-effects')) {host.effectsEnabled = !host.effectsEnabled;localStorage.setItem('sz-ui-effects',host.effectsEnabled ? 'on' : 'off');surface?.configure({effectsEnabled:host.effectsEnabled});}
@@ -260,6 +266,6 @@ if (new URLSearchParams(location.search).get('e2e') === '1') window.__SIMPLE_ZEK
   queryAction:(input,seat = host.actor) => session?.port(seat).value?.queryAction(input),
   submit:(input,seat = host.actor) => {const result = session?.port(seat).value?.submit(input);surface?.refresh();return result;},
   sandbox:action => admin(action),scope:() => session?.scope() ?? null,tutorial:() => session?.tutorial(),
-  advanceTutorial:() => {const result = session?.advanceTutorial();surface?.refresh();return result;},skipTutorial:() => replaceTutorial(false),
+  advanceTutorial:() => {const result = session?.advanceTutorial();surface?.refresh();return result;},skipTutorial,
   refresh:() => surface?.refresh(),switchViewer:switchManualViewer
 });

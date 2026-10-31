@@ -6,8 +6,9 @@ const MOVES = Object.freeze({
   entry: Object.freeze({ 'open-tutorials': 'tutorial-select', 'open-battle': 'battle-setup', start: 'game' }),
   'tutorial-select': Object.freeze({ back: 'entry', start: 'game' }),
   'battle-setup': Object.freeze({ back: 'entry', start: 'game' }),
-  // A finished tutorial comes back to the list to show its mark (Q4); everything else leaves to the title.
-  game: Object.freeze({ leave: 'entry', 'tutorial-complete': 'tutorial-select' })
+  // A finished tutorial comes back to the list to show its mark (Q4); a finished match's end screen goes back to the
+  // match menu (文豪, 2026-11-01); everything else leaves to the title.
+  game: Object.freeze({ leave: 'entry', 'tutorial-complete': 'tutorial-select', 'match-menu': 'battle-setup' })
 });
 
 // The next screen, or null when the event does not move this screen (an unknown screen moves nowhere).

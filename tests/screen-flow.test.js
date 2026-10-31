@@ -64,6 +64,7 @@ test('screen flow: the title opens the tutorial list and the battle setup; each 
   }
   assert.equal(nextScreen('game', 'leave'), 'entry');
   assert.equal(nextScreen('game', 'tutorial-complete'), 'tutorial-select');
+  assert.equal(nextScreen('game', 'match-menu'), 'battle-setup');
 });
 
 test('screen flow: an event a screen does not take, or an unknown screen, moves nowhere', () => {
@@ -192,10 +193,13 @@ test('main wiring: flow buttons before title modes, Escape and [戻る] through 
     assert.ok(!/pushState|replaceState|popstate|location\.hash/.test(source), 'no history API (Q14)');
 });
 
-test('main wiring: a won tutorial is marked on its way out and its button returns to the list; a skipped one starts its own win board as a new match', async () => {
+test('main wiring: the end screen leaves for the match menu or the tutorial list, a won tutorial marked on its way out; a skipped one starts its own win board as a new match', async () => {
   const main = await readSource('../src/main.js');
-  const replace = main.slice(main.indexOf('async function replaceTutorial(complete) {'), main.indexOf('const tutorialWon'));
-  assert.ok(replace.includes("if (complete) return leaveMatch(nextScreen('game','tutorial-complete'));"));
+  const replace = main.slice(main.indexOf('async function skipTutorial() {'), main.indexOf('// The end screen\'s [対戦ログを保存]'));
+  // 文豪 2026-11-01: the end screen's second button: the tutorial list in a tutorial, the match menu otherwise.
+  assert.ok(main.includes("onToMenu:() => leaveMatch(nextScreen('game',host.mode === 'tutorial' ? 'tutorial-complete' : 'match-menu'))"));
+  assert.ok(main.includes('onSaveLog:saveMatchLog') && main.includes("downloadStored('match-log',MATCH_LOGS,[buildMatchLog(replay.value,feed.value.events,new Date())]);"),
+    'the log saved is this match\'s, in the stored logs\' export form');
   // 文豪 2026-10-29: skip goes to the tutorial's own STR 0 win (its closing line), not the sandbox; counted as cleared.
   // 2026-10-31: the win board is read as a new match, the match left is not rewritten.
   assert.ok(replace.includes('const generation = shellGeneration, board = await loadTutorialWinBoard(host.tutorialId);')

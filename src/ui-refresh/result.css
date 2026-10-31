@@ -1,7 +1,11 @@
-.r2-result { position:fixed; inset:0; z-index:90; display:grid; place-items:center; isolation:isolate; overflow:hidden; padding:calc(var(--u) * 1.25); color:#f6f8fc; background:rgba(4,8,17,.92); }
+/* The end screen (文豪, 2026-11-01): the outcome in the middle, its ways on in a column below it. */
+.r2-result { position:fixed; inset:0; z-index:90; display:grid; place-items:center; align-content:center; gap:calc(var(--u) * 2.5); isolation:isolate; overflow:hidden; padding:calc(var(--u) * 1.25); color:#f6f8fc; background:rgba(4,8,17,.92); }
 .r2-result-fx { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-/* A tutorial's win: the dots alone, over the board and under the guide's closing line. */
-.r2-tutorial-win { position:fixed; inset:0; z-index:var(--z-result); pointer-events:none; }
+.r2-result-actions { position:relative; display:grid; gap:calc(var(--u) * .75); width:min(calc(var(--u) * 22.5),80vw); }
+.r2-content .r2-result-actions button { min-height:max(2.75rem,calc(var(--u) * 3)); padding:0 calc(var(--u) * 1.25); border:.0625em solid #3a9d5d; border-radius:calc(var(--u) * .375); background:#0b1a18e6; color:#f3fff4;
+  font:400 max(1rem,calc(var(--u) * 1.125))/1.2 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.06em; }
+.r2-content .r2-result-actions button:hover { border-color:#00ff00; color:#00ff00; }
+.r2-content .r2-result-actions button:focus-visible { outline:calc(var(--u) * .125) solid #f9df8a; outline-offset:calc(var(--u) * .125); }
 .r2-result-fx.is-dots { image-rendering:pixelated; }
 /* PS1 tone: the dot font with hard stepped shadows, no blur. */
 .r2-result h2 { position:relative; margin:0; font-family:SZDotGothic,"Yu Gothic UI",sans-serif; font-weight:400; font-synthesis:none; font-size:clamp(calc(var(--u) * 3.25),11vw,calc(var(--u) * 10.5)); line-height:1; letter-spacing:.06em; color:var(--result-ink,#f6f8fc); text-shadow:.04em .04em 0 var(--result-shade,#123), .08em .08em 0 #050a14; }

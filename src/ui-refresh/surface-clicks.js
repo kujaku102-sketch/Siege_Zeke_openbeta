@@ -7,7 +7,10 @@ import { blockMessage } from './runtime-read-view.js';
 const BUTTONS = [
   ['data-runtime-title', c => c.onTitle()],
   ['data-runtime-tutorial-skip', c => c.onTutorialSkip()],
-  ['data-runtime-tutorial-finish', c => c.onTutorialComplete()],
+  ['data-runtime-tutorial-finish', c => c.endTutorial()],
+  // The end screen (runtime-log-view.js, runtimeResultHtml): the match's log saved, back to the match menu or the tutorial list.
+  ['data-runtime-save-log', c => c.onSaveLog()],
+  ['data-runtime-to-menu', c => c.onToMenu()],
   ['data-runtime-guide-next', c => c.turnGuidePage(1)],
   ['data-runtime-guide-prev', c => c.turnGuidePage(-1)],
   // The tried play moves the step on and its reason shows in the guide for that step (not a shell notice).
@@ -18,7 +21,6 @@ const BUTTONS = [
   ['data-runtime-profile-close', c => c.act(c.ui.closeProfile())],
   ['data-runtime-art', (c, target) => c.act(c.ui.openArt(target.dataset.runtimeArt))],
   ['data-runtime-art-close', c => c.act(c.ui.closeArt())],
-  ['data-runtime-result-close', c => c.act(c.ui.dismissResult())],
   ['data-runtime-rematch', c => c.onRematch()],
   ['data-runtime-menu', c => c.onMenu ? c.onMenu() : c.act(c.ui.toggleMenu())],
   // Held, not clicked: count-peek.js shows the counts while it is down.

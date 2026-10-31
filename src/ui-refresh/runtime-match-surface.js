@@ -44,7 +44,7 @@ export function lockRegion(host, locked) {
 // It wires the parts together; each surface-*.js module owns one concern.
 export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSeat = null,
   onTitle = () => {}, onRematch = () => {}, onMenu = null, onError = () => {},
-  onTutorialSkip = () => {}, onTutorialComplete = () => {}, onNoticeClear = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY, lowGpu = false, onContextLost = () => {} }) {
+  onTutorialSkip = () => {}, onToMenu = () => {}, onSaveLog = () => {}, onNoticeClear = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY, lowGpu = false, onContextLost = () => {} }) {
   const created = createMatchUiController({ session, viewerSeat });
   if (!created.ok) return created;
   const ui = created.value;
@@ -100,6 +100,9 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   // While the guide speaks the match takes no input (文豪, 2026-10-28). A tap on its line does what [次へ] would; on a
   // step that asks for a move, where there is none, it puts the guide away until the next step or a refused move.
   let guideAway = null;
+  // The closing line read (its [次へ]), the guide leaves and the end screen comes up (文豪, 2026-11-01).
+  let tutorialEnded = false;
+  const endTutorial = () => { tutorialEnded = true; const read = ui.read(); if (read.ok) render(read); };
   const guideReason = value => value.flow.error || (tutorialNote?.index === value.flow.index ? tutorialNote.text : '') || '';
   const tutorialView = () => {
     const tutorial = session.tutorial();
@@ -109,7 +112,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     const note = tutorialNote?.index === tutorial.value.flow.index ? { note: tutorialNote.text } : {};
     if (guideAway && guideAway.step !== pageStep(tutorial.value.flow)) guideAway = null;
     const away = guideAway?.reason === guideReason(tutorial.value) ? { away: true } : {};
-    return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}), ...away } };
+    const ended = tutorialEnded && tutorial.value.flow.complete ? { ended: true } : {};
+    return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}), ...away, ...ended } };
   };
   const tapGuide = () => {
     const tutorial = session.tutorial();
@@ -245,7 +249,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       log.sync(next,shellRebuilt);
       // While the guide speaks the match waits: past its pages, and on a move's step until a tap puts it away. A popup,
       // pick or detail left open when it comes back waits too (a phone tap on a card fell on a popup's button).
-      const reading = Boolean(tutorial.ok && tutorial.value.presentation && !tutorial.value.away);
+      const reading = Boolean(tutorial.ok && tutorial.value.presentation && !tutorial.value.away && !tutorial.value.ended);
       for (const name of ['board', 'console', 'hand', 'hand-toggle', 'popup', 'selection', 'detail', 'drawer']) { const host = root.querySelector(`[data-live-region="${name}"]`); if (host) lockRegion(host, reading); }
       root.querySelector('.r2-runtime-view')?.classList.toggle('tutorial-reading', reading);
       // Compat render mode: the guide drops its backdrop blur (heavy on WebKit) and keeps an opaque face.
@@ -314,7 +318,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   });
   const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,
-    onTitle, onTutorialSkip, onTutorialComplete, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide };
+    onTitle, onTutorialSkip, onToMenu, onSaveLog, endTutorial, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide };
   listener('click', event => {
     if (disposed || event.target.closest('[data-ability-help]')) return;
     if (suppressedPointerId !== null) {
