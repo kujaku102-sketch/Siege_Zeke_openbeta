@@ -192,12 +192,17 @@ test('main wiring: flow buttons before title modes, Escape and [戻る] through 
     assert.ok(!/pushState|replaceState|popstate|location\.hash/.test(source), 'no history API (Q14)');
 });
 
-test('main wiring: a won tutorial is marked on its way out and its button returns to the list; a skipped one jumps to its own win in the same match', async () => {
+test('main wiring: a won tutorial is marked on its way out and its button returns to the list; a skipped one starts its own win board as a new match', async () => {
   const main = await readSource('../src/main.js');
-  const replace = main.slice(main.indexOf('function replaceTutorial(complete) {'), main.indexOf('const tutorialWon'));
+  const replace = main.slice(main.indexOf('async function replaceTutorial(complete) {'), main.indexOf('const tutorialWon'));
   assert.ok(replace.includes("if (complete) return leaveMatch(nextScreen('game','tutorial-complete'));"));
   // 文豪 2026-10-29: skip goes to the tutorial's own STR 0 win (its closing line), not the sandbox; counted as cleared.
-  assert.ok(replace.includes('const result = lifecycle.skipTutorialToWin();') && replace.includes('surface?.refresh();'));
+  // 2026-10-31: the win board is read as a new match, the match left is not rewritten.
+  assert.ok(replace.includes('const generation = shellGeneration, board = await loadTutorialWinBoard(host.tutorialId);')
+    && replace.includes('if (generation !== shellGeneration) return;')
+    && replace.includes('lifecycle.startFromCheckpoint({file:board.value,checkpointId:TUTORIAL_WIN_CHECKPOINT})')
+    && replace.includes('if (result.ok) attachSession(result.value);else notice(result.error.code);'));
+  assert.ok(!replace.includes('skipTutorialToWin'), 'the match left is not played on');
   assert.ok(!replace.includes('lifecycle.skipTutorial()') && !replace.includes("host.mode = 'sandbox'"), 'no sandbox after a skip');
   assert.ok(!replace.includes('markTutorialDone'), 'marked on the way out, by tutorialWon');
   assert.ok(main.includes("const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;"));

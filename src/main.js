@@ -26,6 +26,7 @@ import { registerPwa } from './pwa.js';
 import { MATCH_LOGS, REPLAYS, loadStored, storedExport } from './adapters/match-record-store.js';
 import { archiveRetiredMatch } from './adapters/match-archive.js';
 import { sendMatchLog } from './adapters/match-log-sender.js';
+import { TUTORIAL_WIN_CHECKPOINT, loadTutorialWinBoard } from './tutorial-boards/index.js';
 
 // Host preferences never hold an engine state. One lifecycle owns the single
 // Authority; all game actions go through the current bound seat ports.
@@ -126,12 +127,15 @@ function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.
   return result;
 }
 // A finished tutorial (won, closing line shown) returns to the list on its [一覧へ戻る] (V092-08 Q4);
-// a skipped one jumps, in the same match, to its own win with the opponent at STR 0 and the closing line
-// (文豪, 2026-10-29), so it counts as cleared like a played one.
-function replaceTutorial(complete) {
+// a skipped one starts its own win board as a new match, the opponent at STR 0 and the closing line
+// (文豪, 2026-10-29 and 2026-10-31), so it counts as cleared like a played one. The match left is retired like any replaced one.
+async function replaceTutorial(complete) {
   if (complete) return leaveMatch(nextScreen('game','tutorial-complete'));
-  const result = lifecycle.skipTutorialToWin();
-  if (!result.ok) return notice(result.error.code);surface?.refresh();}
+  const generation = shellGeneration, board = await loadTutorialWinBoard(host.tutorialId);
+  // Left, or skipped already, while the board was read: nothing to skip any more.
+  if (generation !== shellGeneration) return;
+  const result = board.ok ? lifecycle.startFromCheckpoint({file:board.value,checkpointId:TUTORIAL_WIN_CHECKPOINT}) : board;
+  if (result.ok) attachSession(result.value);else notice(result.error.code);}
 // Leaving a won tutorial by any way marks it finished in this browser (Q5).
 const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;
 function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = screen;host.options = false;host.catalogOpen = false;renderShell(true);
@@ -249,6 +253,9 @@ renderShell(true);registerPwa();
 // Explicit test-mode hook: semantic commands and detached safe reads only.
 if (new URLSearchParams(location.search).get('e2e') === '1') window.__SIMPLE_ZEKE_E2E__ = Object.freeze({
   start:(mode,tutorialId = 'basics',seed = 1) => {const result = startMatch(mode,tutorialId,seed);return result.ok ? {ok:true,value:session.scope()} : result;},
+  // A tutorial started as a new match from one of its checkpoints (the test repository's step-by-step files).
+  startFromCheckpoint:(file,checkpointId) => {const result = lifecycle.startFromCheckpoint({file,checkpointId});
+    if (!result.ok) return result;host.mode = 'tutorial';host.tutorialId = file.tutorialId;attachSession(result.value);return {ok:true,value:session.scope()};},
   query:(seat = host.actor,input) => session?.port(seat).value?.query(input) ?? {ok:false,error:{code:'MATCH_UNAVAILABLE'}},
   queryAction:(input,seat = host.actor) => session?.port(seat).value?.queryAction(input),
   submit:(input,seat = host.actor) => {const result = session?.port(seat).value?.submit(input);surface?.refresh();return result;},
