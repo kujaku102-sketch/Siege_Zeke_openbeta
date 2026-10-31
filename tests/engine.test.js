@@ -1786,6 +1786,8 @@ test("STD-040 and STD-045 access a textless Ob and drag it with the correct slee
     assert.equal(placed.sleep, expectedSleep);
     assert.equal(state.events.findLast((event) => event.type === "card_placed" && event.cardUid === vanilla.uid)?.placementCause, "access_drag");
     assert.equal(state.events.some((event) => event.type === "card_executed" && event.cardUid === vanilla.uid), false);
+    // A drag is an effect placement (rulebook: the placement is announced as one).
+    assert.equal(state.events.some((event) => event.type === "card_effect_placed" && event.cardUid === vanilla.uid && event.to === "back"), true);
     assert.equal(player.deck.some((card) => card.uid === effectful.uid), true);
   }
 });
@@ -4010,7 +4012,7 @@ test("STD-177 and STD-178 suspend combat and apply next-turn timed modifiers", (
   assert.equal(cardHasKeyword(attacker, "SECURITY"), true);
 });
 
-test("STD-180 resolves insect Access before its insect Login damage trigger", () => {
+test("STD-180 resolves insect Ob Access before its insect placement damage trigger, for execution and for effect placement", () => {
   const state = createGame({ mode: "lab", rng: () => 0.5 });
   const cocoon = createCardInstance("STD-180", "player", 900030);
   const insect = createCardInstance("STD-173", "player", 900031);
@@ -4025,6 +4027,15 @@ test("STD-180 resolves insect Access before its insect Login damage trigger", ()
   assert.equal(state.pending?.request?.continuation?.type, "deal-selected-damage");
   assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [enemy.uid] }), true);
   assert.equal(enemy.damage, 2);
+
+  // An Insect Ob placed by an effect (a drag, say) damages too; one that is not an Ob does not.
+  const dragged = createCardInstance("STD-173", "player", 900033);
+  state.players.player.hand.push(dragged);
+  state.pending = { type: "access-drag-place", playerId: "player", sourceName: "test", queue: [dragged.uid], sourceUid: dragged.uid };
+  assert.equal(resolveAccessDragPlacement(state, "player", "back"), true);
+  assert.equal(state.pending?.request?.continuation?.type, "deal-selected-damage");
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [enemy.uid] }), true);
+  assert.equal(enemy.damage, 4);
 });
 
 test("STD-134 forces every attackable enemy Ob next turn and punishes Security attacks", () => {

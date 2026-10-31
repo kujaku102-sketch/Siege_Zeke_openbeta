@@ -192,7 +192,7 @@ export function placeCardByEffect(state, { sourceOwnerId, controllerId, cardUid,
     host.mounted.push(card);
     onPlaced?.(card, targetZone);
     emitCardPlacement(state, controllerId, card, targetZone, placementCause, sourceName);
-    if (placementCause !== "access_drag") emitEffectPlacement(state, controllerId, card, targetZone, sourceName);
+    emitEffectPlacement(state, controllerId, card, targetZone, sourceName);
     return { status: "placed", card, zoneName: targetZone };
   }
   const placement = placeByMode(state, controllerId, card, { zone: targetZone, from: sourceZone, source: sourceName, mode: placementMode });
@@ -202,7 +202,7 @@ export function placeCardByEffect(state, { sourceOwnerId, controllerId, cardUid,
   }
   onPlaced?.(card, targetZone);
   emitCardPlacement(state, controllerId, card, targetZone, placementCause, sourceName);
-  if (placementCause !== "access_drag") emitEffectPlacement(state, controllerId, card, targetZone, sourceName);
+  emitEffectPlacement(state, controllerId, card, targetZone, sourceName);
   return { status: "placed", card, zoneName: targetZone };
 }
 
