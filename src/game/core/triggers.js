@@ -188,7 +188,10 @@ function settleVictoryFactsOutsideResolution(state) {
 
 function drainTriggerQueueCore(state) {
   if (state.processingTriggers || state.effectDepth > 0 || parentEffectAwaitsOwnChoice(state)) return;
-  if ((state.interactive || state.runtimeContext) && state.triggerQueue.length > 1 && !state.triggerThread?.status?.includes("resolving")) {
+  // 4.7 / 4.7.1: nothing new starts (not a thread, not a sequential run) while a choice is open or a thread is being resolved;
+  // the queue is drained again when that choice is answered (effect end) or the thread ends.
+  if (state.pending || state.prompt || state.triggerThread?.status === "resolving") return;
+  if ((state.interactive || state.runtimeContext) && state.triggerQueue.length > 1) {
     const triggers = state.triggerQueue.splice(0);
     state.triggerThread = {
       id: `THREAD-${state.triggerSerial}`,
@@ -211,9 +214,6 @@ function drainTriggerQueueCore(state) {
     advanceTriggerThread(state);
     return;
   }
-  // 4.7: what is raised while a thread (or a trigger's open choice) is being resolved is a separate unit that starts after it; the
-  // queue is drained again when that choice is answered or the thread ends.
-  if (state.pending || state.prompt || state.triggerThread?.status === "resolving") return;
   state.processingTriggers = true;
   while (state.triggerQueue.length) {
     // A trigger that opened a choice holds the rest back until the choice is answered (4.7.1).
