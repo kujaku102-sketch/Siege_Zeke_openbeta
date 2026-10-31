@@ -208,6 +208,7 @@ test('main wiring: a won tutorial is marked on its way out and its button return
   assert.ok(main.includes("const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;"));
   assert.ok(main.includes("function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();"),
     'marked before the match is left, whichever way out');
+  assert.ok(main.includes("host.screen = screen;host.options = false;host.catalogOpen = false;host.notice = '';renderShell(true);"), 'a notice from the match does not follow onto the title or the list');
   assert.ok(main.includes('tutorialDone:readTutorialDone(globalThis.localStorage)'));
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
   assert.ok(!surface.includes('flow.complete && latest.model.requiredInput === null) schedule('), 'no automatic exit: the closing line stays until its button');

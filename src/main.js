@@ -138,7 +138,7 @@ async function replaceTutorial(complete) {
   if (result.ok) attachSession(result.value);else notice(result.error.code);}
 // Leaving a won tutorial by any way marks it finished in this browser (Q5).
 const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;
-function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = screen;host.options = false;host.catalogOpen = false;renderShell(true);
+function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = screen;host.options = false;host.catalogOpen = false;host.notice = '';renderShell(true);
   if (screen !== 'entry') root.querySelector('[data-flow-back]')?.focus({preventScroll:true});}
 // Entry flow screens move by their own buttons and Escape only, never by the browser history (Q14).
 // Focus follows the move (a re-render drops it to the body, out of reach of Escape): a flow screen
