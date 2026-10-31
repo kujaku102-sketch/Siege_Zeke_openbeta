@@ -8,7 +8,7 @@ for (const answer of ['decline', 'empty-selection']) {
   test(`Security -> Savage choice -> turn handoff accepts ${answer} without reopening Security`, () => {
     const recipe = (userId, color) => deckToRecipe({ userId, cards: recommendDeck({ userId, color }).cards });
     const made = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: {
-      matchId: `security-salvage-${answer}`, seatIds: ['self', 'enemy'], seed: 11,
+      matchId: `security-salvage-${answer}`, seatIds: ['self', 'enemy'], seed: 12,
       ruleVersion: '2.0', cardVersion: 'public', gameOptions: { mode: 'ai',
         playerUserId: 'doors_nt', aiUserId: 'savage_salvage',
         playerDeckRecipe: recipe('doors_nt', '赤'), aiDeckRecipe: recipe('savage_salvage', '黄') }
