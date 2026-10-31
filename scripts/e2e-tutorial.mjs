@@ -37,6 +37,9 @@ async function clickVisible(page,selector) {
   throw new Error('visible target unavailable: '+selector);
 }
 const read = page => page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.query());
+// A card just drawn or added flies in hidden while effects are on: wait until it lands, as a player would. The hand has
+// no button of its own to open it (the wireframe board, 8fa02f4).
+const cardShown = (page,selector) => page.locator(selector).first().waitFor({state:'visible',timeout:4000}).catch(() => {throw new Error('card never shown: '+selector);});
 // The guide (its portrait and speech frame) never covers what it asks the player to press: the step's highlights
 // (the popup button its move needs among them, 文豪 2026-10-28) and a pick's choices. Checked once the screen stops
 // moving, at every step's last page, every popup and every pick; all overlaps are listed when the run ends. Edges
@@ -201,7 +204,7 @@ async function action(page,type,id,preference={}) {
   if (!entry) throw new Error('legal action missing: '+type+' '+id);
   if (card) {
     const cardSelector='[data-card-ref="'+card.cardRef+'"]';
-    if (card.location?.zone === 'hand' && !await page.locator(cardSelector).first().isVisible()) await clickVisible(page,'[data-runtime-hand]');
+    if (card.location?.zone === 'hand') await cardShown(page,cardSelector);
     if (['front','back'].includes(card.location?.zone) && await page.locator('[data-layer="hand"]:not([hidden])').count()) await clickVisible(page,'[data-runtime-hand]');
     await clickVisible(page,cardSelector);
     await guideClear(page,'popup');
@@ -496,7 +499,7 @@ async function turnEndWithBadge(page,id,index) {
 async function tapCard(page,cardId,zone) {
   const card=cards((await read(page)).value).find(card => !card.faceDown && card.definition.id===cardId && card.location?.zone===zone);
   const selector='[data-card-ref="'+card.cardRef+'"]';
-  if (zone==='hand' && !await page.locator(selector).first().isVisible()) await clickVisible(page,'[data-runtime-hand]');
+  if (zone==='hand') await cardShown(page,selector);
   await clickVisible(page,selector);
 }
 // Red step 13: Atto's play button is highlighted in its popup; pressing it names the missing red symbol and the step moves on.
@@ -505,7 +508,7 @@ async function tryBlockedPlay(page,id,cardId) {
   await putAway(page);
   const card=cards((await read(page)).value).find(card => !card.faceDown && card.definition.id===cardId && card.location?.zone==='hand');
   const selector='[data-card-ref="'+card.cardRef+'"]';
-  if (!await page.locator(selector).first().isVisible()) await clickVisible(page,'[data-runtime-hand]');
+  await cardShown(page,selector);
   await clickVisible(page,selector);
   await page.locator('.r2-popup[data-card-id="'+cardId+'"] [data-tutorial-try].live-focus').waitFor({state:'attached',timeout:3000}).catch(() => {throw new Error('the blocked play is not highlighted in its popup');});
   await guideClear(page,'popup');

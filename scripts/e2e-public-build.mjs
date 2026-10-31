@@ -377,11 +377,12 @@ async function runNormalVictory({page,base,browser}) {
     const card=shownCards(query).find(card=>card.cardRef===ref);if(!card)throw new Error('victory source is not visible');
     const source='[data-card-ref="'+ref+'"]';
     await page.locator(source).first().waitFor({state:'attached',timeout:2000});
-    const sourceVisible=await page.locator(source).evaluateAll(nodes=>nodes.some(node=>{
+    // A card just added flies in hidden while effects are on: wait until it lands, as a player would. The hand has no
+    // button of its own to open it (the wireframe board, 8fa02f4).
+    await page.waitForFunction(source=>[...document.querySelectorAll(source)].some(node=>{
       const rect=node.getBoundingClientRect(),style=getComputedStyle(node);
       return rect.width>0&&rect.height>0&&style.visibility!=='hidden'&&style.display!=='none';
-    }));
-    if(card.location?.zone==='hand'&&!sourceVisible)await visibleClick('[data-runtime-hand]');
+    }),source,{timeout:4000}).catch(()=>{throw new Error('victory source never shown: '+source);});
     // The first touch on a lowered hand only raises it, and a raised hand lowers itself 2.5s after the last touch:
     // like a player, tap again when the card did not take the selection.
     for(let attempt=0;;attempt+=1){
