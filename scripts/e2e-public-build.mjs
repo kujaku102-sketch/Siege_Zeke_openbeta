@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
@@ -442,6 +442,23 @@ async function runNormalVictory({page,base,browser}) {
   let query=await readQuery();const denied=await page.evaluate(input=>window.__SIMPLE_ZEKE_E2E__.submit(input),{
     commandId:'finished-play',expectedRevision:query.status.revision,action:{type:'executeSpell',cardRef:forbidden,targets:[],selectionScope:null}});
   if(denied?.ok&&denied.value.kind==='accepted')throw new Error('finished match accepted new play');
+  // The end screen (文豪, 2026-11-01): CONGRATULATION! and its three ways on. The log saved is this match's, in the stored
+  // logs' export form; seen from the losing seat it reads DEFEAT; [対戦メニューに戻る] leaves for the match menu.
+  const endScreen=()=>page.evaluate(()=>({outcome:document.querySelector('.r2-result')?.dataset.outcome,title:document.querySelector('.r2-result h2')?.textContent,
+    buttons:[...document.querySelectorAll('.r2-result-actions button')].map(button=>button.textContent)}));
+  let end=await endScreen();
+  if(end.outcome!=='win'||end.title!=='CONGRATULATION!'||end.buttons.join()!=='対戦ログを保存,対戦メニューに戻る,ホームに戻る')throw new Error('win end screen wrong '+JSON.stringify(end));
+  const finishedId=(await scope()).matchId;
+  const [download]=await Promise.all([page.waitForEvent('download',{timeout:5000}),visibleClick('.r2-result [data-runtime-save-log]')]);
+  const savedLog=JSON.parse(readFileSync(await download.path(),'utf8'));
+  if(savedLog.items?.length!==1||savedLog.items[0].matchId!==finishedId||savedLog.items[0].finished!==true)throw new Error('saved match log is not this match '+JSON.stringify({kind:savedLog.kind,items:savedLog.items?.length}));
+  await page.evaluate(()=>window.__SIMPLE_ZEKE_E2E__.switchViewer('ai'));
+  await page.waitForFunction(()=>document.querySelector('.r2-result')?.dataset.outcome==='defeat',null,{timeout:3000}).catch(()=>{});
+  end=await endScreen();
+  if(end.title!=='DEFEAT'||end.buttons.join()!=='対戦ログを保存,対戦メニューに戻る,ホームに戻る')throw new Error('defeat end screen wrong '+JSON.stringify(end));
+  await visibleClick('.r2-result [data-runtime-to-menu]');
+  await page.locator('[data-flow-screen="battle-setup"]').waitFor({state:'visible',timeout:5000}).catch(()=>{throw new Error('[対戦メニューに戻る] did not reach the match menu');});
+  if(await scope()!==null)throw new Error('the match stayed after [対戦メニューに戻る]');
 
   await fresh();await setActive('ai');const script=await add('STD-003','ai');
   await play('executeCard',script,'ai',option=>option.zone==='back');await setActive('player');
@@ -467,6 +484,9 @@ async function runNormalVictory({page,base,browser}) {
   await answer(query,response15Predicate);
   if((await readQuery('ai')).status.revision<=response15Revision)throw new Error('STD-015 declaration did not advance revision');
   await assertFinished(gun,'STD-015',response15Cleanup);
+  // [ホームに戻る] leaves for the title.
+  await visibleClick('.r2-result [data-runtime-title]');
+  await page.locator('.r2-entry').waitFor({state:'visible',timeout:5000}).catch(()=>{throw new Error('[ホームに戻る] did not reach the title');});
 
   page=await browser.newPage({viewport:{width:844,height:390},hasTouch:true,isMobile:true});touch=true;
   page.on('pageerror',error=>errors.push(error.message));target=new URL('mobile/',base);target.searchParams.set('e2e','1');

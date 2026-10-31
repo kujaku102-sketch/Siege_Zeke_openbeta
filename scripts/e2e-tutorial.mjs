@@ -572,9 +572,10 @@ async function step(page,id,index) {
   if (await page.locator('.wire-board .wf-tutorial-hint:not([hidden])').count()) throw new Error('the hint stays with the guide speaking at '+id+':'+index);
   await guideClear(page,'page');
 }
-// V092-08 Q4/Q5: the winning attack ends the tutorial on its closing line (no result window); its button
-// leaves the match for the tutorial list, marked done in this browser.
-async function completionReturnsToList(page,id) {
+// V092-08 Q4/Q5: the winning attack ends the tutorial on its closing line; its [次へ] brings the end screen up
+// (文豪, 2026-11-01): CONGRATULATION!, no log to save, [チュートリアル選択へ] and [ホームに戻る]. Either leaves the
+// match, the tutorial marked done in this browser.
+async function completionReturnsToList(page,id,way='menu') {
   await page.waitForFunction(() => window.__SIMPLE_ZEKE_E2E__.tutorial().value?.flow.complete,null,{timeout:10000});
   await readPages(page);
   await page.locator('.live-guide [data-runtime-tutorial-finish]').waitFor({state:'visible',timeout:10000});
@@ -583,12 +584,16 @@ async function completionReturnsToList(page,id) {
     result:Boolean(document.querySelector('.r2-result')),won:window.__SIMPLE_ZEKE_E2E__.query().value?.status.lockedOutcome?.winnerSeat,
     opponentStr:window.__SIMPLE_ZEKE_E2E__.query().value?.observation.seats.find(seat => seat.seatId!=='player')?.fortressStr}));
   if (!closing.text.includes('勝利') || closing.skip || closing.result || closing.won!=='player' || closing.opponentStr!==0) throw new Error('closing line wrong: '+JSON.stringify(closing));
-  // The win, played or skipped to, keeps the result window's dots behind the closing line (from the state, not the feed).
-  if (!await page.locator('.r2-tutorial-win[data-outcome="win"] canvas.r2-result-fx').count()) throw new Error(id+': no win dots behind the closing line');
   await clickVisible(page,'[data-runtime-tutorial-finish]');
-  await page.locator('[data-flow-screen="tutorial-select"]').waitFor({state:'visible',timeout:10000});
-  const state=await page.evaluate(id => ({scope:window.__SIMPLE_ZEKE_E2E__.scope(),done:document.querySelector(`[data-tutorial-item="${id}"]`)?.dataset.done,
+  await page.locator('.r2-result[data-outcome="win"]').waitFor({state:'visible',timeout:5000}).catch(() => {throw new Error(id+': no end screen after the closing line');});
+  const screen=await page.evaluate(() => ({title:document.querySelector('.r2-result h2')?.textContent,guide:Boolean(document.querySelector('.live-guide')),
+    buttons:[...document.querySelectorAll('.r2-result-actions button')].map(button => button.textContent),locked:Boolean(document.querySelector('.r2-result').closest('[inert]'))}));
+  if (screen.title!=='CONGRATULATION!' || screen.guide || screen.locked || screen.buttons.join()!=='チュートリアル選択へ,ホームに戻る') throw new Error(id+': end screen wrong: '+JSON.stringify(screen));
+  await clickVisible(page,way==='menu' ? '.r2-result [data-runtime-to-menu]' : '.r2-result [data-runtime-title]');
+  await page.locator(way==='menu' ? '[data-flow-screen="tutorial-select"]' : '.r2-entry').waitFor({state:'visible',timeout:10000});
+  const state=await page.evaluate(id => ({scope:window.__SIMPLE_ZEKE_E2E__.scope(),done:document.querySelector(`[data-tutorial-item="${id}"]`)?.dataset.done ?? 'title',
     saved:JSON.parse(localStorage.getItem('sz-tutorial-done') ?? '[]'),board:Boolean(document.querySelector('[data-live-region="board"]'))}),id);
+  if (way!=='menu') state.done=state.saved.includes(id) ? 'true' : 'false';
   if (state.scope!==null || state.board) throw new Error('tutorial completion kept the match');
   if (state.done!=='true' || !state.saved.includes(id)) throw new Error('tutorial completion not marked: '+JSON.stringify(state));
 }
@@ -738,7 +743,8 @@ try {
       await page.waitForFunction(matchId => {const now=window.__SIMPLE_ZEKE_E2E__.scope();return now && now.matchId!==matchId;},scope.matchId,{timeout:10000})
         .catch(() => {throw new Error(id+': skip did not start the win board as a new match');});
       const won=await page.evaluate(() => window.__SIMPLE_ZEKE_E2E__.scope().matchId);
-      await completionReturnsToList(page,id);
+      // Purple leaves its end screen by [ホームに戻る], still counted as cleared.
+      await completionReturnsToList(page,id,id==='vengeance' ? 'home' : 'menu');
       // Left, the skipped match is kept like a played one: its record marked as begun from the win board and not
       // replayable, and its log (the one sent when sending is on) carrying the same mark (文豪 #3, 2026-10-31).
       const kept=await page.evaluate(won => {const shelf=key => JSON.parse(localStorage.getItem(key) ?? '[]');
