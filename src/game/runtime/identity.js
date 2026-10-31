@@ -3,26 +3,25 @@ const positive = value => Number.isSafeInteger(value) && value > 0;
 const success = value => ({ ok: true, value });
 const failure = code => ({ ok: false, error: { code } });
 
+// A plain object holding exactly these own enumerable data properties, copied; otherwise null.
 function fields(value, names) {
-  if (value === null || typeof value !== 'object') return null;
+  if (value === null || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return null;
   const keys = Reflect.ownKeys(value);
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (Object.getPrototypeOf(value) !== Object.prototype || keys.length !== names.length) return null;
+  if (keys.length !== names.length) return null;
   const result = {};
   for (const key of keys) {
     if (typeof key !== 'string' || !names.includes(key)) return null;
-    const descriptor = descriptors[key];
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (!descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) return null;
-    Object.defineProperty(result, key, { value: descriptor.value, enumerable: true });
+    result[key] = descriptor.value;
   }
   return result;
 }
 
 function dense(value) {
-  if (value === null || typeof value !== 'object') return null;
+  if (value === null || typeof value !== 'object' || Object.getPrototypeOf(value) !== Array.prototype) return null;
   const keys = Reflect.ownKeys(value);
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (Object.getPrototypeOf(value) !== Array.prototype) return null;
   const length = descriptors.length;
   if (!length || !Object.hasOwn(length, 'value') || length.enumerable || length.configurable || !Number.isInteger(length.value) || length.value < 0 || keys.length !== length.value + 1) return null;
   const result = [];
@@ -98,19 +97,18 @@ function recordsShape(value) {
   return success(records);
 }
 
+const LOCATION_LAYOUTS = {
+  zone: ['kind', 'seatId', 'zone'], board: ['kind', 'seatId', 'zone', 'position'],
+  mounted: ['kind', 'host', 'order', 'role'], inflight: ['kind', 'storageKey'],
+};
+
 function rawLocation(value) {
-  if (value === null || typeof value !== 'object') return null;
-  const keys = Reflect.ownKeys(value);
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (Object.getPrototypeOf(value) !== Object.prototype || keys.some(key => typeof key !== 'string')) return null;
-  const kind = descriptors.kind;
+  if (value === null || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return null;
+  if (Reflect.ownKeys(value).some(key => typeof key !== 'string')) return null;
+  const kind = Object.getOwnPropertyDescriptor(value, 'kind');
   if (!kind || !kind.enumerable || !Object.hasOwn(kind, 'value')) return null;
-  const layouts = {
-    zone: ['kind', 'seatId', 'zone'], board: ['kind', 'seatId', 'zone', 'position'],
-    mounted: ['kind', 'host', 'order', 'role'], inflight: ['kind', 'storageKey'],
-  };
-  if (typeof kind.value !== 'string' || !Object.hasOwn(layouts, kind.value)) return null;
-  const loc = fields(value, layouts[kind.value]);
+  if (typeof kind.value !== 'string' || !Object.hasOwn(LOCATION_LAYOUTS, kind.value)) return null;
+  const loc = fields(value, LOCATION_LAYOUTS[kind.value]);
   if (!loc) return null;
   if (loc.kind === 'zone') return nonempty(loc.seatId) && ['deck', 'hand', 'registry', 'trash', 'ban'].includes(loc.zone) ? loc : null;
   if (loc.kind === 'board') return nonempty(loc.seatId) && ['front', 'back'].includes(loc.zone) && positive(loc.position) ? loc : null;

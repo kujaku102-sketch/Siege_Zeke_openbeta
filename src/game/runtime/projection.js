@@ -1,5 +1,5 @@
 import { executionCost } from '../engine.js';
-import { runtimeReadIdentityIndex } from './read-context.js';
+import { createRuntimeReadContext, runtimeReadIdentityIndex } from './read-context.js';
 import { queryRuntimeRead } from './query.js';
 import { createRuntimeReferenceLookup } from './references.js';
 import { cardForCost, safeCostView } from './projection/cost-view.js';
@@ -17,8 +17,10 @@ function envelope(action) {
   }
 }
 
-export function projectRuntimeView(engineState, referenceState, contextInput, readContext = null) {
+// Without a read context the call makes its own: the identity index is built once for the whole read.
+export function projectRuntimeView(engineState, referenceState, contextInput, suppliedContext = null) {
   return envelope(() => {
+    const readContext = suppliedContext ?? createRuntimeReadContext(engineState);
     const context = contextData(contextInput);
     ordinary(engineState);
     const runtime = own(engineState, 'runtimeContext');
@@ -129,8 +131,9 @@ export function projectRuntimeView(engineState, referenceState, contextInput, re
   });
 }
 
-export function inspectRuntimeCard(engineState,referenceState,contextInput,cardRef,readContext = null) {
+export function inspectRuntimeCard(engineState,referenceState,contextInput,cardRef,suppliedContext = null) {
   return envelope(() => {
+    const readContext = suppliedContext ?? createRuntimeReadContext(engineState);
     if (!token(cardRef)) reject(INPUT);
     const context = contextData(contextInput), built = runtimeReadIdentityIndex(engineState,readContext);
     if (!built.ok) reject(STATE);
