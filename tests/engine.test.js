@@ -6,6 +6,7 @@ import { CARD_ART } from "../src/data/card-art.generated.js";
 import { isObCard } from "../src/game/card-types.js";
 import { placeCardByEffect } from "../src/game/effects/generic/placement.js";
 import { executeRuntimeActions } from "../src/game/effects/generic/actions.js";
+import { drainTriggerQueue } from "../src/game/core/triggers.js";
 const STD_SUPPORTED_CARDS = CARD_LIBRARY;
 const VENGEANCE_CARDS = Object.fromEntries(Object.entries(CARD_LIBRARY).filter(([id]) => /^STD-(18[7-9]|19\d|20\d|21[0-2])$/.test(id)));
 const NEUTRON_CARDS = Object.fromEntries(Object.entries(CARD_LIBRARY).filter(([id]) => /^STD-(10[7-9]|11\d|12[0-4])$/.test(id)));
@@ -86,6 +87,13 @@ import { normalizeLayerState } from "../src/game/layer-state.js";
 
 // Several rules tests used the tutorial's first hands as a handy fixture. The red tutorial now follows the script
 // (Glenn / soldier / Atto / Junk Parts vs. Guardman), so the old four-card hands are rebuilt here from the decks.
+// A lab opening hand can hold a card whose own trigger opens a choice (STD-179 on a Script activation). A test that drives the
+// engine directly would leave that choice open, and a later trigger waits behind an open choice (4.7.1), so the card is set aside.
+const setAsideFromHand = (state, playerId, ...cardIds) => {
+  const owner = state.players[playerId];
+  owner.hand = owner.hand.filter((card) => !cardIds.includes(card.id));
+};
+
 function classicTutorialState() {
   const state = createGame({ mode: "tutorial" });
   const pull = (deck, id) => deck.splice(deck.findIndex((card) => card.id === id), 1)[0];
@@ -149,6 +157,7 @@ test("TriggerSpec, EventContext and ActivationWindow share one declarative trigg
 
 test("STD-159, STD-171 and STD-174 connect through common event activation windows", () => {
   const state = createGame({ mode: "lab" });
+  setAsideFromHand(state, "player", "STD-179");
   const player = state.players.player;
   const immortal = player.hand.find((card) => card.id === "STD-159");
   const statue = player.hand.find((card) => card.id === "STD-171");
@@ -182,6 +191,7 @@ test("STD-159, STD-171 and STD-174 connect through common event activation windo
 
 test("STD-183 triggers on own Script activation and Insect effect placement only", () => {
   const state = createGame({ mode: "lab" });
+  setAsideFromHand(state, "player", "STD-179");
   const player = state.players.player;
   const morpho = player.hand.find((card) => card.id === "STD-183");
   player.hand.splice(player.hand.indexOf(morpho), 1);
@@ -302,6 +312,7 @@ test("STD-197 triggers once per turn on enemy execution, accesses the same categ
 
 test("STD-208 reduces every enemy Ob by -1/0 whenever a Dolls Ob is destroyed while resident", () => {
   const state = createGame({ mode: "lab" });
+  setAsideFromHand(state, "player", "STD-179");
   const player = state.players.player;
   const enemy = state.players.ai;
   const thread = player.hand.find((card) => card.id === "STD-208");
@@ -8418,4 +8429,31 @@ test("a Script that an effect generates and places goes to the back only; a full
   assert.equal(owner.back.length, owner.user.backLimit);
   assert.ok(owner.trash.some((card) => card.id === "STD-165"));
   assert.ok(full.events.some((event) => event.type === "card_destroyed" && event.cardId === "STD-165" && event.ruleDestruction === true));
+});
+
+test("a queued trigger waits while a choice is open or a trigger thread is resolving, and runs once they are done (4.7, 4.7.1)", () => {
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  const source = createCardInstance("STD-021", "player", 21001);
+  const queued = (id) => ({ id, status: "waiting", source: { card: source, playerId: "player" }, event: { type: "test", id }, spec: { id: `test:${id}`, actions: [{ type: "deal_damage", target: "enemy_user", amount: 1 }] } });
+  const before = state.players.ai.fortressStr;
+
+  state.pending = { type: "selection", validTargets: [], request: { id: "SEL-test", mode: "single", candidates: [], selected: [] } };
+  state.triggerQueue.push(queued("T-1"));
+  drainTriggerQueue(state);
+  assert.equal(state.triggerQueue.length, 1);
+  assert.equal(state.players.ai.fortressStr, before);
+  state.pending = null;
+  drainTriggerQueue(state);
+  assert.equal(state.triggerQueue.length, 0);
+  assert.equal(state.players.ai.fortressStr, before - 1);
+
+  state.triggerThread = { id: "THREAD-test", status: "resolving", currentControllerId: "player", items: [] };
+  state.triggerQueue.push(queued("T-2"));
+  drainTriggerQueue(state);
+  assert.equal(state.triggerQueue.length, 1);
+  assert.equal(state.players.ai.fortressStr, before - 1);
+  state.triggerThread.status = "resolved";
+  drainTriggerQueue(state);
+  assert.equal(state.triggerQueue.length, 0);
+  assert.equal(state.players.ai.fortressStr, before - 2);
 });

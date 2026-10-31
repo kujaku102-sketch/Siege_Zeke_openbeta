@@ -1,5 +1,4 @@
 import { collectActivationWindows, createEventContext } from "../activation-windows.js";
-import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
 import { describeOperation } from "../effect-operation-library.js";
 import { TRACE_TAGS, trace, traceActive } from "../engine-trace.js";
@@ -154,18 +153,6 @@ export function resumeTriggerThreadAfterSelection(state, itemId) {
   advanceTriggerThread(state);
 }
 
-const TRIGGER_CHOICE_ACTIONS = new Set(["select", "select_entity", "select_execute_from_trash", "choose_effect"]);
-
-function triggerRequiresChoice(trigger) {
-  if (trigger.runtimePhase) {
-    const runtime = cardRuntimeSpec(trigger.source.card.id, trigger.runtimePhase);
-    return runtime?.actions.some((action) => TRIGGER_CHOICE_ACTIONS.has(action.type)
-      || (action.type === "access" && (action.filter || action.destination === "hand"))) ?? false;
-  }
-  return trigger.spec.actions.some((action) => TRIGGER_CHOICE_ACTIONS.has(action.type)
-    || (action.type === "access" && (action.filter || action.destination === "hand")));
-}
-
 export function drainTriggerQueue(state) {
   drainTriggerQueueCore(state);
   settleVictoryFactsOutsideResolution(state);
@@ -206,12 +193,14 @@ function drainTriggerQueueCore(state) {
     advanceTriggerThread(state);
     return;
   }
+  // 4.7: what is raised while a thread (or a trigger's open choice) is being resolved is a separate unit that starts after it; the
+  // queue is drained again when that choice is answered or the thread ends.
+  if (state.pending || state.prompt || state.triggerThread?.status === "resolving") return;
   state.processingTriggers = true;
   while (state.triggerQueue.length) {
-    const choiceOccupied = Boolean(state.pending || state.prompt);
-    const triggerIndex = choiceOccupied ? state.triggerQueue.findIndex((trigger) => !triggerRequiresChoice(trigger)) : 0;
-    if (triggerIndex < 0) break;
-    const [trigger] = state.triggerQueue.splice(triggerIndex, 1);
+    // A trigger that opened a choice holds the rest back until the choice is answered (4.7.1).
+    if (state.pending || state.prompt) break;
+    const [trigger] = state.triggerQueue.splice(0, 1);
     executeQueuedTrigger(state, trigger);
   }
   state.processingTriggers = false;
