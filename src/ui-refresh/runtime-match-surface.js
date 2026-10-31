@@ -26,6 +26,7 @@ import { centerIncidentStrip } from './user-detail-view.js';
 import { syncTutorialHint } from './wireframe/board-view.js';
 import { currentTutorialHint } from '../data/tutorial-hint.js';
 import { TUTORIAL_STEP_GUARDS } from '../adapters/tutorial-mode-controller.js';
+import { noticeText } from './notice-text.js';
 
 // While the guide speaks a region waits, all but the gear: the menu, and leaving the tutorial from it, stay at
 // hand at any time (文豪, 2026-10-30). Everything beside the gear's way up to the region is locked instead.
@@ -69,6 +70,15 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   let noticeStep = null;
   const tutorialIndex = () => { const tutorial = session.tutorial(); return tutorial.ok ? tutorial.value.flow.index : null; };
   const reportError = code => { noticeStep = tutorialIndex(); onError(code); };
+  // The card a refused move was made with (the plan's, else the one picked) shakes where it stands, in the hand or on
+  // the board, as a refused drop's ghost does; a code the player is not told about moves nothing.
+  const shakeRefused = code => {
+    const ref = latest?.preview?.sourceRef ?? latest?.model.ui.selectedCardRef;
+    if (!ref || noticeText(code) === null) return;
+    for (const node of root.querySelectorAll(`:is(.r2-hand .card,.r2-board .card,.wire-board .wf-slot)[data-card-ref="${ref}"]`)) {
+      node.classList.remove('live-refused'); void node.getBoundingClientRect(); node.classList.add('live-refused');
+    }
+  };
   // A line the surface adds under the guide's text for one step (the reason a tried play failed).
   let tutorialNote = null;
   const noteTutorial = text => { const index = tutorialIndex(); tutorialNote = index === null ? null : { index, text }; };
@@ -197,7 +207,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     if (disposed) return;
     // A move the tutorial refused is redrawn as it stands, so the guide shows why. The guide comes back on every
     // refusal, also when the reason is the one it gave before, and the match waits again.
-    if (!result.ok) { reportError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { guideAway = null; const read = ui.read(); if (read.ok) render(read); } return; }
+    if (!result.ok) { shakeRefused(result.error.code); reportError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { guideAway = null; const read = ui.read(); if (read.ok) render(read); } return; }
     const next = result.value;
     const tutorial = tutorialView();
     const presentation = { ...next, view, effectsEnabled, boardStyle, tutorial:tutorial.ok ? tutorial.value : null };
@@ -351,6 +361,9 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     { capture: true, passive: true, signal: lifetime.signal });
   root.addEventListener('load', event => { if (event.target?.tagName === 'IMG') queueLayout(); },
     { capture: true, signal: lifetime.signal });
+  // The hand slides up and down: where it comes to rest moves the notice above it.
+  listener('transitionend', event => { if (event.target?.matches?.('.r2-hand-host')) queueLayout(); });
+  listener('animationend', event => { if (event.animationName === 'live-refused') event.target.classList.remove('live-refused'); });
   root.ownerDocument?.fonts?.addEventListener?.('loadingdone', () => { fontEpoch += 1; queueLayout(); }, { signal: lifetime.signal });
   const sides = createSurfaceOpponents({ session, scope, aiSeat, ui, paced: timers.paced, cancelPaced: timers.cancelPaced,
     current, onError, render });

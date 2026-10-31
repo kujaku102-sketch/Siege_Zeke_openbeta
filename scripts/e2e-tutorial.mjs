@@ -227,6 +227,14 @@ async function action(page,type,id,preference={}) {
         await page.locator('.live-guide').waitFor({state:'visible',timeout:3000}).catch(() => {throw new Error('the guide did not come back on the refused '+preference.label);});
         const reason=await page.locator('.live-guide .live-guide-error').innerText().catch(() => '');
         if (!reason.includes(preference.refused)) throw new Error('the refusal reason is not shown for '+preference.label+': '+reason);
+        // The refused card shakes where it stands, and the notice sits centred just above the hand.
+        const refusal=await page.evaluate(ref => {const notice=document.querySelector('.r2-notice'),hand=document.querySelector('.r2-hand-host');
+          const n=notice?.getBoundingClientRect(),h=hand?.getBoundingClientRect();
+          return {shook:window.__refusedShakes.includes(ref),notice:n ? {text:notice.textContent,gap:Math.round(h.top-n.bottom),centre:Math.round((n.left+n.right)/2-innerWidth/2)} : null};},card?.cardRef);
+        if (card && !refusal.shook) throw new Error('the refused card did not shake: '+preference.label+' '+JSON.stringify(await page.evaluate(ref => ({shakes:window.__refusedShakes,
+          nodes:[...document.querySelectorAll(`[data-card-ref="${ref}"]`)].map(node => ({tag:node.tagName,cls:String(node.className?.baseVal ?? node.className).slice(0,80),shown:node.getClientRects().length>0}))}),card.cardRef)));
+        if (!refusal.notice || refusal.notice.gap<0 || refusal.notice.gap>page.viewportSize().height*.05 || Math.abs(refusal.notice.centre)>2)
+          throw new Error('the refusal notice is not just above the hand: '+preference.label+' '+JSON.stringify(refusal.notice));
         await tapWhileSpeaking(page,'refused '+preference.label);
         await putAway(page);
         for (let back=0;back<4 && await page.locator('[data-runtime-back]').first().isVisible().catch(() => false);back+=1) await clickVisible(page,'[data-runtime-back]');
@@ -590,6 +598,8 @@ async function run(page,id) {
   await page.waitForFunction(() => document.body.classList.contains('boot-done') && !document.querySelector('#boot-splash'), null, {timeout:10000});
   // Every frame from the opening on: a shown guide always has its line on screen (also while its pages are cut).
   await page.evaluate(() => {
+    window.__refusedShakes=[];
+    document.addEventListener('animationstart',event => {if (event.animationName==='live-refused') window.__refusedShakes.push(event.target.dataset.cardRef);},true);
     window.__guideBlank=[];
     const tick=() => {
       const guide=document.querySelector('.live-guide'),line=guide?.querySelector('.live-guide-text p');

@@ -208,6 +208,12 @@ body[data-view="mobile"] .r2-content .r2-detail { top:calc(calc(var(--u) * .5) +
 .r2-content .r2-entry { max-height:100%; padding-top:calc(var(--u) * 3.5); }
 .live-menu-nav { display:flex; flex-wrap:wrap; gap:calc(var(--u) * .5); }
 .r2-notice { position:fixed; z-index:20; bottom:calc(calc(var(--u) * .375) + env(safe-area-inset-bottom,0px)); left:calc(calc(var(--u) * .5) + env(safe-area-inset-left,0px)); max-width:45vw; padding:calc(var(--u) * .25) calc(var(--u) * .375); background:#09090bd9; color:#bdbdc4; font-size:max(.625rem, calc(var(--u) * .625)); line-height:1.4; pointer-events:none; }
+/* In a match a refused move's notice sits centred just above the hand, raised or lowered (surface-layout.js measures it). */
+.r2-content:has(.r2-runtime-view) .r2-notice { left:50%; translate:-50% 0; bottom:calc(var(--live-hand-rise,0%) + var(--u) * .375); text-align:center; }
+/* The card a refused move was made with shakes in place, like a refused drop's ghost; over a tutorial card's blink too. */
+.r2-content :is(.r2-hand .card,.r2-board .card,.wire-board .wf-slot).live-refused { animation:live-refused .42s ease-in-out; }
+@keyframes live-refused { 0%,100% { translate:0 0; } 20% { translate:calc(var(--u) * -.625) 0; } 40% { translate:calc(var(--u) * .5625) 0; } 60% { translate:calc(var(--u) * -.4375) 0; } 80% { translate:calc(var(--u) * .3125) 0; } }
+@media (prefers-reduced-motion:reduce) { .r2-content :is(.r2-hand .card,.r2-board .card,.wire-board .wf-slot).live-refused { animation:none; } }
 
 /* Mobile layout is bound to one CSS-pixel stage. DPR is reserved for raster
    backing stores; HTML occupancy stays stable across low/high-density screens. */

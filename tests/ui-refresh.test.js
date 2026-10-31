@@ -305,6 +305,22 @@ test("a picked, dragged-over or pointed-at board frame glows itself, no box over
   assert.ok(layout.includes("zone:`:is(.zone,.wire-board .board-slot:not([data-card-ref]))[data-seat=\"${seat}\"][data-zone=\"${focus.zone}\"]`"), "a zone on the 3D board is pointed at by its empty slots");
 });
 
+test("a refused move: its card shakes where it stands, and the notice sits centred just above the hand", async () => {
+  const live = await readSource("../src/ui-refresh/live.css");
+  const rules = live.slice(live.indexOf("/* In a match a refused move's notice"), live.indexOf("@media (prefers-reduced-motion:reduce) { .r2-content :is(.r2-hand .card"));
+  assert.ok(rules.includes(".r2-content:has(.r2-runtime-view) .r2-notice { left:50%; translate:-50% 0; bottom:calc(var(--live-hand-rise,0%) + var(--u) * .375);"));
+  // Above `.r2-hand .card.live-focus` (the tutorial's blink), so the shake wins while it runs.
+  assert.ok(rules.includes(".r2-content :is(.r2-hand .card,.r2-board .card,.wire-board .wf-slot).live-refused { animation:live-refused .42s ease-in-out; }"));
+  assert.ok(!/\d(px|rem)\b/.test(rules), "sizes in --u ratios only");
+  assert.ok(live.includes("@media (prefers-reduced-motion:reduce) { .r2-content :is(.r2-hand .card,.r2-board .card,.wire-board .wf-slot).live-refused { animation:none; } }"));
+  const layout = await readSource("../src/ui-refresh/surface-layout.js");
+  assert.ok(layout.includes("content.style.setProperty('--live-hand-rise', `${Math.max(0, (viewport.height - handHost.getBoundingClientRect().top) / viewport.height * 100)}%`);"), "the hand's top as a share of the screen");
+  const surface = await readSource("../src/ui-refresh/runtime-match-surface.js");
+  assert.ok(surface.includes("if (!result.ok) { shakeRefused(result.error.code); reportError(result.error.code);"));
+  assert.ok(surface.includes("if (!ref || noticeText(code) === null) return;"), "a silent code moves nothing");
+  assert.ok(surface.includes("listener('transitionend', event => { if (event.target?.matches?.('.r2-hand-host')) queueLayout(); });"), "measured again where the hand comes to rest");
+});
+
 test("tutorial: with the guide put away the move asked for stays written behind the opponent's back row; the guide waits through the opponent's turn (文豪, 2026-10-29)", async () => {
   const { project, CARD } = await import("../src/ui-refresh/wireframe/geometry.js");
   const view = await readSource("../src/ui-refresh/wireframe/board-view.js");

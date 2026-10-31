@@ -94,6 +94,10 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       const position = placeFlow(flow.getBoundingClientRect(), obstacles, viewport);
       flow.style.left = `${position.left}px`; flow.style.top = `${position.top}px`;
     }
+    // A refused move's notice sits just above the hand (the shell draws it, outside this root): the hand's top as it
+    // stands now, raised or lowered, as a share of the screen's height.
+    const handHost = root.querySelector('.r2-hand-host'), content = root.closest?.('.r2-content');
+    if (handHost && content) content.style.setProperty('--live-hand-rise', `${Math.max(0, (viewport.height - handHost.getBoundingClientRect().top) / viewport.height * 100)}%`);
     const tutorial = session.tutorial();
     // A popup or detail kept open across steps would keep the last step's marks: clear them first.
     for (const element of root.querySelectorAll('.live-focus')) { element.classList.remove('live-focus'); delete element.dataset.tutorialFocusLabel; }
