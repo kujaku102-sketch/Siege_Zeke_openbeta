@@ -11,7 +11,7 @@ import { resolveDeclaredResponse, startNextQueuedResponse } from "./response.js"
 import { DECLARED_IF_SCRIPT_IDS } from "./scripts.js";
 import { addLog, findCard, otherPlayer } from "./shared.js";
 import { cardCurrentStr, continuousEffectConditionMatches } from "./stats.js";
-import { drainTriggerQueue, emitGameEvent, resumeStalledTriggerThread } from "./triggers.js";
+import { drainTriggerQueue, emitGameEvent, resumeStalledTriggerThread, traceTriggerBodyAnswered } from "./triggers.js";
 import { CUSTOM_DRAIN_INDEPENDENT_EFFECTS, CUSTOM_RESOLVE_DECLARED_SCRIPT } from "../effects/custom/index.js";
 import { executeRuntimeActions } from "../effects/generic/actions.js";
 import { destroyCard } from "../effects/generic/destroy.js";
@@ -94,6 +94,7 @@ export function traceChoiceDiff(state, pendingBefore, promptBefore) {
       chooserId: request?.continuation?.playerId ?? after?.playerId ?? null, continuation: request?.continuation?.type ?? null,
       chooser: after ? choiceChooser(after, request) : null, controllerId: request?.continuation?.playerId ?? null
     });
+    if (!after) traceTriggerBodyAnswered(state);
   }
 }
 

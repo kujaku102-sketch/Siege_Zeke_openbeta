@@ -19,8 +19,25 @@ function collectTriggers(state, event) {
   return windows;
 }
 
+// Trace only (the sink is outside the game state, so this is too): which trigger bodies have said "body-end", and which one is
+// waiting for the answer to a choice it opened. A trigger of the sequential loop has no thread item to resume it.
+const bodyEnded = new Set();
+let waitingBodyId = null;
+
+// The pending choice a trigger body opened has been answered: that ends the trigger's text.
+export function traceTriggerBodyAnswered(state) {
+  if (!waitingBodyId) return;
+  const triggerId = waitingBodyId;
+  waitingBodyId = null;
+  if (bodyEnded.has(triggerId)) return;
+  bodyEnded.add(triggerId);
+  trace(state, { tag: TRACE_TAGS.TRIGGER, event: "body-end", triggerId, how: "answered" });
+}
+
 function executeQueuedTrigger(state, trigger) {
   trigger.status = "resolving";
+  bodyEnded.delete(trigger.id);
+  waitingBodyId = null;
   trace(state, { tag: TRACE_TAGS.LAUNCH, via: "trigger", triggerId: trigger.id, cardId: trigger.source.card.id, cardUid: trigger.source.card.uid,
     playerId: trigger.source.playerId, eventType: trigger.event.type, eventId: trigger.event.id ?? null, phase: trigger.runtimePhase ?? null });
   if (trigger.spec.limit === "once_per_turn") state.players[trigger.source.playerId].triggerUsage[trigger.spec.id] = true;
@@ -33,7 +50,9 @@ function executeQueuedTrigger(state, trigger) {
   if (traceActive()) {
     traceChoiceDiff(state, pendingBefore, promptBefore);
     // The end of the trigger's text: either it waits for an answer (the answer's resume closes it) or it is done here.
-    trace(state, { tag: TRACE_TAGS.TRIGGER, event: state.pending || state.prompt ? "body-wait" : "body-end", triggerId: trigger.id, how: "direct" });
+    const waits = Boolean(state.pending || state.prompt);
+    if (waits) waitingBodyId = trigger.id; else bodyEnded.add(trigger.id);
+    trace(state, { tag: TRACE_TAGS.TRIGGER, event: waits ? "body-wait" : "body-end", triggerId: trigger.id, how: "direct" });
   }
   // 5.1: the rule-based state check is part of the effect (before its judgement); what it raises waits in the queue (4.7.1).
   if (!state.pending && !state.prompt) resolveMandatoryStateChecks(state);
@@ -133,14 +152,13 @@ export function resumeStalledTriggerThread(state) {
   if (item) resumeTriggerThreadAfterSelection(state, item.id);
 }
 
-const bodyEndTraced = new WeakSet();
-
 export function resumeTriggerThreadAfterSelection(state, itemId) {
   const thread = state.triggerThread;
   const item = thread?.items.find((entry) => entry.id === itemId && entry.status === "awaiting-selection");
   // The answer to a choice a trigger opened has finished that trigger's text (said once, however often the item is looked at).
-  if (traceActive() && itemId && !bodyEndTraced.has(item ?? {})) {
-    if (item) bodyEndTraced.add(item);
+  if (traceActive() && itemId && !bodyEnded.has(itemId)) {
+    bodyEnded.add(itemId);
+    if (waitingBodyId === itemId) waitingBodyId = null;
     trace(state, { tag: TRACE_TAGS.TRIGGER, event: "body-end", triggerId: itemId, how: "answered" });
   }
   if (!item) return;
