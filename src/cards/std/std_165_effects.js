@@ -2,7 +2,7 @@ import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { drainIndependentEffects, runEffectEntry } from "../../game/core/effects.js";
 import { forceExecute } from "../../game/core/play.js";
-import { findCard, hasClass, otherPlayer, cardOriginOf } from "../../game/core/shared.js";
+import { findCard, hasClass, otherPlayer } from "../../game/core/shared.js";
 import { destroyCard } from "../../game/effects/generic/destroy.js";
 
 // handlers (was effects/custom/std_165.js)
@@ -64,5 +64,5 @@ export function std165LoginSelection(state, continuation, result, playerId, play
 }
 
 export function std165DrainIndependentEffects({ state, next }) {
-  runEffectEntry(state, next.kind, next.playerId, () => beginStd165ThresholdEffect(state, next.playerId, next.sourceUid), () => cardOriginOf(state, next.sourceUid));
+  runEffectEntry(state, next.kind, next.playerId, () => beginStd165ThresholdEffect(state, next.playerId, next.sourceUid));
 }

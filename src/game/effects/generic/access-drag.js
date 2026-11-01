@@ -1,8 +1,7 @@
-import { RULE_ORIGINS, ruleOrigin } from "../../engine-trace.js";
 import { isObCard } from "../../card-types.js";
 import { settleStd048MandatoryPlacement } from "../../../cards/std/std_048_effects.js";
 import { runEffectEntry } from "../../core/effects.js";
-import { addLog, findCard, cardOriginOf } from "../../core/shared.js";
+import { addLog, findCard } from "../../core/shared.js";
 import { resumeTriggerThreadAfterSelection } from "../../core/triggers.js";
 import { emitEffectPlacement, placeByMode, placeCardByEffect, setCardSleeping } from "./placement.js";
 
@@ -72,6 +71,5 @@ export function resolveAccessDragPlacementCore(state, playerId, zone, underUid =
 }
 
 export function resolveAccessDragPlacement(state, playerId, zone, underUid = null) {
-  return runEffectEntry(state, "placement", playerId, () => resolveAccessDragPlacementCore(state, playerId, zone, underUid),
-    () => (state.pending?.sourceUid ? cardOriginOf(state, state.pending.sourceUid) : ruleOrigin(RULE_ORIGINS.PLAYER_CHOICE)));
+  return runEffectEntry(state, "placement", playerId, () => resolveAccessDragPlacementCore(state, playerId, zone, underUid));
 }

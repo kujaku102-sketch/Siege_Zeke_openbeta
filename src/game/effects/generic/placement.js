@@ -1,4 +1,4 @@
-import { TRACE_TAGS, trace, RULE_ORIGINS, ruleOrigin } from "../../engine-trace.js";
+import { TRACE_TAGS, trace } from "../../engine-trace.js";
 import { placeCardInBoardSlot } from "../../board-slots.js";
 import { isObCard } from "../../card-types.js";
 import { mountEventSpecsFor } from "../../continuous-effect-specs.js";
@@ -88,7 +88,7 @@ export function emitCardPlacement(state, playerId, card, zone, placementCause, s
 }
 
 export function finalizeRuleDestruction(state, ownerId, card, { from = "hand", to = "trash", source = "配置上限", zone = null } = {}) {
-  trace(state, { tag: TRACE_TAGS.REPLACE, op: "destroy", event: "replaced", kind: "placement-limit", cardUid: card.uid, ownerId, from, to, origin: ruleOrigin(RULE_ORIGINS.PLACEMENT_LIMIT) });
+  trace(state, { tag: TRACE_TAGS.REPLACE, op: "destroy", event: "replaced", kind: "placement-limit", cardUid: card.uid, ownerId, from, to });
   state.turnStats.destroyedCards += 1;
   if (isObCard(card)) state.turnStats.destroyedOb += 1;
   if (card.category === "Script" && card.name.includes("聖樹")) state.turnStats.destroyedSacredTreeScripts += 1;
@@ -236,6 +236,5 @@ export function moveCardToRandomArea(state, playerId, uid, sourceName) {
     .map((zone) => ({ toPlayerId, zone })));
   if (!candidates.length) return { moved: false, fromZone: currentZone };
   const pick = candidates[Math.floor(state.rng() * candidates.length)];
-  trace(state, { tag: TRACE_TAGS.RESULT, op: "move", event: "random-area", cardUid: uid, candidates: candidates.map((entry) => `${entry.toPlayerId}:${entry.zone}`), chosen: `${pick.toPlayerId}:${pick.zone}` });
   return { moved: moveCardByEffect(state, playerId, uid, pick.zone, sourceName, { toPlayerId: pick.toPlayerId }), fromZone: currentZone };
 }

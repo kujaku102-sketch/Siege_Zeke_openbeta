@@ -1,4 +1,3 @@
-import { cardOrigin } from "../../game/engine-trace.js";
 // STD-086 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { CARD_LIBRARY } from "../../data/cards.js";
 import { cardRuntimeSpec } from "../../game/card-runtime-specs.js";
@@ -24,5 +23,5 @@ export function resolveLuckyShotAdditional(state, playerId, targetUid) {
     source,
     selection.afterActions,
     { targetUid, targetUids: [targetUid], runtime: { records: Object.create(null) } }
-  ), () => cardOrigin(source));
+  ));
 }

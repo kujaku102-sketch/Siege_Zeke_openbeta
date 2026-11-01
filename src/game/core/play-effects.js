@@ -1,11 +1,10 @@
-import { withOrigin } from "../engine-trace.js";
 import { normalizeBoardSlots } from "../board-slots.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
 import { resolveEffect } from "./effects.js";
 import { hasKeyword } from "./keywords.js";
 import { enabledSymbols } from "./play.js";
-import { fail, findCard, newActionBlock, payMemory, cardOriginOf } from "./shared.js";
+import { fail, findCard, newActionBlock, payMemory } from "./shared.js";
 import { CUSTOM_ACTIVATE_CARD_EFFECT_CORE, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS, CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2, CUSTOM_GET_EFFECT_TARGETS, PASS } from "../effects/custom/index.js";
 import { runtimeActionFeasible } from "../effects/generic/action-values.js";
 import { executeRuntimeActions } from "../effects/generic/actions.js";
@@ -113,5 +112,5 @@ export function activateCardEffectCore(state, playerId, cardUid, effectId, { tar
 export function activateCardEffect(state, playerId, cardUid, effectId, options = {}) {
   { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   normalizeBoardSlots(state);
-  return withOrigin(() => cardOriginOf(state, cardUid), () => resolveEffect(state, () => activateCardEffectCore(state, playerId, cardUid, effectId, options)));
+  return resolveEffect(state, () => activateCardEffectCore(state, playerId, cardUid, effectId, options));
 }

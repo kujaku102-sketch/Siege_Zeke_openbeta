@@ -5,7 +5,7 @@ import { hasKeyword } from "../../game/core/keywords.js";
 import { getEffectTargets } from "../../game/core/play-effects.js";
 import { spellNeedsTarget } from "../../game/core/play-spell.js";
 import { playCard } from "../../game/core/play.js";
-import { findCard, isArmsBandCard, otherPlayer, cardOriginOf } from "../../game/core/shared.js";
+import { findCard, isArmsBandCard, otherPlayer } from "../../game/core/shared.js";
 import { executionCost, magazineExecutionCandidates } from "../../game/effects/generic/cost.js";
 
 // handlers (was effects/custom/sztb_094.js)
@@ -63,5 +63,5 @@ export function sztb094ResolveLogin2({ state, playerId, card }) {
 }
 
 export function sztb094CounterDrainIndependentEffects({ state, next }) {
-  runEffectEntry(state, next.kind, next.playerId, () => beginSztb094Counter(state, next.playerId, next.sourceUid), () => cardOriginOf(state, next.sourceUid));
+  runEffectEntry(state, next.kind, next.playerId, () => beginSztb094Counter(state, next.playerId, next.sourceUid));
 }

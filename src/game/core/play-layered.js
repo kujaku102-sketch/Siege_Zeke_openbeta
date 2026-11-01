@@ -1,4 +1,3 @@
-import { withOrigin } from "../engine-trace.js";
 import { normalizeBoardSlots } from "../board-slots.js";
 import { flattenMaterialStack, layeredCandidates, layeredSelectionPlan, layeredSpecFor, validatesLayeredSelection } from "../layered-specs.js";
 import { resolveEffect } from "./effects.js";
@@ -6,7 +5,7 @@ import { hasKeyword } from "./keywords.js";
 import { notifyCardExecuted } from "./play-notify.js";
 import { resolveLogin } from "./play-spell.js";
 import { canPlayCard, requestedExecutionSlot } from "./play.js";
-import { addLog, fail, newActionBlock, payMemory, cardOriginOf } from "./shared.js";
+import { addLog, fail, newActionBlock, payMemory } from "./shared.js";
 import { executionCost } from "../effects/generic/cost.js";
 import { placeByMode, placementResult } from "../effects/generic/placement.js";
 
@@ -50,11 +49,7 @@ export function canPlayLayeredCard(state, playerId, uid, materialUids, zone = "f
   return { ok: true, selected, ownSlotsFreed, overrideDiscount, effectiveCost };
 }
 
-export function playLayeredCard(state, playerId, uid, ...rest) {
-  return withOrigin(() => cardOriginOf(state, uid), () => playLayeredCardCore(state, playerId, uid, ...rest));
-}
-
-function playLayeredCardCore(state, playerId, uid, materialUids, zone = "front", { requestedSlot = null } = {}) {
+export function playLayeredCard(state, playerId, uid, materialUids, zone = "front", { requestedSlot = null } = {}) {
   { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   const check = canPlayLayeredCard(state, playerId, uid, materialUids, zone, requestedSlot);
   if (!check.ok) return fail(state, check.reason, false);
