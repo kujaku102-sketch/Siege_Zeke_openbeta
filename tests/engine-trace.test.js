@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { createCardInstance } from "../src/data/cards.js";
 import { addLog } from "../src/game/core/shared.js";
 import { EFFECT_OPERATION_TYPES } from "../src/game/effect-operation-library.js";
-import { TRACE_TAGS, setTraceSink } from "../src/game/engine-trace.js";
-import { attack, createGame, destroyCard, playCard, resolveAccessDragPlacement, resolveCardSelection, resolveTriggerChoice } from "../src/game/engine.js";
+import { RULE_ORIGINS, TRACE_TAGS, ruleOrigin, setTraceSink } from "../src/game/engine-trace.js";
+import { activateScript, attack, createGame, declinePrompt, destroyCard, endTurn, playCard, resolveAccessDragPlacement, resolveCardSelection, resolveTriggerChoice } from "../src/game/engine.js";
 import { runEffectEntry } from "../src/game/core/effects.js";
 
 // Two triggers fire at once (a trigger thread), one needs a choice, a drag placement follows.
@@ -178,4 +178,75 @@ test("the rule-based state check runs inside the effect: before its judgement, a
   assert.ok(order.includes("置換:attempt"), "the card was destroyed by the state check");
   assert.ok(checkOut > -1 && checkOut < judgeOut);
   assert.ok(trigger === -1 || trigger > judgeOut, "a trigger raised by the destruction starts only after the effect is judged");
+});
+
+// Where a record comes from: a card's own processing, or one of the rules' named processes (a closed list).
+const validOrigin = (record) => record.origin?.kind === "card"
+  ? typeof record.origin.cardUid === "string"
+  : record.origin?.kind === "rule" && Object.values(RULE_ORIGINS).includes(record.origin.name);
+
+test("every record names its origin: a card, or one of the rules' processes", () => {
+  const all = [];
+  all.push(...collect(() => playScenario()));
+  const reboot = createGame({ mode: "lab", rng: () => 0.5 });
+  const sp = createCardInstance("STD-010", "player", 10102);
+  reboot.players.player.hand = [sp]; reboot.players.player.memory = 5;
+  all.push(...collect(() => playCard(reboot, "player", sp.uid)));
+  const backup = createGame({ mode: "lab", rng: () => 0.5 });
+  const hero = createCardInstance("STD-029", "player", 2902);
+  hero.summoningSick = false; backup.players.player.front = [hero];
+  all.push(...collect(() => runEffectEntry(backup, "test", "player", () => destroyCard(backup, "player", hero.uid, { source: "test" }), ruleOrigin(RULE_ORIGINS.PLAYER_ACTION))));
+  assert.ok(all.length > 0);
+  const bad = all.filter((record) => !validOrigin(record));
+  assert.deepEqual(bad.map((record) => `${record.tag}:${record.event ?? record.via ?? record.op}`), []);
+  // a card's own text is attributed to it, and a backup that replaces a destruction comes from the protected card
+  assert.ok(all.some((record) => record.tag === TRACE_TAGS.LAUNCH && record.via === "trigger" && record.origin.kind === "card" && record.origin.cardId === record.cardId));
+  assert.ok(all.some((record) => record.tag === TRACE_TAGS.REPLACE && record.kind === "backup" && record.origin.cardId === "STD-029"));
+});
+
+test("the rules' own work is attributed by name: turn start and end, the rule draw, delayed effects, the state check, the judgement", () => {
+  const state = createGame({ mode: "sandbox", rng: () => 0.5 });
+  state.sandboxUi = { alternateTurns: true };
+  const danger = createCardInstance("STD-006", "player", 600601); danger.faceDown = false;
+  const lost = createCardInstance("STD-154", "player", 15401);
+  state.players.player.registry = [danger];
+  state.players.player.deck = Array.from({ length: 10 }, (_, i) => createCardInstance("STD-020", "player", 700 + i));
+  state.players.player.memory = 0;
+  state.players.player.front = [lost];
+  const records = collect(() => {
+    runEffectEntry(state, "test", "player", () => destroyCard(state, "player", lost.uid, { source: "test", suppressReplacement: true }), ruleOrigin(RULE_ORIGINS.PLAYER_ACTION));
+    endTurn(state); endTurn(state); endTurn(state); endTurn(state);
+  });
+  const names = new Set(records.filter((record) => record.origin?.kind === "rule").map((record) => record.origin.name));
+  for (const name of [RULE_ORIGINS.TURN_START, RULE_ORIGINS.TURN_END, RULE_ORIGINS.RULE_DRAW, RULE_ORIGINS.DELAYED, RULE_ORIGINS.STATE_CHECK, RULE_ORIGINS.VICTORY_JUDGE]) assert.ok(names.has(name), name);
+  assert.deepEqual(records.filter((record) => !validOrigin(record)), []);
+  // the turn-time rule: STD-006 has no 自分/相手, so it runs in both users' turns, and the record says which
+  const timing = records.filter((record) => record.via === "turn-timing" && record.cardId === "STD-006");
+  assert.ok(timing.some((record) => record.scope === "own-turn") && timing.some((record) => record.scope === "other-turn"));
+  assert.ok(timing.every((record) => record.eachTurn === true && record.origin.kind === "rule"));
+  assert.ok(records.some((record) => record.event === "turn-start-delayed" && record.cardUid === lost.uid && record.origin.name === RULE_ORIGINS.DELAYED));
+});
+
+test("an execution held, declined or replaced by a Script is traced as 置換 from that Script", () => {
+  const run = (answer) => {
+    const state = createGame({ mode: "lab", rng: () => 0.5 });
+    const owner = state.players.player; const opponent = state.players.ai;
+    const takeover = owner.hand.find((card) => card.id === "STD-204");
+    playCard(state, "player", takeover.uid, { zone: "back" });
+    owner.hand = owner.hand.filter((card) => card.id !== "STD-179");
+    state.active = "ai"; opponent.memory = 99;
+    const executed = createCardInstance("STD-020", "ai", 20401);
+    opponent.hand = [executed];
+    return collect(() => {
+      playCard(state, "ai", executed.uid, { zone: "front", force: true, free: true, ignoreColor: true });
+      if (answer === "decline") declinePrompt(state); else activateScript(state, "player", takeover.uid);
+    });
+  };
+  for (const [answer, last] of [["decline", "execution-declined"], ["activate", "execution-replaced"]]) {
+    const records = run(answer);
+    const replace = records.filter((record) => record.tag === TRACE_TAGS.REPLACE && record.kind === "execution");
+    assert.deepEqual(replace.map((record) => record.event), ["execution-held", last], answer);
+    assert.ok(replace.every((record) => record.origin.kind === "card" && record.origin.cardId === "STD-204" && record.cardId === "STD-020"), answer);
+    assert.deepEqual(records.filter((record) => !validOrigin(record)), [], answer);
+  }
 });

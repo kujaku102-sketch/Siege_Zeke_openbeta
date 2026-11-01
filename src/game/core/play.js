@@ -1,3 +1,4 @@
+import { cardOrigin } from "../engine-trace.js";
 import { cardAtBoardSlot, inheritBoardSlot, projectZoneSlots } from "../board-slots.js";
 import { cardPlacementCostSpec } from "../card-runtime-specs.js";
 import { isObCard, isObCategory } from "../card-types.js";
@@ -14,7 +15,7 @@ import { notifyCardExecuted } from "./play-notify.js";
 import { hydrateCard } from "./prepare.js";
 import { continueDeferredSpellCleanup, resolveLogin, resolveSpell, spellNeedsTarget } from "./play-spell.js";
 import { EVENT_CONTEXT_REQUIRED_IF_IDS, NORMAL_IF_SCRIPT_IDS } from "./scripts.js";
-import { addLog, fail, otherPlayer, payMemory } from "./shared.js";
+import { addLog, fail, otherPlayer, payMemory, cardOriginOf } from "./shared.js";
 import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_PLAY_CARD_CORE, CUSTOM_PLAY_CARD_CORE_3, CUSTOM_PLAY_CARD_CORE_4, CUSTOM_SPELL_CLEANUP_EXTRA, PASS } from "../effects/custom/index.js";
 import { STD121_PLACEMENT_PERMIT, executionCost, ownLayerEntries, placementCostCandidates } from "../effects/generic/cost.js";
@@ -341,7 +342,8 @@ export function playCard(state, playerId, uid, options = {}) {
     const card = state.players[playerId]?.hand.find(item => item.uid === uid);
     if (!card || !canExecuteAtSlot(state, playerId, card, options).ok) return false;
   }
-  return runEffectEntry(state, "card", playerId, () => playCardCore(state, playerId, uid, options));
+  return runEffectEntry(state, "card", playerId, () => playCardCore(state, playerId, uid, options),
+    () => cardOrigin(state.players[playerId]?.hand.find((item) => item.uid === uid) ?? { uid }));
 }
 
 // 強制実行(ルールブック4.3): 効果が指定した手札のカードを、実行メモリを払わず実行する。通常実行と同じ playCardCore を通るので、

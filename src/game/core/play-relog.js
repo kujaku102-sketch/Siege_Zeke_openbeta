@@ -1,3 +1,4 @@
+import { withOrigin } from "../engine-trace.js";
 import { inheritBoardSlot, normalizeBoardSlots } from "../board-slots.js";
 import { isObCard } from "../card-types.js";
 import { placementPermissionSpecsFor } from "../continuous-effect-specs.js";
@@ -8,7 +9,7 @@ import { hasKeyword } from "./keywords.js";
 import { resolveLogin, resolveLogout } from "./play-spell.js";
 import { requestedExecutionSlot } from "./play.js";
 import { compiledForCard } from "./prepare.js";
-import { addLog, fail, newActionBlock, payMemory } from "./shared.js";
+import { addLog, fail, newActionBlock, payMemory, cardOriginOf } from "./shared.js";
 import { consumeSelectedSourceLayers } from "../effects/generic/cost.js";
 import { movedSummoningSick } from "../effects/generic/field-entry.js";
 import { emitRegistryInstalled, placeByMode, placementResult, resolveMountedSourceTrigger } from "../effects/generic/placement.js";
@@ -52,7 +53,11 @@ export function canDirectRelogAtSlot(state, playerId, card, { sourceZone, zone, 
   return { ok: true };
 }
 
-export function relogCard(state, playerId, uid, targetZone, { useLayerDiscount = null, layerUid = null, requestedSlot = null, baseUid = null } = {}) {
+export function relogCard(state, playerId, uid, ...rest) {
+  return withOrigin(() => cardOriginOf(state, uid), () => relogCardCore(state, playerId, uid, ...rest));
+}
+
+function relogCardCore(state, playerId, uid, targetZone, { useLayerDiscount = null, layerUid = null, requestedSlot = null, baseUid = null } = {}) {
   { const blocked = newActionBlock(state); if (blocked) return fail(state, blocked, false); }
   normalizeBoardSlots(state);
   const player = state.players[playerId];

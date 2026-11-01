@@ -1,3 +1,4 @@
+import { cardOrigin, withOrigin } from "../../engine-trace.js";
 import { CARD_LIBRARY } from "../../../data/cards.js";
 import { isObCard, matchesCardCategory } from "../../card-types.js";
 import { createChoiceSpec, createSelectionRequest, selectionRequestFromSpec } from "../../selection-model.js";
@@ -13,6 +14,10 @@ import { openRuntimeAccessSelection } from "./selection-access.js";
 import { openRuntimeTargetSelection, runtimeSelectionCandidates } from "./selection-target.js";
 
 export function executeTriggerAction(state, trigger, action) {
+  return withOrigin(() => cardOrigin(trigger.source.card), () => executeTriggerActionCore(state, trigger, action));
+}
+
+function executeTriggerActionCore(state, trigger, action) {
   const { source, event } = trigger;
   const controller = state.players[source.playerId];
   const enemyId = otherPlayer(source.playerId);

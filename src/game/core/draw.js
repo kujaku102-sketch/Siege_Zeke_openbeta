@@ -1,3 +1,4 @@
+import { RULE_ORIGINS, ruleOrigin, withOrigin } from "../engine-trace.js";
 import { finalizeEffectResolution, recordVictoryFact, resolveMandatoryStateChecks } from "./effects.js";
 import { addLog } from "./shared.js";
 import { emitGameEvent } from "./triggers.js";
@@ -28,6 +29,10 @@ export function drawCards(state, playerId, count = 1) {
 }
 
 export function continueMandatoryTurnDraw(state, playerId, count) {
+  return withOrigin(() => ruleOrigin(RULE_ORIGINS.RULE_DRAW), () => continueMandatoryTurnDrawCore(state, playerId, count));
+}
+
+function continueMandatoryTurnDrawCore(state, playerId, count) {
   const drawn = drawCards(state, playerId, count);
   if (drawn < count) {
     state.players[playerId].mandatoryDrawFailed = true;

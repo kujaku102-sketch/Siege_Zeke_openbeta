@@ -1,4 +1,4 @@
-import { TRACE_TAGS, trace } from "../engine-trace.js";
+import { TRACE_TAGS, trace, cardOrigin } from "../engine-trace.js";
 import { nextRng } from "../runtime/rng.js";
 import { RuntimeError } from "../runtime/factory.js";
 import { CARD_LIBRARY } from "../../data/cards.js";
@@ -112,6 +112,11 @@ export function isArmsBandCard(card) {
 
 export function isArmsBandOb(card) {
   return isArmsBandCard(card) && isObCard(card);
+}
+
+// The trace origin of the card with this uid (found anywhere), for an entry that only knows the uid.
+export function cardOriginOf(state, uid) {
+  return cardOrigin(findCard(state, uid)?.card ?? { uid });
 }
 
 export function findCard(state, uid) {

@@ -1,7 +1,7 @@
 import { collectActivationWindows, createEventContext } from "../activation-windows.js";
 import { isObCard } from "../card-types.js";
 import { describeOperation } from "../effect-operation-library.js";
-import { TRACE_TAGS, trace, traceActive } from "../engine-trace.js";
+import { TRACE_TAGS, trace, traceActive, cardOrigin, withOrigin } from "../engine-trace.js";
 import { specsForEvent } from "../trigger-specs.js";
 import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled, judgeVictory, parentEffectAwaitsOwnChoice, resolveMandatoryStateChecks, runEffectEntry, traceChoiceDiff } from "./effects.js";
 import { enabledSymbols } from "./play.js";
@@ -35,6 +35,10 @@ export function traceTriggerBodyAnswered(state) {
 }
 
 function executeQueuedTrigger(state, trigger) {
+  return withOrigin(() => cardOrigin(trigger.source.card), () => executeQueuedTriggerCore(state, trigger));
+}
+
+function executeQueuedTriggerCore(state, trigger) {
   trigger.status = "resolving";
   bodyEnded.delete(trigger.id);
   waitingBodyId = null;

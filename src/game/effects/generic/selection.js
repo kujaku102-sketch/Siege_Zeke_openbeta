@@ -1,4 +1,4 @@
-import { TRACE_TAGS, trace } from "../../engine-trace.js";
+import { TRACE_TAGS, trace, RULE_ORIGINS, ruleOrigin, withOrigin } from "../../engine-trace.js";
 import { cardPlacementCostSpec } from "../../card-runtime-specs.js";
 import { isObCard } from "../../card-types.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
@@ -13,7 +13,7 @@ import { forceExecute, playCard, playCardCore } from "../../core/play.js";
 import { openNextQueuedSelection } from "../../core/projection.js";
 import { continueDeferredDeclaredResponseCleanup } from "../../core/response.js";
 import { activateScript } from "../../core/scripts.js";
-import { addLog, findCard, hasClass, shuffle } from "../../core/shared.js";
+import { addLog, findCard, hasClass, shuffle, cardOriginOf } from "../../core/shared.js";
 import { emitGameEvent, emitUserAbilityFeedback, resumeStalledTriggerThread, resumeTriggerThreadAfterSelection } from "../../core/triggers.js";
 import { endTurn } from "../../core/turn.js";
 import { CUSTOM_RESOLVE_CARD_SELECTION_CORE, CUSTOM_SELECTION_HANDLERS, PASS } from "../custom/index.js";
@@ -584,14 +584,17 @@ function resumeCardSelection(state, continuation, result) {
 }
 
 export function resolveCardSelection(state, continuation, result) {
+  // The card whose text asked for this answer (the continuation names it by uid); an answer with no card behind it is the user's choice.
+  const asker = continuation?.sourceUid ?? continuation?.scriptUid ?? continuation?.spellUid ?? null;
+  const origin = () => (asker && findCard(state, asker) ? cardOriginOf(state, asker) : ruleOrigin(RULE_ORIGINS.PLAYER_CHOICE));
   if (result?.choice !== undefined || result?.scope !== undefined) {
-    trace(state, { tag: TRACE_TAGS.BRANCH, continuation: continuation?.type ?? null, playerId: continuation?.playerId ?? null, choice: result.choice ?? null, scope: result.scope ?? null });
+    withOrigin(origin, () => trace(state, { tag: TRACE_TAGS.BRANCH, continuation: continuation?.type ?? null, playerId: continuation?.playerId ?? null, choice: result.choice ?? null, scope: result.scope ?? null }));
   }
   const resolved = runEffectEntry(state, "selection", continuation?.playerId ?? null, () => {
     const resumed = resumeCardSelection(state, continuation, result);
     if (resumed && !state.pending && !state.prompt) resumeStalledTriggerThread(state);
     return resumed;
-  });
+  }, origin);
   const activeId = state.resumeTurnEndAfterSelection;
   if (resolved && activeId && !state.pending && !state.prompt) {
     delete state.resumeTurnEndAfterSelection;

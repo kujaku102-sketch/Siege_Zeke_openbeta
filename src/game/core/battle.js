@@ -9,7 +9,7 @@ import { consumeProtect, dealFortressDamage } from "./deal-damage.js";
 import { drawCards } from "./draw.js";
 import { runEffectEntry } from "./effects.js";
 import { hasKeyword } from "./keywords.js";
-import { addLog, fail, findCard, otherPlayer } from "./shared.js";
+import { addLog, fail, findCard, otherPlayer, cardOriginOf } from "./shared.js";
 import { battleAuraAtkBonus, battleStatModifierValue, cardAtk, cardCurrentStr, cardHasKeyword, cardHasRuntimeKeyword } from "./stats.js";
 import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_ATTACK_CORE, CUSTOM_ATTACK_CORE_2, CUSTOM_ATTACK_CORE_3, CUSTOM_ATTACK_CORE_4, CUSTOM_ATTACK_CORE_5, CUSTOM_ATTACK_CORE_6, CUSTOM_QUEUE_POST_ATTACK_SELECTION, PASS } from "../effects/custom/index.js";
@@ -86,7 +86,7 @@ export function attack(state, playerId, attackerUid, targetUid) {
   const player = state.players[playerId];
   const attacker = player.front.find((card) => card.uid === attackerUid);
   if (!attacker || !canAttack(state, playerId, attacker)) return fail(state, "そのObは攻撃できない。", false);
-  return runEffectEntry(state, "attack", playerId, () => attackCore(state, playerId, attackerUid, targetUid));
+  return runEffectEntry(state, "attack", playerId, () => attackCore(state, playerId, attackerUid, targetUid), () => cardOriginOf(state, attackerUid));
 }
 
 function attackCore(state, playerId, attackerUid, targetUid) {

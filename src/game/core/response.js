@@ -4,7 +4,7 @@ import { declareEffect, runEffectEntry } from "./effects.js";
 import { keywordValue } from "./keywords.js";
 import { resolveSpell } from "./play-spell.js";
 import { enabledSymbols } from "./play.js";
-import { addLog, otherPlayer, payMemory } from "./shared.js";
+import { addLog, otherPlayer, payMemory, cardOriginOf } from "./shared.js";
 import { cardCurrentStr } from "./stats.js";
 import { CUSTOM_RESOLVE_DECLARED_RESPONSE, CUSTOM_RESPONSE_CARD_APPLICABLE, PASS } from "../effects/custom/index.js";
 import { moveCardToTrash } from "../effects/generic/trash.js";
@@ -121,7 +121,7 @@ export function declineResponse(state, playerId) {
 }
 
 export function activateResponse(state, playerId, cardUid, targetUid = null) {
-  return runEffectEntry(state, "response-declaration", playerId, () => activateResponseCore(state, playerId, cardUid, targetUid));
+  return runEffectEntry(state, "response-declaration", playerId, () => activateResponseCore(state, playerId, cardUid, targetUid), () => cardOriginOf(state, cardUid));
 }
 
 function activateResponseCore(state, playerId, cardUid, targetUid = null) {

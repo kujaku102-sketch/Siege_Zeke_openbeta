@@ -1,6 +1,7 @@
+import { withOrigin } from "../engine-trace.js";
 import { runEffectEntry } from "./effects.js";
 import { canExecuteAtSlot, canPlayCard, playCard } from "./play.js";
-import { addLog, fail, findCard, newActionBlock } from "./shared.js";
+import { addLog, fail, findCard, newActionBlock, cardOriginOf } from "./shared.js";
 import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_INSTALL_CARD } from "../effects/custom/index.js";
 import { ownLayerEntries } from "../effects/generic/cost.js";
@@ -15,7 +16,11 @@ export function installCheck(state, playerId, uid) {
   return { ok: true };
 }
 
-export function installCard(state, playerId, uid, { force = false } = {}) {
+export function installCard(state, playerId, uid, ...rest) {
+  return withOrigin(() => cardOriginOf(state, uid), () => installCardCore(state, playerId, uid, ...rest));
+}
+
+function installCardCore(state, playerId, uid, { force = false } = {}) {
   const player = state.players[playerId];
   const index = player.hand.findIndex((card) => card.uid === uid);
   if (index < 0) return fail(state, "そのカードは手札にない。", force);
@@ -57,7 +62,7 @@ export function recoverRegistryCardCore(state, playerId, uid) {
 }
 
 export function recoverRegistryCard(state, playerId, uid) {
-  return runEffectEntry(state, "registry-recover", playerId, () => recoverRegistryCardCore(state, playerId, uid));
+  return runEffectEntry(state, "registry-recover", playerId, () => recoverRegistryCardCore(state, playerId, uid), () => cardOriginOf(state, uid));
 }
 
 export function canExecuteRegistryCard(state, playerId, card, options = {}) {

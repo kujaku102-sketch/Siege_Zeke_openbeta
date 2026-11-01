@@ -1,6 +1,6 @@
 import { createEventContext, createScriptActivationWindow } from "../activation-windows.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
-import { TRACE_TAGS, trace } from "../engine-trace.js";
+import { TRACE_TAGS, trace, cardOrigin, withOrigin } from "../engine-trace.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { hasOptionalActivationSpec, optionalSpecsForCard } from "../trigger-specs.js";
 import { resumeDeferredAttack } from "./battle.js";
@@ -12,7 +12,7 @@ import { markExecutionReplaced, queueDeferredExecutionResume } from "./execution
 import { enabledSymbols, supportsNormalScriptActivation } from "./play.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { continueDeferredDeclaredResponseCleanup } from "./response.js";
-import { addLog, fail, findCard, otherPlayer, payMemory } from "./shared.js";
+import { addLog, fail, findCard, otherPlayer, payMemory, cardOriginOf } from "./shared.js";
 import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_ACTIVATE_SCRIPT_CORE, CUSTOM_ACTIVATE_SCRIPT_CORE_2, PASS } from "../effects/custom/index.js";
 import { runtimeActionFeasible, triggerActionFeasible } from "../effects/generic/action-values.js";
@@ -227,11 +227,11 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
   const resident = hasKeyword(script, "RESIDENT") || script.id === "STD-142";
   if (resident) {
     script.residentActive = true;
-    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-resident", cardId: script.id, cardUid: script.uid, playerId });
+    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-resident", cardId: script.id, cardUid: script.uid, playerId, origin: cardOrigin(script) });
     addLog(state, script.id === "STD-142" ? `${script.name}の①を起動し、場に残る。` : `${script.name}を起動。[レジデント]として場に残る。`, "action");
   } else {
     player.back.splice(index, 1);
-    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-to-trash", cardId: script.id, cardUid: script.uid, playerId });
+    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-to-trash", cardId: script.id, cardUid: script.uid, playerId, origin: cardOrigin(script) });
     moveCardToTrash(state, playerId, script, script.name);
     addLog(state, `${script.name}を起動し、解決後にゴミ箱へ。`, "action");
   }
@@ -268,7 +268,7 @@ export function activateScript(state, playerId, uid, options = {}) {
       || state.pending || state.prompt || state.winner || location.card.faceDown !== true || location.card.declaredEffectId;
     if (invalidNormalEntry) return fail(state, "Scriptの通常起動は処理待ちのない自分メイン中、裏向きの未宣言カードだけ。", false);
   }
-  return runEffectEntry(state, "script", playerId, () => activateScriptCore(state, playerId, uid, options));
+  return runEffectEntry(state, "script", playerId, () => activateScriptCore(state, playerId, uid, options), () => cardOriginOf(state, uid));
 }
 
 function declinePromptCore(state) {

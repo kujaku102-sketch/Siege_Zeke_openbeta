@@ -9,13 +9,23 @@ import { isObCard } from "../card-types.js";
 import { createVengeanceCard } from "../effects/generic/generate.js";
 import { executionCost } from "../effects/generic/cost.js";
 import { moveCardToTrash } from "../effects/generic/trash.js";
-import { addLog, otherPlayer, payMemory } from "./shared.js";
+import { TRACE_TAGS, cardOrigin, trace, traceActive } from "../engine-trace.js";
+import { addLog, findCard, otherPlayer, payMemory } from "./shared.js";
 import { playCardCore } from "./play.js";
 import { openScriptActivationWindow } from "./scripts.js";
 
 // onPlaced is a function, so it cannot sit in the state; it waits here under an id the deferred execution carries.
 const PENDING_CALLBACKS = new Map();
 let callbackSerial = 0;
+
+// A REPLACE record about the held execution, coming from the replacing Script (not from the card being executed).
+function traceReplacement(state, event, deferred, extra = {}) {
+  if (!traceActive()) return;
+  const script = findCard(state, deferred.scriptUid)?.card ?? { uid: deferred.scriptUid };
+  const original = findCard(state, deferred.uid)?.card ?? null;
+  trace(state, { tag: TRACE_TAGS.REPLACE, event, kind: "execution", executorId: deferred.playerId,
+    replacerId: script.id ?? null, replacerUid: script.uid ?? null, cardId: original?.id ?? null, cardUid: deferred.uid, origin: cardOrigin(script), ...extra });
+}
 
 export const executionReplacementSpecFor = (script) => CARD_EXECUTION_REPLACEMENT_SPECS[script?.id] ?? null;
 
@@ -39,6 +49,7 @@ export function openExecutionReplacementWindow(state, executorId, card, resumeOp
     if (callbackId) PENDING_CALLBACKS.delete(callbackId);
     return false;
   }
+  traceReplacement(state, "execution-held", state.deferredExecution);
   return true;
 }
 
@@ -65,7 +76,10 @@ export function resumeDeferredExecution(state) {
   const onPlaced = deferred.callbackId ? PENDING_CALLBACKS.get(deferred.callbackId) : undefined;
   if (deferred.callbackId) PENDING_CALLBACKS.delete(deferred.callbackId);
   const options = { ...deferred.options, ...(onPlaced ? { onPlaced } : {}), executionReplacementChecked: true };
-  if (!deferred.replace) return playCardCore(state, deferred.playerId, deferred.uid, options);
+  if (!deferred.replace) {
+    traceReplacement(state, "execution-declined", deferred);
+    return playCardCore(state, deferred.playerId, deferred.uid, options);
+  }
   return replaceExecution(state, deferred, options);
 }
 
@@ -80,6 +94,7 @@ function replaceExecution(state, deferred, options) {
   player.hand.splice(index, 1);
   if (!options.free) payMemory(state, deferred.playerId, executionCost(original, state, deferred.playerId), "execution");
   const replacement = createVengeanceCard(state, spec.replaceWith, deferred.playerId);
+  traceReplacement(state, "execution-replaced", deferred, { cardId: original.id, replacementId: replacement.id, replacementUid: replacement.uid, original: spec.original });
   addLog(state, `${script.name}: ${original.name}の実行を「${replacement.name}」の実行に置換。`, "effect");
   if (spec.original === "layer") {
     original.layerRole = "layered";

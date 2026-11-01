@@ -2,7 +2,7 @@ import { normalizeBoardSlots } from "../board-slots.js";
 import { isObCard } from "../card-types.js";
 import { mandatoryStateCheckSpecsFor } from "../continuous-effect-specs.js";
 import { EFFECT_OPERATION_TYPES } from "../effect-operation-library.js";
-import { TRACE_TAGS, trace, traceActive } from "../engine-trace.js";
+import { TRACE_TAGS, trace, traceActive, RULE_ORIGINS, cardOrigin, ruleOrigin, withOrigin } from "../engine-trace.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { hasKeyword } from "./keywords.js";
 import { continueDeferredSpellCleanup } from "./play-spell.js";
@@ -10,7 +10,7 @@ import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { resolveDeclaredResponse, startNextQueuedResponse } from "./response.js";
 import { resumeDeferredExecution } from "./execution-replacement.js";
 import { DECLARED_IF_SCRIPT_IDS } from "./scripts.js";
-import { addLog, findCard, otherPlayer } from "./shared.js";
+import { addLog, findCard, otherPlayer, cardOriginOf } from "./shared.js";
 import { cardCurrentStr, continuousEffectConditionMatches } from "./stats.js";
 import { drainTriggerQueue, emitGameEvent, resumeStalledTriggerThread, traceTriggerBodyAnswered } from "./triggers.js";
 import { CUSTOM_DRAIN_INDEPENDENT_EFFECTS, CUSTOM_RESOLVE_DECLARED_SCRIPT } from "../effects/custom/index.js";
@@ -103,7 +103,18 @@ export function recordVictoryFact(state, fact) {
   (state.victoryFacts ??= []).push({ ...fact, effectId: state.effectResolution?.id ?? null });
 }
 
-export function runEffectEntry(state, kind, playerId, resolver) {
+// What an entry that is the rules' own, not a card's, comes from; a card's entry passes its card as `origin`.
+const ENTRY_RULE_ORIGINS = Object.freeze({
+  "turn-start": RULE_ORIGINS.TURN_START, "trigger-order": RULE_ORIGINS.TRIGGER_ORDER,
+  "prompt-decline": RULE_ORIGINS.PLAYER_CHOICE, "response-decline": RULE_ORIGINS.PLAYER_CHOICE, "registry-recover": RULE_ORIGINS.PLAYER_ACTION
+});
+
+export function runEffectEntry(state, kind, playerId, resolver, origin = null) {
+  const ruleName = ENTRY_RULE_ORIGINS[kind];
+  return withOrigin(origin ?? (ruleName ? () => ruleOrigin(ruleName) : null), () => runEffectEntryCore(state, kind, playerId, resolver));
+}
+
+function runEffectEntryCore(state, kind, playerId, resolver) {
   if (state.opening) return false;
   const continuingDeclaredEffect = Boolean(
     state.winner
@@ -133,7 +144,7 @@ export function drainIndependentEffects(state) {
   try {
     const customDrainIndependentEffects = CUSTOM_DRAIN_INDEPENDENT_EFFECTS[next.kind];
     // An execution that waited at 「実行する時」 for a replacement answer carries on (or is replaced) once nothing else is open.
-    if (next.kind === "EXECUTION-RESUME") runEffectEntry(state, "card", next.playerId, () => resumeDeferredExecution(state));
+    if (next.kind === "EXECUTION-RESUME") runEffectEntry(state, "card", next.playerId, () => resumeDeferredExecution(state), () => { const d = state.deferredExecution; return cardOriginOf(state, d?.replace ? d.scriptUid : d?.uid); });
     else if (customDrainIndependentEffects) customDrainIndependentEffects({ state, next });
   } finally {
     state.drainingIndependentEffects = false;
@@ -171,6 +182,10 @@ export function lockVictoryIfDecided(state) {
 
 // The judgement at an effect boundary: lock the result if it is decided (kind says which boundary this is).
 export function judgeVictory(state, kind) {
+  return withOrigin(() => ruleOrigin(RULE_ORIGINS.VICTORY_JUDGE), () => judgeVictoryCore(state, kind));
+}
+
+function judgeVictoryCore(state, kind) {
   trace(state, { tag: TRACE_TAGS.JUDGE, phase: "in", kind });
   const lockedBefore = Boolean(state.victory?.lockedOutcome);
   lockVictoryIfDecided(state);
@@ -231,11 +246,11 @@ function finishDeclaredScriptCleanup(state) {
   const resident = hasKeyword(source, "RESIDENT");
   if (live) delete live.card.declaredEffectId;
   if (resident && live && live.playerId === declared.playerId && live.zoneName === "back") {
-    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-resident", cardId: source.id, cardUid: source.uid, playerId: declared.playerId });
+    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-resident", cardId: source.id, cardUid: source.uid, playerId: declared.playerId, origin: cardOrigin(source) });
     live.card.residentActive = true;
     addLog(state, `${source.name}を起動。[レジデント]として場に残る。`, "action");
   } else if (!resident && live && live.playerId === declared.playerId && ["front", "back"].includes(live.zoneName) && !isObCard(live.card)) {
-    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-to-trash", cardId: source.id, cardUid: source.uid, playerId: declared.playerId });
+    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-to-trash", cardId: source.id, cardUid: source.uid, playerId: declared.playerId, origin: cardOrigin(source) });
     state.players[live.playerId][live.zoneName].splice(state.players[live.playerId][live.zoneName].findIndex((card) => card.uid === live.card.uid), 1);
     moveCardToTrash(state, declared.playerId, live.card, source.name);
     addLog(state, `${source.name}の宣言済み効果を解決し、ゴミ箱へ。`, "action");
@@ -300,7 +315,7 @@ function drainDeclaredEffects(state) {
     state.effectResolution.declaredEffectId = declared.id;
     if (declared.kind === "script") resolveDeclaredScript(state, declared);
     else if (declared.kind === "response") resolveDeclaredResponse(state, declared);
-  });
+  }, () => cardOrigin(declared.sourceSnapshot ?? { uid: declared.sourceUid, id: declared.cardId }));
   return true;
 }
 
@@ -308,6 +323,10 @@ const MANDATORY_STATE_CHECK_PASSES = 8;
 
 // The rule-based state check (5.1), bracketed in the trace by 条件 records (event "state-check") so a reader can tell it from the text.
 export function resolveMandatoryStateChecks(state) {
+  return withOrigin(() => ruleOrigin(RULE_ORIGINS.STATE_CHECK), () => resolveMandatoryStateChecksCore(state));
+}
+
+function resolveMandatoryStateChecksCore(state) {
   // 確認(STD-003の窓など)の回答待ち・保留中の破壊がある間は判定しない。破壊が窓の後ろで保留されているカードを
   // もう一度破壊しようとすると、回答のたびに新しい窓が開いて確認が終わらなくなる。回答後の次の解決で判定する。
   if (state.prompt || state.deferredDestruction || state.scriptActivationQueue?.length) {

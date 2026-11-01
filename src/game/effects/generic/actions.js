@@ -1,4 +1,4 @@
-import { TRACE_TAGS, trace } from "../../engine-trace.js";
+import { TRACE_TAGS, trace, cardOrigin, withOrigin } from "../../engine-trace.js";
 import { swapBoardSlots } from "../../board-slots.js";
 import { cardRuntimeSpec } from "../../card-runtime-specs.js";
 import { isObCard } from "../../card-types.js";
@@ -22,7 +22,11 @@ import { openRuntimePlayerSelection, openRuntimeTargetSelection } from "./select
 import { clearComponents, distributeLayeredFollowers, moveCardToTrash, revealMountedCode, triggerMoved } from "./trash.js";
 import { addTimedModifier } from "./trigger-actions.js";
 
-export function executeRuntimeActions(state, playerId, source, actions, { targetUid = null, targetUids = [], runtime = { records: Object.create(null) }, continuationMeta = {} } = {}) {
+export function executeRuntimeActions(state, playerId, source, actions, options = {}) {
+  return withOrigin(() => cardOrigin(source), () => executeRuntimeActionsCore(state, playerId, source, actions, options));
+}
+
+function executeRuntimeActionsCore(state, playerId, source, actions, { targetUid = null, targetUids = [], runtime = { records: Object.create(null) }, continuationMeta = {} } = {}) {
   const player = state.players[playerId];
   const enemyId = otherPlayer(playerId);
   for (let actionIndex = 0; actionIndex < actions.length; actionIndex += 1) {
