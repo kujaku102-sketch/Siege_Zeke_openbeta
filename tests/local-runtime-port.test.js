@@ -6,7 +6,6 @@ import { createRuntimeReferenceState } from '../src/game/runtime/references.js';
 import { createCommandJournal } from '../src/game/runtime/command-record.js';
 import { createLocalRuntimeCoordinator } from '../src/adapters/local-runtime-port.js';
 import { chooseSimpleAiIntent, runSimpleAiPortStep } from '../src/adapters/simple-ai-policy.js';
-import { createRuntimeCui } from '../src/adapters/runtime-cui.js';
 import { createRuntimeClientController } from '../src/adapters/runtime-client-controller.js';
 import { normalizeBoardSlots, placeCardInBoardSlot } from '../src/game/board-slots.js';
 import { createRuntimeCard } from '../src/game/runtime/factory.js';
@@ -172,19 +171,15 @@ test('S05-LPORT-07: legal action catalog is active-seat only and every entry use
   }
 });
 
-test('S05-LPORT-08: fixed CUI actionId resolves to the same bound semantic command', () => {
+test('S05-LPORT-08: a fixed legal action submits as the same bound semantic command', () => {
   const { first, second } = ports();
-  const cui = createRuntimeCui(first);
-  assert.equal(cui.ok, true, JSON.stringify(cui));
-  const query = cui.value.read();
+  const query = first.query();
   const endTurn = query.value.legalActions.find(entry => entry.kind === 'fixed' && entry.action.type === 'endTurn');
   assert.ok(endTurn);
-  const result = cui.value.execute({ commandId: 'cui-turn', kind: 'action', value: endTurn.actionId });
+  const result = first.submit({ commandId: 'port-turn', expectedRevision: query.value.status.revision, action: endTurn.action });
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.value.kind, 'accepted');
   assert.equal(second.query().value.status.revision, 1);
-  assert.deepEqual(cui.value.execute({ commandId: 'bad', kind: 'action', value: 'action:0:999' }),
-    { ok: false, error: { code: 'INVALID_CUI_COMMAND' } });
 });
 
 test('S05-LPORT-09: simple AI chooses and submits only from port query data', () => {
@@ -316,10 +311,9 @@ function layeredAuthority(fillFront = false, matchId = 'port-match') {
   }, [['STD-205', 5], ['STD-020', 5]], [['STD-020', 10]], matchId);
 }
 
-test('S05-LPORT-13: layered intent plans materials before destinations and accepts extra material through CUI', () => {
+test('S05-LPORT-13: layered intent plans materials before destinations and accepts extra material', () => {
   const { first } = ports(layeredAuthority());
-  const cui = createRuntimeCui(first);
-  const query = cui.value.read();
+  const query = first.query();
   assert.equal(query.ok, true, JSON.stringify(query));
   const template = query.value.legalActions.find(entry => entry.kind === 'intent'
     && entry.actionType === 'executeLayered');
@@ -344,7 +338,9 @@ test('S05-LPORT-13: layered intent plans materials before destinations and accep
   assert.equal(next.ok, true, JSON.stringify(next));
   const destination = next.value.selectionRequests[0];
   selections.push({ requestId: destination.requestId, optionIds: [destination.options[0].optionId], allocation: [] });
-  const result = cui.value.execute({ commandId: 'layered-cui', kind: 'plan', value: { actionId: template.actionId, selections } });
+  const done = first.queryAction({ expectedRevision: 0, actionId: template.actionId, selections });
+  assert.equal(done.ok, true, JSON.stringify(done));
+  const result = first.submit({ commandId: 'layered-plan', expectedRevision: done.value.revision, action: done.value.completion.action });
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.value.kind, 'accepted');
   assert.equal(first.query().value.status.revision, 1);
@@ -396,19 +392,6 @@ test('S05-LPORT-15: scheduled controller advances a real bound port until seat h
   assert.equal(after.value.status.activeSeat, 'seat-b');
   assert.equal(tasks.size, 0);
   assert.ok(steps < 30);
-});
-
-test('S05-LPORT-16: CUI text methods format current query and execute exact lines', () => {
-  const { first } = ports();
-  const cui = createRuntimeCui(first).value;
-  const text = cui.readText();
-  assert.equal(text.ok, true, JSON.stringify(text));
-  assert.match(text.value, /STATUS ready REV 0 VIEW seat-a ACTIVE seat-a/);
-  const endTurn = cui.read().value.legalActions.find(entry => entry.kind === 'fixed' && entry.action.type === 'endTurn');
-  const result = cui.executeLine(`action text-turn ${endTurn.actionId}`);
-  assert.equal(result.ok, true, JSON.stringify(result));
-  assert.equal(result.value.kind, 'accepted');
-  assert.deepEqual(cui.executeLine('action bad missing'), { ok: false, error: { code: 'INVALID_CUI_COMMAND' } });
 });
 
 function completePlanned(first, entry, selections = []) {
@@ -498,17 +481,16 @@ test('S05-PLAN-03: layered materials free a filled slot and AI and CUI construct
   assert.ok(source && material);
   assert.equal(ai.value.action.destination.zone, 'front');
   assert.equal(ai.value.action.destination.slot, material.boardSlot);
-  const cui = createRuntimeCui(first).value;
-  const start = cui.readAction({ expectedRevision: 0, actionId: entry.actionId, selections: [] }).value;
+  const start = first.queryAction({ expectedRevision: 0, actionId: entry.actionId, selections: [] }).value;
   const materials = start.selectionRequests[0];
   const selections = [{ requestId: materials.requestId,
     optionIds: [materials.options.find(option => option.cardRef === ai.value.action.materialRefs[0]).optionId], allocation: [] }];
-  const destination = cui.readAction({ expectedRevision: 0, actionId: entry.actionId, selections }).value.selectionRequests[0];
+  const destination = first.queryAction({ expectedRevision: 0, actionId: entry.actionId, selections }).value.selectionRequests[0];
   selections.push({ requestId: destination.requestId,
     optionIds: [destination.options.find(option => option.zone === ai.value.action.destination.zone && option.slot === ai.value.action.destination.slot).optionId], allocation: [] });
   const planned = first.queryAction({ expectedRevision: 0, actionId: entry.actionId, selections }).value;
   assert.deepEqual(planned.completion.action, ai.value.action);
-  const result = cui.executeLine(`plan cui-plan ${entry.actionId} ${selections.map(row => `${row.requestId}=${row.optionIds.join(',')}`).join(' ')}`);
+  const result = first.submit({ commandId: 'plan-submit', expectedRevision: planned.revision, action: planned.completion.action });
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.value.kind, 'accepted');
 });
