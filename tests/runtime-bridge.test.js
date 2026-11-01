@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildRuntimeIdentityIndex } from '../src/game/runtime/bridge.js';
 import { createRuntimeSession } from '../src/game/runtime/session.js';
-import { retireInstanceId } from '../src/game/runtime/identity.js';
 import {
   activateCardEffect, activateResponse, activateScript, addSandboxCardToHand, cloneForHistory,
   createGame, dealFortressDamage, declinePrompt, declineResponse, destroyCard, findCard,
@@ -297,9 +296,7 @@ test('S02-BRIDGE-13: duplicate physical storage, missing storage and retired led
   rejects(missing, 'INVALID_LOCATION');
   const retired = copy(state);
   const card = retired.players.player.hand[0];
-  const ledger = retireInstanceId(retired.runtimeContext.identityState, card.identity);
-  assert.equal(ledger.ok, true);
-  retired.runtimeContext.identityState = ledger.value;
+  retired.runtimeContext.identityState = { ...retired.runtimeContext.identityState, retiredIds: [card.identity.instanceId] };
   rejects(retired, 'RETIRED_INSTANCE');
   retired.players.player.hand.shift(); // Unit ledger fixture, not an engine retirement action.
   assert.equal(index(retired).entries.some(row => row.identity.instanceId === card.identity.instanceId), false);

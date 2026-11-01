@@ -190,21 +190,6 @@ export function allocateInstanceId(input) {
   return success({ state: { ...state, nextSerial: state.nextSerial + 1 }, identity });
 }
 
-export function retireInstanceId(input, identity) {
-  const state = ledger(input);
-  if (!state) return failure('INVALID_IDENTITY_STATE');
-  const ref = reference(identity);
-  if (!ref) return failure('INVALID_IDENTITY_REF');
-  if (ref.matchId !== state.matchId) return failure('MATCH_MISMATCH');
-  const number = serial(ref.instanceId);
-  if (number >= state.nextSerial) return failure('UNKNOWN_INSTANCE');
-  if (!state.retiredIds.includes(ref.instanceId)) {
-    const position = state.retiredIds.findIndex(id => serial(id) > number);
-    state.retiredIds.splice(position < 0 ? state.retiredIds.length : position, 0, ref.instanceId);
-  }
-  return success(state);
-}
-
 export function buildIdentityIndex(input, values) {
   const state = ledger(input);
   if (!state) return failure('INVALID_IDENTITY_STATE');

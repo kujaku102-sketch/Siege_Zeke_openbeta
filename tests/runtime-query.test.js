@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { CARD_LIBRARY, USER_CARDS } from '../src/data/cards.js';
 import { queryRuntimeSeat, queryRuntimeCard, queryRuntimeCards } from '../src/game/runtime/query.js';
 import { createRuntimeSession } from '../src/game/runtime/session.js';
-import { retireInstanceId } from '../src/game/runtime/identity.js';
 import {
   activateCardEffect, activateResponse, activateScript, activateTurbo, addSandboxCardToHand,
   cardAtk, cardMaxStr, cardCurrentStr, cardHasKeyword, cloneForHistory, dealCardDamage,
@@ -283,7 +282,7 @@ test('S02-QUERY-13: unknown seats, other matches, unissued and retired identitie
   fail(queryRuntimeCard, state, { identity: { matchId: 'query-match', instanceId: 'i:999999' }, keywordNames: [] }, 'UNKNOWN_INSTANCE');
   const retired = cloneForHistory(state);
   const retiring = retired.players.player.hand.shift();
-  retired.runtimeContext.identityState = retireInstanceId(retired.runtimeContext.identityState, retiring.identity).value;
+  retired.runtimeContext.identityState = { ...retired.runtimeContext.identityState, retiredIds: [retiring.identity.instanceId] };
   fail(queryRuntimeCard, retired, { identity: { ...retiring.identity }, keywordNames: [] }, 'UNKNOWN_INSTANCE');
   const duplicate = cloneForHistory(state); duplicate.players.player.trash.push(duplicate.players.player.hand[0]);
   fail(queryRuntimeSeat, duplicate, { seatId: 'seat-a' }, 'DUPLICATE_INSTANCE');

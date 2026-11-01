@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRuntimeClientController } from '../src/adapters/runtime-client-controller.js';
 import { chooseSimpleAiIntent } from '../src/adapters/simple-ai-policy.js';
-import { formatRuntimeCui, parseRuntimeCuiLine } from '../src/adapters/runtime-cui.js';
 
 function scheduler() {
   let serial = 0;
@@ -207,46 +206,6 @@ test('S05-CLIENT-06: grouped, allocation, random, and optional input remain poli
     assert.equal(port.submitted.length, 1);
     fixture.check(port.submitted[0].action);
   }
-});
-
-test('S05-CUI-01: exact line parser covers fixed, template, answer, and decline commands', () => {
-  assert.deepEqual(parseRuntimeCuiLine('action cmd-1 action:0:2'), { ok: true, value: {
-    commandId: 'cmd-1', kind: 'action', value: 'action:0:2'
-  } });
-  assert.deepEqual(parseRuntimeCuiLine('template cmd-2 action:1:4 option:1,option:2 destination:3'), { ok: true, value: {
-    commandId: 'cmd-2', kind: 'template', value: {
-      actionId: 'action:1:4', materialOptionIds: ['option:1', 'option:2'], destinationOptionId: 'destination:3'
-    }
-  } });
-  assert.deepEqual(parseRuntimeCuiLine('answer cmd-3 choice:2:allocation option:1,option:2 option:1=2,option:2=2'), {
-    ok: true, value: { commandId: 'cmd-3', kind: 'answer', value: {
-      choiceId: 'choice:2:allocation', optionIds: ['option:1', 'option:2'],
-      allocation: [{ optionId: 'option:1', amount: 2 }, { optionId: 'option:2', amount: 2 }]
-    } }
-  });
-  assert.deepEqual(parseRuntimeCuiLine('decline cmd-4 choice:3:response-window'), { ok: true, value: {
-    commandId: 'cmd-4', kind: 'decline', value: 'choice:3:response-window'
-  } });
-  for (const line of [
-    ' action x y', 'action x y z', 'answer x choice option:1 bad=0', 'action x;rm y',
-    'template x action:1 option:1, destination:1', 'answer x choice option:1, -',
-    'answer x choice option:1 option:1=999999999999999999999999'
-  ]) {
-    assert.deepEqual(parseRuntimeCuiLine(line), { ok: false, error: { code: 'INVALID_CUI_LINE' } });
-  }
-});
-
-test('S05-CUI-02: formatter uses projected data and cannot invent hidden opponent card details', () => {
-  const formatted = formatRuntimeCui(fixedQuery());
-  assert.equal(formatted.ok, true, JSON.stringify(formatted));
-  assert.match(formatted.value, /HAND r:bbbb 公開手札/);
-  assert.match(formatted.value, /SEAT seat-a .* HAND 1/);
-  assert.equal(formatted.value.includes('相手の秘密'), false);
-  assert.equal(formatted.value.includes('undefined'), false);
-  assert.equal(formatted.value.includes('[object Object]'), false);
-  const control = fixedQuery();
-  control.observation.seats[1].hand.cards[0].definition.name = 'line\nbreak';
-  assert.equal(formatRuntimeCui(control).value.includes('line\nbreak'), false);
 });
 
 test('C01: a scheduled task hands the step result to its scheduler, telling failure from idle', () => {

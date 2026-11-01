@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createIdentityState, allocateInstanceId, retireInstanceId, buildIdentityIndex, findIdentityEntry } from '../src/game/runtime/identity.js';
+import { createIdentityState, allocateInstanceId, buildIdentityIndex, findIdentityEntry } from '../src/game/runtime/identity.js';
 
 function snapshot(value, seen = new Map()) {
   if (value === null || typeof value !== 'object') return value;
@@ -71,23 +71,14 @@ test('S01-02', () => {
   const rematch = value(allocateInstanceId, state(1, [], 'match-b'));
   assert.equal(first.identity.instanceId, rematch.identity.instanceId);
   assert.notEqual(first.identity.matchId, rematch.identity.matchId);
-  rejects('MATCH_MISMATCH', retireInstanceId, first.state, rematch.identity);
   rejects('MATCH_MISMATCH', buildIdentityIndex, first.state, [{ ...record(1), identity: rematch.identity }]);
   rejects('MATCH_MISMATCH', buildIdentityIndex, state(3), [record(1), record(2, mount(ref(1, 'match-b')))]);
   rejects('MATCH_MISMATCH', findIdentityEntry, index([record(1)]), rematch.identity);
 });
 
 test('S01-03', () => {
-  let live = value(retireInstanceId, state(5), ref(3));
-  live = value(retireInstanceId, live, ref(1));
-  assert.deepEqual(live.retiredIds, ['i:1', 'i:3']);
-  const again = value(retireInstanceId, live, ref(3));
-  assert.deepEqual(again, live);
-  assert.notEqual(again, live);
-  assert.notEqual(again.retiredIds, live.retiredIds);
-  const next = value(allocateInstanceId, live);
+  const next = value(allocateInstanceId, state(5, ['i:1', 'i:3']));
   assert.deepEqual(next.identity, ref(5));
-  rejects('UNKNOWN_INSTANCE', retireInstanceId, live, ref(5));
   for (const name of ['trash', 'ban', 'deck']) assert.equal(value(buildIdentityIndex, state(2), [record(1, zone(name))]).entries.length, 1);
 });
 
@@ -97,13 +88,12 @@ test('S01-04', () => {
   for (const nextSerial of [0, -1, 1.5, '2', true, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) rejects('INVALID_IDENTITY_STATE', allocateInstanceId, { ...state(), nextSerial });
   for (const retiredIds of [['i:2', 'i:1'], ['i:1', 'i:1'], ['i:3'], ['i:01'], [1]]) rejects('INVALID_IDENTITY_STATE', allocateInstanceId, state(3, retiredIds));
   rejects('INVALID_IDENTITY_STATE', allocateInstanceId, { ...state(), schemaVersion: 1 });
-  for (const id of ['i:0', 'i:-1', 'i:+1', 'i:01', 'i:1.0', 'i:1e0', 'i: 1', 'i:1 ', 'i:1\n', 'i:9007199254740992', 1, true, undefined, 1n, Symbol('id')]) rejects('INVALID_IDENTITY_REF', retireInstanceId, state(2), { matchId: 'match-a', instanceId: id });
-  rejects('INVALID_IDENTITY_REF', retireInstanceId, state(2), { ...ref(1), extra: 1 });
+  for (const id of ['i:0', 'i:-1', 'i:+1', 'i:01', 'i:1.0', 'i:1e0', 'i: 1', 'i:1 ', 'i:1\n', 'i:9007199254740992', 1, true, undefined, 1n, Symbol('id')]) rejects('INVALID_IDENTITY_REF', findIdentityEntry, index([record(1)]), { matchId: 'match-a', instanceId: id });
+  rejects('INVALID_IDENTITY_REF', findIdentityEntry, index([record(1)]), { ...ref(1), extra: 1 });
   const max = Number.MAX_SAFE_INTEGER;
   const last = value(allocateInstanceId, state(max - 1));
   assert.equal(last.identity.instanceId, `i:${max - 1}`);
   rejects('IDENTITY_EXHAUSTED', allocateInstanceId, last.state);
-  rejects('UNKNOWN_INSTANCE', retireInstanceId, last.state, ref(max));
   rejects('INVALID_LOCATION', buildIdentityIndex, last.state, [record(1)]);
   rejects('INVALID_LOCATION', buildIdentityIndex, state(2), [record(1, board(max + 1))]);
   assert.equal(value(createIdentityState, { matchId: ' ', seatIds: [' a', 'a'] }).matchId, ' ');
@@ -121,7 +111,7 @@ test('S01-05', () => {
   assert.deepEqual(right.state.seatIds, ['seat-b', 'seat-a']);
   assert.deepEqual(right.state.retiredIds, ['i:2']);
   assert.deepEqual(live, state(5, ['i:2'], 'match-a', ['seat-b', 'seat-a']));
-  const retired = value(retireInstanceId, right.state, right.identity);
+  const retired = state(6, ['i:2', 'i:5'], 'match-a', ['seat-b', 'seat-a']);
   const built = value(buildIdentityIndex, retired, [record(1), record(3), record(4)]);
   assert.deepEqual(value(findIdentityEntry, built, ref(3)), record(3));
 });
@@ -188,7 +178,7 @@ test('S01-11', () => {
   rejects('INVALID_IDENTITY_STATE', createIdentityState, accessor);
   const refAccessor = { instanceId: 'i:1' };
   Object.defineProperty(refAccessor, 'matchId', { enumerable: true, get() { called += 1; return 'match-a'; } });
-  rejects('INVALID_IDENTITY_REF', retireInstanceId, state(2), refAccessor);
+  rejects('INVALID_IDENTITY_REF', findIdentityEntry, index([record(1)]), refAccessor);
   const locationAccessor = { seatId: 'seat-a', zone: 'hand' };
   Object.defineProperty(locationAccessor, 'kind', { enumerable: true, get() { called += 1; return 'zone'; } });
   rejects('INVALID_LOCATION', buildIdentityIndex, state(2), [record(1, locationAccessor)]);
@@ -200,7 +190,7 @@ test('S01-11', () => {
   rejects('INVALID_LOCATION', buildIdentityIndex, state(2), [circular]);
   const cyclicRef = ref(1);
   cyclicRef.matchId = cyclicRef;
-  rejects('INVALID_IDENTITY_REF', retireInstanceId, state(2), cyclicRef);
+  rejects('INVALID_IDENTITY_REF', findIdentityEntry, index([record(1)]), cyclicRef);
   const shared = zone();
   const input = frozen([record(1, shared), record(2, shared)]);
   const built = value(buildIdentityIndex, frozen(state(3)), input);
@@ -213,7 +203,6 @@ test('S01-11', () => {
   assert.equal(value(findIdentityEntry, index([record(1)]), ref(1)).identity.instanceId, 'i:1');
   const allocated = value(allocateInstanceId, frozen(state(3, ['i:1'])));
   allocated.state.retiredIds.push('i:2');
-  assert.deepEqual(value(retireInstanceId, frozen(state(3)), frozen(ref(1))).retiredIds, ['i:1']);
   const reflectionFailure = new Error('reflection');
   assert.throws(() => allocateInstanceId(new Proxy({}, { ownKeys() { throw reflectionFailure; } })), error => error === reflectionFailure);
 });
