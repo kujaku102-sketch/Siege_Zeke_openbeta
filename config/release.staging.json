@@ -8,7 +8,7 @@
   },
   "publicCardPool": {
     "poolId": "std-1.1.1-staging",
-    "cardCount": 214,
+    "cardCount": 215,
     "canonicalIds": [
       "STD-001", "STD-002", "STD-003", "STD-004", "STD-005", "STD-006", "STD-007", "STD-008", "STD-009", "STD-010",
       "STD-011", "STD-012", "STD-013", "STD-014", "STD-015", "STD-016", "STD-017", "STD-018", "STD-019", "STD-020",
