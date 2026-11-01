@@ -1,4 +1,4 @@
-import { TRACE_TAGS, trace } from "../engine-trace.js";
+import { TRACE_TAGS, trace, TRACE, tracing, waypoint } from "../engine-trace.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { layeredSpecFor } from "../layered-specs.js";
 import { createSelectionRequest, createSelectionSpec, selectionRequestFromSpec } from "../selection-model.js";
@@ -63,7 +63,8 @@ export function finalizeDeferredSpellCleanup(state, { replacementHostUid = null 
   const host = replacementHostUid
     ? [...player.front, ...player.back].find((item) => item.uid === replacementHostUid && item.id === "SZTB-095" && !item.faceDown)
     : null;
-  trace(state, { tag: TRACE_TAGS.CLEANUP, event: host ? "spell-to-layer" : "spell-to-trash", cardId: card.id, cardUid: card.uid, playerId });
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.CLEANUP, event: host ? "spell-to-layer" : "spell-to-trash", cardId: card.id, cardUid: card.uid, playerId });
+  if (TRACE && tracing()) waypoint(state, "rule:source-cleanup", true, { cardId: card.id, cardUid: card.uid, how: host ? "spell-to-layer" : "spell-to-trash" });
   if (host) {
     card.layerRole = "layered";
     host.mounted.push(card);

@@ -1,7 +1,7 @@
 import { collectActivationWindows, createEventContext } from "../activation-windows.js";
 import { isObCard } from "../card-types.js";
 import { describeOperation } from "../effect-operation-library.js";
-import { TRACE_TAGS, trace, traceActive } from "../engine-trace.js";
+import { TRACE_TAGS, trace, TRACE, tracing, waypoint } from "../engine-trace.js";
 import { specsForEvent } from "../trigger-specs.js";
 import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled, judgeVictory, parentEffectAwaitsOwnChoice, resolveMandatoryStateChecks, runEffectEntry, traceChoiceDiff } from "./effects.js";
 import { enabledSymbols } from "./play.js";
@@ -31,14 +31,17 @@ export function traceTriggerBodyAnswered(state) {
   waitingBodyId = null;
   if (bodyEnded.has(triggerId)) return;
   bodyEnded.add(triggerId);
-  trace(state, { tag: TRACE_TAGS.TRIGGER, event: "body-end", triggerId, how: "answered" });
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.TRIGGER, event: "body-end", triggerId, how: "answered" });
+  if (TRACE && tracing()) waypoint(state, "trigger-body:end", true, { triggerId, how: "answered" });
 }
 
 function executeQueuedTrigger(state, trigger) {
   trigger.status = "resolving";
-  bodyEnded.delete(trigger.id);
-  waitingBodyId = null;
-  trace(state, { tag: TRACE_TAGS.LAUNCH, via: "trigger", triggerId: trigger.id, cardId: trigger.source.card.id, cardUid: trigger.source.card.uid,
+  if (TRACE) {
+    bodyEnded.delete(trigger.id);
+    waitingBodyId = null;
+  }
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.LAUNCH, via: "trigger", triggerId: trigger.id, cardId: trigger.source.card.id, cardUid: trigger.source.card.uid,
     playerId: trigger.source.playerId, eventType: trigger.event.type, eventId: trigger.event.id ?? null, phase: trigger.runtimePhase ?? null });
   if (trigger.spec.limit === "once_per_turn") state.players[trigger.source.playerId].triggerUsage[trigger.spec.id] = true;
   addLog(state, `誘発: ${trigger.source.card.name}（${trigger.event.type}）`, "effect");
@@ -47,12 +50,13 @@ function executeQueuedTrigger(state, trigger) {
     continuationMeta: { triggerItemId: trigger.id }
   });
   else for (const action of trigger.spec.actions) executeTriggerAction(state, trigger, action);
-  if (traceActive()) {
+  if (TRACE && tracing()) {
     traceChoiceDiff(state, pendingBefore, promptBefore);
     // The end of the trigger's text: either it waits for an answer (the answer's resume closes it) or it is done here.
     const waits = Boolean(state.pending || state.prompt);
     if (waits) waitingBodyId = trigger.id; else bodyEnded.add(trigger.id);
     trace(state, { tag: TRACE_TAGS.TRIGGER, event: waits ? "body-wait" : "body-end", triggerId: trigger.id, how: "direct" });
+    waypoint(state, waits ? "trigger-body:wait" : "trigger-body:end", true, { triggerId: trigger.id, how: "direct" });
   }
   // 5.1: the rule-based state check is part of the effect (before its judgement); what it raises waits in the queue (4.7.1).
   if (!state.pending && !state.prompt) resolveMandatoryStateChecks(state);
@@ -78,7 +82,7 @@ function advanceTriggerThread(state) {
   if (state.winner) {
     for (const item of thread.items.filter((entry) => entry.status === "pending")) {
       item.status = "cancelled-after-victory-lock";
-      trace(state, { tag: TRACE_TAGS.TRIGGER, event: "discarded-on-lock", threadId: thread.id, itemId: item.id, controllerId: item.controllerId });
+      if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.TRIGGER, event: "discarded-on-lock", threadId: thread.id, itemId: item.id, controllerId: item.controllerId });
     }
     return finishTriggerThread(state);
   }
@@ -96,7 +100,8 @@ function advanceTriggerThread(state) {
     return;
   }
   const item = choices[0];
-  trace(state, { tag: TRACE_TAGS.TRIGGER, event: "order-chosen", threadId: thread.id, itemId: item.id, controllerId: item.controllerId, auto: true });
+  if (TRACE && tracing()) waypoint(state, "rule:trigger-order", true, { threadId: thread.id, itemId: item.id, controllerId: item.controllerId, auto: true });
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.TRIGGER, event: "order-chosen", threadId: thread.id, itemId: item.id, controllerId: item.controllerId, auto: true });
   item.status = "resolving";
   executeQueuedTrigger(state, item.trigger);
   if (state.pending || state.prompt) {
@@ -126,7 +131,8 @@ function resolveTriggerChoiceCore(state, itemId) {
   // スレッド終了時に誰も開かないまま取り残されて盤面が止まる。
   if (state.pending?.type === "trigger-order") state.pending = null;
   state.processingTriggers = true;
-  trace(state, { tag: TRACE_TAGS.TRIGGER, event: "order-chosen", threadId: thread.id, itemId: item.id, controllerId: item.controllerId, auto: false });
+  if (TRACE && tracing()) waypoint(state, "rule:trigger-order", true, { threadId: thread.id, itemId: item.id, controllerId: item.controllerId, auto: false });
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.TRIGGER, event: "order-chosen", threadId: thread.id, itemId: item.id, controllerId: item.controllerId, auto: false });
   item.status = "resolving";
   executeQueuedTrigger(state, item.trigger);
   if (state.pending || state.prompt) {
@@ -156,10 +162,11 @@ export function resumeTriggerThreadAfterSelection(state, itemId) {
   const thread = state.triggerThread;
   const item = thread?.items.find((entry) => entry.id === itemId && entry.status === "awaiting-selection");
   // The answer to a choice a trigger opened has finished that trigger's text (said once, however often the item is looked at).
-  if (traceActive() && itemId && !bodyEnded.has(itemId)) {
+  if (TRACE && tracing() && itemId && !bodyEnded.has(itemId)) {
     bodyEnded.add(itemId);
     if (waitingBodyId === itemId) waitingBodyId = null;
     trace(state, { tag: TRACE_TAGS.TRIGGER, event: "body-end", triggerId: itemId, how: "answered" });
+    waypoint(state, "trigger-body:end", true, { triggerId: itemId, how: "answered" });
   }
   if (!item) return;
   // The answer is an effect of its own: its judgement (and the state check before it) comes first. When the effect ends,
@@ -210,7 +217,7 @@ function drainTriggerQueueCore(state) {
       }))
     };
     state.processingTriggers = true;
-    if (traceActive()) trace(state, { tag: TRACE_TAGS.TRIGGER, event: "thread-opened", threadId: state.triggerThread.id, items: state.triggerThread.items.map((item) => item.id) });
+    if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.TRIGGER, event: "thread-opened", threadId: state.triggerThread.id, items: state.triggerThread.items.map((item) => item.id) });
     advanceTriggerThread(state);
     return;
   }
@@ -230,7 +237,7 @@ export function emitGameEvent(state, event) {
   const normalized = { id: `EV-${++state.triggerSerial}`, turnNumber: state.turnNumber,
     ...(threadItem ? { threadId: state.triggerThread.id, threadItemId: threadItem.id } : {}), ...event };
   state.events.push(normalized);
-  if (traceActive()) trace(state, { tag: TRACE_TAGS.RESULT, event: normalized.type, eventId: normalized.id, playerId: normalized.playerId ?? null,
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.RESULT, event: normalized.type, eventId: normalized.id, playerId: normalized.playerId ?? null,
     cardUid: normalized.cardUid ?? null, cardId: normalized.cardId ?? null, source: typeof normalized.source === "string" ? normalized.source : null });
   if (state.winner) {
     if (state.events.length > 200) state.events.shift();
@@ -245,7 +252,7 @@ export function emitGameEvent(state, event) {
   if (normalized.type !== "user_ability_feedback") syncMonoColorFeedback(state);
   if (state.events.length > 200) state.events.shift();
   const windows = collectTriggers(state, normalized);
-  if (traceActive()) for (const window of windows) {
+  if (TRACE && tracing()) for (const window of windows) {
     trace(state, { tag: TRACE_TAGS.TRIGGER, event: "queued", triggerId: window.id, cardId: window.source?.card?.id ?? null, cardUid: window.source?.card?.uid ?? null,
       playerId: window.source?.playerId ?? null, eventType: normalized.type, eventId: normalized.id, optional: Boolean(window.optional) });
   }

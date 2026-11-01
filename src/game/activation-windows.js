@@ -1,3 +1,4 @@
+import { TRACE, tracing, waypoint } from "./engine-trace.js";
 import { isObCard, isObCategory, matchesCardCategory } from "./card-types.js";
 
 const otherPlayer = (id) => id === "player" ? "ai" : "player";
@@ -95,13 +96,32 @@ function createActivationWindow({ context, spec, source, optional = spec.activat
   };
 }
 
+// The spec's conditions, in order, stopping at the first that fails (the same as .every). With a trace sink each one leaves a waypoint
+// `cond:<spec id>:<type>`, then the spec itself `trigger:<spec id>` with the verdict.
+function matchesConditions(state, window, spec) {
+  if (TRACE && tracing()) {
+    let all = true;
+    for (const condition of spec.conditions) {
+      const ok = triggerConditionMatches(state, window, condition);
+      waypoint(state, `cond:${spec.id}:${condition.type}`, ok, { cardId: spec.cardId, cardUid: window.source.card.uid });
+      if (!ok) { all = false; break; }
+    }
+    waypoint(state, `trigger:${spec.id}`, all, { cardId: spec.cardId, cardUid: window.source.card.uid, eventType: window.context.type });
+    return all;
+  }
+  return spec.conditions.every((condition) => triggerConditionMatches(state, window, condition));
+}
+
 export function collectActivationWindows(state, context, specs, sources) {
   const windows = [];
   for (const spec of specs.filter((item) => item.event === context.type)) {
     for (const source of sources.filter((entry) => entry.card.id === spec.cardId)) {
       const window = createActivationWindow({ context, spec, source });
-      if (spec.limit === "once_per_turn" && state.players[source.playerId].triggerUsage[spec.id]) continue;
-      if (spec.conditions.every((condition) => triggerConditionMatches(state, window, condition))) windows.push(window);
+      if (spec.limit === "once_per_turn" && state.players[source.playerId].triggerUsage[spec.id]) {
+        if (TRACE && tracing()) waypoint(state, `trigger:${spec.id}`, false, { cardId: spec.cardId, cardUid: source.card.uid, why: "once-per-turn" });
+        continue;
+      }
+      if (matchesConditions(state, window, spec)) windows.push(window);
     }
   }
   const active = windows.filter((item) => item.controllerId === state.active);

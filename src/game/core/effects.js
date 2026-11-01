@@ -2,7 +2,7 @@ import { normalizeBoardSlots } from "../board-slots.js";
 import { isObCard } from "../card-types.js";
 import { mandatoryStateCheckSpecsFor } from "../continuous-effect-specs.js";
 import { EFFECT_OPERATION_TYPES } from "../effect-operation-library.js";
-import { TRACE_TAGS, trace, traceActive } from "../engine-trace.js";
+import { TRACE_TAGS, trace, TRACE, tracing, waypoint } from "../engine-trace.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { hasKeyword } from "./keywords.js";
 import { continueDeferredSpellCleanup } from "./play-spell.js";
@@ -27,7 +27,7 @@ export function resolveEffect(state, resolver) {
       playerId: null, status: "resolving"
     };
     // An effect that starts without an entry point of its own (a Login/Logout resolved by a re-execution, say) still has a launch record.
-    trace(state, { tag: TRACE_TAGS.LAUNCH, via: "entry", kind: "runtime", playerId: null });
+    if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.LAUNCH, via: "entry", kind: "runtime", playerId: null });
   }
   const pendingBefore = state.pending, promptBefore = state.prompt;
   state.effectDepth += 1;
@@ -41,7 +41,7 @@ export function resolveEffect(state, resolver) {
       // rule-based state check (5.1: always on) and its judgement come before any waiting trigger starts (4.7.1, 1.2.1).
       continueDeferredSpellCleanup(state);
       resolveMandatoryStateChecks(state);
-      if (traceActive()) traceChoiceDiff(state, pendingBefore, promptBefore);
+      if (TRACE && tracing()) traceChoiceDiff(state, pendingBefore, promptBefore);
       if (!state.pending && !state.prompt && state.effectResolution) {
         judgeVictory(state, state.effectResolution.kind ?? null);
         judged = true;
@@ -88,13 +88,14 @@ export function traceChoiceDiff(state, pendingBefore, promptBefore) {
   for (const [kind, before, after] of [["pending", pendingBefore, state.pending], ["prompt", promptBefore, state.prompt]]) {
     if (before === after) continue;
     const request = after?.request;
-    trace(state, {
+    if (TRACE && tracing()) trace(state, {
       tag: TRACE_TAGS.SELECT, op: EFFECT_OPERATION_TYPES.SELECT, event: !after ? "closed" : before ? "replaced" : "opened", slot: kind,
       type: after?.type ?? before?.type ?? null, mode: request?.mode ?? null, label: request?.label ?? null,
       candidates: request?.candidates?.length ?? after?.validTargets?.length ?? null,
       chooserId: request?.continuation?.playerId ?? after?.playerId ?? null, continuation: request?.continuation?.type ?? null,
       chooser: after ? choiceChooser(after, request) : null, controllerId: request?.continuation?.playerId ?? null
     });
+    if (TRACE && tracing()) waypoint(state, `choice:${request?.continuation?.type ?? after?.type ?? before?.type ?? "unknown"}`, Boolean(after), { slot: kind, event: !after ? "closed" : before ? "replaced" : "opened" });
     if (!after) traceTriggerBodyAnswered(state);
   }
 }
@@ -116,7 +117,7 @@ export function runEffectEntry(state, kind, playerId, resolver) {
   } else {
     state.effectResolution.status = "resolving";
   }
-  trace(state, { tag: TRACE_TAGS.LAUNCH, via: "entry", kind, playerId });
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.LAUNCH, via: "entry", kind, playerId });
   normalizeBoardSlots(state);
   try {
     return resolveEffect(state, resolver);
@@ -158,7 +159,7 @@ export function lockVictoryIfDecided(state) {
     lockedAtEffectId: state.effectResolution?.id ?? null,
     finished: false
   };
-  if (traceActive() && (state.triggerQueue.length || state.activationWindows.length)) {
+  if (TRACE && tracing() && (state.triggerQueue.length || state.activationWindows.length)) {
     trace(state, { tag: TRACE_TAGS.TRIGGER, event: "discarded-on-lock", queued: state.triggerQueue.map((trigger) => trigger.id), windows: state.activationWindows.length });
   }
   state.pending = null; state.prompt = null; state.triggerQueue = [];
@@ -171,10 +172,10 @@ export function lockVictoryIfDecided(state) {
 
 // The judgement at an effect boundary: lock the result if it is decided (kind says which boundary this is).
 export function judgeVictory(state, kind) {
-  trace(state, { tag: TRACE_TAGS.JUDGE, phase: "in", kind });
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.JUDGE, phase: "in", kind });
   const lockedBefore = Boolean(state.victory?.lockedOutcome);
   lockVictoryIfDecided(state);
-  trace(state, { tag: TRACE_TAGS.JUDGE, phase: "out", kind,
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.JUDGE, phase: "out", kind,
     locked: Boolean(state.victory?.lockedOutcome), lockedNow: Boolean(state.victory?.lockedOutcome) && !lockedBefore, winner: state.winner ?? null });
 }
 
@@ -231,11 +232,13 @@ function finishDeclaredScriptCleanup(state) {
   const resident = hasKeyword(source, "RESIDENT");
   if (live) delete live.card.declaredEffectId;
   if (resident && live && live.playerId === declared.playerId && live.zoneName === "back") {
-    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-resident", cardId: source.id, cardUid: source.uid, playerId: declared.playerId });
+    if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-resident", cardId: source.id, cardUid: source.uid, playerId: declared.playerId });
+    if (TRACE && tracing()) waypoint(state, "rule:source-cleanup", true, { cardId: source.id, cardUid: source.uid, how: "script-resident" });
     live.card.residentActive = true;
     addLog(state, `${source.name}を起動。[レジデント]として場に残る。`, "action");
   } else if (!resident && live && live.playerId === declared.playerId && ["front", "back"].includes(live.zoneName) && !isObCard(live.card)) {
-    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-to-trash", cardId: source.id, cardUid: source.uid, playerId: declared.playerId });
+    if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-to-trash", cardId: source.id, cardUid: source.uid, playerId: declared.playerId });
+    if (TRACE && tracing()) waypoint(state, "rule:source-cleanup", true, { cardId: source.id, cardUid: source.uid, how: "script-to-trash" });
     state.players[live.playerId][live.zoneName].splice(state.players[live.playerId][live.zoneName].findIndex((card) => card.uid === live.card.uid), 1);
     moveCardToTrash(state, declared.playerId, live.card, source.name);
     addLog(state, `${source.name}の宣言済み効果を解決し、ゴミ箱へ。`, "action");
@@ -311,12 +314,15 @@ export function resolveMandatoryStateChecks(state) {
   // 確認(STD-003の窓など)の回答待ち・保留中の破壊がある間は判定しない。破壊が窓の後ろで保留されているカードを
   // もう一度破壊しようとすると、回答のたびに新しい窓が開いて確認が終わらなくなる。回答後の次の解決で判定する。
   if (state.prompt || state.deferredDestruction || state.scriptActivationQueue?.length) {
-    trace(state, { tag: TRACE_TAGS.CONDITION, event: "state-check", phase: "skipped" });
+    if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.CONDITION, event: "state-check", phase: "skipped" });
+    if (TRACE && tracing()) waypoint(state, "rule:state-check:skipped", false);
     return;
   }
-  trace(state, { tag: TRACE_TAGS.CONDITION, event: "state-check", phase: "in" });
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.CONDITION, event: "state-check", phase: "in" });
+  if (TRACE && tracing()) waypoint(state, "rule:state-check:in", true);
   const passes = runStateCheckPasses(state);
-  trace(state, { tag: TRACE_TAGS.CONDITION, event: "state-check", phase: "out", passes });
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.CONDITION, event: "state-check", phase: "out", passes });
+  if (TRACE && tracing()) waypoint(state, "rule:state-check:out", true, { passes });
 }
 
 function runStateCheckPasses(state) {

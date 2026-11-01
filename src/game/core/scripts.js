@@ -1,6 +1,8 @@
+import { collectFlagged } from "../../cards/index.js";
+import { DECLARED_IF_SCRIPT_ORDER } from "../../cards/spec-order.js";
 import { createEventContext, createScriptActivationWindow } from "../activation-windows.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
-import { TRACE_TAGS, trace } from "../engine-trace.js";
+import { TRACE_TAGS, trace, TRACE, tracing, waypoint } from "../engine-trace.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { hasOptionalActivationSpec, optionalSpecsForCard } from "../trigger-specs.js";
 import { resumeDeferredAttack } from "./battle.js";
@@ -22,7 +24,12 @@ import { resumeDeferredDestruction } from "../effects/generic/destroy.js";
 import { moveCardToTrash, resumeDeferredTrashMove } from "../effects/generic/trash.js";
 import { executeTriggerAction } from "../effects/generic/trigger-actions.js";
 
-export const DECLARED_IF_SCRIPT_IDS = new Set(["STD-001", "STD-002", "STD-003", "STD-018", "STD-019", "STD-036", "STD-037", "STD-038", "STD-139", "STD-140", "STD-148", "STD-184"]);
+// Scripts whose [if:] effect is declared and resolved after the current effect. The older ones are listed here; a card sets the flag
+// `declaredIfScript` in its module (and is listed in DECLARED_IF_SCRIPT_ORDER).
+export const DECLARED_IF_SCRIPT_IDS = new Set([
+  "STD-001", "STD-002", "STD-003", "STD-018", "STD-019", "STD-036", "STD-037", "STD-038", "STD-139", "STD-140", "STD-148",
+  ...collectFlagged("declaredIfScript", DECLARED_IF_SCRIPT_ORDER)
+]);
 
 export const NORMAL_IF_SCRIPT_IDS = new Set(["STD-001", "STD-002", "STD-003", "STD-036", "STD-037", "STD-139", "STD-140", "STD-148"]);
 
@@ -227,11 +234,13 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
   const resident = hasKeyword(script, "RESIDENT") || script.id === "STD-142";
   if (resident) {
     script.residentActive = true;
-    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-resident", cardId: script.id, cardUid: script.uid, playerId });
+    if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-resident", cardId: script.id, cardUid: script.uid, playerId });
+    if (TRACE && tracing()) waypoint(state, "rule:source-cleanup", true, { cardId: script.id, cardUid: script.uid, how: "script-resident" });
     addLog(state, script.id === "STD-142" ? `${script.name}の①を起動し、場に残る。` : `${script.name}を起動。[レジデント]として場に残る。`, "action");
   } else {
     player.back.splice(index, 1);
-    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-to-trash", cardId: script.id, cardUid: script.uid, playerId });
+    if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-to-trash", cardId: script.id, cardUid: script.uid, playerId });
+    if (TRACE && tracing()) waypoint(state, "rule:source-cleanup", true, { cardId: script.id, cardUid: script.uid, how: "script-to-trash" });
     moveCardToTrash(state, playerId, script, script.name);
     addLog(state, `${script.name}を起動し、解決後にゴミ箱へ。`, "action");
   }

@@ -1,3 +1,4 @@
+import { TRACE, tracing, waypoint } from "../engine-trace.js";
 import { cardAtBoardSlot, inheritBoardSlot, projectZoneSlots } from "../board-slots.js";
 import { cardPlacementCostSpec } from "../card-runtime-specs.js";
 import { isObCard, isObCategory } from "../card-types.js";
@@ -288,6 +289,7 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
     card.ocPaidAmount = Number(ocMatch[1]);
   } else delete card.ocPaidAmount;
   addLog(state, `${player.user.name}が「${card.name}」を${free && force ? "強制実行" : "実行"}。`, "action");
+  if (TRACE && tracing()) waypoint(state, "rule:execution", true, { cardId: card.id, cardUid: card.uid, category: card.category, playerId, forced: Boolean(free && force) });
 
   const placement = placementResult(player, zone, { addedSlots: baseUid || underUid ? 0 : 1, mode: placementMode });
   if (card.category !== "Sp" && !placement.ok && placement.mode === "forced-effect") {

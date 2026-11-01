@@ -4,6 +4,7 @@
 // 実行は「実行する時」(配置とログインの前、メモリを払う前)に止め、置換できるScriptが設置されている時だけ相手に起動の確認を出す。
 // 断れば元の実行をそのまま続け、起動すれば元のカードの実行メモリを払って元のカードを `original` に従って片付け、
 // 置換先のカードを実行ユーザーが元の実行先で(追加メモリなしで)実行する。
+import { TRACE, tracing, waypoint } from "../engine-trace.js";
 import { CARD_EXECUTION_REPLACEMENT_SPECS } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
 import { createVengeanceCard } from "../effects/generic/generate.js";
@@ -39,6 +40,7 @@ export function openExecutionReplacementWindow(state, executorId, card, resumeOp
     if (callbackId) PENDING_CALLBACKS.delete(callbackId);
     return false;
   }
+  if (TRACE && tracing()) waypoint(state, "rule:execution-replacement", true, { event: "held", executorId, cardId: card.id, cardUid: card.uid, replacerId: script.id, replacerUid: script.uid });
   return true;
 }
 
@@ -65,7 +67,10 @@ export function resumeDeferredExecution(state) {
   const onPlaced = deferred.callbackId ? PENDING_CALLBACKS.get(deferred.callbackId) : undefined;
   if (deferred.callbackId) PENDING_CALLBACKS.delete(deferred.callbackId);
   const options = { ...deferred.options, ...(onPlaced ? { onPlaced } : {}), executionReplacementChecked: true };
-  if (!deferred.replace) return playCardCore(state, deferred.playerId, deferred.uid, options);
+  if (!deferred.replace) {
+    if (TRACE && tracing()) waypoint(state, "rule:execution-replacement", false, { event: "declined", executorId: deferred.playerId, cardUid: deferred.uid, replacerUid: deferred.scriptUid });
+    return playCardCore(state, deferred.playerId, deferred.uid, options);
+  }
   return replaceExecution(state, deferred, options);
 }
 
@@ -80,6 +85,7 @@ function replaceExecution(state, deferred, options) {
   player.hand.splice(index, 1);
   if (!options.free) payMemory(state, deferred.playerId, executionCost(original, state, deferred.playerId), "execution");
   const replacement = createVengeanceCard(state, spec.replaceWith, deferred.playerId);
+  if (TRACE && tracing()) waypoint(state, "rule:execution-replacement", true, { event: "replaced", executorId: deferred.playerId, cardId: original.id, cardUid: original.uid, replacerId: script.id, replacerUid: script.uid, replacementId: replacement.id, replacementUid: replacement.uid, original: spec.original });
   addLog(state, `${script.name}: ${original.name}の実行を「${replacement.name}」の実行に置換。`, "effect");
   if (spec.original === "layer") {
     original.layerRole = "layered";

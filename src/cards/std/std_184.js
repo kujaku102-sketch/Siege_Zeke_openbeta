@@ -31,5 +31,8 @@ export const triggerSpecs = [
 // uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
 export const sharedTriggerCard = true;
 
+// its [if:] effect is declared and resolved after the current effect (core/scripts.js DECLARED_IF_SCRIPT_IDS)
+export const declaredIfScript = true;
+
 // compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
 export const compilerPreset = { type: "dual_ob_script", scriptSetupMemory: 3, scriptActivationMemory: 0, scriptTrigger: "enemy_executes_card", scriptEffect: "drag_self_to_front" };
