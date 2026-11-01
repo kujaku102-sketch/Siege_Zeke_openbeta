@@ -147,7 +147,8 @@ function downloadStored(name,place,items) {const link = document.createElement('
 // tutorial started over it (startMatch, before host.mode / host.tutorialId change), and the page closed or reloaded.
 // leaveMatch keeps its own copy of markWonTutorial's line (tests/screen-flow.test.js pins its text).
 const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;
-const markWonTutorial = () => {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);};
+// A browser may refuse even the reading of localStorage; this runs first in pagehide and startMatch, so it must not throw.
+const markWonTutorial = () => {try {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);} catch {/* the tutorial stays unmarked */}};
 function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = screen;host.options = false;host.catalogOpen = false;host.notice = '';renderShell(true);
   if (screen !== 'entry') root.querySelector('[data-flow-back]')?.focus({preventScroll:true});}
 // Entry flow screens move by their own buttons and Escape only, never by the browser history (Q14).
