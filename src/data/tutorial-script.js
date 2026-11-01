@@ -32,8 +32,8 @@ const INTRO_STEPS = [
   { speaker: TUTORIAL_SPEAKER, text: "早速ですが、Siege÷Zekeについてお伝えすることがございます……" },
   {
     speaker: TUTORIAL_SPEAKER,
-    text: "現在、ここは世界Ver0.9.1…つまり産まれる前(ベータテスト)です！",
-    parts: ["現在、ここは世界Ver0.9.1…つまり", { ruby: "産まれる前", rt: "ベータテスト" }, "です！"]
+    text: "現在、ここは世界Ver0.9.2…つまり産まれる前(ベータテスト)です！",
+    parts: ["現在、ここは世界Ver0.9.2…つまり",{ ruby: "産まれる前", rt: "ベータテスト" }, "です！"]
   },
   { speaker: TUTORIAL_SPEAKER, text: "なので、不可思議なことや思い通りにならないことが多々あると思われます" },
   { speaker: TUTORIAL_SPEAKER, text: "産まれるまで優しく見守ってください！" },
