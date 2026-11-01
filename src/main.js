@@ -115,6 +115,7 @@ function attachSession(next) {
   if (mounted.ok) surface = mounted.value;else notice(mounted.error.code);
 }
 function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.getRandomValues(new Uint32Array(1))[0]) {
+  markWonTutorial();
   const saved = id => host.savedDecks.find(deck => `custom:${deck.id}` === id), player = saved(host.playerDeckId), ai = saved(host.aiDeckId);
   // Opening protocol v2.4 (keep / redraw before the first turn, dice for the first player) is opt-in by URL until it becomes the default.
   const opening = mode === 'ai' && new URLSearchParams(location.search).get('opening') === 'v2.4' ? {openingProtocol:'v2.4'} : {};
@@ -142,8 +143,11 @@ function saveMatchLog() {
   if (!feed?.ok) return notice(feed?.error?.code ?? replay?.error?.code ?? 'MATCH_RECORD_UNAVAILABLE');
   downloadStored('match-log',MATCH_LOGS,[buildMatchLog(replay.value,feed.value.events,new Date())]);}
 function downloadStored(name,place,items) {const link = document.createElement('a');link.href = URL.createObjectURL(new Blob([storedExport(place,items)],{type:'application/json'}));link.download = `siege-zeke-${name}-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);}
-// Leaving a won tutorial by any way marks it finished in this browser (Q5).
+// Leaving a won tutorial by any way marks it finished in this browser (Q5): the title, the end screen, another match or
+// tutorial started over it (startMatch, before host.mode / host.tutorialId change), and the page closed or reloaded.
+// leaveMatch keeps its own copy of markWonTutorial's line (tests/screen-flow.test.js pins its text).
 const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;
+const markWonTutorial = () => {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);};
 function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = screen;host.options = false;host.catalogOpen = false;host.notice = '';renderShell(true);
   if (screen !== 'entry') root.querySelector('[data-flow-back]')?.focus({preventScroll:true});}
 // Entry flow screens move by their own buttons and Escape only, never by the browser history (Q14).
@@ -252,7 +256,7 @@ document.addEventListener('keydown',event => {if (event.key === 'Escape' && !eve
   const back = escapeScreen(host.screen,{overlayOpen:host.options || host.deckBuilder.open || host.catalogOpen});
   if (back) return goTo(back);
   host.options = false;host.deckBuilder.detailId = null;renderShell();}});
-window.addEventListener('pagehide',() => {clearPress();mobileViewport.dispose();lifecycle.dispose();surface = null;session = null;});
+window.addEventListener('pagehide',() => {markWonTutorial();clearPress();mobileViewport.dispose();lifecycle.dispose();surface = null;session = null;});
 window.addEventListener('pageshow',event => {if (event.persisted) location.reload();});
 renderShell(true);registerPwa();
 
