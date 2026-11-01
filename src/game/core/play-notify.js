@@ -19,15 +19,6 @@ export function notifyCardExecuted(state, executingPlayerId, executedCard, { fir
     destroyCard(state, executingPlayerId, executedCard.uid, { source: tackle.name, suppressReplacement: true });
     addLog(state, `${tackle.name}: 指定メモリ${tackle.pluginValue}と一致し、これと${executedCard.name}を破壊。`, "effect");
   }
-  if (!state.prompt && isObCard(executedCard)) {
-    const takeover = owner.back.find((card) => card.id === "STD-204" && card.category === "Script" && card.faceDown);
-    if (takeover) {
-      openScriptActivationWindow(state, residentOwnerId, takeover, {
-        type: "card_executing", playerId: executingPlayerId, ownerId: executedCard.owner ?? executingPlayerId,
-        cardUid: executedCard.uid, cardId: executedCard.id, cardName: executedCard.name, category: executedCard.category, color: executedCard.color
-      }, { replacementTargetUid: executedCard.uid });
-    }
-  }
   const placed = findCard(state, executedCard.uid);
   if (!state.prompt && placed && ["front", "back"].includes(placed.zoneName)) {
     const candidateOwners = [otherPlayer(executingPlayerId), executingPlayerId];

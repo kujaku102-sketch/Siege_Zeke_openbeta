@@ -38,7 +38,6 @@ import { std184PlayCardCore } from "../../../cards/std/std_184_effects.js";
 import { std192GetEffectActivationTargets2 } from "../../../cards/std/std_192_effects.js";
 import { std196GetEffectActivationTargets2 } from "../../../cards/std/std_196_effects.js";
 import { activateStd203ResponseSelection, std203NormalSpellSelection, std203ResolveSpell, std203ResponseCardApplicable } from "../../../cards/std/std_203_effects.js";
-import { std204ActivateScriptCore } from "../../../cards/std/std_204_effects.js";
 import { std207ResolveSpell, std207RevealSelection } from "../../../cards/std/std_207_effects.js";
 import { std211NormalSpellSelection, std211PlayCardCore4, std211ResolveSpell } from "../../../cards/std/std_211_effects.js";
 import { std212ResolveSpell, std212RespawnCountSelection } from "../../../cards/std/std_212_effects.js";
@@ -294,7 +293,6 @@ export const CUSTOM_ACTIVATE_SCRIPT_CORE = Object.freeze({
   __proto__: null,
   "STD-142": std142ActivateScriptCore,
   "STD-105": std105ActivateScriptCore,
-  "STD-204": std204ActivateScriptCore,
   "STD-121": std121ActivateScriptCore,
   "STD-231": std231ActivateScriptCore
 });

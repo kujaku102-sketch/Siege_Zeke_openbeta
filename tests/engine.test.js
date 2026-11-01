@@ -3049,9 +3049,6 @@ test("Doll Assault and Takeover execute their previously missing runtime branche
   const takeoverState = createGame({ mode: "lab" });
   const takeover = takeoverState.players.player.hand.find((card) => card.id === "STD-204");
   assert.equal(playCard(takeoverState, "player", takeover.uid, { zone: "back" }), true);
-  const occupied = createCardInstance("STD-020", "player", 204090);
-  Object.assign(occupied, { boardSlot: 1, boardSlotController: "player", boardSlotZone: "front" });
-  takeoverState.players.player.front = [occupied];
   takeoverState.active = "ai";
   takeoverState.players.ai.memory = 99;
   let executed = takeoverState.players.ai.hand.find((card) => card.category === "Ob");
@@ -3062,17 +3059,23 @@ test("Doll Assault and Takeover execute their previously missing runtime branche
     takeoverState.players.ai.hand.push(executed);
   }
   assert.ok(executed);
+  const memoryBefore = takeoverState.players.ai.memory;
   assert.equal(playCard(takeoverState, "ai", executed.uid, { zone: "front", force: true }), true);
-  const executedSlot = executed.boardSlot;
+  // The replacement window opens "when the Ob is executed": nothing is placed, paid or logged in yet.
   assert.equal(takeoverState.prompt.scriptUid, takeover.uid);
+  assert.ok(takeoverState.players.ai.hand.some((card) => card.uid === executed.uid));
+  assert.equal(findCard(takeoverState, executed.uid).zoneName, "hand");
+  assert.equal(takeoverState.players.ai.memory, memoryBefore);
+  takeoverState.players.player.hand = takeoverState.players.player.hand.filter((card) => card.id !== "STD-179");
   assert.equal(activateScript(takeoverState, "player", takeover.uid), true);
-  const gigantes = [...takeoverState.players.player.front, ...takeoverState.players.player.back].find((card) => card.id === "STD-205");
-  assert.equal(gigantes.mounted[0].uid, executed.uid);
-  assert.equal(executedSlot, 1);
-  assert.equal(occupied.boardSlot, 1);
-  assert.equal(takeoverState.players.player.front.includes(occupied), true);
-  assert.equal(gigantes.boardSlot, 2);
-  assert.equal(findCard(takeoverState, executed.uid), null);
+  // The execution became an execution of the Gigantes by the same user, where the Ob was going; the Ob went to the trash.
+  const gigantes = takeoverState.players.ai.front.find((card) => card.id === "STD-205");
+  assert.ok(gigantes);
+  assert.equal(findCard(takeoverState, executed.uid).zoneName, "trash");
+  assert.equal(takeoverState.players.player.front.concat(takeoverState.players.player.back).some((card) => card.id === "STD-205"), false);
+  assert.ok(takeoverState.events.some((event) => event.type === "card_executed" && event.cardId === "STD-205"));
+  assert.equal(takeoverState.events.some((event) => event.type === "card_executed" && event.cardUid === executed.uid), false);
+  assert.equal(takeoverState.deferredExecution ?? null, null);
 });
 
 test("previously missing attack-declaration cards use optional common selection", () => {
@@ -7605,23 +7608,32 @@ test("forced overflow finalizer records each category exactly once", () => {
   }
 });
 
-test("STD204 opponent replacement checks script owners front and back limits", () => {
+test("STD-204 replaces the execution into the zone the Ob was going to, or lets it through when declined", () => {
   for (const zone of ["front", "back"]) {
     const state = createGame({ mode: "lab" }); const owner = state.players.player; const opponent = state.players.ai;
     const takeover = owner.hand.find((card) => card.id === "STD-204");
     assert.equal(playCard(state, "player", takeover.uid, { zone: "back" }), true);
-    owner.user.frontLimit = owner.front.length; owner.user.backLimit = owner.back.length; state.active = "ai"; opponent.memory = 99;
-    assert.equal(owner.front.length, owner.user.frontLimit); assert.equal(owner.back.length, owner.user.backLimit);
+    state.active = "ai"; opponent.memory = 99;
     const executed = createCardInstance("STD-020", "ai", zone === "front" ? 976301 : 976302);
     opponent.hand = [executed];
     assert.equal(playCard(state, "ai", executed.uid, { zone, force: true, free: true, ignoreColor: true }), true);
     assert.equal(state.prompt.scriptUid, takeover.uid);
+    owner.hand = owner.hand.filter((card) => card.id !== "STD-179");
     assert.equal(activateScript(state, "player", takeover.uid), true);
+    assert.equal(opponent[zone].some((card) => card.id === "STD-205"), true);
     assert.equal(owner.front.concat(owner.back).some((card) => card.id === "STD-205"), false);
-    const destroyed = state.events.filter((event) => event.cardId === "STD-205" && event.ruleDestruction);
-    assert.equal(destroyed.length, 1); assert.equal(destroyed[0].zone, zone);
-    assert.equal(state.log.some((entry) => entry.text.includes("ドールズ・ギガンテス") && entry.text.includes("レイヤーとして配置")), false);
+    assert.equal(opponent.trash.some((card) => card.uid === executed.uid), true);
   }
+  const declined = createGame({ mode: "lab" }); const dOwner = declined.players.player; const dOpponent = declined.players.ai;
+  const dTakeover = dOwner.hand.find((card) => card.id === "STD-204");
+  assert.equal(playCard(declined, "player", dTakeover.uid, { zone: "back" }), true);
+  declined.active = "ai"; dOpponent.memory = 99;
+  const letThrough = createCardInstance("STD-020", "ai", 976303);
+  dOpponent.hand = [letThrough];
+  assert.equal(playCard(declined, "ai", letThrough.uid, { zone: "front", force: true, free: true, ignoreColor: true }), true);
+  assert.equal(declinePrompt(declined), true);
+  assert.equal(dOpponent.front.some((card) => card.uid === letThrough.uid), true);
+  assert.equal(dOwner.back.some((card) => card.uid === dTakeover.uid), true, "a declined window leaves the Script set");
 });
 
 test("layered slot accounting frees only own same-zone top-level material", () => {

@@ -6,6 +6,7 @@ import { layeredSpecFor } from "../layered-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { hasOptionalActivationSpec } from "../trigger-specs.js";
 import { dealFortressDamage } from "./deal-damage.js";
+import { openExecutionReplacementWindow } from "./execution-replacement.js";
 import { resolveEffect, resolveMandatoryStateChecks, runEffectEntry } from "./effects.js";
 import { hasKeyword, keywordValue } from "./keywords.js";
 import { getEffectTargets } from "./play-effects.js";
@@ -108,7 +109,7 @@ export function canPlayCard(state, playerId, card, { ignoreColor = false, free =
   return { ok: true };
 }
 
-export function playCardCore(state, playerId, uid, { targetUid = null, targetUids = [], selectionScope = null, free = false, ignoreColor = false, force = false, allowOffTurn = false, zone = "front", baseUid = null, underUid = null, placementCause = "execution", placementSource = null, placementMode = "normal", ocDecision = null, magazineDecision = null, magazineLayerUids = [], registryExecution = false, registryOriginIndex = null, asScript = false, placementCostPermit = null, requestedSlot = null, onPlaced = null } = {}) {
+export function playCardCore(state, playerId, uid, { targetUid = null, targetUids = [], selectionScope = null, free = false, ignoreColor = false, force = false, allowOffTurn = false, zone = "front", baseUid = null, underUid = null, placementCause = "execution", placementSource = null, placementMode = "normal", ocDecision = null, magazineDecision = null, magazineLayerUids = [], registryExecution = false, registryOriginIndex = null, asScript = false, placementCostPermit = null, requestedSlot = null, onPlaced = null, executionReplacementChecked = false } = {}) {
   const player = state.players[playerId];
   const index = player.hand.findIndex((card) => card.uid === uid);
   if (index < 0) return fail(state, "そのカードは手札にない。", force);
@@ -240,6 +241,12 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
     failForcedPlacement(state, card.owner ?? playerId, card, { from: registryExecution ? "registry" : "hand", zone, source: placementSource ?? "効果による強制配置" });
     return true;
   }
+
+  // 実行の置換(core/execution-replacement.js): 「実行する時」、配置・ログイン・メモリ支払いの前に止める。
+  if (!executionReplacementChecked && !baseUid && !underUid && openExecutionReplacementWindow(state, playerId, card, {
+    targetUid, targetUids, selectionScope, free, ignoreColor, force, allowOffTurn, zone, placementCause, placementSource, placementMode,
+    ocDecision, magazineDecision, magazineLayerUids, registryExecution, registryOriginIndex, requestedSlot
+  }, onPlaced)) return true;
 
   player.hand.splice(index, 1);
   if (registryExecution && !["STD-215", "STD-220"].includes(card.id)) player.triggerUsage["STD-236:registry-execute"] = true;

@@ -499,7 +499,7 @@ test('S02-SESSION-23: legacy engine retains UID and injected RNG behavior', () =
   assert.equal(undo(state).rng, rng);
 });
 
-test('S02-SESSION-24: opponent placement replacement mounts the existing individual', () => {
+test('S02-SESSION-24: opponent execution replacement trashes the existing individual and generates the replacement', () => {
   const state = fresh();
   const symbol = add(state, 'STD-191'); assert.equal(installCard(state, 'player', symbol.uid), true);
   const script = execute(state, add(state, 'STD-204'), { zone: 'back' });
@@ -509,13 +509,15 @@ test('S02-SESSION-24: opponent placement replacement mounts the existing individ
   const before = state.runtimeContext.identityState.nextSerial;
   execute(state, victim);
   assert.equal(state.prompt.scriptUid, script.uid);
+  assert.equal(state.runtimeContext.identityState.nextSerial, before, 'nothing is generated before the answer');
   assert.equal(activateScript(state, 'player', script.uid), true);
-  const host = state.players.player.front.find(card => card.id === 'STD-205');
+  const host = state.players.ai.front.find(card => card.id === 'STD-205');
   assert.ok(host);
   assert.equal(host.identity.instanceId, `i:${before}`);
-  assert.deepEqual(host.mounted[0].identity, identity);
-  assert.equal(host.mounted[0].ownerSeat, 'seat-b');
-  assert.equal(host.ownerSeat, 'seat-a');
+  assert.deepEqual(host.mounted, []);
+  assert.equal(host.ownerSeat, 'seat-b');
+  const trashed = state.players.ai.trash.find(card => card.uid === victim.uid);
+  assert.deepEqual(trashed.identity, identity);
   assert.equal(state.runtimeContext.identityState.nextSerial, before + 1);
   audit(state);
 });

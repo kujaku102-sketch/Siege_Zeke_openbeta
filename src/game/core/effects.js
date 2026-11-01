@@ -8,6 +8,7 @@ import { hasKeyword } from "./keywords.js";
 import { continueDeferredSpellCleanup } from "./play-spell.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { resolveDeclaredResponse, startNextQueuedResponse } from "./response.js";
+import { resumeDeferredExecution } from "./execution-replacement.js";
 import { DECLARED_IF_SCRIPT_IDS } from "./scripts.js";
 import { addLog, findCard, otherPlayer } from "./shared.js";
 import { cardCurrentStr, continuousEffectConditionMatches } from "./stats.js";
@@ -131,7 +132,9 @@ export function drainIndependentEffects(state) {
   state.drainingIndependentEffects = true;
   try {
     const customDrainIndependentEffects = CUSTOM_DRAIN_INDEPENDENT_EFFECTS[next.kind];
-    if (customDrainIndependentEffects) customDrainIndependentEffects({ state, next });
+    // An execution that waited at 「実行する時」 for a replacement answer carries on (or is replaced) once nothing else is open.
+    if (next.kind === "EXECUTION-RESUME") runEffectEntry(state, "card", next.playerId, () => resumeDeferredExecution(state));
+    else if (customDrainIndependentEffects) customDrainIndependentEffects({ state, next });
   } finally {
     state.drainingIndependentEffects = false;
   }

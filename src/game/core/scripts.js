@@ -8,6 +8,7 @@ import { resumeMandatoryDrawContinuation } from "./draw.js";
 import { continueDeferredDeclaredScriptCleanup, declareEffect, runEffectEntry } from "./effects.js";
 import { hasKeyword, keywordValue } from "./keywords.js";
 import { continueDeferredSpellCleanup } from "./play-spell.js";
+import { markExecutionReplaced, queueDeferredExecutionResume } from "./execution-replacement.js";
 import { enabledSymbols, supportsNormalScriptActivation } from "./play.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { continueDeferredDeclaredResponseCleanup } from "./response.js";
@@ -184,6 +185,7 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
     state.prompt = null;
     addLog(state, `${script.name}を宣言。現在の効果完了後に解決する。`, "action");
     openNextScriptActivationWindow(state);
+    queueDeferredExecutionResume(state);
     resumeDeferredTrashMove(state);
     resumeDeferredDestruction(state);
     resumeDeferredAttack(state);
@@ -198,7 +200,7 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
     const customResult = customActivateScriptCore2({ player, script, state, selectionUid, playerId, uid });
     if (customResult !== PASS) return customResult;
   }
-  const replacementTargetUid = state.prompt?.replacementTargetUid;
+  if (state.prompt?.executionReplacement) markExecutionReplaced(state, script);
   payMemory(state, playerId, activationCost, "script-activation");
   script.faceDown = false;
   if (additionalCost?.type === "discard") {
@@ -215,7 +217,7 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
   });
   const customActivateScriptCore = CUSTOM_ACTIVATE_SCRIPT_CORE[script.id];
   if (customActivateScriptCore) {
-    const customResult = customActivateScriptCore({ player, script, selectionUid, state, playerId, replacementTargetUid });
+    const customResult = customActivateScriptCore({ player, script, selectionUid, state, playerId });
     if (customResult !== PASS) return customResult;
   }
   if (activationWindow?.spec?.actions?.length) {
@@ -247,6 +249,7 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
   state.prompt = null;
   if (activationWindow) activationWindow.status = "resolved";
   openNextScriptActivationWindow(state);
+  queueDeferredExecutionResume(state);
   resumeDeferredTrashMove(state);
   resumeDeferredDestruction(state);
   resumeDeferredAttack(state);
@@ -275,6 +278,7 @@ function declinePromptCore(state) {
   addLog(state, `${state.prompt.message} → 起動しない。`, "system");
   state.prompt = null;
   openNextScriptActivationWindow(state);
+  queueDeferredExecutionResume(state);
   resumeDeferredTrashMove(state);
   resumeDeferredDestruction(state);
   resumeDeferredAttack(state);

@@ -165,6 +165,8 @@ function parseOperations(clause, context = {}) {
   if (/レイヤーが1枚以下のこのObは破壊される/.test(clause)) operations.push({ type: "destroy", target: "source", condition: { layerCountMaximum: 1 }, timing: "mandatory_state_check" });
   if (/レイヤーに対応するカード1枚をゴミ箱から選び、1番下のレイヤーに加える/.test(clause)) operations.push({ type: "attach_corresponding_layer", source: "trash", target: "selected_lyd_ob", position: "bottom", count: 1 });
   if (/公開し続けている限り、そのObを配置するために消費するメモリは1になる/.test(clause)) operations.push({ type: "replace_execution_cost", target: "revealed_lyd_ob", value: 1, lifetime: "while_revealed" });
+  const replacedExecution = clause.match(/その実行を[「『]([^」』]+)[」』]([0-9]+)(?:体|枚)の実行に置換する/);
+  if (replacedExecution) operations.push({ type: "replace_execution", target: "triggering_execution", with: { cardName: replacedExecution[1], count: Number(replacedExecution[2]), action: "execute" } });
   for (const match of allMatches(clause, /[「『]ジャンクパーツ[」』](\d+)(?:枚|体)を配置する/g)) operations.push({ type: "generate", cardName: "ジャンクパーツ", count: Number(match[1]), destination: "choose_area" });
   if (!decoyReminder) for (const match of allMatches(clause, selectPattern)) operations.push({ type: "select", selector: inferSelector(match[1]), raw: match[0] });
   if (/プレイヤーを1人選ぶ/.test(clause)) operations.push({ type: "select_player", count: 1, eligibility: /ゴミ箱を(?:すべて|全て)デッキ/.test(clause) ? { zone: "trash", minimumCards: 1 } : null });
