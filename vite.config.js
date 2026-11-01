@@ -1,6 +1,9 @@
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  // The engine trace (src/game/engine-trace.js) is for development and tests: every call sits behind `TRACE && tracing()`. A product build fixes TRACE to false,
+  // so the trace code is dropped by the build, not by the fact that nothing sets a sink. verify-public-build.mjs checks the built files hold none of it.
+  define: { __SZ_TRACE__: false },
   build: {
     outDir: "dist",
     emptyOutDir: true,

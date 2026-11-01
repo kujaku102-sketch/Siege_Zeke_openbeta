@@ -57,6 +57,8 @@ export function normalizeJavaScriptEscapes(body) {
 export const hasRawLocalPath = (body) => localPathPatterns.some((pattern) => pattern.test(body)) || strictRawPathPatterns.some((pattern) => pattern.test(body));
 export const hasLocalPathPayload = (body, file) => hasRawLocalPath(body) || /\.(?:m?js)$/i.test(file) && hasRawLocalPath(normalizeJavaScriptEscapes(body));
 export const hasRawCredential = (body) => credentialPatterns.some((pattern) => pattern.test(body));
+// The engine trace and its waypoints are for development and tests: none of their names may be in a built file (vite.config.js fixes __SZ_TRACE__ to false).
+export const hasTraceResidue = (body) => /通過点|setTraceSink|\brule:(?:turn-start|turn-end|turn-timing|rule-draw|delayed-effect|state-check|pay-execution-cost|execution|execution-replacement|source-cleanup|placement-limit|trigger-order)\b|\btrigger-body:(?:wait|end)\b|\bbody-(?:wait|end)\b/.test(body);
 export const hasPrivateObjectField = (body) => privateObjectPatterns.some((pattern) => pattern.test(body));
 export function pngMetadataText(buffer) {
   const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -149,6 +151,7 @@ for (const file of output) {
   const pngMetadata = path.extname(file).toLowerCase() === ".png" ? pngMetadataText(buffer) : null;
   const body = binary ? (pngMetadata ?? (decoded.match(/[\x20-\x7e]{8,}/g) ?? []).join("\n")) : decoded;
   assert(!hasPrivateObjectField(body) && !hasLocalPathPayload(body, file) && !hasRawCredential(body), `forbidden public payload in ${file}`);
+  if (!binary) assert(!hasTraceResidue(body), `engine trace residue in ${file}`);
   if (!binary) for (const candidate of body.match(/[A-Za-z0-9_-]{20,}/g) ?? []) assert(createHash("sha256").update(candidate).digest("hex") !== canonicalValueDigest, `forbidden public payload in ${file}`);
 }
 console.log(JSON.stringify({ files: output.length, cardCount: libraryIds.length, ok: true }));

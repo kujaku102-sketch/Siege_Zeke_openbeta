@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { hasLocalPathPayload, hasPrivateObjectField, hasRawCredential, hasRawLocalPath, normalizeJavaScriptEscapes } from "../scripts/verify-public-build.mjs";
+import { hasLocalPathPayload, hasPrivateObjectField, hasRawCredential, hasTraceResidue, hasRawLocalPath, normalizeJavaScriptEscapes } from "../scripts/verify-public-build.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const verifier = path.join(root, "scripts", "verify-public-build.mjs");
@@ -23,6 +23,11 @@ test("JavaScript escape normalization preserves invalid and double-escaped sourc
   assert.equal(hasLocalPathPayload(String.raw`\\u{43}:/temp/file`, "assets/bundle.mjs"), true);
   assert.equal(hasLocalPathPayload("\\\nC:/not-normalized", "assets/bundle.mjs"), true);
   assert.equal(normalizeJavaScriptEscapes(String.raw`\\u{43}`).includes("C"), false);
+});
+
+test("a built file holding an engine trace name is refused, ordinary text is not", () => {
+  for (const body of ["trace({tag:\"通過点\",id:\"rule:turn-start\"})", "waypoint(\"rule:pay-execution-cost\")", "const id=\"trigger-body:wait\"", "setTraceSink(sink)", "kind:\"body-end\""]) assert.equal(hasTraceResidue(body), true, body);
+  for (const body of ["const rule = \"rule: be kind\"", "execution cost", "body-width: 3px", "state-check-list"]) assert.equal(hasTraceResidue(body), false, body);
 });
 
 test("raw credential and private-field checks remain raw", () => {
