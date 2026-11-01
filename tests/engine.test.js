@@ -3068,10 +3068,10 @@ test("Doll Assault and Takeover execute their previously missing runtime branche
   assert.equal(takeoverState.players.ai.memory, memoryBefore);
   takeoverState.players.player.hand = takeoverState.players.player.hand.filter((card) => card.id !== "STD-179");
   assert.equal(activateScript(takeoverState, "player", takeover.uid), true);
-  // The execution became an execution of the Gigantes by the same user, where the Ob was going; the Ob went to the trash.
+  // The execution became an execution of the Gigantes by the same user, where the Ob was going; the Ob is its layer.
   const gigantes = takeoverState.players.ai.front.find((card) => card.id === "STD-205");
   assert.ok(gigantes);
-  assert.equal(findCard(takeoverState, executed.uid).zoneName, "trash");
+  assert.deepEqual(gigantes.mounted.map((card) => card.uid), [executed.uid]);
   assert.equal(takeoverState.players.player.front.concat(takeoverState.players.player.back).some((card) => card.id === "STD-205"), false);
   assert.ok(takeoverState.events.some((event) => event.type === "card_executed" && event.cardId === "STD-205"));
   assert.equal(takeoverState.events.some((event) => event.type === "card_executed" && event.cardUid === executed.uid), false);
@@ -7622,7 +7622,8 @@ test("STD-204 replaces the execution into the zone the Ob was going to, or lets 
     assert.equal(activateScript(state, "player", takeover.uid), true);
     assert.equal(opponent[zone].some((card) => card.id === "STD-205"), true);
     assert.equal(owner.front.concat(owner.back).some((card) => card.id === "STD-205"), false);
-    assert.equal(opponent.trash.some((card) => card.uid === executed.uid), true);
+    assert.deepEqual(opponent[zone].find((card) => card.id === "STD-205").mounted.map((card) => card.uid), [executed.uid]);
+    assert.equal(opponent.trash.some((card) => card.uid === executed.uid), false);
   }
   const declined = createGame({ mode: "lab" }); const dOwner = declined.players.player; const dOpponent = declined.players.ai;
   const dTakeover = dOwner.hand.find((card) => card.id === "STD-204");

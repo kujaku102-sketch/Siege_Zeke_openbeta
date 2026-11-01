@@ -152,7 +152,7 @@ test('S02-BRIDGE-03: ordinary Code mounting works both ways and remains after Ob
   }
 });
 
-test('S02-BRIDGE-04: real takeover replaces the execution: the executor gets the Gigantes and the Ob goes to the trash', () => {
+test('S02-BRIDGE-04: real takeover replaces the execution: the executor gets the Gigantes with the Ob as its layer', () => {
   const state = fresh();
   symbol(state, 'STD-191');
   const script = execute(state, add(state, 'STD-204'), { zone: 'back' });
@@ -166,8 +166,9 @@ test('S02-BRIDGE-04: real takeover replaces the execution: the executor gets the
   assert.equal(entry(state, giant).ownerSeat, 'seat-b');
   assert.equal(entry(state, giant).controllerSeat, 'seat-b');
   assert.equal(entry(state, giant).location.kind, 'board');
-  assert.equal(entry(state, victim).location.zone, 'trash');
+  assert.deepEqual(entry(state, victim).location, { kind: 'mounted', host: { ...giant.identity }, order: 1, role: 'layered' });
   assert.equal(entry(state, victim).ownerSeat, 'seat-b');
+  assert.equal(entry(state, victim).controllerSeat, 'seat-b');
 });
 
 test('S02-BRIDGE-05: layered sibling order, cost consumption and source movement', () => {

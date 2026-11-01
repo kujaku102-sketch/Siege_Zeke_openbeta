@@ -15,8 +15,8 @@ export const definition = {
 };
 
 // execution replacement (core/execution-replacement.js): the opponent's Ob execution becomes an execution of STD-205 by the same user,
-// where the original was going. The replaced Ob goes to the trash; its memory stays paid.
-export const executionReplacementSpec = { trigger: "enemy_ob_executing", replaceWith: "STD-205", original: "trash" };
+// where the original was going. The replaced Ob becomes its layer; its memory stays paid.
+export const executionReplacementSpec = { trigger: "enemy_ob_executing", replaceWith: "STD-205", original: "layer" };
 
 // compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
 export const compilerPreset = { type: "execution_replacement", trigger: "enemy_ob_executing", replacement: "execution_of_dolls_gigantes" };
