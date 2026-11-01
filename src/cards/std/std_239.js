@@ -7,12 +7,9 @@ export const definition = {
   "name": "蜜虫の行進",
   "category": "Script",
   "color": "緑",
-  "cost": null,
+  "cost": 2,
   "classes": [],
-  "text": "自分ユーザーがダメージを受けた時起動できる。カードを2枚引き、ユーザーのSTRを2回復する。",
-  "setupCost": 2,
-  "activationCost": 0,
-  "printedCost": "2-0",
+  "text": "[if:自分ユーザーがダメージを受けた時]カードを2枚引き、ユーザーのSTRを2回復する。",
   "traits": [
     "インセクト"
   ]

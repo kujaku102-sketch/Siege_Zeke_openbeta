@@ -8,11 +8,9 @@ export const definition = {
   "category": "Script",
   "printedCategory": "Sc",
   "color": "緑",
-  "cost": 0,
-  "setupCost": 1,
-  "activationCost": 0,
+  "cost": 1,
   "classes": [],
-  "text": "ターン開始時に起動できる。次のターン終了時まで、自分のObすべては[切断]を持つ。",
+  "text": "[if:ターン開始時]次のターン終了時まで、自分のObすべては[切断]を持つ。",
   "traits": [
     "インセクト"
   ]

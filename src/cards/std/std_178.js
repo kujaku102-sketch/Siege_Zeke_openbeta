@@ -10,9 +10,6 @@ export const definition = {
   "cost": 1,
   "classes": [],
   "text": "[レジデント][アップデート:2]次のターン終了時まで自分のObすべてを+2/+2して[セキュリティ]を与える。",
-  "setupCost": 1,
-  "activationCost": 0,
-  "printedCost": "1-0",
   "traits": [
     "インセクト"
   ]
