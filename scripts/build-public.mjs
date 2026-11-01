@@ -10,7 +10,9 @@ const dist = path.join(root, "dist");
 const viteCli = path.join(root, "node_modules", "vite", "bin", "vite.js");
 const config = JSON.parse(await readFile(path.join(root, "config", "release.staging.json"), "utf8"));
 const ids = Object.keys(CARD_LIBRARY).filter((id) => /^STD-\d{3}$/.test(id)).sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
-if (ids.length !== 214 || new Set(ids).size !== 214) throw new Error("public card library must contain 214 unique STD IDs");
+// The approved size of the public card pool is set in config/release.staging.json (publicCardPool.cardCount), not here.
+const approvedCardCount = config.publicCardPool.cardCount;
+if (!Number.isInteger(approvedCardCount) || ids.length !== approvedCardCount || new Set(ids).size !== approvedCardCount) throw new Error(`public card library must contain the approved ${approvedCardCount} unique STD IDs (found ${ids.length})`);
 if (config.release.environment !== "staging" || config.release.productionApproved !== false) throw new Error("invalid staging release boundary");
 await rm(dist, { recursive: true, force: true });
 execFileSync(process.execPath, [viteCli, "build"], { cwd: root, stdio: "inherit" });

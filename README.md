@@ -39,10 +39,10 @@ pnpm exec vite preview --host 127.0.0.1 --port 4173
 さらに別ターミナルで、外部に用意した Playwright のモジュールパスを渡して実行する。
 
 ```powershell
-node scripts/e2e-public-build.mjs --playwright-module <module-path> http://127.0.0.1:4173/
+node scripts/e2e/run.mjs flow http://127.0.0.1:4173/ --playwright-module <module-path>
 ```
 
-モジュールパスは `SIMPLE_ZEKE_PLAYWRIGHT_MODULE` 環境変数でも指定できる。スクリプトは Edge の `msedge` チャネルを使う。Playwright はこのリポジトリの依存に含めない。
+`flow` は短い流れの確認、`ship` は出荷物の確認、`screen/end` などは画面1つの確認（`pnpm e2e <screen|flow|ship|screen/end ...>`）。モジュールパスは `SIMPLE_ZEKE_PLAYWRIGHT_MODULE` 環境変数でも指定できる。スクリプトは Edge の `msedge` チャネルを使う。Playwright はこのリポジトリの依存に含めない。
 
 ## 素材と権利
 

@@ -93,7 +93,8 @@ const config = JSON.parse(configBody);
 const configIds = sortIds(config.publicCardPool.canonicalIds);
 const libraryIds = sortIds(Object.keys(CARD_LIBRARY).filter((id) => /^STD-\d{3}$/.test(id)));
 assert(config.release.environment === "staging" && config.release.productionApproved === false, "manifest release boundary invalid");
-assert(configIds.length === 214 && new Set(configIds).size === 214, "config must contain 214 unique STD IDs");
+const approvedCardCount = config.publicCardPool.cardCount; // the approved size of the public card pool (config/release.staging.json)
+assert(Number.isInteger(approvedCardCount) && configIds.length === approvedCardCount && new Set(configIds).size === approvedCardCount, `config must contain the approved ${approvedCardCount} unique STD IDs`);
 assert(same(configIds, libraryIds), "config and public card library IDs differ");
 assert(!containsPrivate(CARD_LIBRARY), "public card library contains private metadata");
 
@@ -113,7 +114,7 @@ for (const required of entryFiles) assert(output.includes(required), `missing pu
 
 const manifest = JSON.parse(await readFile(path.join(dist, "release-manifest.json"), "utf8"));
 assert(manifest.release.environment === "staging" && manifest.release.productionApproved === false, "built manifest boundary invalid");
-assert(manifest.publicCardPool.cardCount === 214 && same(sortIds(manifest.publicCardPool.canonicalIds), configIds), "manifest and config IDs differ");
+assert(manifest.publicCardPool.cardCount === approvedCardCount && same(sortIds(manifest.publicCardPool.canonicalIds), configIds), "manifest and config IDs differ");
 assert(/^[a-f0-9]{16}$/.test(manifest.release.buildRevision ?? ""), "built manifest revision is invalid");
 const swBody = await readFile(path.join(dist, "sw.js"), "utf8");
 const shellUrls = jsonConstant(swBody, "SHELL_URLS");

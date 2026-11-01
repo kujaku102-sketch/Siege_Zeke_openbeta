@@ -1,3 +1,4 @@
+// Screen check: the shapes kept on every screen (see below). Run it when a screen's size or layout changes.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -10,7 +11,7 @@ import { pathToFileURL } from 'node:url';
 // safe areas (landscape: 59px left and right, 21px bottom) go into env().
 const args = process.argv.slice(2), flag = args.indexOf('--playwright-module');
 const explicitPlaywrightModule = flag >= 0 ? args[flag + 1] : process.env.SIMPLE_ZEKE_PLAYWRIGHT_MODULE;
-const url = args.find((arg, index) => arg !== '--playwright-module' && index !== flag + 1) ?? 'http://127.0.0.1:4173/';
+const url = args.find((arg, index) => !arg.startsWith('--') && (flag < 0 || index !== flag + 1)) ?? 'http://127.0.0.1:4173/';
 async function loadPlaywright() {
   if (!explicitPlaywrightModule) throw new Error('provide --playwright-module or SIMPLE_ZEKE_PLAYWRIGHT_MODULE');
   const specifier = explicitPlaywrightModule.startsWith('file:') ? explicitPlaywrightModule : pathToFileURL(path.resolve(explicitPlaywrightModule)).href;
@@ -84,7 +85,9 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     const target = new URL(url); target.searchParams.set('e2e', '1'); target.searchParams.set('render', 'full');
     const check = async scene => {
-      await page.waitForTimeout(1500);
+      // Wait for the layout to stop moving (four quiet samples), not for a fixed time.
+      await page.evaluate(() => { window.__aspectKey = null; window.__aspectQuiet = 0; });
+      await page.waitForFunction(() => { const key = [...document.querySelectorAll('.r2-entry,.r2-runtime-view,.r2-log')].map(node => { const r = node.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(','); }).join('|'); window.__aspectQuiet = key === window.__aspectKey ? window.__aspectQuiet + 1 : 0; window.__aspectKey = key; return window.__aspectQuiet >= 4; }, null, { polling: 120, timeout: 8000 });
       const m = await measure(page), at = `${label} toolbar ${toolbar} ${scene}`;
       checked.push(at);
       if (m.scroll > 0) failures.push(`${at}: the page scrolls ${m.scroll}px (in-flow content moves against fixed controls)`);

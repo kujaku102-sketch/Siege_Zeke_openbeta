@@ -92,13 +92,13 @@ try {
   preview = spawn(process.execPath, [viteCli, "preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"], { cwd: root, stdio: "ignore", windowsHide: true });
   await waitForPreview();
   const browserArgs = [baseUrl, "--playwright-module", playwrightModule];
-  runStep("05-public-e2e", process.execPath, ["scripts/e2e-public-build.mjs", ...browserArgs]);
-  runStep("06-victory-e2e", process.execPath, ["scripts/e2e-public-build.mjs", "--victory", ...browserArgs]);
-  runStep("07-tutorial-e2e", process.execPath, ["scripts/e2e-tutorial.mjs", ...browserArgs]);
-  runStep("08-keyboard-tutorial-e2e", process.execPath, ["scripts/e2e-tutorial.mjs", "--keyboard", ...browserArgs]);
-  runStep("09-pwa-e2e", process.execPath, ["scripts/e2e-pwa-cache.mjs", ...browserArgs]);
-  runStep("10-release-audit-e2e", process.execPath, ["scripts/e2e-release-audit.mjs", ...browserArgs]);
-  runStep("11-diff-check", "git", ["diff", "--check"]);
+  // The ship checks (the build as shipped) and the flow checks (the short paths through it). The screen checks (scripts/e2e/screen/) run on a change to a screen, not here.
+  const e2e = [["05-ship-boundary", "ship/boundary.mjs"], ["06-ship-layout", "ship/layout.mjs"], ["07-ship-pwa", "ship/pwa.mjs"],
+    ["08-flow-entry", "flow/entry.mjs"], ["09-flow-battle-start", "flow/battle-start.mjs"], ["10-flow-tutorial-start", "flow/tutorial-start.mjs"],
+    ["11-flow-tutorial-full", "flow/tutorial-full.mjs"], ["12-flow-tutorial-full-keyboard", "flow/tutorial-full.mjs", "--keyboard"],
+    ["13-flow-end-buttons", "flow/end-buttons.mjs"], ["14-flow-deck-keyboard", "flow/deck-keyboard.mjs"]];
+  for (const [name, file, ...extra] of e2e) runStep(name, process.execPath, [`scripts/e2e/${file}`, ...extra, ...browserArgs]);
+  runStep("15-diff-check", "git", ["diff", "--check"]);
 
   const manifest = JSON.parse(readFileSync(path.join(root, "dist", "release-manifest.json"), "utf8"));
   const changes = spawnSync("git", ["status", "--porcelain=v1"], { cwd: root, encoding: "utf8", windowsHide: true });

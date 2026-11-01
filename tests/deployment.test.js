@@ -49,7 +49,7 @@ test("public project contains no canonical data modules or copied internal direc
 });
 
 test("public scripts do not embed a source-workspace path", async () => {
-  const scripts = await Promise.all(["build-public.mjs", "verify-public-build.mjs", "e2e-public-build.mjs"].map((name) => readFile(path.join(root, "scripts", name), "utf8")));
+  const scripts = await Promise.all(["build-public.mjs", "verify-public-build.mjs", "e2e/ship/boundary.mjs"].map((name) => readFile(path.join(root, "scripts", name), "utf8")));
   for (const body of scripts) assert.doesNotMatch(body, /D:\\projects\\txt-analyze/i);
 });
 

@@ -63,9 +63,9 @@ test("boundary scanner skips only the root .claude tool workspace", async () => 
 
 test("boundary scanner enforces package contract and exact E2E exception", async () => {
   await rejects("extra dependency", { "src/main.js": "" }, "package_dependencies", { ...packageJson, dependencies: { extra: "1.0.0" } });
-  await rejects("top level E2E dynamic import", { "scripts/e2e-public-build.mjs": "async function loadPlaywright(){}; import(specifier);" }, "dynamic_import_expression");
-  await rejects("other function E2E dynamic import", { "scripts/e2e-public-build.mjs": "async function loadPlaywright(){} async function elsewhere(){import(specifier)}" }, "dynamic_import_expression");
-  await rejects("second E2E dynamic import", { "scripts/e2e-public-build.mjs": "async function loadPlaywright(){}; import(specifier); import(specifier);" }, "dynamic_import_expression");
+  await rejects("top level E2E dynamic import", { "scripts/e2e/parts/browser.mjs": "async function loadPlaywright(){}; import(specifier);" }, "dynamic_import_expression");
+  await rejects("other function E2E dynamic import", { "scripts/e2e/parts/browser.mjs": "async function loadPlaywright(){} async function elsewhere(){import(specifier)}" }, "dynamic_import_expression");
+  await rejects("second E2E dynamic import", { "scripts/e2e/parts/browser.mjs": "async function loadPlaywright(){}; import(specifier); import(specifier);" }, "dynamic_import_expression");
 });
 
 test("boundary scanner allows pinned Three.js only with a matching lock importer", async () => {
