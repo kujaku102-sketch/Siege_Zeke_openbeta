@@ -231,7 +231,7 @@ function finishDeclaredScriptCleanup(state) {
     trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-resident", cardId: source.id, cardUid: source.uid, playerId: declared.playerId });
     live.card.residentActive = true;
     addLog(state, `${source.name}を起動。[レジデント]として場に残る。`, "action");
-  } else if (!resident && live && live.playerId === declared.playerId && ["front", "back"].includes(live.zoneName)) {
+  } else if (!resident && live && live.playerId === declared.playerId && ["front", "back"].includes(live.zoneName) && !isObCard(live.card)) {
     trace(state, { tag: TRACE_TAGS.CLEANUP, event: "script-to-trash", cardId: source.id, cardUid: source.uid, playerId: declared.playerId });
     state.players[live.playerId][live.zoneName].splice(state.players[live.playerId][live.zoneName].findIndex((card) => card.uid === live.card.uid), 1);
     moveCardToTrash(state, declared.playerId, live.card, source.name);

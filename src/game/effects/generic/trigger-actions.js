@@ -20,6 +20,8 @@ export function executeTriggerAction(state, trigger, action) {
     dealFortressDamage(state, enemyId, action.amount, source.playerId, source.card.name);
   } else if (action.type === "deal_damage" && action.target === "enemy_front_all") {
     for (const target of [...state.players[enemyId].front]) dealCardDamage(state, enemyId, target.uid, action.amount, source.card.name);
+  } else if (action.type === "drag" && action.target === "source") {
+    dragSourceToArea(state, source, action);
   } else if (action.type === "recover_memory") {
     const before = controller.memory;
     controller.memory = Math.min(getMaxMemory(controller), controller.memory + action.amount);
@@ -204,6 +206,27 @@ export function executeTriggerAction(state, trigger, action) {
         sourceName: source.card.name, triggerItemId: trigger.id, action } });
     enqueueSelection(state, { type: "selection", validTargets: request.candidates, request }, selectionProjectionMeta("engine:trigger-select", source.playerId));
   }
+}
+
+// 「これを<zone>にドラッグする」: the source moves to the named zone of its controller's area. A drag is an effect placement (no [ログイン]).
+// `becomes` turns a Script-state card into the Ob it prints (category, faceDown cleared, flags in `clearFlags` dropped).
+function dragSourceToArea(state, source, action) {
+  const location = findCard(state, source.card.uid);
+  if (!location || location.playerId !== source.playerId || !["front", "back"].includes(location.zoneName)) return;
+  const player = state.players[source.playerId];
+  const [card] = player[location.zoneName].splice(player[location.zoneName].findIndex((item) => item.uid === source.card.uid), 1);
+  if (action.becomes) {
+    card.category = action.becomes.category;
+    for (const flag of action.becomes.clearFlags ?? []) delete card[flag];
+    card.faceDown = false;
+    card.residentActive = false;
+    card.sleep = false;
+    card.damage = 0;
+  }
+  card.summoningSick = action.zone === "front";
+  if (placeByMode(state, source.playerId, card, { zone: action.zone, from: location.zoneName, source: source.card.name }) !== "placed") return;
+  emitEffectPlacement(state, source.playerId, card, action.zone, source.card.name);
+  addLog(state, `${source.card.name}: ${action.zone === "front" ? "フロント" : "バック"}へドラッグ。`, "effect");
 }
 
 export function addTimedModifier(state, card, action, sourceName) {

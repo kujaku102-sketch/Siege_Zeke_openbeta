@@ -19,7 +19,7 @@ export const runtimeSpec = multiSpec(
     spec("login", [op("access", { filter: { category: "Ob", color: "黒" }, count: 1, destination: "hand" })]),
     spec("turn_start", [op("access", { filter: { category: "Ob", color: "黒" }, count: 1, destination: "hand" })]),
     spec("logout", [op("schedule_delayed", {
-      event: "turn_started", timing: "next_controller_turn", action: "move_source_from_trash",
+      event: "turn_started", timing: "next_turn", action: "move_source_from_trash",
       destination: "hand"
     })])
   );

@@ -113,6 +113,9 @@ export function runtimeSpecTargets(state, playerId, source, targetUid, target) {
   if (target === "own_class_ob_all") {
     return [...player.front, ...player.back].filter((card) => isObCard(card) && hasClass(card, source.runtimeTargetClass));
   }
+  if (target === "own_named_ob_all") {
+    return [...player.front, ...player.back].filter((card) => isObCard(card) && card.name === source.runtimeTargetName);
+  }
   if (target === "selected_own_ob") {
     const entry = findCard(state, targetUid);
     return entry?.playerId === playerId && isObCard(entry.card) ? [entry.card] : [];

@@ -1,6 +1,5 @@
 // STD-178 ムカデの隊列
-import { op } from "../kit.js";
-import { createTriggerSpec } from "../../game/activation-windows.js";
+import { op, spec } from "../kit.js";
 
 export const definition = {
   "id": "STD-178",
@@ -8,25 +7,18 @@ export const definition = {
   "category": "Sc",
   "printedCategory": "Sc",
   "color": "緑",
-  "cost": 44199,
+  "cost": 1,
   "classes": [],
-  "text": "1ターンに1度①を起動できる。①Obが攻撃する時、次のターン終了時まで自分のObすべてを+2/+2して[セキュリティ]を与える。",
+  "text": "[レジデント][アップデート:2]次のターン終了時まで自分のObすべてを+2/+2して[セキュリティ]を与える。",
   "setupCost": 1,
-  "activationCost": 3,
-  "printedCost": "1-3",
+  "activationCost": 0,
+  "printedCost": "1-0",
   "traits": [
     "インセクト"
   ]
 };
 
-// trigger specs (was trigger-specs.js)
-export const triggerSpecs = [
-  createTriggerSpec({
-    id: "STD-178:ob-attacks", cardId: "STD-178", event: "attack_declared", activation: "optional", limit: "once_per_turn",
-    conditions: [{ type: "source_zone", zone: "back" }, { type: "source_face_down" }],
-    actions: [op("modify_stats", { target: "own_ob_all", atk: 2, str: 2, keyword: "SECURITY", duration: "through_next_turn" })]
-  })
-];
-
-// uses the shared trigger specs (was SHARED_TRIGGER_CARD_IDS)
-export const sharedTriggerCard = true;
+// runtime spec (was card-runtime-specs.js)
+export const runtimeSpec = spec("update", [op("modify_stats", {
+    target: "own_ob_all", atk: 2, str: 2, keyword: "SECURITY", duration: "through_next_turn"
+  })]);

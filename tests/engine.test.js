@@ -2776,12 +2776,15 @@ test("Vengeance alternate login effects and Dolls contact use the canonical runt
   assert.equal(findCard(swapState, first.uid).zoneName, "back");
   assert.equal(findCard(swapState, second.uid).zoneName, "front");
 
+  // STD-200 moves at random over both users' front/back (never where it is, never a full zone); the user of the area it lands in operates it.
   const moveState = createGame({ mode: "lab" });
   const decadence = moveState.players.player.hand.find((card) => card.id === "STD-200");
+  moveState.rng = () => 0.99;
   assert.equal(playCard(moveState, "player", decadence.uid, { zone: "front" }), true);
-  setSelectionScope(moveState.pending.request, "back");
-  assert.equal(resolveCardSelection(moveState, moveState.pending.request.continuation, confirmSelection(moveState.pending.request)), true);
-  assert.equal(findCard(moveState, decadence.uid).zoneName, "back");
+  assert.equal(moveState.pending, null);
+  const landed = findCard(moveState, decadence.uid);
+  assert.deepEqual([landed.playerId, landed.zoneName], ["ai", "back"]);
+  assert.equal(landed.card.owner ?? "player", "player");
   assert.equal(moveState.players.player.front.some((card) => card.id === "STD-201"), true);
 
   const contactState = createGame({ mode: "lab" });
@@ -3988,10 +3991,11 @@ test("STD-139 and STD-147 resident windows resolve through shared actions", () =
   assert.equal(state.players.player.memory, 1);
 });
 
-test("STD-177 and STD-178 suspend combat and apply next-turn timed modifiers", () => {
+test("STD-177 suspends combat for its modifier; STD-178 applies its next-turn modifier as an Update", () => {
   const state = createGame({ mode: "sandbox", rng: () => 0.5 });
   const allScript = createCardInstance("STD-178", "player", 900020);
   allScript.faceDown = true; allScript.cost = 0; allScript.color = null;
+  allScript.compiled = compileEffectText(allScript.text, { category: allScript.category, id: allScript.id });
   const battleScript = createCardInstance("STD-177", "player", 900021);
   battleScript.faceDown = true; battleScript.cost = 0; battleScript.color = null;
   const attacker = createCardInstance("STD-022", "player", 900022);
@@ -4001,34 +4005,41 @@ test("STD-177 and STD-178 suspend combat and apply next-turn timed modifiers", (
   state.players.player.back.push(allScript, battleScript);
   state.players.player.front.push(attacker);
   state.players.ai.front.push(defender);
+  state.players.player.memory = 5;
+  assert.equal(activateCardEffect(state, "player", allScript.uid, "STD-178:update:0"), true, JSON.stringify(state.log.slice(-3)));
+  assert.equal(state.players.player.memory, 3);
   assert.equal(attack(state, "player", attacker.uid, defender.uid), true);
-  assert.equal(state.prompt?.scriptUid, allScript.uid);
-  assert.equal(attacker.sleep, false);
-  assert.equal(activateScript(state, "player", allScript.uid), true);
   assert.equal(state.prompt?.scriptUid, battleScript.uid);
+  assert.equal(attacker.sleep, false);
   assert.equal(activateScript(state, "player", battleScript.uid), true);
   assert.equal(attacker.sleep, true);
   assert.equal(cardAtk(state, "player", attacker), Number(attacker.atk) + 4);
   assert.equal(cardHasKeyword(attacker, "SECURITY"), true);
 });
 
-test("STD-180 resolves insect Ob Access before its insect placement damage trigger, for execution and for effect placement", () => {
+test("STD-180 accesses an インセクト Ob and damages on an インセクト Ob's execution or effect placement; インセクト・ゼクター is not インセクト", () => {
   const state = createGame({ mode: "lab", rng: () => 0.5 });
   const cocoon = createCardInstance("STD-180", "player", 900030);
   const insect = createCardInstance("STD-173", "player", 900031);
+  const zekter = createCardInstance("STD-175", "player", 900034);
   const enemy = createCardInstance("STD-022", "ai", 900032);
   state.players.player.hand.push(cocoon);
-  state.players.player.deck = [insect];
+  state.players.player.deck = [zekter, insect];
   state.players.ai.front.push(enemy);
   assert.equal(playCard(state, "player", cocoon.uid, { force: true }), true);
   assert.equal(state.pending?.request?.continuation?.type, "access-to-hand");
+  assert.deepEqual([...state.pending.request.candidates], [insect.uid], "the Access finds the インセクト Ob only");
   assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [insect.uid] }), true);
   assert.equal(state.players.player.hand.some((card) => card.uid === insect.uid), true);
+  assert.equal(state.pending, null, "the Cocoon is インセクト・ゼクター, so its own execution deals no damage");
+
+  // An インセクト Ob executed deals 2.
+  assert.equal(playCard(state, "player", insect.uid, { force: true }), true);
   assert.equal(state.pending?.request?.continuation?.type, "deal-selected-damage");
   assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [enemy.uid] }), true);
   assert.equal(enemy.damage, 2);
 
-  // An Insect Ob placed by an effect (a drag, say) damages too; one that is not an Ob does not.
+  // So does one placed by an effect (a drag, say); an インセクト・ゼクター does not.
   const dragged = createCardInstance("STD-173", "player", 900033);
   state.players.player.hand.push(dragged);
   state.pending = { type: "access-drag-place", playerId: "player", sourceName: "test", queue: [dragged.uid], sourceUid: dragged.uid };
@@ -4036,6 +4047,9 @@ test("STD-180 resolves insect Ob Access before its insect placement damage trigg
   assert.equal(state.pending?.request?.continuation?.type, "deal-selected-damage");
   assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [enemy.uid] }), true);
   assert.equal(enemy.damage, 4);
+  state.players.player.hand.push(zekter);
+  assert.equal(playCard(state, "player", zekter.uid, { force: true }), true);
+  assert.equal(state.pending, null);
 });
 
 test("STD-134 forces every attackable enemy Ob next turn and punishes Security attacks", () => {
@@ -4080,13 +4094,14 @@ test("STD-158 shares black Ob Access across Login and turn start and returns fro
   assert.equal(relogCard(state, "player", source.uid, "front"), true);
   const moved = findCard(state, source.uid).card;
   assert.deepEqual(state.delayedEffects.find((effect) => effect.cardUid === moved.uid), {
-    event: "turn_started", dueOwnerTurnsTaken: state.players.player.turnsTaken + 1,
+    event: "turn_started", dueTurn: state.turnNumber + 1,
     type: "move_source_from_trash", ownerId: "player", cardUid: moved.uid,
     sourceName: moved.name, destination: "hand", resetDamage: false, standby: false, sleep: false
   });
   state.players.player.front = state.players.player.front.filter((card) => card.uid !== source.uid);
   state.players.player.trash.push(moved);
-  startTurn(state, "player");
+  state.turnNumber += 1;
+  startTurn(state, "ai");
   assert.equal(state.players.player.hand.some((card) => card.uid === source.uid), true);
 });
 
@@ -5957,19 +5972,20 @@ test("STD-153 gives one selected enemy Ob Load two on Login and Logout", () => {
   assert.equal(target.load, 4);
 });
 
-test("STD-154 returns the same trashed UID sleeping at its next controller turn start", () => {
+test("STD-154 returns the same trashed UID sleeping at the next turn start, whoever's turn it is", () => {
   const state = createGame({ mode: "sandbox" }); const player = state.players.player;
   const source = createCardInstance("STD-154", "player", 154001); player.front = [source]; player.back = [];
-  const dueOwnerTurnsTaken = player.turnsTaken + 1;
+  const dueTurn = state.turnNumber + 1;
   assert.equal(destroyCard(state, "player", source.uid, { source: "test", suppressReplacement: true }), true);
   assert.deepEqual(state.delayedEffects.find((effect) => effect.cardUid === source.uid), {
-    event: "turn_started", dueOwnerTurnsTaken, type: "move_source_from_trash",
+    event: "turn_started", dueTurn, type: "move_source_from_trash",
     ownerId: "player", cardUid: source.uid, sourceName: source.name,
     destination: "choose_area", resetDamage: true, standby: false, sleep: true
   });
   startTurn(state, "ai");
-  assert.ok(player.trash.some((card) => card.uid === source.uid));
-  startTurn(state, "player");
+  assert.ok(player.trash.some((card) => card.uid === source.uid), "the turn it was trashed is not the next turn");
+  state.turnNumber += 1;
+  startTurn(state, "ai");
   const revived = [...player.front, ...player.back].find((card) => card.uid === source.uid);
   assert.ok(revived);
   assert.equal(revived.sleep, true);
@@ -6248,17 +6264,25 @@ test("STD-236 installs exactly two selected deck cards and cannot reduce the req
   assert.equal(shortPlayer.registry.length, 0);
 });
 
-test("STD-184 sets as a 3-0 Script and may become an Ob on an Ob Login", () => {
-  const state = createGame({ mode: "sandbox" }); const player = state.players.player;
-  const cicada = createCardInstance("STD-184", "player", 184001); const login = createCardInstance("STD-020", "player", 184002);
-  player.hand = [cicada, login]; player.front = []; player.back = []; player.memory = 10;
+test("STD-184 sets as a 3-0 Script and, when the opponent executes a card, is dragged to the front as an Ob", () => {
+  const state = createGame({ mode: "sandbox" }); const player = state.players.player; const ai = state.players.ai;
+  const cicada = createCardInstance("STD-184", "player", 184001); const login = createCardInstance("STD-020", "ai", 184002);
+  player.hand = [cicada]; player.front = []; player.back = []; player.memory = 10;
+  ai.hand = [login]; ai.front = []; ai.back = []; ai.memory = 10;
   assert.equal(playCard(state, "player", cicada.uid, { asScript: true, zone: "back", ignoreColor: true }), true);
   assert.equal(player.memory, 7);
   assert.ok(player.back.some((card) => card.uid === cicada.uid && card.category === "Script" && card.faceDown));
-  assert.equal(playCard(state, "player", login.uid, { force: true, ignoreColor: true }), true);
-  assert.equal(state.pending?.request?.continuation?.type, "std184-place-ob");
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, { scope: "Obとして配置する", selected: [] }), true);
-  assert.ok([...player.front, ...player.back].some((card) => card.uid === cicada.uid && card.category === "Ob" && !card.faceDown));
+  cicada.color = null;
+  state.active = "ai";
+  assert.equal(playCard(state, "ai", login.uid, { force: true, ignoreColor: true }), true);
+  assert.equal(state.prompt?.type, "script-activation");
+  assert.equal(state.prompt.scriptUid, cicada.uid);
+  assert.equal(activateScript(state, "player", cicada.uid), true);
+  const dragged = player.front.find((card) => card.uid === cicada.uid);
+  assert.ok(dragged && dragged.category === "Ob" && !dragged.faceDown, "dragged to the front as an Ob");
+  assert.equal(player.back.some((card) => card.uid === cicada.uid), false);
+  assert.equal(player.trash.some((card) => card.uid === cicada.uid), false);
+  assert.ok(state.events.some((event) => event.type === "card_effect_placed" && event.cardUid === cicada.uid));
 });
 
 test("Q5 final 15 cards compile completely", () => {

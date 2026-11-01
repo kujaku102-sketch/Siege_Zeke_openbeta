@@ -34,7 +34,7 @@ import { std167ResolveDeclaredResponse, std167ResponseCardApplicable } from "../
 import { std169ActivateCardEffectCore, std169GetEffectActivationTargets } from "../../../cards/std/std_169_effects.js";
 import { std179PlaceSelection } from "../../../cards/std/std_179_effects.js";
 import { std182AttackCore2, std182AttackScriptSelection } from "../../../cards/std/std_182_effects.js";
-import { std184PlaceObSelection, std184PlayCardCore } from "../../../cards/std/std_184_effects.js";
+import { std184PlayCardCore } from "../../../cards/std/std_184_effects.js";
 import { std192GetEffectActivationTargets2 } from "../../../cards/std/std_192_effects.js";
 import { std196GetEffectActivationTargets2 } from "../../../cards/std/std_196_effects.js";
 import { activateStd203ResponseSelection, std203NormalSpellSelection, std203ResolveSpell, std203ResponseCardApplicable } from "../../../cards/std/std_203_effects.js";
@@ -109,7 +109,6 @@ export const CUSTOM_SELECTION_HANDLERS = Object.freeze({
   "std165-login": std165LoginSelection,
   "std179-place": std179PlaceSelection,
   "std182-attack-script": std182AttackScriptSelection,
-  "std184-place-ob": std184PlaceObSelection,
   "play-std229": playStd229Selection,
   "std214-attack-cost": std214AttackCostSelection,
   "std226-compress": std226CompressSelection,

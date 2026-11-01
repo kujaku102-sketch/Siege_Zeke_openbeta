@@ -19,4 +19,4 @@ export const definition = {
 export const runtimeSpec = spec("turn_end", [op("destroy", {
     target: "source",
     condition: { expression: "source_attacked_this_turn" }
-  })]);
+  })], { eachTurn: true });

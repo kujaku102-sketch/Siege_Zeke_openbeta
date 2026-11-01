@@ -414,20 +414,22 @@ test('S02-SESSION-19: actual forced execution retains identity through hydration
 
 test('S02-SESSION-20: LKI continuation needs a registered source and never allocates it', () => {
   const state = fresh();
-  const source = execute(state, add(state, 'STD-200'));
-  assert.equal(state.pending.request.continuation.type, 'runtime-zone-choice');
+  const mover = execute(state, add(state, 'STD-022'), { zone: 'front' });
+  const source = execute(state, add(state, 'STD-188'), { zone: 'back' });
   const continuation = state.pending.request.continuation;
+  assert.equal(continuation.sourceUid, source.uid);
   const alias = state.runtimeContext.uidAliases.find(entry => entry.uid === source.uid);
   const before = state.runtimeContext.identityState.nextSerial;
-  answer(state, { scope: 'back' });
-  assert.equal(state.runtimeContext.identityState.nextSerial, before + 1); // Footprint, not LKI.
+  answer(state, { selected: [mover.uid] });
+  assert.equal(state.runtimeContext.identityState.nextSerial, before + 1); // The generated Dolls, not LKI.
   assert.deepEqual(alias.identity, source.identity);
   assert.notEqual(alias.identity, source.identity);
   audit(state);
   const broken = fresh();
-  const brokenSource = execute(broken, add(broken, 'STD-200'));
+  const brokenMover = execute(broken, add(broken, 'STD-022'), { zone: 'front' });
+  const brokenSource = execute(broken, add(broken, 'STD-188'), { zone: 'back' });
   broken.runtimeContext.uidAliases = broken.runtimeContext.uidAliases.filter(entry => entry.uid !== brokenSource.uid);
-  throwsCode(() => answer(broken, { scope: 'back' }), 'RUNTIME_UNKNOWN_SOURCE_ALIAS');
+  throwsCode(() => answer(broken, { selected: [brokenMover.uid] }), 'RUNTIME_UNKNOWN_SOURCE_ALIAS');
   assert.equal(continuation.sourceUid, source.uid);
 });
 

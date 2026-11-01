@@ -62,6 +62,11 @@ export function runPostDrawTurnStart(state, playerId) {
     if (state.winner) return;
   }
   const opponentId = otherPlayer(playerId);
+  // 「ターン開始時」に自分/相手の指定がない効果(eachTurn)は、相手のターン開始時にも起きる。
+  for (const provider of state.players[opponentId].registry.filter((card) => !card.faceDown && cardRuntimeSpec(card.id, "turn_start")?.eachTurn)) {
+    runEffectEntry(state, "turn-start", opponentId, () => executeCardRuntimeSpec(state, "turn_start", opponentId, provider));
+    if (state.winner) return;
+  }
   for (const source of state.players[opponentId].back.filter((card) => card.id === "STD-148" && card.residentActive)) source.std148ArmedTurn = state.turnNumber;
   emitGameEvent(state, { type: "turn_started", playerId });
 }
@@ -190,6 +195,15 @@ export function endTurn(state) {
   }
   for (const card of [...player.front, ...player.back].filter((item) => !item.faceDown && cardRuntimeSpec(item.id, "turn_end"))) {
     executeCardRuntimeSpec(state, "turn_end", activeId, card);
+  }
+  // 「ターン終了時」に自分/相手の指定がない効果(eachTurn)は、相手のターン終了時にも起きる。
+  const waitingId = otherPlayer(activeId);
+  const waiting = state.players[waitingId];
+  for (const provider of waiting.registry.filter((card) => !card.faceDown && cardRuntimeSpec(card.id, "turn_end")?.eachTurn)) {
+    executeCardRuntimeSpec(state, "turn_end", waitingId, provider);
+  }
+  for (const card of [...waiting.front, ...waiting.back].filter((item) => !item.faceDown && cardRuntimeSpec(item.id, "turn_end")?.eachTurn)) {
+    executeCardRuntimeSpec(state, "turn_end", waitingId, card);
   }
   }
   if (!state.std142TurnEndQueue && state.std142TurnEndDone !== activeId) {

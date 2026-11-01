@@ -21,7 +21,7 @@ import { resumeDeferredDestruction } from "../effects/generic/destroy.js";
 import { moveCardToTrash, resumeDeferredTrashMove } from "../effects/generic/trash.js";
 import { executeTriggerAction } from "../effects/generic/trigger-actions.js";
 
-export const DECLARED_IF_SCRIPT_IDS = new Set(["STD-001", "STD-002", "STD-003", "STD-018", "STD-019", "STD-036", "STD-037", "STD-038", "STD-139", "STD-140", "STD-148"]);
+export const DECLARED_IF_SCRIPT_IDS = new Set(["STD-001", "STD-002", "STD-003", "STD-018", "STD-019", "STD-036", "STD-037", "STD-038", "STD-139", "STD-140", "STD-148", "STD-184"]);
 
 export const NORMAL_IF_SCRIPT_IDS = new Set(["STD-001", "STD-002", "STD-003", "STD-036", "STD-037", "STD-139", "STD-140", "STD-148"]);
 

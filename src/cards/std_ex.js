@@ -212,6 +212,7 @@ import * as std_235 from "./std/std_235.js";
 import * as std_236 from "./std/std_236.js";
 import * as std_237 from "./std/std_237.js";
 import * as std_238 from "./std/std_238.js";
+import * as std_239 from "./std/std_239.js";
 
 // STD index: card id -> card module (one file per card, in library order)
 export const STD_CARD_MODULES = Object.freeze({
@@ -428,7 +429,8 @@ export const STD_CARD_MODULES = Object.freeze({
   "STD-235": std_235,
   "STD-236": std_236,
   "STD-237": std_237,
-  "STD-238": std_238
+  "STD-238": std_238,
+  "STD-239": std_239
 });
 
 // STD card definitions in the same order
@@ -646,7 +648,8 @@ export const STD_CARDS = Object.freeze({
   "STD-235": std_235.definition,
   "STD-236": std_236.definition,
   "STD-237": std_237.definition,
-  "STD-238": std_238.definition
+  "STD-238": std_238.definition,
+  "STD-239": std_239.definition
 });
 
 

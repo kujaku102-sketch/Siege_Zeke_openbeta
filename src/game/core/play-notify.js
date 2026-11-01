@@ -1,6 +1,4 @@
 import { isObCard } from "../card-types.js";
-import { createSelectionRequest } from "../selection-model.js";
-import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { openScriptActivationWindow } from "./scripts.js";
 import { addLog, cardTraits, findCard, otherPlayer } from "./shared.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
@@ -13,16 +11,6 @@ export function notifyCardExecuted(state, executingPlayerId, executedCard, { fir
   const residentOwnerId = otherPlayer(executingPlayerId);
   const owner = state.players[residentOwnerId];
   const executingOwner = state.players[executingPlayerId];
-  if (isObCard(executedCard)) {
-    for (const [controllerId, controller] of Object.entries(state.players)) {
-      for (const source of controller.back.filter((card) => card.id === "STD-184" && card.std184Script && card.faceDown)) {
-        const request = createSelectionRequest({ mode: "scope", scopeField: "place", scopeOptions: ["配置しない", "Obとして配置する"],
-          label: `${source.name}: Obのログイン`, message: source.text,
-          continuation: { type: "std184-place-ob", playerId: controllerId, sourceUid: source.uid, sourceName: source.name } });
-        enqueueSelection(state, { type: "selection", validTargets: [], request }, selectionProjectionMeta("engine:std184-place", controllerId));
-      }
-    }
-  }
   const tackle = owner.registry.find((card) => card.id === "STD-224" && !card.faceDown && Number(card.pluginValue) === Number(executedCard.cost ?? 0));
   const placedLocation = findCard(state, executedCard.uid);
   if (tackle && placedLocation && ["front", "back"].includes(placedLocation.zoneName)) {

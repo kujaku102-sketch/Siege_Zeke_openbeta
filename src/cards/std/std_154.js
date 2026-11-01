@@ -17,7 +17,7 @@ export const definition = {
 
 // runtime spec (was card-runtime-specs.js)
 export const runtimeSpec = spec("area_to_trash", [op("schedule_delayed", {
-    event: "turn_started", timing: "next_controller_turn", action: "move_source_from_trash",
+    event: "turn_started", timing: "next_turn", action: "move_source_from_trash",
     destination: "choose_area", resetDamage: true, sleep: true
   })]);
 

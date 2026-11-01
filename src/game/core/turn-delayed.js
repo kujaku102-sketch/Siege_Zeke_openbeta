@@ -14,7 +14,7 @@ export function resolveDelayedTrashMove(state, effect) {
   const [card] = owner.trash.splice(index, 1);
   if (effect.destination === "hand") {
     owner.hand.push(card);
-    addLog(state, `${effect.sourceName}: 次の自分ターン開始時にゴミ箱から手札へ。`, "effect");
+    addLog(state, `${effect.sourceName}: 次のターン開始時にゴミ箱から手札へ。`, "effect");
     return true;
   }
   const zone = effect.destination === "choose_area"
@@ -31,9 +31,11 @@ export function resolveDelayedTrashMove(state, effect) {
 
 export function resolveTurnStartDelayedEffects(state, playerId) {
   const player = state.players[playerId];
+  // 「次のターン開始時」: the next turn's start, whoever's turn it is; `dueOwnerTurnsTaken` is the owner's own next turn.
   const due = state.delayedEffects.filter((effect) => effect.event === "turn_started"
-    && effect.ownerId === playerId
-    && effect.dueOwnerTurnsTaken <= player.turnsTaken + 1);
+    && (effect.dueTurn !== undefined
+      ? effect.dueTurn <= state.turnNumber
+      : effect.ownerId === playerId && effect.dueOwnerTurnsTaken <= player.turnsTaken + 1));
   state.delayedEffects = state.delayedEffects.filter((effect) => !due.includes(effect));
   for (const effect of due) {
     if (effect.type === "move_source_from_trash") resolveDelayedTrashMove(state, effect);
