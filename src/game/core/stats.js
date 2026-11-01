@@ -3,7 +3,7 @@ import { isObCard } from "../card-types.js";
 import { auraBattleStatSpecsFor, auraKeywordSpecsFor, conditionalKeywordSpecsFor, continuousStatModifierSpecsFor, mountedKeywordSpecsFor, mountedStatModifierSpecsFor } from "../continuous-effect-specs.js";
 import { hasKeyword } from "./keywords.js";
 import { enabledSymbols } from "./play.js";
-import { activeCards, cardTraits, hasClass } from "./shared.js";
+import { cardTraits, hasClass } from "./shared.js";
 import { runtimeSpecValue } from "../effects/generic/action-values.js";
 
 export function battleStatModifierValue(state, playerId, source, stat) {
@@ -109,5 +109,5 @@ export function cardHasRuntimeKeyword(state, playerId, card, name) {
       }
     }
   }
-  return name === "CONTACT" && card.name === "ドールズ" && activeCards(state, playerId, "STD-198").length > 0;
+  return false;
 }

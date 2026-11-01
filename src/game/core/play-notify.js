@@ -1,6 +1,4 @@
 import { isObCard } from "../card-types.js";
-import { createSelectionRequest } from "../selection-model.js";
-import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { openScriptActivationWindow } from "./scripts.js";
 import { addLog, cardTraits, findCard, otherPlayer } from "./shared.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
@@ -13,16 +11,6 @@ export function notifyCardExecuted(state, executingPlayerId, executedCard, { fir
   const residentOwnerId = otherPlayer(executingPlayerId);
   const owner = state.players[residentOwnerId];
   const executingOwner = state.players[executingPlayerId];
-  if (isObCard(executedCard)) {
-    for (const [controllerId, controller] of Object.entries(state.players)) {
-      for (const source of controller.back.filter((card) => card.id === "STD-184" && card.std184Script && card.faceDown)) {
-        const request = createSelectionRequest({ mode: "scope", scopeField: "place", scopeOptions: ["配置しない", "Obとして配置する"],
-          label: `${source.name}: Obのログイン`, message: source.text,
-          continuation: { type: "std184-place-ob", playerId: controllerId, sourceUid: source.uid, sourceName: source.name } });
-        enqueueSelection(state, { type: "selection", validTargets: [], request }, selectionProjectionMeta("engine:std184-place", controllerId));
-      }
-    }
-  }
   const tackle = owner.registry.find((card) => card.id === "STD-224" && !card.faceDown && Number(card.pluginValue) === Number(executedCard.cost ?? 0));
   const placedLocation = findCard(state, executedCard.uid);
   if (tackle && placedLocation && ["front", "back"].includes(placedLocation.zoneName)) {
@@ -30,15 +18,6 @@ export function notifyCardExecuted(state, executingPlayerId, executedCard, { fir
     if (tackleIndex >= 0) moveCardToTrash(state, tackle.owner ?? residentOwnerId, owner.registry.splice(tackleIndex, 1)[0], tackle.name);
     destroyCard(state, executingPlayerId, executedCard.uid, { source: tackle.name, suppressReplacement: true });
     addLog(state, `${tackle.name}: 指定メモリ${tackle.pluginValue}と一致し、これと${executedCard.name}を破壊。`, "effect");
-  }
-  if (!state.prompt && isObCard(executedCard)) {
-    const takeover = owner.back.find((card) => card.id === "STD-204" && card.category === "Script" && card.faceDown);
-    if (takeover) {
-      openScriptActivationWindow(state, residentOwnerId, takeover, {
-        type: "card_executing", playerId: executingPlayerId, ownerId: executedCard.owner ?? executingPlayerId,
-        cardUid: executedCard.uid, cardId: executedCard.id, cardName: executedCard.name, category: executedCard.category, color: executedCard.color
-      }, { replacementTargetUid: executedCard.uid });
-    }
   }
   const placed = findCard(state, executedCard.uid);
   if (!state.prompt && placed && ["front", "back"].includes(placed.zoneName)) {

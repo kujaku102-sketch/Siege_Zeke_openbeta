@@ -152,23 +152,23 @@ test('S02-BRIDGE-03: ordinary Code mounting works both ways and remains after Ob
   }
 });
 
-test('S02-BRIDGE-04: real takeover gives nested layers the host controller and keeps owners', () => {
+test('S02-BRIDGE-04: real takeover replaces the execution: the executor gets the Gigantes with the Ob as its layer', () => {
   const state = fresh();
   symbol(state, 'STD-191');
   const script = execute(state, add(state, 'STD-204'), { zone: 'back' });
-  const code = execute(state, add(state, 'STD-078', 'ai'));
-  const host = add(state, 'STD-020', 'ai');
-  execute(state, host, { baseUid: code.uid });
+  const victim = add(state, 'STD-020', 'ai');
+  execute(state, victim);
   assert.equal(state.prompt.scriptUid, script.uid);
+  assert.equal(entry(state, victim).location.zone, 'hand', 'nothing moves before the answer');
   assert.equal(activateScript(state, 'player', script.uid), true);
-  const giant = state.players.player.front.find(card => card.id === 'STD-205');
+  const giant = state.players.ai.front.find(card => card.id === 'STD-205');
   assert.ok(giant);
-  assert.deepEqual(entry(state, host).location, { kind: 'mounted', host: { ...giant.identity }, order: 1, role: 'layered' });
-  assert.deepEqual(entry(state, code).location, { kind: 'mounted', host: { ...host.identity }, order: 1, role: 'mount' });
-  assert.equal(entry(state, host).ownerSeat, 'seat-b');
-  assert.equal(entry(state, code).ownerSeat, 'seat-b');
-  assert.equal(entry(state, host).controllerSeat, 'seat-a');
-  assert.equal(entry(state, code).controllerSeat, 'seat-a');
+  assert.equal(entry(state, giant).ownerSeat, 'seat-b');
+  assert.equal(entry(state, giant).controllerSeat, 'seat-b');
+  assert.equal(entry(state, giant).location.kind, 'board');
+  assert.deepEqual(entry(state, victim).location, { kind: 'mounted', host: { ...giant.identity }, order: 1, role: 'layered' });
+  assert.equal(entry(state, victim).ownerSeat, 'seat-b');
+  assert.equal(entry(state, victim).controllerSeat, 'seat-b');
 });
 
 test('S02-BRIDGE-05: layered sibling order, cost consumption and source movement', () => {

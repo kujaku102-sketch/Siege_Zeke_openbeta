@@ -9,7 +9,7 @@ export const definition = {
   "cost": 5,
   "atk": 5,
   "str": 5,
-  "text": "[レスポンス:5][コンタクト][ログイン]手札から設置メモリ2以下のScript1枚を設置する。攻撃時、起動メモリ2以下の自分のScript1枚を起動できる。",
+  "text": "[レスポンス:5][コンタクト][ログイン]手札からメモリ2以下のScript1枚を設置する。これの攻撃時、メモリ2以下の自分のScript1枚を起動できる。",
   "classes": [],
   "traits": [
     "インセクト"
@@ -24,4 +24,4 @@ export const runtimeSpec = spec("login", [op("select", {
   })]);
 
 // compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
-export const compilerPreset = { type: "login_set_script_and_attack_activate_script", login: { source: "own_hand", category: "Script", setupMemoryMaximum: 2 }, attack: { source: "own_back", category: "Script", activationMemoryMaximum: 2, optional: true } };
+export const compilerPreset = { type: "login_set_script_and_attack_activate_script", login: { source: "own_hand", category: "Script", setupMemoryMaximum: 2 }, attack: { source: "own_back", category: "Script", memoryMaximum: 2, optional: true } };

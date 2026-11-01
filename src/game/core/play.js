@@ -1,3 +1,4 @@
+import { TRACE, tracing, waypoint } from "../engine-trace.js";
 import { cardAtBoardSlot, inheritBoardSlot, projectZoneSlots } from "../board-slots.js";
 import { cardPlacementCostSpec } from "../card-runtime-specs.js";
 import { isObCard, isObCategory } from "../card-types.js";
@@ -6,6 +7,7 @@ import { layeredSpecFor } from "../layered-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { hasOptionalActivationSpec } from "../trigger-specs.js";
 import { dealFortressDamage } from "./deal-damage.js";
+import { openExecutionReplacementWindow } from "./execution-replacement.js";
 import { resolveEffect, resolveMandatoryStateChecks, runEffectEntry } from "./effects.js";
 import { hasKeyword, keywordValue } from "./keywords.js";
 import { getEffectTargets } from "./play-effects.js";
@@ -108,7 +110,7 @@ export function canPlayCard(state, playerId, card, { ignoreColor = false, free =
   return { ok: true };
 }
 
-export function playCardCore(state, playerId, uid, { targetUid = null, targetUids = [], selectionScope = null, free = false, ignoreColor = false, force = false, allowOffTurn = false, zone = "front", baseUid = null, underUid = null, placementCause = "execution", placementSource = null, placementMode = "normal", ocDecision = null, magazineDecision = null, magazineLayerUids = [], registryExecution = false, registryOriginIndex = null, asScript = false, placementCostPermit = null, requestedSlot = null, onPlaced = null } = {}) {
+export function playCardCore(state, playerId, uid, { targetUid = null, targetUids = [], selectionScope = null, free = false, ignoreColor = false, force = false, allowOffTurn = false, zone = "front", baseUid = null, underUid = null, placementCause = "execution", placementSource = null, placementMode = "normal", ocDecision = null, magazineDecision = null, magazineLayerUids = [], registryExecution = false, registryOriginIndex = null, asScript = false, placementCostPermit = null, requestedSlot = null, onPlaced = null, executionReplacementChecked = false } = {}) {
   const player = state.players[playerId];
   const index = player.hand.findIndex((card) => card.uid === uid);
   if (index < 0) return fail(state, "そのカードは手札にない。", force);
@@ -241,6 +243,12 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
     return true;
   }
 
+  // 実行の置換(core/execution-replacement.js): 「実行する時」、配置・ログイン・メモリ支払いの前に止める。
+  if (!executionReplacementChecked && !baseUid && !underUid && openExecutionReplacementWindow(state, playerId, card, {
+    targetUid, targetUids, selectionScope, free, ignoreColor, force, allowOffTurn, zone, placementCause, placementSource, placementMode,
+    ocDecision, magazineDecision, magazineLayerUids, registryExecution, registryOriginIndex, requestedSlot
+  }, onPlaced)) return true;
+
   player.hand.splice(index, 1);
   if (registryExecution && !["STD-215", "STD-220"].includes(card.id)) player.triggerUsage["STD-236:registry-execute"] = true;
   const customPlayCardCore3 = CUSTOM_PLAY_CARD_CORE_3[card.id];
@@ -281,6 +289,7 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
     card.ocPaidAmount = Number(ocMatch[1]);
   } else delete card.ocPaidAmount;
   addLog(state, `${player.user.name}が「${card.name}」を${free && force ? "強制実行" : "実行"}。`, "action");
+  if (TRACE && tracing()) waypoint(state, "rule:execution", true, { cardId: card.id, cardUid: card.uid, category: card.category, playerId, forced: Boolean(free && force) });
 
   const placement = placementResult(player, zone, { addedSlots: baseUid || underUid ? 0 : 1, mode: placementMode });
   if (card.category !== "Sp" && !placement.ok && placement.mode === "forced-effect") {

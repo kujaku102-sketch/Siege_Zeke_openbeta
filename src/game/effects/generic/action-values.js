@@ -1,4 +1,4 @@
-import { TRACE_TAGS, trace } from "../../engine-trace.js";
+import { TRACE_TAGS, trace, TRACE, tracing, waypoint } from "../../engine-trace.js";
 import { isLydCard, isObCard, matchesCardCategory } from "../../card-types.js";
 import { flattenedLayerCount, flattenedLayers } from "../../layered-specs.js";
 import { cardTraits, classKey, findCard, hasClass, hasNoEffectText, isArmsBandCard, otherPlayer } from "../../core/shared.js";
@@ -56,7 +56,8 @@ export function runtimeSpecValue(state, playerId, source, value, runtime = null)
 
 export function runtimeSpecCondition(state, playerId, source, condition, runtime = null, targetUid = null) {
   const result = evaluateRuntimeSpecCondition(state, playerId, source, condition, runtime, targetUid);
-  if (condition) trace(state, { tag: TRACE_TAGS.CONDITION, result: Boolean(result), expression: condition.expression ?? condition.type ?? null, cardId: source?.id ?? null, playerId });
+  if (TRACE && tracing() && condition) waypoint(state, `cond:runtime:${condition.expression ?? condition.type}`, Boolean(result), { cardId: source?.id ?? null });
+  if (TRACE && tracing() && condition) trace(state, { tag: TRACE_TAGS.CONDITION, result: Boolean(result), expression: condition.expression ?? condition.type ?? null, cardId: source?.id ?? null, playerId });
   return result;
 }
 
@@ -112,6 +113,9 @@ export function runtimeSpecTargets(state, playerId, source, targetUid, target) {
   }
   if (target === "own_class_ob_all") {
     return [...player.front, ...player.back].filter((card) => isObCard(card) && hasClass(card, source.runtimeTargetClass));
+  }
+  if (target === "own_named_ob_all") {
+    return [...player.front, ...player.back].filter((card) => isObCard(card) && card.name === source.runtimeTargetName);
   }
   if (target === "selected_own_ob") {
     const entry = findCard(state, targetUid);

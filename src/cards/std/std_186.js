@@ -7,12 +7,9 @@ export const definition = {
   "name": "地虫の豊穣",
   "category": "Script",
   "color": "緑",
-  "cost": null,
+  "cost": 1,
   "classes": [],
-  "text": "相手がカードを引いた時起動できる。カードを1枚引く。",
-  "setupCost": 1,
-  "activationCost": 0,
-  "printedCost": "1-0",
+  "text": "[if:相手がカードを引く時]カードを1枚引く。",
   "traits": [
     "インセクト"
   ]

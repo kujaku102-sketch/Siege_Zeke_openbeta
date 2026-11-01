@@ -1,3 +1,4 @@
+import { TRACE, tracing, waypoint } from "../../engine-trace.js";
 import { std003ResolveDeclaredScript } from "../../../cards/std/std_003_effects.js";
 import { std011GetEffectTargets } from "../../../cards/std/std_011_effects.js";
 import { std018NotifyCardExecuted } from "../../../cards/std/std_018_effects.js";
@@ -34,11 +35,10 @@ import { std167ResolveDeclaredResponse, std167ResponseCardApplicable } from "../
 import { std169ActivateCardEffectCore, std169GetEffectActivationTargets } from "../../../cards/std/std_169_effects.js";
 import { std179PlaceSelection } from "../../../cards/std/std_179_effects.js";
 import { std182AttackCore2, std182AttackScriptSelection } from "../../../cards/std/std_182_effects.js";
-import { std184PlaceObSelection, std184PlayCardCore } from "../../../cards/std/std_184_effects.js";
+import { std184PlayCardCore } from "../../../cards/std/std_184_effects.js";
 import { std192GetEffectActivationTargets2 } from "../../../cards/std/std_192_effects.js";
 import { std196GetEffectActivationTargets2 } from "../../../cards/std/std_196_effects.js";
 import { activateStd203ResponseSelection, std203NormalSpellSelection, std203ResolveSpell, std203ResponseCardApplicable } from "../../../cards/std/std_203_effects.js";
-import { std204ActivateScriptCore } from "../../../cards/std/std_204_effects.js";
 import { std207ResolveSpell, std207RevealSelection } from "../../../cards/std/std_207_effects.js";
 import { std211NormalSpellSelection, std211PlayCardCore4, std211ResolveSpell } from "../../../cards/std/std_211_effects.js";
 import { std212ResolveSpell, std212RespawnCountSelection } from "../../../cards/std/std_212_effects.js";
@@ -65,8 +65,26 @@ import { sztbJacketPlaceSelection } from "../../../cards/sztb/sztb_096_effects.j
 // A handler returns PASS when it did not take over: the caller continues as if the branch had not matched.
 export const PASS = Symbol("custom-effect-pass");
 
+// Development and tests only (TRACE): every handler in a custom table leaves a waypoint `custom:<table>:<key>` when it is called,
+// ok when it took the case (a handler that gives PASS, or none, back declined it). In the product build the table is used as is.
+function tracedTable(name, table) {
+  if (!TRACE) return Object.freeze(table);
+  const wrapped = Object.create(null);
+  for (const [key, handler] of Object.entries(table)) {
+    wrapped[key] = typeof handler !== "function" ? handler : function traced(...args) {
+      const result = handler.apply(this, args);
+      if (tracing()) {
+        const first = args[0];
+        waypoint(first?.state ?? (first?.players ? first : null), `custom:${name}:${key}`, result !== PASS);
+      }
+      return result;
+    };
+  }
+  return Object.freeze(wrapped);
+}
+
 // continuation type -> handler of resolveCardSelectionCore (card-specific continuations). Null prototype: only the listed types match.
-export const CUSTOM_SELECTION_HANDLERS = Object.freeze({
+export const CUSTOM_SELECTION_HANDLERS = tracedTable("CUSTOM_SELECTION_HANDLERS", {
   __proto__: null,
   "std099-replacement-materials": std099ReplacementMaterialsSelection,
   "std157-destroy": std157DestroySelection,
@@ -109,7 +127,6 @@ export const CUSTOM_SELECTION_HANDLERS = Object.freeze({
   "std165-login": std165LoginSelection,
   "std179-place": std179PlaceSelection,
   "std182-attack-script": std182AttackScriptSelection,
-  "std184-place-ob": std184PlaceObSelection,
   "play-std229": playStd229Selection,
   "std214-attack-cost": std214AttackCostSelection,
   "std226-compress": std226CompressSelection,
@@ -121,13 +138,13 @@ export const CUSTOM_SELECTION_HANDLERS = Object.freeze({
 });
 
 // core/battle.js: card id -> handler
-export const CUSTOM_QUEUE_POST_ATTACK_SELECTION = Object.freeze({
+export const CUSTOM_QUEUE_POST_ATTACK_SELECTION = tracedTable("CUSTOM_QUEUE_POST_ATTACK_SELECTION", {
   __proto__: null,
   "STD-136": std136QueuePostAttackSelection
 });
 
 // core/battle.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_ATTACK_CORE = Object.freeze({
+export const CUSTOM_ATTACK_CORE = tracedTable("CUSTOM_ATTACK_CORE", {
   __proto__: null,
   "STD-227": std227AttackCore,
   "STD-096": std096AttackCore,
@@ -136,57 +153,57 @@ export const CUSTOM_ATTACK_CORE = Object.freeze({
 });
 
 // core/battle.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_ATTACK_CORE_2 = Object.freeze({
+export const CUSTOM_ATTACK_CORE_2 = tracedTable("CUSTOM_ATTACK_CORE_2", {
   __proto__: null,
   "STD-182": std182AttackCore2
 });
 
 // core/battle.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_ATTACK_CORE_3 = Object.freeze({
+export const CUSTOM_ATTACK_CORE_3 = tracedTable("CUSTOM_ATTACK_CORE_3", {
   __proto__: null,
   "STD-214": std214AttackCore3
 });
 
 // core/battle.js: card id -> handler
-export const CUSTOM_ATTACK_CORE_4 = Object.freeze({
+export const CUSTOM_ATTACK_CORE_4 = tracedTable("CUSTOM_ATTACK_CORE_4", {
   __proto__: null,
   "STD-106": std106AttackCore4
 });
 
 // core/battle.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_ATTACK_CORE_5 = Object.freeze({
+export const CUSTOM_ATTACK_CORE_5 = tracedTable("CUSTOM_ATTACK_CORE_5", {
   __proto__: null,
   "STD-085": std085AttackCore5
 });
 
 // core/battle.js: card id -> handler
-export const CUSTOM_ATTACK_CORE_6 = Object.freeze({
+export const CUSTOM_ATTACK_CORE_6 = tracedTable("CUSTOM_ATTACK_CORE_6", {
   __proto__: null,
   "STD-095": std095AttackCore6
 });
 
 // core/play.js: card id -> handler
-export const CUSTOM_INSTALL_CARD = Object.freeze({
+export const CUSTOM_INSTALL_CARD = tracedTable("CUSTOM_INSTALL_CARD", {
   __proto__: null,
   "STD-224": std224InstallCard
 });
 
 // core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_NORMAL_SPELL_SELECTION = Object.freeze({
+export const CUSTOM_NORMAL_SPELL_SELECTION = tracedTable("CUSTOM_NORMAL_SPELL_SELECTION", {
   __proto__: null,
   "STD-211": std211NormalSpellSelection,
   "STD-203": std203NormalSpellSelection
 });
 
 // core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_PLAY_CARD_CORE = Object.freeze({
+export const CUSTOM_PLAY_CARD_CORE = tracedTable("CUSTOM_PLAY_CARD_CORE", {
   __proto__: null,
   "STD-229": std229PlayCardCore,
   "STD-184": std184PlayCardCore
 });
 
 // core/play.js: card id -> extra fields of state.deferredSpellCleanup (what the Sp still has to do before it goes to the trash)
-export const CUSTOM_SPELL_CLEANUP_EXTRA = Object.freeze({
+export const CUSTOM_SPELL_CLEANUP_EXTRA = tracedTable("CUSTOM_SPELL_CLEANUP_EXTRA", {
   __proto__: null,
   "SZTB-096": sztb096SpellCleanupExtra,
   "SZTB-097": sztb096SpellCleanupExtra,
@@ -195,19 +212,19 @@ export const CUSTOM_SPELL_CLEANUP_EXTRA = Object.freeze({
 });
 
 // core/play.js: card id -> handler
-export const CUSTOM_PLAY_CARD_CORE_3 = Object.freeze({
+export const CUSTOM_PLAY_CARD_CORE_3 = tracedTable("CUSTOM_PLAY_CARD_CORE_3", {
   __proto__: null,
   "STD-220": std220PlayCardCore3
 });
 
 // core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_PLAY_CARD_CORE_4 = Object.freeze({
+export const CUSTOM_PLAY_CARD_CORE_4 = tracedTable("CUSTOM_PLAY_CARD_CORE_4", {
   __proto__: null,
   "STD-211": std211PlayCardCore4
 });
 
 // core/play.js: card id -> handler
-export const CUSTOM_RESOLVE_LOGIN = Object.freeze({
+export const CUSTOM_RESOLVE_LOGIN = tracedTable("CUSTOM_RESOLVE_LOGIN", {
   __proto__: null,
   "STD-157": std157ResolveLogin,
   "STD-160": std160ResolveLogin,
@@ -216,13 +233,13 @@ export const CUSTOM_RESOLVE_LOGIN = Object.freeze({
 });
 
 // core/play.js: card id -> handler
-export const CUSTOM_RESOLVE_LOGIN_2 = Object.freeze({
+export const CUSTOM_RESOLVE_LOGIN_2 = tracedTable("CUSTOM_RESOLVE_LOGIN_2", {
   __proto__: null,
   "SZTB-094": sztb094ResolveLogin2
 });
 
 // core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_RESOLVE_SPELL = Object.freeze({
+export const CUSTOM_RESOLVE_SPELL = tracedTable("CUSTOM_RESOLVE_SPELL", {
   __proto__: null,
   "SZTB-097": sztb097ResolveSpell,
   "SZTB-098": sztb098ResolveSpell,
@@ -238,21 +255,21 @@ export const CUSTOM_RESOLVE_SPELL = Object.freeze({
 });
 
 // core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_GET_EFFECT_TARGETS = Object.freeze({
+export const CUSTOM_GET_EFFECT_TARGETS = tracedTable("CUSTOM_GET_EFFECT_TARGETS", {
   __proto__: null,
   "STD-011": std011GetEffectTargets,
   "SZTB-096": sztb096GetEffectTargets
 });
 
 // core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_GET_EFFECT_ACTIVATION_TARGETS = Object.freeze({
+export const CUSTOM_GET_EFFECT_ACTIVATION_TARGETS = tracedTable("CUSTOM_GET_EFFECT_ACTIVATION_TARGETS", {
   __proto__: null,
   "STD-169": std169GetEffectActivationTargets,
   "STD-049": std049GetEffectActivationTargets
 });
 
 // core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2 = Object.freeze({
+export const CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2 = tracedTable("CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2", {
   __proto__: null,
   "STD-192": std192GetEffectActivationTargets2,
   "STD-196": std196GetEffectActivationTargets2,
@@ -260,7 +277,7 @@ export const CUSTOM_GET_EFFECT_ACTIVATION_TARGETS_2 = Object.freeze({
 });
 
 // core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_ACTIVATE_CARD_EFFECT_CORE = Object.freeze({
+export const CUSTOM_ACTIVATE_CARD_EFFECT_CORE = tracedTable("CUSTOM_ACTIVATE_CARD_EFFECT_CORE", {
   __proto__: null,
   "STD-140": std140ActivateCardEffectCore,
   "STD-228": std228ActivateCardEffectCore,
@@ -276,7 +293,7 @@ export const CUSTOM_ACTIVATE_CARD_EFFECT_CORE = Object.freeze({
 });
 
 // core/response.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_RESPONSE_CARD_APPLICABLE = Object.freeze({
+export const CUSTOM_RESPONSE_CARD_APPLICABLE = tracedTable("CUSTOM_RESPONSE_CARD_APPLICABLE", {
   __proto__: null,
   "STD-034": std034ResponseCardApplicable,
   "STD-047": std047ResponseCardApplicable,
@@ -285,37 +302,36 @@ export const CUSTOM_RESPONSE_CARD_APPLICABLE = Object.freeze({
 });
 
 // core/response.js: card id -> handler
-export const CUSTOM_RESOLVE_DECLARED_RESPONSE = Object.freeze({
+export const CUSTOM_RESOLVE_DECLARED_RESPONSE = tracedTable("CUSTOM_RESOLVE_DECLARED_RESPONSE", {
   __proto__: null,
   "STD-167": std167ResolveDeclaredResponse
 });
 
 // core/scripts.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_ACTIVATE_SCRIPT_CORE = Object.freeze({
+export const CUSTOM_ACTIVATE_SCRIPT_CORE = tracedTable("CUSTOM_ACTIVATE_SCRIPT_CORE", {
   __proto__: null,
   "STD-142": std142ActivateScriptCore,
   "STD-105": std105ActivateScriptCore,
-  "STD-204": std204ActivateScriptCore,
   "STD-121": std121ActivateScriptCore,
   "STD-231": std231ActivateScriptCore
 });
 
 // core/scripts.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_ACTIVATE_SCRIPT_CORE_2 = Object.freeze({
+export const CUSTOM_ACTIVATE_SCRIPT_CORE_2 = tracedTable("CUSTOM_ACTIVATE_SCRIPT_CORE_2", {
   __proto__: null,
   "STD-142": std142ActivateScriptCore2,
   "STD-105": std105ActivateScriptCore2
 });
 
 // effects/generic/selection.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_RESOLVE_CARD_SELECTION_CORE = Object.freeze({
+export const CUSTOM_RESOLVE_CARD_SELECTION_CORE = tracedTable("CUSTOM_RESOLVE_CARD_SELECTION_CORE", {
   __proto__: null,
   "STD-238": std238ResolveCardSelectionCore,
   "STD-096": std096ResolveCardSelectionCore
 });
 
 // core/effects.js: card id -> handler
-export const CUSTOM_DRAIN_INDEPENDENT_EFFECTS = Object.freeze({
+export const CUSTOM_DRAIN_INDEPENDENT_EFFECTS = tracedTable("CUSTOM_DRAIN_INDEPENDENT_EFFECTS", {
   __proto__: null,
   "STD-217": std217DrainIndependentEffects,
   "SZTB-094-COUNTER": sztb094CounterDrainIndependentEffects,
@@ -323,14 +339,14 @@ export const CUSTOM_DRAIN_INDEPENDENT_EFFECTS = Object.freeze({
 });
 
 // core/effects.js: card id -> handler
-export const CUSTOM_RESOLVE_DECLARED_SCRIPT = Object.freeze({
+export const CUSTOM_RESOLVE_DECLARED_SCRIPT = tracedTable("CUSTOM_RESOLVE_DECLARED_SCRIPT", {
   __proto__: null,
   "STD-003": std003ResolveDeclaredScript,
   "STD-148": std148ResolveDeclaredScript
 });
 
 // core/play.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_NOTIFY_CARD_EXECUTED = Object.freeze({
+export const CUSTOM_NOTIFY_CARD_EXECUTED = tracedTable("CUSTOM_NOTIFY_CARD_EXECUTED", {
   __proto__: null,
   "STD-018": std018NotifyCardExecuted,
   "STD-019": std019NotifyCardExecuted

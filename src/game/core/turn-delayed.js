@@ -1,4 +1,4 @@
-import { TRACE_TAGS, trace } from "../engine-trace.js";
+import { TRACE_TAGS, trace, TRACE, tracing, waypoint } from "../engine-trace.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { addLog, otherPlayer } from "./shared.js";
 import { startTurn } from "./turn.js";
@@ -14,7 +14,7 @@ export function resolveDelayedTrashMove(state, effect) {
   const [card] = owner.trash.splice(index, 1);
   if (effect.destination === "hand") {
     owner.hand.push(card);
-    addLog(state, `${effect.sourceName}: 次の自分ターン開始時にゴミ箱から手札へ。`, "effect");
+    addLog(state, `${effect.sourceName}: 次のターン開始時にゴミ箱から手札へ。`, "effect");
     return true;
   }
   const zone = effect.destination === "choose_area"
@@ -31,11 +31,14 @@ export function resolveDelayedTrashMove(state, effect) {
 
 export function resolveTurnStartDelayedEffects(state, playerId) {
   const player = state.players[playerId];
+  // 「次のターン開始時」: the next turn's start, whoever's turn it is; `dueOwnerTurnsTaken` is the owner's own next turn.
   const due = state.delayedEffects.filter((effect) => effect.event === "turn_started"
-    && effect.ownerId === playerId
-    && effect.dueOwnerTurnsTaken <= player.turnsTaken + 1);
+    && (effect.dueTurn !== undefined
+      ? effect.dueTurn <= state.turnNumber
+      : effect.ownerId === playerId && effect.dueOwnerTurnsTaken <= player.turnsTaken + 1));
   state.delayedEffects = state.delayedEffects.filter((effect) => !due.includes(effect));
   for (const effect of due) {
+    if (TRACE && tracing()) waypoint(state, "rule:delayed-effect", true, { phase: "turn_started", type: effect.type, cardUid: effect.cardUid ?? null, ownerId: effect.ownerId ?? null, due: effect.dueTurn !== undefined ? "next-turn" : "owner-turn" });
     if (effect.type === "move_source_from_trash") resolveDelayedTrashMove(state, effect);
   }
 }
@@ -45,7 +48,8 @@ export function resolveTurnEndDelayedEffects(state, activeId) {
     && (effect.dueTurn !== undefined ? effect.dueTurn <= state.turnNumber : effect.turnPlayerId === activeId));
   state.delayedEffects = state.delayedEffects.filter((effect) => !due.includes(effect));
   for (const effect of due) {
-    trace(state, { tag: TRACE_TAGS.CLEANUP, event: "turn-end-delayed", type: effect.type, ownerId: effect.ownerId ?? null, cardUid: effect.cardUid ?? null, sourceName: effect.sourceName ?? null });
+    if (TRACE && tracing()) waypoint(state, "rule:delayed-effect", true, { phase: "turn_ended", type: effect.type, cardUid: effect.cardUid ?? null, ownerId: effect.ownerId ?? null });
+    if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.CLEANUP, event: "turn-end-delayed", type: effect.type, ownerId: effect.ownerId ?? null, cardUid: effect.cardUid ?? null, sourceName: effect.sourceName ?? null });
     if (effect.type === "destroy_card") {
       destroyCard(state, effect.ownerId, effect.cardUid, { source: `${effect.sourceName}の遅延破壊` });
       continue;

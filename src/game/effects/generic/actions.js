@@ -1,4 +1,4 @@
-import { TRACE_TAGS, trace } from "../../engine-trace.js";
+import { TRACE_TAGS, trace, TRACE, tracing, waypoint } from "../../engine-trace.js";
 import { swapBoardSlots } from "../../board-slots.js";
 import { cardRuntimeSpec } from "../../card-runtime-specs.js";
 import { isObCard } from "../../card-types.js";
@@ -14,7 +14,7 @@ import { runtimeSpecCondition, runtimeSpecMatchesCard, runtimeSpecTargets, runti
 import { getMaxMemory, ownLayerEntries } from "./cost.js";
 import { destroyCard, queueRuntimeDestructionContinuation } from "./destroy.js";
 import { banGeneratedCards, createVengeanceCard, emitCardsGenerated } from "./generate.js";
-import { emitCardPlacement, emitEffectPlacement, emitRegistryInstalled, moveCardByEffect, placeByMode, placeCardByEffect, placementResult, setCardSleeping } from "./placement.js";
+import { emitCardPlacement, emitEffectPlacement, emitRegistryInstalled, moveCardByEffect, moveCardToRandomArea, placeByMode, placeCardByEffect, placementResult, setCardSleeping } from "./placement.js";
 import { openRuntimeAccessSelection } from "./selection-access.js";
 import { openRuntimeChoiceSelection, openRuntimeRepeatSelectMove, openRuntimeZoneChoice } from "./selection-choice.js";
 import { openRuntimeDecodeSelection } from "./selection-decode.js";
@@ -27,10 +27,14 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
   const enemyId = otherPlayer(playerId);
   for (let actionIndex = 0; actionIndex < actions.length; actionIndex += 1) {
     const action = actions[actionIndex];
-    if (!runtimeSpecCondition(state, playerId, source, action.condition, runtime, targetUid)) continue;
+    if (!runtimeSpecCondition(state, playerId, source, action.condition, runtime, targetUid)) {
+      if (TRACE && tracing()) waypoint(state, `op:${action.type}`, false, { cardId: source?.id ?? null });
+      continue;
+    }
+    if (TRACE && tracing()) waypoint(state, `op:${action.type}`, true, { cardId: source?.id ?? null });
     const amount = action.amount === undefined ? 0 : Number(runtimeSpecValue(state, playerId, source, action.amount, runtime));
     if (action.type !== "select" && action.type !== "select_player" && action.type !== "choose_zone") {
-      trace(state, { tag: TRACE_TAGS.RESULT, op: action.type, target: action.target ?? null, amount: action.amount === undefined ? null : amount, cardId: source?.id ?? null, playerId });
+      if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.RESULT, op: action.type, target: action.target ?? null, amount: action.amount === undefined ? null : amount, cardId: source?.id ?? null, playerId });
     }
     if (action.type === "select") {
       return openRuntimeTargetSelection(state, playerId, source, action, runtime, continuationMeta);
@@ -84,6 +88,7 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
         event: action.event,
         ...(action.timing === "current_turn_end" ? { turnPlayerId: state.active } : {}),
         ...(action.timing === "next_controller_turn" ? { dueOwnerTurnsTaken: player.turnsTaken + 1 } : {}),
+        ...(action.timing === "next_turn" ? { dueTurn: state.turnNumber + 1 } : {}),
         type: action.action,
         ownerId: playerId,
         cardUid: source.uid,
@@ -286,6 +291,12 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
       if (!moved && blockedByFullArea) addLog(state, `${source.name}: 移動先エリアが埋まっているため移動できない。`, "effect");
       else if (!moved) return false;
       else addLog(state, `${source.name}: 選択した${moved}枚を${action.destination === "registry" ? "レジストリ" : "エリア"}へ移動。`, "effect");
+    } else if (action.type === "move" && action.target === "source" && action.destination === "random_area") {
+      const result = moveCardToRandomArea(state, playerId, source.uid, source.name);
+      if (!result) return false;
+      if (action.sourceZoneRecord) runtime.records[action.sourceZoneRecord] = result.fromZone;
+      if (action.movedRecord) runtime.records[action.movedRecord] = result.moved;
+      if (!result.moved) addLog(state, `${source.name}: 移動できるエリアがない。`, "effect");
     } else if (action.type === "move" && action.target === "source") {
       const destination = runtimeSpecValue(state, playerId, source, action.destination, runtime);
       if (!moveCardByEffect(state, playerId, source.uid, destination, source.name)) return false;
@@ -363,7 +374,7 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
     } else if (action.type === "choose_effect") {
       return openRuntimeChoiceSelection(state, playerId, source, action, runtime);
     } else if (action.type === "modify_stats") {
-      const runtimeSource = action.className ? { ...source, runtimeTargetClass: action.className } : source;
+      const runtimeSource = action.className ? { ...source, runtimeTargetClass: action.className } : action.targetName ? { ...source, runtimeTargetName: action.targetName } : source;
       for (const target of runtimeSpecTargets(state, playerId, runtimeSource, targetUid, action.target)) {
         const multiplier = action.perTargetMultiplier === "layer_count"
           ? Number(target.mounted?.length ?? 0)
@@ -384,7 +395,7 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
         target.turnCostModifier = Number(target.turnCostModifier ?? 0) + amount;
       }
     } else if (action.type === "grant_keyword") {
-      const runtimeSource = action.className ? { ...source, runtimeTargetClass: action.className } : source;
+      const runtimeSource = action.className ? { ...source, runtimeTargetClass: action.className } : action.targetName ? { ...source, runtimeTargetName: action.targetName } : source;
       for (const target of runtimeSpecTargets(state, playerId, runtimeSource, targetUid, action.target)) {
         target.grantedKeywords = [...new Set([...(target.grantedKeywords ?? []), action.keyword])];
         if (action.duration === "turn") target.keywordExpiries = { ...(target.keywordExpiries ?? {}), [action.keyword]: state.turnNumber };
@@ -471,6 +482,7 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
 
 export function executeCardRuntimeSpec(state, phase, playerId, source, { targetUid = null, continuationMeta = {} } = {}) {
   const spec = cardRuntimeSpec(source.id, phase);
+  if (TRACE && tracing()) waypoint(state, `spec:${source.id}:${phase}`, Boolean(spec), { cardId: source.id, cardUid: source.uid });
   if (!spec) return false;
   return executeRuntimeActions(state, playerId, source, spec.actions, { targetUid, continuationMeta });
 }

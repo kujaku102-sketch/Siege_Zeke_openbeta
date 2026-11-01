@@ -34,10 +34,10 @@ test("font binary exception rejects unknown data even with a valid-looking signa
 const privateFields = ["sourceName", "sourceCategory", "sourceCost", "sourceAtk", "sourceStr", "sourceColor", "sourceClasses", "sourceText", "sourceSheet", "sourceRow", "sourceSpreadsheetId"];
 const hasPrivate = (value) => Array.isArray(value) ? value.some(hasPrivate) : value && typeof value === "object" ? Object.entries(value).some(([key, child]) => privateFields.includes(key) || hasPrivate(child)) : false;
 
-test("public card library is self-contained and has 214 staging STD IDs", () => {
+test("public card library is self-contained and has 215 staging STD IDs", () => {
   const ids = Object.keys(CARD_LIBRARY).filter((id) => /^STD-\d{3}$/.test(id));
-  assert.equal(ids.length, 214);
-  assert.equal(new Set(ids).size, 214);
+  assert.equal(ids.length, 215);
+  assert.equal(new Set(ids).size, 215);
   assert.equal(hasPrivate(CARD_LIBRARY), false);
   assert.deepEqual(CARD_LIBRARY["STD-173"].traits, ["インセクト"]);
 });

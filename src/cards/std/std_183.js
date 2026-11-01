@@ -10,10 +10,12 @@ export const definition = {
   "cost": 6,
   "atk": 4,
   "str": 6,
-  "classes": [],
+  "classes": [
+    "インセクト・ゼクター"
+  ],
   "text": "自分のScriptが起動した時またはインセクトが効果で配置された時、相手ユーザーに2ダメージ。",
   "traits": [
-    "インセクト"
+    "インセクト・ゼクター"
   ]
 };
 

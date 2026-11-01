@@ -13,9 +13,9 @@ export const definition = {
 
 // runtime spec (was card-runtime-specs.js)
 export const runtimeSpec = multiSpec(
-    spec("turn_start", [op("draw", { target: "source_controller", amount: 1 })]),
+    spec("turn_start", [op("draw", { target: "source_controller", amount: 1 })], { eachTurn: true }),
     spec("turn_end", [op("deal_damage", {
       target: "self_user", amount: 2,
       condition: { expression: "source_controller_memory_equals", amount: 0 }
-    })])
+    })], { eachTurn: true })
   );

@@ -1,3 +1,4 @@
+import { TRACE, tracing, waypoint } from "../engine-trace.js";
 import { cardRuntimeSpec } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
 import { createSelectionRequest } from "../selection-model.js";
@@ -51,22 +52,39 @@ export function resolveMadnessChecks(state, playerId) {
   }
 }
 
+// 「ターン開始時」「ターン終了時」の本文を動かす時の通過点: 誰のターンか、カードの持ち主から見て自分のターンか、自分/相手の指定がない(eachTurn)効果か。
+function traceTurnTiming(state, phase, ownerId, card) {
+  if (TRACE && tracing()) {
+    waypoint(state, "rule:turn-timing", true, { phase, cardId: card.id, cardUid: card.uid, ownerId, turnPlayerId: state.active,
+      scope: ownerId === state.active ? "own-turn" : "other-turn", eachTurn: Boolean(cardRuntimeSpec(card.id, phase)?.eachTurn) });
+  }
+}
+
 export function runPostDrawTurnStart(state, playerId) {
   const player = state.players[playerId];
   for (const provider of player.registry.filter((card) => !card.faceDown && cardRuntimeSpec(card.id, "turn_start"))) {
+    traceTurnTiming(state, "turn_start", playerId, provider);
     runEffectEntry(state, "turn-start", playerId, () => executeCardRuntimeSpec(state, "turn_start", playerId, provider));
     if (state.winner) return;
   }
   for (const sister of [...player.front, ...player.back].filter((card) => card.id === "STD-113")) {
+    traceTurnTiming(state, "turn_start", playerId, sister);
     runEffectEntry(state, "turn-start", playerId, () => executeCardRuntimeSpec(state, "turn_start", playerId, sister));
     if (state.winner) return;
   }
   const opponentId = otherPlayer(playerId);
+  // 「ターン開始時」に自分/相手の指定がない効果(eachTurn)は、相手のターン開始時にも起きる。
+  for (const provider of state.players[opponentId].registry.filter((card) => !card.faceDown && cardRuntimeSpec(card.id, "turn_start")?.eachTurn)) {
+    traceTurnTiming(state, "turn_start", opponentId, provider);
+    runEffectEntry(state, "turn-start", opponentId, () => executeCardRuntimeSpec(state, "turn_start", opponentId, provider));
+    if (state.winner) return;
+  }
   for (const source of state.players[opponentId].back.filter((card) => card.id === "STD-148" && card.residentActive)) source.std148ArmedTurn = state.turnNumber;
   emitGameEvent(state, { type: "turn_started", playerId });
 }
 
 export function startTurn(state, playerId) {
+  if (TRACE && tracing()) waypoint(state, "rule:turn-start", true, { playerId, turnNumber: state.turnNumber });
   const player = state.players[playerId];
   for (const current of Object.values(state.players)) current.damageReceivedThisTurn = 0;
   for (const current of Object.values(state.players)) current.triggerUsage = {};
@@ -110,6 +128,7 @@ export function startTurn(state, playerId) {
   resolveMadnessChecks(state, playerId);
   addLog(state, `TURN ${state.turnNumber}: ${player.user.name}の開始。メモリ${player.memory}。`, "turn");
   if (drawCount) {
+    if (TRACE && tracing()) waypoint(state, "rule:rule-draw", true, { playerId, drawCount });
     const first = drawCardRaw(player);
     if (first) addLog(state, `${player.user.name}が1枚ドロー。`);
     if (!first) continueMandatoryTurnDraw(state, playerId, 1);
@@ -126,6 +145,7 @@ export function startTurn(state, playerId) {
 export function endTurn(state) {
   if (state.winner || state.opening) return false;
   const activeId = state.active;
+  if (TRACE && tracing()) waypoint(state, "rule:turn-end", true, { playerId: activeId, turnNumber: state.turnNumber });
   const player = state.players[activeId];
   const resumingStd094TurnEnd = state.std094TurnEndQueue?.activeId === activeId || state.std094TurnEndDone === activeId;
   const resumingStd141TurnEnd = state.std141TurnEndQueue?.activeId === activeId || state.std141TurnEndDone === activeId;
@@ -186,10 +206,23 @@ export function endTurn(state) {
   }
   delete state.skipSavageTurnEnd;
   for (const provider of player.registry.filter((card) => !card.faceDown && cardRuntimeSpec(card.id, "turn_end"))) {
+    traceTurnTiming(state, "turn_end", activeId, provider);
     executeCardRuntimeSpec(state, "turn_end", activeId, provider);
   }
   for (const card of [...player.front, ...player.back].filter((item) => !item.faceDown && cardRuntimeSpec(item.id, "turn_end"))) {
+    traceTurnTiming(state, "turn_end", activeId, card);
     executeCardRuntimeSpec(state, "turn_end", activeId, card);
+  }
+  // 「ターン終了時」に自分/相手の指定がない効果(eachTurn)は、相手のターン終了時にも起きる。
+  const waitingId = otherPlayer(activeId);
+  const waiting = state.players[waitingId];
+  for (const provider of waiting.registry.filter((card) => !card.faceDown && cardRuntimeSpec(card.id, "turn_end")?.eachTurn)) {
+    traceTurnTiming(state, "turn_end", waitingId, provider);
+    executeCardRuntimeSpec(state, "turn_end", waitingId, provider);
+  }
+  for (const card of [...waiting.front, ...waiting.back].filter((item) => !item.faceDown && cardRuntimeSpec(item.id, "turn_end")?.eachTurn)) {
+    traceTurnTiming(state, "turn_end", waitingId, card);
+    executeCardRuntimeSpec(state, "turn_end", waitingId, card);
   }
   }
   if (!state.std142TurnEndQueue && state.std142TurnEndDone !== activeId) {

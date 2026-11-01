@@ -1,32 +1,10 @@
 // STD-184 effects: the card's own handlers (they call the engine library, so they live apart from the data file the tables are built from)
 import { enabledSymbols } from "../../game/core/play.js";
-import { openNextQueuedSelection } from "../../game/core/projection.js";
 import { addLog, fail, payMemory } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
-import { emitCardPlacement, emitEffectPlacement, failForcedPlacement, placeByMode, placementResult } from "../../game/effects/generic/placement.js";
+import { emitCardPlacement, failForcedPlacement, placeByMode, placementResult } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_184.js)
-export function std184PlaceObSelection(state, continuation, result, playerId, player) {
-  state.pending = null;
-  if (result.scope !== "Obとして配置する") { openNextQueuedSelection(state); return true; }
-  const index = player.back.findIndex((item) => item.uid === continuation.sourceUid && item.id === "STD-184" && item.std184Script && item.faceDown);
-  if (index < 0) { openNextQueuedSelection(state); return true; }
-  const zone = player.front.length < player.user.frontLimit ? "front" : player.back.length - 1 < player.user.backLimit ? "back" : "front";
-  const [card] = player.back.splice(index, 1);
-  card.category = "Ob";
-  delete card.std184Script;
-  card.faceDown = false;
-  card.residentActive = false;
-  card.sleep = false;
-  card.damage = 0;
-  card.summoningSick = zone === "front";
-  if (placeByMode(state, playerId, card, { zone, from: "back", source: continuation.sourceName }) !== "placed") { openNextQueuedSelection(state); return true; }
-  emitEffectPlacement(state, playerId, card, zone, continuation.sourceName);
-  addLog(state, `${continuation.sourceName}: Script状態からObとして${zone === "front" ? "フロント" : "バック"}へ配置。`, "effect");
-  openNextQueuedSelection(state);
-  return true;
-}
-
 export function std184PlayCardCore({ card, force, state, playerId, player, placementMode, free, ignoreColor, index, registryExecution, placementSource, requestedSlot, asScript }) {
   if (asScript) {
     const setupCost = Number(card.setupCost ?? 3);

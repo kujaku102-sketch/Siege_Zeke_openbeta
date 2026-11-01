@@ -1,4 +1,4 @@
-import { TRACE_TAGS, trace } from "../engine-trace.js";
+import { TRACE_TAGS, trace, TRACE, tracing, waypoint } from "../engine-trace.js";
 import { nextRng } from "../runtime/rng.js";
 import { RuntimeError } from "../runtime/factory.js";
 import { CARD_LIBRARY } from "../../data/cards.js";
@@ -149,11 +149,12 @@ export function payMemory(state, playerId, amount, reason, { role = "cost" } = {
   const player = state.players[playerId];
   const before = player.memory;
   player.memory -= amount;
-  trace(state, { tag: role === "cost" ? TRACE_TAGS.COST : TRACE_TAGS.RESULT, op: "consume_memory", playerId, amount, reason, before, after: player.memory });
+  if (TRACE && tracing()) trace(state, { tag: role === "cost" ? TRACE_TAGS.COST : TRACE_TAGS.RESULT, op: "consume_memory", playerId, amount, reason, before, after: player.memory });
+  if (TRACE && tracing() && role === "cost" && reason === "execution") waypoint(state, "rule:pay-execution-cost", true, { playerId });
 }
 
 export function fail(state, message, silent) {
-  trace(state, { tag: TRACE_TAGS.CONDITION, result: false, reason: message, silent: Boolean(silent) });
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.CONDITION, result: false, reason: message, silent: Boolean(silent) });
   state.message = message;
   if (!silent) addLog(state, message, "warning");
   return false;

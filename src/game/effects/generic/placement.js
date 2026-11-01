@@ -1,4 +1,4 @@
-import { TRACE_TAGS, trace } from "../../engine-trace.js";
+import { TRACE_TAGS, trace, TRACE, tracing, waypoint } from "../../engine-trace.js";
 import { placeCardInBoardSlot } from "../../board-slots.js";
 import { isObCard } from "../../card-types.js";
 import { mountEventSpecsFor } from "../../continuous-effect-specs.js";
@@ -88,7 +88,8 @@ export function emitCardPlacement(state, playerId, card, zone, placementCause, s
 }
 
 export function finalizeRuleDestruction(state, ownerId, card, { from = "hand", to = "trash", source = "配置上限", zone = null } = {}) {
-  trace(state, { tag: TRACE_TAGS.REPLACE, op: "destroy", event: "replaced", kind: "placement-limit", cardUid: card.uid, ownerId, from, to });
+  if (TRACE && tracing()) waypoint(state, "rule:placement-limit", true, { cardUid: card.uid, ownerId, from, to });
+  if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.REPLACE, op: "destroy", event: "replaced", kind: "placement-limit", cardUid: card.uid, ownerId, from, to });
   state.turnStats.destroyedCards += 1;
   if (isObCard(card)) state.turnStats.destroyedOb += 1;
   if (card.category === "Script" && card.name.includes("聖樹")) state.turnStats.destroyedSacredTreeScripts += 1;
@@ -206,19 +207,35 @@ export function placeCardByEffect(state, { sourceOwnerId, controllerId, cardUid,
   return { status: "placed", card, zoneName: targetZone };
 }
 
-export function moveCardByEffect(state, playerId, uid, targetZone, sourceName) {
+// `toPlayerId` names the user whose area the card moves into (default: the same user). A card moved into the other user's area
+// stays owned by its owner and is operated by the user of the area it now sits in.
+export function moveCardByEffect(state, playerId, uid, targetZone, sourceName, { toPlayerId = playerId } = {}) {
   const player = state.players[playerId];
+  const destinationPlayer = state.players[toPlayerId];
   const sourceZone = player.front.some((card) => card.uid === uid) ? "front" : player.back.some((card) => card.uid === uid) ? "back" : null;
-  if (!sourceZone || sourceZone === targetZone) return fail(state, "移動先は現在と異なるエリアを選んで。", false);
-  if (!placementResult(player, targetZone).ok) return fail(state, "移動先エリアが上限。", false);
+  if (!sourceZone || (toPlayerId === playerId && sourceZone === targetZone)) return fail(state, "移動先は現在と異なるエリアを選んで。", false);
+  if (!placementResult(destinationPlayer, targetZone).ok) return fail(state, "移動先エリアが上限。", false);
   const index = player[sourceZone].findIndex((card) => card.uid === uid);
   const [card] = player[sourceZone].splice(index, 1);
   const revealed = revealMountedCode(player[sourceZone], index, card, playerId, sourceZone);
-  if (placeByMode(state, playerId, card, { zone: targetZone, mode: "normal", from: sourceZone, source: sourceName }) !== "placed") return false;
+  if (placeByMode(state, toPlayerId, card, { zone: targetZone, mode: "normal", from: sourceZone, source: sourceName }) !== "placed") return false;
   card.sleep = false;
   card.summoningSick = movedSummoningSick(state, card, targetZone);
-  addLog(state, `${sourceName}: 「${card.name}」を${targetZone === "front" ? "フロント" : "バック"}へ効果で移動。`, "effect");
+  addLog(state, `${sourceName}: 「${card.name}」を${toPlayerId === playerId ? "" : "相手の"}${targetZone === "front" ? "フロント" : "バック"}へ効果で移動。`, "effect");
   if (revealed) addLog(state, `${card.name}の下にあった${revealed.name}は移動前のエリアに残る。`, "effect");
-  triggerMoved(state, playerId, card, sourceZone, targetZone);
+  triggerMoved(state, toPlayerId, card, sourceZone, targetZone);
   return true;
+}
+
+// 完全ランダム移動: one of both users' front/back, other than where the card is now and not full, with equal odds.
+export function moveCardToRandomArea(state, playerId, uid, sourceName) {
+  const player = state.players[playerId];
+  const currentZone = player.front.some((card) => card.uid === uid) ? "front" : player.back.some((card) => card.uid === uid) ? "back" : null;
+  if (!currentZone) return null;
+  const candidates = [playerId, otherPlayer(playerId)].flatMap((toPlayerId) => ["front", "back"]
+    .filter((zone) => !(toPlayerId === playerId && zone === currentZone) && placementResult(state.players[toPlayerId], zone).ok)
+    .map((zone) => ({ toPlayerId, zone })));
+  if (!candidates.length) return { moved: false, fromZone: currentZone };
+  const pick = candidates[Math.floor(state.rng() * candidates.length)];
+  return { moved: moveCardByEffect(state, playerId, uid, pick.zone, sourceName, { toPlayerId: pick.toPlayerId }), fromZone: currentZone };
 }

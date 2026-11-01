@@ -10,10 +10,12 @@ export const definition = {
   "cost": 3,
   "atk": 2,
   "str": 3,
-  "classes": [],
+  "classes": [
+    "インセクト・ゼクター"
+  ],
   "text": "[セキュリティ]インセクトが破壊された時、ゴミ箱からScriptをサルベージする。",
   "traits": [
-    "インセクト"
+    "インセクト・ゼクター"
   ]
 };
 

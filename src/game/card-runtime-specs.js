@@ -28,6 +28,9 @@ export const CARD_PLACEMENT_COST_SPECS = Object.freeze(collectSpecs("placementCo
 // vocabulary for every registered card and does not own card-specific effect bodies.
 export const CARD_RUNTIME_SPECS = Object.freeze(collectSpecs("runtimeSpec", RUNTIME_SPEC_ORDER));
 
+// Scripts that can replace an opponent's execution (core/execution-replacement.js).
+export const CARD_EXECUTION_REPLACEMENT_SPECS = Object.freeze(collectSpecs("executionReplacementSpec"));
+
 export const CARD_BATTLE_STAT_MODIFIER_SPECS = Object.freeze(collectSpecs("battleStatModifierSpec"));
 
 export function battleStatModifierSpecsFor(cardId) {
@@ -108,6 +111,7 @@ export const CARD_RUNTIME_ROUTES = Object.freeze(Object.fromEntries(
         || CARD_MOUNTED_KEYWORD_SPECS[id]
         || CARD_MOUNT_EVENT_SPECS[id]
         || CARD_DESTRUCTION_PERMISSION_SPECS[id]
+        || CARD_EXECUTION_REPLACEMENT_SPECS[id]
         || SHARED_TRIGGER_CARD_IDS.includes(id)
         || SHARED_SELECTION_MODULE_CARD_IDS.includes(id)
         || compilerBodyIsCoveredByModifierRegistry(id, compiled)
