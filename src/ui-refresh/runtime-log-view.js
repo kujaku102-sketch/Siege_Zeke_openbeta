@@ -271,10 +271,10 @@ export function runtimeLogHtml(events, viewerSeat) {
 }
 
 // The match's end screen (文豪, 2026-11-01), for a match and a tutorial alike: CONGRATULATION! with the dots, DEFEAT
-// with the dots and noise running through them, and the ways on. A draw is not in 文豪's word yet: DRAW, no effect.
+// with the dots and noise running through them, and the ways on. A draw reads NO CONTEST, with no effect (文豪, 2026-11-01).
 // A tutorial has no log to save and goes back to its own list. Read from the state, not from the event feed: a win
 // board started as a new match has no events.
-export const RESULT_TITLES = Object.freeze({ win: 'CONGRATULATION!', defeat: 'DEFEAT', draw: 'DRAW' });
+export const RESULT_TITLES = Object.freeze({ win: 'CONGRATULATION!', defeat: 'DEFEAT', draw: 'NO CONTEST' });
 
 export function runtimeResultHtml(match, { tutorial = false } = {}) {
   if (!match.finished) return '';

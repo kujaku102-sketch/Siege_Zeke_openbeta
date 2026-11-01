@@ -305,7 +305,7 @@ test("a picked, dragged-over or pointed-at board frame glows itself, no box over
   assert.ok(layout.includes("zone:`:is(.zone,.wire-board .board-slot:not([data-card-ref]))[data-seat=\"${seat}\"][data-zone=\"${focus.zone}\"]`"), "a zone on the 3D board is pointed at by its empty slots");
 });
 
-test("the end screen (文豪, 2026-11-01): CONGRATULATION! / DEFEAT / DRAW with save log, match menu and home; a tutorial's without the log and to its list", async () => {
+test("the end screen (文豪, 2026-11-01): CONGRATULATION! / DEFEAT / NO CONTEST with save log, match menu and home; a tutorial's without the log and to its list", async () => {
   const { runtimeResultHtml, RESULT_TITLES } = await import("../src/ui-refresh/runtime-log-view.js");
   const match = (lockedOutcome, finished = true) => ({ finished, viewerSeat: "a", lockedOutcome });
   assert.equal(runtimeResultHtml(match({ kind: "win", winnerSeat: "a" }, false)), "", "only once the match is finished");
@@ -314,7 +314,10 @@ test("the end screen (文豪, 2026-11-01): CONGRATULATION! / DEFEAT / DRAW with 
   assert.match(win, /<nav class="r2-result-actions"><button data-runtime-save-log>対戦ログを保存<\/button><button data-runtime-to-menu>対戦メニューに戻る<\/button><button data-runtime-title>ホームに戻る<\/button><\/nav>/);
   assert.doesNotMatch(win, /data-runtime-rematch|data-runtime-result-close/, "the old window's buttons are gone");
   assert.match(runtimeResultHtml(match({ kind: "win", winnerSeat: "b" })), /data-outcome="defeat"[\s\S]*>DEFEAT<\/h2>/);
-  assert.match(runtimeResultHtml(match({ kind: "draw" })), /data-outcome="draw"[\s\S]*>DRAW<\/h2>/);
+  // A draw: NO CONTEST (文豪, 2026-11-01), no effect, the same ways on.
+  const draw = runtimeResultHtml(match({ kind: "draw" }));
+  assert.match(draw, /data-outcome="draw"[\s\S]*<h2 data-text="NO CONTEST">NO CONTEST<\/h2>/);
+  assert.match(draw, /<button data-runtime-save-log>対戦ログを保存<\/button><button data-runtime-to-menu>対戦メニューに戻る<\/button><button data-runtime-title>ホームに戻る<\/button>/);
   const tutorial = runtimeResultHtml(match({ kind: "win", winnerSeat: "a" }), { tutorial: true });
   assert.doesNotMatch(tutorial, /data-runtime-save-log/);assert.match(tutorial, /<button data-runtime-to-menu>チュートリアル選択へ<\/button><button data-runtime-title>ホームに戻る<\/button>/);
   assert.deepEqual(Object.keys(RESULT_TITLES), ["win", "defeat", "draw"]);
