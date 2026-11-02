@@ -45,6 +45,8 @@ export function routeClick(event, c) {
   const latest = c.latest();
   // A tap on the guide's line, not on one of its buttons (runtime-match-surface.js, tapGuide).
   if (event.target.closest('.live-guide-speech') && !event.target.closest('button')) return c.tapGuide?.();
+  // On a line only to read, anywhere else but a button turns it too (runtime-match-surface.js, tapAnywhere).
+  if (c.tapAnywhere?.(event)) return;
   const target =event.target.closest('button') ?? (c.boardStyle === 'wireframe' ? event.target.closest('[data-wire-hit]') : null);
   if (!target) {
     if (latest?.interactionRequest) {

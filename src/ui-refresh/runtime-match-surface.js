@@ -127,6 +127,17 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     // Only redrawn: act() would confirm again a refused plan left on its confirm bar, and bring the guide back.
     render(ui.read());
   };
+  // 文豪 (2026-11-02): 「セリフを次に移る動作、画面の設定ボタン以外を押したら進むようにしよう」. On a line only to read (its
+  // [次へ] showing: the greeting, an advance step, the closing line), a tap anywhere but a button (the gear among them) does
+  // what a tap on the line does. A step that asks for a move, and a choice left open, keep their own taps.
+  const tapAnywhere = event => {
+    if (!root.querySelector('.live-guide') || event.target.closest?.('button')) return false;
+    const tutorial = session.tutorial(), presentation = tutorial.ok ? tutorial.value.presentation : null;
+    const reading = tutorial.ok && (tutorial.value.flow.complete || presentation?.intro || presentation?.expect?.type === 'advance' && !presentation.expect.press);
+    if (!reading || latest?.request || latest?.plan) return false;
+    tapGuide();
+    return true;
+  };
   // A step that asks the player to press something to see it (expect.press in tutorial-script.js: the info button,
   // an ability badge, a card's detail) moves on once that is open; the next line waits until it is closed.
   const PRESS_OPEN = {
@@ -318,7 +329,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   });
   const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,
-    onTitle, onTutorialSkip, onToMenu, onSaveLog, endTutorial, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide };
+    onTitle, onTutorialSkip, onToMenu, onSaveLog, endTutorial, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide, tapAnywhere };
   listener('click', event => {
     if (disposed || event.target.closest('[data-ability-help]')) return;
     if (suppressedPointerId !== null) {
