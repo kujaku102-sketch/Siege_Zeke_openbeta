@@ -101,11 +101,22 @@ export function makeUi(page, { keyboard = false } = {}) {
 
   // Answer every open choice of the viewer until none is left; the opponent's choices are waited for.
   async function settle({ decline = false, preference = { scope: "レイヤー" } } = {}) {
+    let lastChoice = null; let repeats = 0;
     for (let index = 0; index < 50; index += 1) {
       const q = await query(); const input = q.requiredInput;
       if (!input) return;
       if (!input.canAnswer) { await page.waitForFunction(() => { const open = window.__SIMPLE_ZEKE_E2E__.query().value?.requiredInput; return !open || open.canAnswer; }); continue; }
-      if (decline && input.optional) { await click("[data-runtime-decline]"); continue; }
+      if (process.env.E2E_DEBUG && false) console.error("settle", index, input.presentationKey, input.actorSeat, JSON.stringify({ min: input.constraints?.minimum, max: input.constraints?.maximum, optional: input.optional, options: input.options?.map((o) => [o.label, o.zone, o.kind, o.preview?.definitionId]).slice(0, 8) }).slice(0, 400), await page.locator(".live-guide .live-guide-error").innerText().catch(() => ""));
+      // An optional choice that the answer just given did not close (an answer that selects nothing leaves it open): first one option is picked (a tutorial may refuse
+      // "nothing" and name what to pick), and if that does not close it either, it is declined, as a player presses [選ばない].
+      repeats = lastChoice === input.choiceId ? repeats + 1 : 0;
+      if ((decline || repeats >= 2) && input.optional) {
+        // a guide that came back over the match (a tutorial refusing the answer) is tapped away first
+        if (await page.locator(".live-guide-text").count() && !await page.locator(".live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next],[data-runtime-tutorial-finish])").count()) await click(".live-guide-text");
+        await click("[data-runtime-decline]"); lastChoice = null; continue;
+      }
+      lastChoice = input.choiceId;
+      if (repeats === 1 && input.optional) { await choose({ ...input, requestId: input.choiceId }, await query(), { ...preference, pick: true }); continue; }
       await choose({ ...input, requestId: input.choiceId }, await query(), preference);
     }
     throw new Error("required input failed to settle");
@@ -162,7 +173,16 @@ export function makeUi(page, { keyboard = false } = {}) {
         for (let back = 0; back < 4 && await page.locator("[data-runtime-back]").first().isVisible().catch(() => false); back += 1) await click("[data-runtime-back]");
         return "refused";
       }
-      const answer = await choose(planned.value.selectionRequests[0], q, preference, path, refused);
+      let answer;
+      try { answer = await choose(planned.value.selectionRequests[0], q, preference, path, refused); }
+      catch (error) {
+        // Every answer of this question under the answers so far was refused: the answers so far are refused too (the next attempt takes the next candidate one question up).
+        if (!path.length || !String(error.message).startsWith("no valid safe selection")) throw error;
+        refused.add(JSON.stringify(path));
+        if (await page.locator(".live-guide-text").count() && !await page.locator(".live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next],[data-runtime-tutorial-finish])").count()) await click(".live-guide-text");
+        for (let back = 0; back < 4 && await page.locator("[data-runtime-back]").first().isVisible().catch(() => false); back += 1) await click("[data-runtime-back]");
+        return "refused";
+      }
       selections.push(answer); path = [...path, answer.optionIds];
     }
     if (await moved()) return "moved";
