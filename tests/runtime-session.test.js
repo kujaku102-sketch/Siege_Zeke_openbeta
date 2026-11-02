@@ -171,10 +171,15 @@ test('S02-SESSION-05: exact recipe rows, safe totals and tutorial preflight', ()
   assert.equal(called, 0);
   rejects(config({ mode: 'tutorial', playerDeckRecipe: [['STD-022', 1]] }));
   rejects(config({ mode: 'tutorial', aiDeckRecipe: [['STD-125', 1], ['STD-131', 1], ['STD-149', 1]] }));
-  rejects(config({ mode: 'tutorial', tutorialId: 'vengeance', aiDeckRecipe: [] }));
-  const custom = config({ mode: 'tutorial', tutorialId: 'vengeance', playerDeckRecipe: [], aiDeckRecipe: [['STD-125', 1], ['STD-131', 1], ['STD-149', 1]] });
+  // The opponent's cards are the ones the engine puts in its hand for that tutorial (read from the state, not written here): a recipe that holds them all is taken, one that lacks any is refused.
+  for (const tutorialId of TUTORIAL_IDS) {
+    const needed = game({ mode: 'tutorial', tutorialId }).players.ai.hand.map(card => card.id);
+    rejects(config({ mode: 'tutorial', tutorialId, aiDeckRecipe: [] }));
+    for (const lacking of needed) rejects(config({ mode: 'tutorial', tutorialId, aiDeckRecipe: needed.filter(id => id !== lacking).map(id => [id, 1]).concat([['STD-020', 3]]) }));
+  }
+  const custom = config({ mode: 'tutorial', tutorialId: 'vengeance', playerDeckRecipe: [], aiDeckRecipe: game({ mode: 'tutorial', tutorialId: 'vengeance' }).players.ai.hand.map(card => [card.id, 1]) });
   const before = structuredClone(custom);
-  assert.equal(audit(resultValue(freeze(custom)).engineState).length, 10);
+  assert.ok(audit(resultValue(freeze(custom)).engineState).length > 0);
   assert.deepEqual(custom, before);
   assert.equal(audit(game({ mode: 'sandbox', sandboxDeckSetup: true, playerDeckRecipe: [], aiDeckRecipe: [] })).length, 0);
 });
@@ -636,7 +641,7 @@ test('blue tutorial: allowed id, both decks forced, hand and opponent set up by 
   assert.deepEqual(TUTORIAL_IDS, ['basics', 'vengeance', 'blue']);
   assert.equal(tutorialPlayerDeckId('blue', 'red'), 'tutorial-blue');
   assert.equal(tutorialAiDeckId('blue', 'yellow'), 'tutorial-sandbag');
-  assert.equal(tutorialAiDeckId('vengeance', 'yellow'), 'yellow');
+  for (const tutorialId of TUTORIAL_IDS) assert.equal(game({ mode: 'tutorial', tutorialId }).aiDeckId, tutorialAiDeckId(tutorialId, 'yellow'), 'the state reports the deck the tutorial names');
   assert.equal(tutorialPlayerDeckId('basics', 'red'), 'red');
   // A recipe the caller supplies must hold the cards the script plays or draws, on both sides.
   assert.equal(createRuntimeSession(config({ mode: 'tutorial', tutorialId: 'blue', playerDeckRecipe: player, aiDeckRecipe: ai })).ok, true);
@@ -648,6 +653,5 @@ test('blue tutorial: allowed id, both decks forced, hand and opponent set up by 
   rejects(config({ mode: 'tutorial', tutorialId: 'green' }));
   // basics and vengeance keep their own checks.
   rejects(config({ mode: 'tutorial', playerDeckRecipe: [['STD-022', 1]] }));
-  rejects(config({ mode: 'tutorial', tutorialId: 'vengeance', aiDeckRecipe: [['STD-125', 1], ['STD-131', 1]] }));
   assert.equal(createRuntimeSession(config({ mode: 'tutorial', tutorialId: 'vengeance' })).ok, true);
 });

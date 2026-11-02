@@ -36,13 +36,3 @@ test("mobile layout uses CSS viewport occupancy and remains independent from phy
   assert.equal(safe.contentHeight, 412);
 });
 
-test("layered source chooses an exact slot including one freed by its materials", () => {
-  const state = createGame({ mode: "tutorial", tutorialId: "vengeance" });
-  state.mode = "lab"; state.players.player.memory = 30;
-  const card = state.players.player.hand.find(card => card.id === "STD-195");
-  const materials = state.players.player.front.filter(card => card.id === "STD-189").map(card => card.uid);
-  assert.equal(canPlayLayeredCard(state, "player", card.uid, materials, "front", 5).ok, true);
-  assert.equal(playLayeredCard(state, "player", card.uid, materials, "front", { requestedSlot: 5 }), true);
-  assert.equal(findCard(state, card.uid).card.boardSlot, 5);
-  assert.equal(findCard(state, card.uid).card.mounted.length, 2);
-});

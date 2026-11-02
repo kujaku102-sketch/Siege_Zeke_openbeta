@@ -9,7 +9,7 @@ import { pngMetadataText, isApprovedDeckFont } from "../scripts/verify-public-bu
 import { cardArtProfile } from "../src/data/card-art-profiles.js";
 import { ABILITY_BADGES, abilityBadgeDefinition } from "../src/data/ability-badges.js";
 import { NAVIGATOR_ASSETS, tutorialNavigator } from "../src/data/navigator-assets.js";
-import { createTutorialFlow, currentTutorialStep } from "../src/data/tutorial-script.js";
+import { createTutorialFlow, currentTutorialStep, tutorialSteps } from "../src/data/tutorial-script.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 test("all entry pages publish the FX-OFF logo as favicon and share image", async () => {
@@ -102,10 +102,15 @@ test("tutorial steps declare structured focus targets instead of deriving them f
   assert.equal(currentTutorialStep(basics).focus.find((item) => item.kind === "card")?.cardId, "STD-087");
   basics.index = 19;
   assert.deepEqual(currentTutorialStep(basics).focus, [{ kind: "ui", target: "info-button", label: "情報ボタン" }]);
-  const vengeance = createTutorialFlow("vengeance");
-  vengeance.index = 2;
-  assert.ok(currentTutorialStep(vengeance).focus.some((item) => item.cardId === "STD-189"));
-  assert.ok(currentTutorialStep(vengeance).focus.some((item) => item.kind === "zone" && item.zone === "front"));
+  // Every tutorial: a step that asks for a card's action puts that card among its focus targets, and a focus never points at another card for it.
+  for (const id of ["basics", "blue", "vengeance"]) {
+    tutorialSteps(id).forEach((step, index) => {
+      const cardId = step.expect?.type === "advance" ? undefined : step.expect?.cardId;
+      const focused = (step.focus ?? []).filter((item) => item.kind === "card" && item.owner === "player" && item.cardId).map((item) => item.cardId);
+      if (cardId && focused.length) assert.ok(focused.includes(cardId), `${id}:${index} expects ${cardId} but focuses ${focused.join(",")}`);
+      for (const item of step.focus ?? []) assert.ok(typeof item.kind === "string" && item.kind, `${id}:${index} focus has a kind`);
+    });
+  }
 });
 
 test("PNG public scanning reads metadata chunks without treating compressed pixels as paths", () => {

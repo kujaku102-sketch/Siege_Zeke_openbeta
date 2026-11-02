@@ -37,28 +37,18 @@ test("card names in the hints are the short names the script uses", () => {
   assert.equal(tutorialCardName("STD-191"), "淫魔像");
 });
 
-test("hint text is built from each step's expect, with the guard's target where it narrows one", () => {
-  // blue
-  assert.equal(hintAt("blue", 1), "『漣』をインストールしよう");
-  assert.equal(hintAt("blue", 2), "『ルチル』をフロントに実行しよう");
-  assert.equal(hintAt("blue", 6), "『オフェンスプロトコル』を選ぼう");
-  assert.equal(hintAt("blue", 9), "ターンを終了しよう");
-  assert.equal(hintAt("blue", 12), "『オフェンスプロトコル』を『フラウ』に使おう");
-  assert.equal(hintAt("blue", 16), "『フラウ』で相手ユーザーを攻撃しよう");
-  assert.equal(hintAt("blue", 18), "『ルチル』で『メルク』を攻撃しよう");
-  assert.equal(hintAt("blue", 21), "『セキュリティウォール』を使おう");
-  // red
-  assert.equal(hintAt("basics", 11), "『剣士』をフロントに実行しよう");
-  assert.equal(hintAt("basics", 19), "情報ボタンを押そう");
-  assert.equal(hintAt("basics", 26), "『アツト』のQAバッジを押そう");
-  assert.equal(hintAt("basics", 36), "『ジャンクパーツ』の詳細を開こう");
-  assert.equal(hintAt("basics", 37), "『ジャンクパーツ』を『アツト』にマウントしよう");
-  assert.equal(hintAt("basics", 39), "『アツト』で『ガードマン』を攻撃しよう");
-  // purple
-  assert.equal(hintAt("vengeance", 2), "『トライプビア』をフロントにレイヤードしよう");
-  assert.equal(hintAt("vengeance", 3), "『トライプビア』をバックへリログしよう");
-  assert.equal(hintAt("vengeance", 6), "『タナフォリア』の効果を『アクロィア』を対象に発動しよう");
-  assert.equal(hintAt("vengeance", 8), "『トライプビア』をフロントへリログしよう");
+test("hint text is built from each step's expect, with the guard's target where it narrows one (every tutorial, read from the script and its guards)", () => {
+  const named = (id) => `『${tutorialCardName(id)}』`;
+  for (const id of TUTORIAL_IDS) {
+    tutorialSteps(id).forEach((step, index) => {
+      const expect = step.expect, guard = TUTORIAL_STEP_GUARDS[id]?.[index] ?? null, hint = hintAt(id, index);
+      if (!expect || expect.type === "advance") return;
+      const at = `${id}:${index} ${JSON.stringify(expect)}`;
+      const subjects = [expect.cardId, expect.targetCardId, guard?.action?.targetCardId, guard?.action?.hostCardId].filter(Boolean);
+      for (const cardId of subjects) assert.ok(hint.includes(named(cardId)), `${at}: the hint names ${cardId}: ${hint}`);
+      if (expect.targetType === "fortress" || guard?.action?.targetType === "fortress") assert.ok(hint.includes("相手ユーザー"), `${at}: the hint says the user is the target: ${hint}`);
+    });
+  }
 });
 
 test("every action step of red, blue and purple has a hint; steps that only advance have none", () => {

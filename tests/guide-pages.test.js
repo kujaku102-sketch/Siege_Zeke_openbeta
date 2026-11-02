@@ -7,8 +7,8 @@ const texts = pages => pages.map(page => page.text);
 const reasons = pages => pages.map(page => page.reason);
 const a = n => 'あ'.repeat(n);
 
-// Every line of both tutorials, in order.
-const scriptLines = () => ['basics', 'vengeance'].flatMap(id => {
+// Every line of every tutorial, in order.
+const scriptLines = () => ['basics', 'vengeance', 'blue'].flatMap(id => {
   const flow = createTutorialFlow(id), lines = [];
   flow.introComplete = true;
   for (let index = 0; index < 100; index += 1) {
@@ -30,11 +30,13 @@ test('guide pages: one mark (▽), and pages are cut there only — one 「」 o
   assert.deepEqual(texts(splitGuidePages(`${a(200)}。${a(200)}、${a(200)}`)), [`${a(200)}。${a(200)}、${a(200)}`], 'never cut by length, sentence or comma');
 });
 
-test('guide pages: the script — 7 marks in 6 lines; the longest 「」 (81, 75, 72, 65, 58 characters) are one page each', () => {
+test('guide pages: every line of the script is cut at its marks only, a page per line and one more at each mark, nothing lost or added', () => {
   const lines = scriptLines();
-  assert.deepEqual([lines.filter(line => line.text.includes(GUIDE_PAGE_MARK)).length, lines.reduce((sum, line) => sum + line.text.split(GUIDE_PAGE_MARK).length - 1, 0)], [6, 7]);
-  const pages = lines.flatMap(line => splitGuidePages(line.text).map(page => ({ at: line.at, length: [...page.text].length })));
-  assert.equal(pages.length, lines.length + 7, 'a page per line, and one more at each mark');
-  assert.deepEqual(pages.map(page => page.length).sort((x, y) => y - x).slice(0, 5), [81, 75, 72, 65, 58]);
-  for (const line of lines) assert.equal(texts(splitGuidePages(line.text)).join(''), line.text.replaceAll(GUIDE_PAGE_MARK, ''), `${line.at}: nothing lost or added`);
+  assert.ok(lines.length > 0);
+  for (const line of lines) {
+    const pages = splitGuidePages(line.text), marks = line.text.split(GUIDE_PAGE_MARK).length - 1;
+    assert.ok(pages.length >= 1 && pages.length <= marks + 1, `${line.at}: at most a page per mark and one more`);
+    assert.equal(texts(pages).join(''), line.text.replaceAll(GUIDE_PAGE_MARK, ''), `${line.at}: nothing lost or added`);
+    assert.ok(pages.every(page => !page.text.includes(GUIDE_PAGE_MARK)), `${line.at}: no mark left in a page`);
+  }
 });

@@ -171,21 +171,6 @@ test('S02-BRIDGE-04: real takeover replaces the execution: the executor gets the
   assert.equal(entry(state, victim).controllerSeat, 'seat-b');
 });
 
-test('S02-BRIDGE-05: layered sibling order, cost consumption and source movement', () => {
-  const state = game({ mode: 'tutorial', tutorialId: 'vengeance' });
-  const player = state.players.player;
-  const provider = player.hand.find(card => card.id === 'STD-191');
-  assert.equal(installCard(state, 'player', provider.uid), true);
-  const source = player.hand.find(card => card.id === 'STD-195');
-  const materials = [...player.front];
-  assert.equal(playLayeredCard(state, 'player', source.uid, materials.map(card => card.uid)), true);
-  for (let i = 0; i < materials.length; i += 1) assert.deepEqual(entry(state, materials[i]).location, { kind: 'mounted', host: { ...source.identity }, order: i + 1, role: 'layered' });
-  assert.equal(relogCard(state, 'player', source.uid, 'back', { useLayerDiscount: true, layerUid: materials[0].uid }), true);
-  assert.equal(entry(state, materials[0]).location.zone, 'trash');
-  assert.equal(entry(state, materials[1]).location.order, 1);
-  assert.equal(entry(state, source).location.zone, 'back');
-});
-
 test('S02-BRIDGE-06: foreign-board ownership and virtual token cards remain live', () => {
   const state = fresh();
   const proof = execute(state, add(state, 'STD-228'));

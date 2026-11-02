@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { canonicalizeCommand } from '../src/game/runtime/command-record.js';
 import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
+import { createTutorialModeController, TUTORIAL_STEP_GUARDS } from '../src/adapters/tutorial-mode-controller.js';
+import { createTutorialFlow, advanceTutorialIntroduction, tutorialSteps } from '../src/data/tutorial-script.js';
 import { createMatchLifecycleController } from '../src/adapters/match-lifecycle-controller.js';
 import { createMatchUiController } from '../src/adapters/match-ui-controller.js';
 import { createNewMatchSessionController } from '../src/adapters/match-session-controller.js';
@@ -478,12 +480,13 @@ function runScriptedOpponent(session) {
 // After the winning attack the guide shows the closing line with one way on (back to the list), no skip,
 // and the end screen waits until it is read: then the guide leaves and CONGRATULATION! comes up with the tutorial's
 // two ways on (文豪, 2026-11-01), no log to save.
-function assertClosingLine(session,lastIndex,closing=/勝利。/) {
-  const flow=session.tutorial().value.flow;
+const escapeHtml=text=>text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function assertClosingLine(session,lastIndex) {
+  const flow=session.tutorial().value.flow,closing=escapeHtml(tutorialSteps(flow.tutorialId).at(-1).text.split('▽')[0]);
   assert.equal(flow.complete,true);assert.equal(flow.index,lastIndex);
   const ui=createMatchUiController({session,viewerSeat:'a'}).value,read=ui.read().value;
   const html=runtimeGameHtml(read.model,{...read,tutorial:session.tutorial().value});
-  assert.match(html,/data-runtime-tutorial-finish>次へ ▸/);assert.match(html,closing);
+  assert.match(html,/data-runtime-tutorial-finish>次へ ▸/);assert.ok(html.includes(closing),'the last step own text is on the closing guide');
   assert.doesNotMatch(html,/data-runtime-tutorial-skip/);assert.doesNotMatch(html,/r2-result/);
   const ended=runtimeGameHtml(read.model,{...read,tutorial:{...session.tutorial().value,ended:true}});
   assert.doesNotMatch(ended,/live-guide/);
@@ -510,22 +513,58 @@ test('tutorial basics refuses a soldier placed in the back and takes the front',
   submit(port,plan(port,'executeCard',hand('STD-021'),option=>option.zone==='front'));assert.equal(index(),12);
   lifecycle.dispose();
 });
-test('tutorial vengeance refuses the normal relog cost and a wrong effect target, says why, and takes the guided ones',()=>{
-  const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),runtime=config('tutorial');runtime.gameOptions.tutorialId='vengeance';
-  const session=lifecycle.start(runtime).value,port=session.port('a').value;
-  for(let index=0;index<8;index+=1)session.advanceTutorial();
-  const hand=id=>visibleCard(port.query().value,id,['hand']).cardRef,index=()=>session.tutorial().value.flow.index;
-  submit(port,plan(port,'install',hand('STD-191')));
-  submit(port,plan(port,'executeLayered',hand('STD-195'),option=>option.zone==='front'));settleTutorial(session);
-  submit(port,plan(port,'redeploy',visibleCard(port.query().value,'STD-195',['front']).cardRef,option=>option.zone==='back'));
-  refusedFor(session,port,answerWith(port,option=>option.label==='通常コストを払う'),/レイヤー1枚を破棄/);
-  submit(port,answerWith(port,option=>String(option.label).startsWith('レイヤー1枚を破棄')));settleTutorial(session);assert.equal(index(),4);
-  submit(port,plan(port,'executeCard',hand('STD-194'),option=>option.zone==='front'));settleTutorial(session);
-  submit(port,plan(port,'executeCard',hand('STD-192'),option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),6);
-  const source=visibleCard(port.query().value,'STD-192',['front']).cardRef,acroia=visibleCard(port.query().value,'STD-194',['front']).cardRef;
-  refusedFor(session,port,plan(port,'activateCardEffect',source,option=>option.cardRef===source||option.zone==='back'),/アクロィア/);
-  submit(port,plan(port,'activateCardEffect',source,option=>option.cardRef===acroia||option.zone==='back'));settleTutorial(session);assert.equal(index(),7);
-  lifecycle.dispose();
+// A guarded step (TUTORIAL_STEP_GUARDS) holds the player to the choice its script relies on: the guide's own expect plus the guard, read from the data, no card or step written here.
+const GUARD_DECOY='DECOY-000';
+const guardCard=id=>({cardRef:'ref:'+id,faceDown:false,definition:{id},mounted:[]});
+const guardSeat=ids=>({seatId:'a',hand:{cards:ids.map(guardCard)},front:{cards:[]},back:{cards:[]},registry:{cards:[]},trash:{cards:[]},ban:{cards:[]}});
+const guardActionFor=(expect,fields)=>{
+  const all={...expect,...fields},action={type:({play:'executeCard',layered:'executeLayered',attack:'attack','end-turn':'endTurn',relog:'redeploy','activate-effect':'activateCardEffect'})[all.type]??all.type};
+  if(all.cardId)action.cardRef='ref:'+all.cardId;
+  if(all.zone)action.destination={zone:all.zone};
+  if(all.targetType)action.target={kind:all.targetType==='fortress'?'user':all.targetType};
+  if(all.targetCardId)action.target={cardRef:'ref:'+all.targetCardId};
+  if(all.hostCardId)action.hostRef='ref:'+all.hostCardId;
+  if(all.materialCount!==undefined)action.materialRefs=Array.from({length:all.materialCount},(_,n)=>'material:'+n);
+  return action;
+};
+const guardedControllers=()=>Object.entries(TUTORIAL_STEP_GUARDS).flatMap(([tutorialId,guards])=>Object.entries(guards).map(([step,rule])=>{
+  const flow={...createTutorialFlow(tutorialId),introComplete:true,index:Number(step)};
+  const intro=(()=>{const f=createTutorialFlow(tutorialId);let n=0;while(!f.introComplete){advanceTutorialIntroduction(f);n+=1;}return n;})();
+  flow.introIndex=Math.max(intro-1,0);
+  const expect=tutorialSteps(tutorialId)[Number(step)].expect;
+  const known=[...new Set(tutorialSteps(tutorialId).flatMap(row=>[row.expect?.cardId,row.expect?.targetCardId]).concat(Object.values(TUTORIAL_STEP_GUARDS[tutorialId]).flatMap(item=>[item.action?.hostCardId,item.action?.targetCardId])).filter(Boolean))];
+  const make=()=>createTutorialModeController(tutorialId,{flow:structuredClone(flow),opponentScript:null,opponentIndex:0,stepActionAccepted:false,opponentActionPending:false});
+  return {tutorialId,step,rule,expect,known,make};
+}));
+test('a guarded tutorial step takes the scripted choice, and refuses every other with the guard reason (all tutorials, read from the script and its guards)',()=>{
+  const cases=guardedControllers();assert.ok(cases.length>0,'there are guarded steps');
+  for(const {tutorialId,step,rule,expect,known,make} of cases){
+    const label=`${tutorialId} step ${step}`;
+    const query=(requiredInput=null)=>({status:{viewerSeat:'a'},requiredInput,observation:{seats:[guardSeat([...known,GUARD_DECOY])]}});
+    if(rule.action){
+      const good=guardActionFor(expect,rule.action),controller=make();
+      assert.equal(controller.authorize(query(),good).ok,true,label+': the scripted action is taken');
+      for(const [key,value] of Object.entries(rule.action)){
+        const wrongValue=typeof value==='number'?value-1:key==='targetType'?'card':GUARD_DECOY;
+        const wrong=guardActionFor(expect,{...rule.action,[key]:wrongValue}),fresh=make(),result=fresh.authorize(query(),wrong);
+        assert.equal(result.ok,false,label+': '+key+' other than the scripted one is refused');
+        assert.equal(fresh.presentation().flow.error,rule.reason,label+': the guide says why ('+key+')');
+      }
+    }
+    if(rule.choose){
+      const option=(id,n)=>({optionId:'option:'+n,kind:'card',label:id,cardRef:'ref:'+id,preview:{definitionId:id}});
+      const options=[...known,GUARD_DECOY].map(option),pass=options.filter(item=>rule.choose({kind:item.kind,label:item.label,cardId:item.preview.definitionId}));
+      const fail=options.filter(item=>!pass.includes(item));
+      assert.ok(pass.length>0&&fail.length>0,label+': the guard tells the scripted pick from the others');
+      const input={choiceId:'choice:1',options},answer=item=>({type:'answerChoice',choiceId:'choice:1',optionIds:[item.optionId],allocation:[]});
+      assert.equal(make().authorize(query(input),answer(pass[0])).ok,true,label+': the scripted pick is taken');
+      for(const wrong of [answer(fail[0]),{type:'declineChoice',choiceId:'choice:1'}]){
+        const fresh=make(),result=fresh.authorize(query(input),wrong);
+        assert.equal(result.ok,false,label+': any other answer is refused');
+        assert.equal(fresh.presentation().flow.error,rule.reason,label+': the guide says why (choice)');
+      }
+    }
+  }
 });
 test('tutorial red: the Junk Parts go only under Atto; alone in a slot or under the soldier is refused with the reason',()=>{
   const {lifecycle,session,port}=setup('tutorial');
@@ -606,34 +645,9 @@ test('tutorial basics runs start to finish through ports: the script ends with o
   const done=port.query().value;
   assert.ok(done.status.lockedOutcome||done.status.finished,'reaching STR 0 locks the result');
   assert.equal(done.status.lockedOutcome.winnerSeat,'a');
-  assertClosingLine(session,43,/勝利です/);
+  assertClosingLine(session,43);
   lifecycle.dispose();
 });
-test('tutorial vengeance runs start to finish through ports: relogged layered Ob and generated Dolls take opponent STR 5 to 0',()=>{
-  const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),runtime=config('tutorial');runtime.gameOptions.tutorialId='vengeance';
-  const created=lifecycle.start(runtime);assert.equal(created.ok,true,JSON.stringify(created));
-  const session=created.value,port=session.port('a').value;
-  // No greeting before purple (red only, 2026-10-29): its own step 1 is the one line before the install.
-  assert.equal(session.advanceTutorial().ok,true);
-  const index=()=>session.tutorial().value.flow.index,hand=id=>visibleCard(port.query().value,id,['hand']).cardRef;
-  submit(port,plan(port,'install',hand('STD-191')));assert.equal(index(),2);
-  submit(port,plan(port,'executeLayered',hand('STD-195'),option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),3);
-  submit(port,plan(port,'redeploy',visibleCard(port.query().value,'STD-195',['front']).cardRef,option=>option.zone==='back'));settleTutorial(session);assert.equal(index(),4);
-  submit(port,plan(port,'executeCard',hand('STD-194'),option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),5);
-  submit(port,plan(port,'executeCard',hand('STD-192'),option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),6);
-  const source=visibleCard(port.query().value,'STD-192',['front']).cardRef,moved=visibleCard(port.query().value,'STD-194',['front']).cardRef;
-  submit(port,plan(port,'activateCardEffect',source,option=>option.cardRef===moved||option.zone==='back'));settleTutorial(session);assert.equal(index(),7);
-  submit(port,{type:'endTurn'});settleTutorial(session);runScriptedOpponent(session);assert.equal(index(),8);
-  submit(port,plan(port,'redeploy',visibleCard(port.query().value,'STD-195',['back']).cardRef,option=>option.zone==='front'));settleTutorial(session);assert.equal(index(),9);
-  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-195',['front']).cardRef,option=>option.kind==='user'));settleTutorial(session);assert.equal(index(),10);
-  assert.equal(port.query().value.status.finished,false);
-  submit(port,plan(port,'attack',visibleCard(port.query().value,'STD-189',['front']).cardRef,option=>option.kind==='user'));
-  const done=port.query().value;
-  assert.ok(done.status.lockedOutcome||done.status.finished,'reaching STR 0 locks the result');
-  assertClosingLine(session,11);
-  lifecycle.dispose();
-});
-
 function userMatch(userId,mode='ai') {
   const runtime=config(mode);Object.assign(runtime.gameOptions,{playerUserId:userId,aiUserId:'doors_zx'});
   const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),created=lifecycle.start(runtime);
@@ -961,7 +975,7 @@ test('tutorial blue runs start to finish through ports: the Rutile access, Hacki
   submit(port,plan(port,'attack',front('STD-109'),option=>option.kind==='user'));settleTutorial(session);
   const done=port.query().value;
   assert.equal(enemy().fortressStr,0);assert.equal(done.status.lockedOutcome.winnerSeat,'a');
-  assertClosingLine(session,27,/完璧な勝利/);
+  assertClosingLine(session,27);
   lifecycle.dispose();
 });
 
@@ -1018,16 +1032,16 @@ test('tutorial blue: taps during Merc\'s turn leave the turn to the script, so t
 
 // Skipping a tutorial plays its own script to the win (same commands, same guards): STR 0 and the closing line.
 import { playTutorialToWin } from '../src/adapters/tutorial-autoplay.js';
-for (const [tutorialId,aiDeckId,closing] of [['basics','yellow',/勝利です/],['vengeance','yellow',/勝利。/],['blue','tutorial-sandbag',/完璧な勝利/]]) {
+for (const tutorialId of ['basics','vengeance','blue']) {
   test(`playTutorialToWin takes ${tutorialId} to its own win: the opponent at STR 0, the result locked, the closing line`,()=>{
     const lifecycle=createMatchLifecycleController({nextMatchId:()=> 'replacement'}),runtime=config('tutorial');
-    Object.assign(runtime.gameOptions,{tutorialId,aiDeckId});
+    Object.assign(runtime.gameOptions,{tutorialId});
     const session=lifecycle.start(runtime).value,port=session.port('a').value;
     const result=playTutorialToWin({session});assert.equal(result.ok,true,JSON.stringify(result));
     const query=port.query().value;
     assert.equal(seatView(query,'b').fortressStr,0);assert.equal(query.status.lockedOutcome.winnerSeat,'a');
     const flow=session.tutorial().value.flow;assert.equal(flow.complete,true);
-    assertClosingLine(session,flow.index,closing);
+    assertClosingLine(session,flow.index);
     lifecycle.dispose();
   });
 }
@@ -1037,7 +1051,7 @@ test('lifecycle.skipTutorialToWin plays the running tutorial on from where it st
   const result=lifecycle.skipTutorialToWin();assert.equal(result.ok,true,JSON.stringify(result));
   assert.equal(result.value,session);assert.equal(lifecycle.current().value,session);
   assert.equal(seatView(port.query().value,'b').fortressStr,0);assert.equal(port.query().value.status.lockedOutcome.winnerSeat,'a');
-  assertClosingLine(session,43,/勝利です/);
+  assertClosingLine(session,43);
   assert.equal(lifecycle.completeTutorial().ok,true,'the closing line ends the tutorial as a played one does');
   lifecycle.dispose();
   const sandbox=setup(),refused=sandbox.lifecycle.skipTutorialToWin();

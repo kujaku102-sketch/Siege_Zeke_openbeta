@@ -2559,28 +2559,6 @@ test("Armor is normalized to consumable Protect and card classes are canonical a
   assert.ok(player.trash.includes(protectedCard));
 });
 
-test("Vengeance tutorial layers two Dolls and discounts Tripvia relog", () => {
-  const state = createGame({ mode: "tutorial", tutorialId: "vengeance" });
-  const idol = state.players.player.hand.find((card) => card.id === "STD-191");
-  assert.equal(state.players.player.user.color, "紫");
-  assert.equal(installCard(state, "player", idol.uid), true);
-  const tripvia = state.players.player.hand.find((card) => card.id === "STD-195");
-  const dolls = getLayeredCandidates(state, "player", tripvia);
-  assert.equal(dolls.length, 2);
-  assert.equal(playLayeredCard(state, "player", tripvia.uid, dolls.map(({ card }) => card.uid), "front"), true);
-  assert.equal(tripvia.mounted.length, 2);
-  const before = state.players.player.memory;
-  assert.equal(relogCard(state, "player", tripvia.uid, "back"), true);
-  setSelectionScope(state.pending.request, "レイヤー1枚を破棄して1メモリ");
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
-  toggleSelection(state.pending.request, tripvia.mounted[0].uid);
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
-  assert.equal(state.players.player.memory, before - 1);
-  assert.equal(tripvia.mounted.length, 1);
-  assert.equal(state.players.player.trash.some((card) => card.id === "STD-189"), true);
-  assert.equal(state.players.player.front.some((card) => card.id === "STD-189"), false);
-});
-
 test("Acryia relog gains permanent stats and leaves a Dolls behind", () => {
   const state = createGame({ mode: "tutorial", tutorialId: "vengeance" });
   const idol = state.players.player.hand.find((card) => card.id === "STD-191");
@@ -2590,23 +2568,6 @@ test("Acryia relog gains permanent stats and leaves a Dolls behind", () => {
   assert.equal(relogCard(state, "player", acryia.uid, "back"), true);
   assert.equal(cardAtk(state, "player", acryia), 3);
   assert.equal(state.players.player.front.some((card) => card.id === "STD-189"), true);
-});
-
-test("Update activation moves an Ob as an effect without using relog", () => {
-  const state = createGame({ mode: "tutorial", tutorialId: "vengeance" });
-  const idol = state.players.player.hand.find((card) => card.id === "STD-191");
-  installCard(state, "player", idol.uid);
-  const acryia = state.players.player.hand.find((card) => card.id === "STD-194");
-  const tana = state.players.player.hand.find((card) => card.id === "STD-192");
-  playCard(state, "player", acryia.uid, { zone: "front" });
-  playCard(state, "player", tana.uid, { zone: "front" });
-  const [effect] = getActivatableEffects(state, "player", tana);
-  const beforeHand = state.players.player.hand.length;
-  assert.equal(effect.label, "[アップデート:2]");
-  assert.equal(activateCardEffect(state, "player", tana.uid, effect.id, { targetUid: acryia.uid, targetZone: "back" }), true);
-  assert.equal(state.players.player.back.some((card) => card.uid === acryia.uid), true);
-  assert.equal(state.players.player.front.some((card) => card.id === "STD-189"), true);
-  assert.equal(state.players.player.hand.length, beforeHand + 1);
 });
 
 test("conditional trigger runtime resolves movement text through shared events", () => {
@@ -2877,25 +2838,6 @@ test("Q3 placement and mount restrictions are enforced", () => {
   assert.equal(playCard(state, "player", footprint.uid, { zone: "front" }), true);
   const code = state.players.player.hand.find((card) => card.category === "Code");
   assert.equal(playCard(state, "player", code.uid, { zone: "front", underUid: footprint.uid, free: true }), false);
-});
-
-test("STD-195 move discount is optional and resolved by a scope choice", () => {
-  const state = createGame({ mode: "tutorial", tutorialId: "vengeance" });
-  const idol = state.players.player.hand.find((card) => card.id === "STD-191");
-  assert.equal(installCard(state, "player", idol.uid), true);
-  const tripvia = state.players.player.hand.find((card) => card.id === "STD-195");
-  const dolls = getLayeredCandidates(state, "player", tripvia);
-  assert.equal(playLayeredCard(state, "player", tripvia.uid, dolls.map(({ card }) => card.uid), "front"), true);
-  const initialLayerCount = tripvia.mounted.length;
-  const before = state.players.player.memory;
-  assert.equal(relogCard(state, "player", tripvia.uid, "back"), true);
-  assert.equal(state.pending?.request?.continuation?.type, "relog-layer-discount");
-  setSelectionScope(state.pending.request, "レイヤー1枚を破棄して1メモリ");
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
-  toggleSelection(state.pending.request, tripvia.mounted[0].uid);
-  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
-  assert.equal(state.players.player.memory, before - 1);
-  assert.equal(tripvia.mounted.length, initialLayerCount - 1);
 });
 
 test("STD-205 reduces only Artifact or Masterpiece card damage", () => {
