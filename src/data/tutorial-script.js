@@ -16,13 +16,23 @@ export const TUTORIAL_SANDBAG_DECK = Object.freeze([
   ["STD-020", 3], ["STD-021", 3], ["STD-022", 3], ["STD-023", 3], ["STD-024", 3], ["STD-025", 3], ["STD-026", 3],
   ["STD-027", 3], ["STD-028", 3], ["STD-029", 3], ["STD-031", 3], ["STD-043", 3], ["STD-044", 3], ["STD-004", 1]
 ].map((row) => Object.freeze(row)));
+// 紫チュートリアル(文豪の台本 05-紫-台本修正案.md、2026-10-30)。手札はコピー＆ペイスターと淫魔像(使わない)・ドールズ・ギガンテス・アクロィア・骨抜き。
+// 場はドールズ2体、レジストリには使わない紫のカード1枚を最初から置いて紫シンボルを点灯させる(判断A)。メモリはユーザーの上限5のまま。
+// 相手の手札はライダーとメルク。山札は無色サンドバッグ(判断C)。台本の「STD-187 コピー&北スター」は、名前の合うSTD-188 コピー＆ペイスターとして読む。
+export const TUTORIAL_PURPLE_HAND = Object.freeze(["STD-188", "STD-191", "STD-205", "STD-194", "STD-202"]);
+export const TUTORIAL_PURPLE_FRONT = Object.freeze(["STD-189", "STD-189"]);
+export const TUTORIAL_PURPLE_REGISTRY = Object.freeze(["STD-190"]);
+export const TUTORIAL_PURPLE_OPPONENT_HAND = Object.freeze(["STD-025", "STD-043"]);
 export const TUTORIAL_OPPONENT_SCRIPTS = Object.freeze({
   'yellow-pass': Object.freeze([{type:'endTurn'}]),
   // 赤チュートリアル: 相手はセキュリティのObガードマンを実行し、スリープさせてターンを終える。
   'guardman-demo': Object.freeze([{type:'executeCard',cardId:'STD-022',zone:'front'}, {type:'endTurn'}]),
   // 青チュートリアル: 1) 装甲兵 メルクを実行してスリープさせ、ターンを終える。2) 次のターン、メルクで相手ユーザーを攻撃してターンを終える。
   'sandbag-1': Object.freeze([{type:'executeCard',cardId:'STD-043',zone:'front'}, {type:'endTurn'}]),
-  'sandbag-2': Object.freeze([{type:'attack',cardId:'STD-043',targetType:'fortress'}, {type:'endTurn'}])
+  'sandbag-2': Object.freeze([{type:'attack',cardId:'STD-043',targetType:'fortress'}, {type:'endTurn'}]),
+  // 紫チュートリアル: ライダーを実行し、スリープ中の[セキュリティ]ギガンテスを攻撃(攻撃先はそれだけ)。メルクを実行してターンを終える(メルクのスリープは相手の操作が答える)。
+  'vengeance-opponent': Object.freeze([{type:'executeCard',cardId:'STD-025',zone:'front'}, {type:'attack',cardId:'STD-025',targetCardId:'STD-205'},
+    {type:'executeCard',cardId:'STD-043',zone:'front'}, {type:'endTurn'}])
 });
 
 // 「ようこそ」の挨拶は赤(basics)だけで流す。ほかの色は自分の手順1から始まる(文豪 2026-10-29)。
@@ -366,79 +376,58 @@ const BLUE_STEPS = [
   BLUE_STEP("STRが0になりました！完璧な勝利を貴方に。Powered by Neutron Security！……企業案件です。", undefined, null)
 ];
 
+// 紫(レイヤード・移動)。文豪の台本 05-紫-台本修正案.md(Drive「SZβ092セリフ台本」)の「」を、原文のまま順番どおり1つずつ1ステップにしている。
+// 括弧の演出は focus / expect に移した。相手のターン(ライダーの実行と攻撃、メルクの実行、ターン終了)は 'vengeance-opponent' の1本の台本で続けて動き、
+// セリフ送りは相手のターンが終わってから(青・赤と同じ)。「ギガンテスとアクロィアで攻撃」の1行は2回の攻撃なので、同じ行を2ステップで出す。
+// 最後の2行は1ステップに「▽」でつなぐ(勝ちが確定すると最後のステップへ飛ぶため)。
+const PURPLE_CARD = BLUE_CARD;
+const PURPLE_FRONT = BLUE_FRONT;
+const PURPLE_USER = BLUE_USER;
+const PURPLE_STEP = BLUE_STEP;
+const PURPLE_ADVANCE = BLUE_ADVANCE;
+const PURPLE_END_TURN = { kind: "action", action: "end-turn", label: "ターン終了" };
+
 const VENGEANCE_STEPS = [
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "ヴェンジェンスはObの移動とレイヤードを使う。今回は相手Doors ZXのSTR5を0にして勝つ。まず『開始』を押して盤面を確認。",
-    focus: [{ kind: "action", action: "tutorial-advance", label: "開始" }, { kind: "zone", owner: "player", zone: "front", label: "ドールズ2体" }],
-    expect: { type: "advance" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "紫カードの実行に紫シンボルが要る。手札の『淫魔像』をレジストリへインストール。",
-    focus: [{ kind: "card", cardId: "STD-191", owner: "player", zone: "hand", label: "淫魔像" }, { kind: "admin", owner: "player", zone: "registry", label: "レジストリ" }],
-    expect: { type: "install", cardId: "STD-191" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "『マーダードールズ=トライプビア』を選び、フロントへレイヤード。場の『ドールズ』2体を素材として選択する。",
-    focus: [{ kind: "card", cardId: "STD-195", owner: "player", zone: "hand", label: "トライプビア" }, { kind: "card", cardId: "STD-189", owner: "player", zone: "front", label: "素材ドールズ" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }],
-    expect: { type: "layered", cardId: "STD-195", zone: "front" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "トライプビアを選び、バックへリログ。レイヤー1枚を破棄することで移動コストが1になり、移動後はスタンバイする。",
-    focus: [{ kind: "card", cardId: "STD-195", owner: "player", zone: "front", label: "トライプビア" }, { kind: "zone", owner: "player", zone: "back", label: "自分バック" }],
-    expect: { type: "relog", cardId: "STD-195", zone: "back" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "次は『マーダードールズ=アクロィア』をフロントへ実行。",
-    focus: [{ kind: "card", cardId: "STD-194", owner: "player", zone: "hand", label: "アクロィア" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }],
-    expect: { type: "play", cardId: "STD-194", zone: "front" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "『マーダードールズ=タナフォリア』をフロントへ実行。リログではなく、次にこのカードの効果でアクロィアを動かす。",
-    focus: [{ kind: "card", cardId: "STD-192", owner: "player", zone: "hand", label: "タナフォリア" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }],
-    expect: { type: "play", cardId: "STD-192", zone: "front" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "タナフォリアを選んで『効果起動』。[アップデート:2]を選び、対象にアクロィア、移動先にバックを指定。アクロィアの移動時効果と1ドローまで処理される。",
-    focus: [{ kind: "card", cardId: "STD-192", owner: "player", zone: "front", label: "タナフォリア" }, { kind: "card", cardId: "STD-194", owner: "player", zone: "front", label: "アクロィア" }, { kind: "zone", owner: "player", zone: "back", label: "移動先バック" }],
-    expect: { type: "activate-effect", cardId: "STD-192", zone: "back" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "ここまでで、動かしたObは次のターンから攻撃に使える。ターンを終了して黄側を自動でパスさせる。",
-    focus: [{ kind: "action", action: "end-turn", label: "ターン終了" }, { kind: "card", cardId: "STD-195", owner: "player", zone: "back", label: "トライプビア" }],
-    expect: { type: "end-turn" },
-    after: "yellow-pass"
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "次の自ターン。『マーダードールズ=トライプビア』を選び、フロントへリログ。レイヤー1枚を破棄すれば移動コストは1で、移動後はスタンバイするからそのまま攻撃できる。",
-    focus: [{ kind: "card", cardId: "STD-195", owner: "player", zone: "back", label: "トライプビア" }, { kind: "zone", owner: "player", zone: "front", label: "自分フロント" }],
-    expect: { type: "relog", cardId: "STD-195", zone: "front" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "トライプビアで相手のDoors ZXを攻撃。ATK4で、相手のSTRは5から1になる。",
-    focus: [{ kind: "card", cardId: "STD-195", owner: "player", zone: "front", label: "トライプビア" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
-    expect: { type: "attack", cardId: "STD-195", targetType: "fortress" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "最後は、アクロィアの移動で生成された『ドールズ』。これで相手のDoors ZXを攻撃して、STR1を0にすれば勝ち。",
-    focus: [{ kind: "card", cardId: "STD-189", owner: "player", zone: "front", label: "ドールズ" }, { kind: "fortress", owner: "ai", label: "相手ユーザー" }],
-    expect: { type: "attack", cardId: "STD-189", targetType: "fortress" }
-  },
-  {
-    speaker: TUTORIAL_SPEAKER,
-    text: "勝利。ヴェンジェンスの基本は、生成したドールズを素材・移動元の穴埋め・攻撃役へ使い回すこと。",
-    expect: null
-  }
+  // 1 開始
+  PURPLE_ADVANCE("レディース&ジェントルメーン！"),
+  PURPLE_ADVANCE("今回は紫スタートデッキ、『劇団ヴェンジェンス』の紹介です"),
+  PURPLE_ADVANCE("紫の得意戦術は『カード位置の移動』と『仮想カードの生成』です"),
+  PURPLE_ADVANCE("まず『開始』を押して、エリアを確認してください。", [{ kind: "action", action: "tutorial-advance", label: "開始" }]),
+  // 2 レイヤード
+  PURPLE_ADVANCE("私が事前に並べておいた『ドールズ』が2体いますね。", [{ kind: "zone", owner: "player", zone: "front", label: "ドールズ2体" }]),
+  PURPLE_ADVANCE("指定のカードを素材(レイヤー)にして実行する必要のあるOb、▽これをレイヤードと呼びます。"),
+  PURPLE_STEP("では『ドールズ・ギガンテス』を選んで、フロントに実行します。▽『ドールズ』2体を素材に選んでください。",
+    [PURPLE_CARD("STD-205", "ギガンテス"), PURPLE_CARD("STD-189", "素材ドールズ", "front"), PURPLE_FRONT], { type: "layered", cardId: "STD-205", zone: "front" }),
+  // 3 ログイン処理
+  PURPLE_ADVANCE("ここで『ドールズ・ギガンテス』の[ログイン]が起動です！", [PURPLE_CARD("STD-205", "ギガンテス", "front")]),
+  PURPLE_ADVANCE("所持するレイヤーの枚数だけパンプアップ！+2/+2されて強くなりましたね。", [PURPLE_CARD("STD-205", "ギガンテス", "front")]),
+  PURPLE_ADVANCE("レイヤードは構成するカードの上から順にレイヤー1,2,3...と数えます。", [PURPLE_CARD("STD-205", "ギガンテス", "front")]),
+  PURPLE_ADVANCE("つまり一番上の『ギガンテス』はレイヤー1、『ドールズ』はそれぞれ2,3となりますね！", [PURPLE_CARD("STD-205", "ギガンテス", "front")]),
+  // 4 再実行(既に場にあるObの移動)の説明
+  PURPLE_STEP("次は『マーダードールズ=アクロィア』をバックに実行してください。",
+    [PURPLE_CARD("STD-194", "アクロィア"), { kind: "zone", owner: "player", zone: "back", label: "自分バック" }], { type: "play", cardId: "STD-194", zone: "back" }),
+  PURPLE_ADVANCE("『アクロィア』は移動することでパワーアップと『ドールズ』の展開ができるObです。", [PURPLE_CARD("STD-194", "アクロィア", "back")]),
+  PURPLE_STEP("このターンは『ギガンテス』をスリープし、攻撃に備えてターン終了しましょう！",
+    [PURPLE_END_TURN, PURPLE_CARD("STD-205", "ギガンテス", "front")], { type: "end-turn" }, { after: "vengeance-opponent" }),
+  // 5 相手ターン
+  PURPLE_ADVANCE("相手は『ライダー』を実行！早速攻撃してきましたね！", [PURPLE_CARD("STD-205", "ギガンテス", "front")]),
+  PURPLE_ADVANCE("『装甲兵メルク』も出してきましたね。", [PURPLE_CARD("STD-043", "装甲兵 メルク", "front", "ai")]),
+  PURPLE_ADVANCE("相手は『メルク』をスリープしてターン終了のようです。", [PURPLE_CARD("STD-043", "装甲兵 メルク", "front", "ai")]),
+  // 6 移動戦術の実践
+  PURPLE_STEP("私達のターンですね！まずはバックの『アクロィア』をフロントに移動させます",
+    [PURPLE_CARD("STD-194", "アクロィア", "back"), PURPLE_FRONT], { type: "relog", cardId: "STD-194", zone: "front" }),
+  PURPLE_ADVANCE("主役の登場です！本日のマスターピース！アクロィアー！", [PURPLE_CARD("STD-194", "アクロィア", "front")]),
+  PURPLE_ADVANCE("これで『アクロィア』の効果がトリガーしますね。パワーアップして、元いたエリアに『ドールズ』を生成します。",
+    [PURPLE_CARD("STD-194", "アクロィア", "front"), PURPLE_CARD("STD-189", "生成されたドールズ", "back")]),
+  PURPLE_STEP("次に手札の『骨抜き』を使います。選ぶのは『メルク』ですね",
+    [PURPLE_CARD("STD-202", "骨抜き"), PURPLE_CARD("STD-043", "装甲兵 メルク", "front", "ai")], { type: "play", cardId: "STD-202", targetCardId: "STD-043" }),
+  PURPLE_ADVANCE("これでセキュリティをどかしましたね！…相手にうちのドールズをプレゼントしてしまいましたが。",
+    [PURPLE_CARD("STD-189", "相手のドールズ", "front", "ai"), PURPLE_USER]),
+  PURPLE_STEP("それでは『ギガンテス』と『アクロィア』で攻撃して、相手をやっつけましょう！",
+    [PURPLE_CARD("STD-205", "ギガンテス", "front"), PURPLE_USER], { type: "attack", cardId: "STD-205", targetType: "fortress" }),
+  PURPLE_STEP("それでは『ギガンテス』と『アクロィア』で攻撃して、相手をやっつけましょう！",
+    [PURPLE_CARD("STD-194", "アクロィア", "front"), PURPLE_USER], { type: "attack", cardId: "STD-194", targetType: "fortress" }),
+  PURPLE_STEP("やりましたね！私達の勝利です！▽今後とも劇団ヴェンジェンスをよろしくお願いしまーす！▽…案件じゃないですよ", undefined, null)
 ];
 
 const introSteps = (tutorialId) => tutorialId === "basics" ? INTRO_STEPS : [];

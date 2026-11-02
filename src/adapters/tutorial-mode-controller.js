@@ -7,7 +7,6 @@ const failure = code => ({ ok: false, error: { code } });
 // choice there can leave the tutorial unwinnable. Keyed by tutorial and step index. `action` adds
 // fields the step's action must also match; `choose` is the test every option picked while the step
 // resolves must pass (picking none, or declining, is refused too); `reason` is shown in the guide.
-const LAYER_COST = option => option.kind !== 'value' || String(option.label ?? '').startsWith('レイヤー1枚を破棄');
 export const TUTORIAL_STEP_GUARDS = Object.freeze({
   // Red (44 steps; index 37): the Junk Parts must be mounted under Atto. Alone in a slot, or under the soldier,
   // Atto stays at ATK 3 and cannot break the Guardman (STR 4), so the soldier never reaches the user.
@@ -22,10 +21,12 @@ export const TUTORIAL_STEP_GUARDS = Object.freeze({
     16: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' }),
     26: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' })
   }),
+  // Purple (25 steps). 6: Gigantes is layered on both Dolls (the layered execution takes 1 or 2 materials; with one Doll left in the front the
+  // script's field is not the one it describes). 13: the turn ends with Gigantes put to sleep (the [セキュリティ] rest is asked as the turn ends):
+  // awake, the Rider would not be held to attacking it, and declining the rest is refused too.
   vengeance: Object.freeze({
-    3: Object.freeze({ choose: LAYER_COST, reason: '移動コストは『レイヤー1枚を破棄』で払って。' }),
-    6: Object.freeze({ action: { targetCardId: 'STD-194' }, reason: '効果の対象は『アクロィア』を選んで。' }),
-    8: Object.freeze({ choose: LAYER_COST, reason: '移動コストは『レイヤー1枚を破棄』で払って。' })
+    6: Object.freeze({ action: { materialCount: 2 }, reason: '素材は『ドールズ』2体を選んで。' }),
+    13: Object.freeze({ choose: option => option.cardId === 'STD-205', reason: 'スリープさせるのは『ギガンテス』。ギガンテスを選んで。' })
   })
 });
 function visibleCards(query) {
@@ -141,7 +142,8 @@ export function createTutorialModeController(tutorialId = 'basics', initial = nu
         zone: action.destination?.zone ?? action.targetZone ?? action.placement?.zone ?? host?.location?.zone,
         targetType: action.target?.kind === 'user' ? 'fortress' : action.target?.kind,
         targetCardId: target?.faceDown ? null : target?.definition.id,
-        hostCardId: host?.faceDown ? null : host?.definition.id ?? null
+        hostCardId: host?.faceDown ? null : host?.definition.id ?? null,
+        materialCount: Array.isArray(action.materialRefs) ? action.materialRefs.length : undefined
       };
       if (query.status.viewerSeat !== playerSeat) {
         const original = TUTORIAL_OPPONENT_SCRIPTS[opponentScript]?.[opponentIndex];
