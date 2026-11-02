@@ -219,7 +219,9 @@ function artHtml(model,presentation) {
 }
 function requiredInputHtml(input, cards = []) {
   if (!input) return '';
-  if (input.canAnswer === false) return `<aside class="effect-modal"><section class="effect-dialog"><p>相手の選択待ち</p><button data-runtime-menu>メニュー</button></section></aside>`;
+  // The other side's choice shows on the board itself; no waiting dialog over it (文豪, 2026-11-02:
+  // 「相手ターン中の「相手処理中」系の表示、見てわかるから不要」).
+  if (input.canAnswer === false) return '';
   return `<aside class="effect-modal" data-selection-purpose="required">${selectionRequestHtml(requiredSelectionRequest(input), { cards, cardHtml: selectionCardHtml, rowHtml: selectionRowHtml })}${input.optional ? `<button data-choice-id="${esc(input.choiceId)}" data-decline>選ばない</button>` : ''}</aside>`;
 }
 
