@@ -280,7 +280,7 @@ test('manual answering-viewer switch retains mandatory choice/revision/active se
   assert.equal(initial.requiredInput.actorSeat,'b');assert.equal(initial.requiredInput.canAnswer,false);
   assert.deepEqual(initial.requiredInput.options,[]);assert.equal(Object.hasOwn(initial.requiredInput,'choiceId'),false);
   const waiting=surface.refresh().value;
-  assert.match(runtimeGameHtml(waiting.model,waiting),/相手の選択待ち<\/p><button data-runtime-menu>メニュー<\/button>/);
+  assert.doesNotMatch(runtimeGameHtml(waiting.model,waiting),/相手の選択待ち/);assert.match(runtimeGameHtml(waiting.model,waiting),/data-runtime-menu/);
   // Delegation/markup regression only; fakeRoot does not prove real pointer hit-testing.
   root.listeners.click({target:{closest:selector=>selector==='button'?{hasAttribute:name=>name==='data-runtime-menu'}:null}});
   assert.equal(menuCalls,1);assert.deepEqual(port.query().value,initial);
