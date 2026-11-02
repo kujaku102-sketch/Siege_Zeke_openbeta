@@ -58,7 +58,12 @@ export function playTutorialToWin({ session }) {
     };
     return options.map((option, index) => ({ option, index, value: score(option) })).sort((a, b) => b.value - a.value || a.index - b.index).map(item => item.option);
   };
-  const picks = (options, minimum) => options.length ? [options.slice(0, Math.max(1, minimum ?? 1)), ...options.slice(1).map(option => [option])] : [];
+  // A step's guard may name how many options its action must hold (materialCount: the layered materials); that many are tried first.
+  const picks = (options, minimum, rule = null, maximum = 1) => {
+    const wanted = rule?.action?.materialCount;
+    return options.length
+      ? [options.slice(0, Math.max(1, wanted <= maximum ? wanted : minimum ?? 1)), ...options.slice(1).map(option => [option])] : [];
+  };
 
   const answerInput = () => {
     const query = port.query().value, input = query.requiredInput, step = tutorialSteps(flow().flow.tutorialId)[flow().flow.index];
@@ -77,7 +82,7 @@ export function playTutorialToWin({ session }) {
     if (!planned.ok) return false;
     if (planned.value.completion) return submit(planned.value.completion.action);
     const request = planned.value.selectionRequests[0];
-    for (const optionSet of picks(ranked(request.options, expect, rule, query), request.constraints?.minimum)) {
+    for (const optionSet of picks(ranked(request.options, expect, rule, query), request.constraints?.minimum, rule, request.constraints?.maximum)) {
       const answer = { requestId: request.requestId, optionIds: optionSet.map(option => option.optionId), allocation: [] };
       if (complete(entry, expect, rule, [...selections, answer], query)) return true;
     }

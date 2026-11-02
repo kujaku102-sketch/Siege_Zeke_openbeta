@@ -1,9 +1,8 @@
 import { CARD_LIBRARY, LAB_CARD_IDS } from "../../data/cards.js";
-import { TUTORIAL_BLUE_HAND, TUTORIAL_OPPONENT_STR, TUTORIAL_RED_HAND } from "../../data/tutorial-script.js";
+import { TUTORIAL_BLUE_HAND, TUTORIAL_OPPONENT_STR, TUTORIAL_PURPLE_FRONT, TUTORIAL_PURPLE_HAND, TUTORIAL_PURPLE_OPPONENT_HAND, TUTORIAL_PURPLE_REGISTRY, TUTORIAL_RED_HAND } from "../../data/tutorial-script.js";
 import { createRuntimeCard } from "../runtime/factory.js";
 import { drawCardRaw } from "./draw.js";
 import { hydrateCard } from "./prepare.js";
-import { pullCard } from "./setup.js";
 import { addLog } from "./shared.js";
 
 // 赤(基本操作)。台本どおりの初手: グレン(インストール用)・兵士(無色)・切込隊長アツト・ジャンクパーツ。
@@ -14,25 +13,18 @@ export function arrangeTutorial(players, runtimeContext = null) {
   players.ai.hand = [hydrateCard(createRuntimeCard(runtimeContext, "STD-022", "ai", 511))];
 }
 
+// 紫(レイヤード・移動)。文豪の台本どおりの初期状況: 手札5枚(コピー＆ペイスターと淫魔像は使わない)、フロントにドールズ2体、
+// 使わない紫のカード1枚を最初からレジストリに置いて紫シンボルを点灯、メモリはユーザーの上限5のまま。
+// 相手は無色のサンドバッグデッキで、手札はライダーとメルク(山札の並びや引きには頼らない)。
 export function arrangeVengeanceTutorial(players, runtimeContext = null) {
   players.ai.fortressStr = TUTORIAL_OPPONENT_STR;
-  players.player.hand = [
-    hydrateCard(createRuntimeCard(runtimeContext, "STD-191", "player", 301)),
-    hydrateCard(createRuntimeCard(runtimeContext, "STD-195", "player", 302)),
-    hydrateCard(createRuntimeCard(runtimeContext, "STD-194", "player", 303)),
-    hydrateCard(createRuntimeCard(runtimeContext, "STD-192", "player", 304)),
-    hydrateCard(createRuntimeCard(runtimeContext, "STD-202", "player", 307))
-  ];
-  players.player.front = [
-    hydrateCard(createRuntimeCard(runtimeContext, "STD-189", "player", 305)),
-    hydrateCard(createRuntimeCard(runtimeContext, "STD-189", "player", 306))
-  ];
+  const cards = (ids, owner, first) => ids.map((id, index) => hydrateCard(createRuntimeCard(runtimeContext, id, owner, first + index)));
+  players.player.hand = cards(TUTORIAL_PURPLE_HAND, "player", 301);
+  players.player.front = cards(TUTORIAL_PURPLE_FRONT, "player", 311);
   for (const card of players.player.front) card.summoningSick = false;
-  players.player.baseMemory = 15;
-  players.player.memory = 15;
-  players.player.user.memory = 15;
+  players.player.registry = cards(TUTORIAL_PURPLE_REGISTRY, "player", 321);
   players.player.user.color = "紫";
-  players.ai.hand = ["STD-125", "STD-131", "STD-149"].map((id) => pullCard(players.ai.deck, id));
+  players.ai.hand = cards(TUTORIAL_PURPLE_OPPONENT_HAND, "ai", 331);
 }
 
 // 青(セキュリティ・ハッキング・暗号化)。手札はルチル・漣・フラウ・セキュリティウォールの4枚、場・レジストリは空。

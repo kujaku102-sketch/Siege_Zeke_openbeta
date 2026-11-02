@@ -66,7 +66,7 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
   const isVengeanceTutorial = mode === "tutorial" && tutorialId === "vengeance";
   const isBlueTutorial = mode === "tutorial" && tutorialId === "blue";
   const selectedPlayerDeck = isVengeanceTutorial ? DECK_OPTIONS.vengeance : isBlueTutorial ? DECK_OPTIONS["tutorial-blue"] : (DECK_OPTIONS[playerDeckId] ?? DECK_OPTIONS.red);
-  const selectedAiDeck = isBlueTutorial ? DECK_OPTIONS["tutorial-sandbag"] : (DECK_OPTIONS[aiDeckId] ?? DECK_OPTIONS.yellow);
+  const selectedAiDeck = isBlueTutorial || isVengeanceTutorial ? DECK_OPTIONS["tutorial-sandbag"] : (DECK_OPTIONS[aiDeckId] ?? DECK_OPTIONS.yellow);
   const skipInitialDecks = runtimeContext !== null && (mode === "lab" || (mode === "sandbox" && !sandboxDeckSetup));
   const red = skipInitialDecks ? [] : expandRuntimeDeck(runtimeContext, playerDeckRecipe ?? selectedPlayerDeck.recipe, "player");
   const yellow = skipInitialDecks ? [] : expandRuntimeDeck(runtimeContext, aiDeckRecipe ?? selectedAiDeck.recipe, "ai");
@@ -93,7 +93,7 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
     mode,
     tutorialId,
     playerDeckId: isVengeanceTutorial ? "vengeance" : isBlueTutorial ? "tutorial-blue" : playerDeckId,
-    aiDeckId: isBlueTutorial ? "tutorial-sandbag" : aiDeckId,
+    aiDeckId: isBlueTutorial || isVengeanceTutorial ? "tutorial-sandbag" : aiDeckId,
     playerUserId,
     aiUserId,
     players,

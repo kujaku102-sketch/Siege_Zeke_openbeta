@@ -9,7 +9,8 @@ const TUTORIALS = Object.freeze({
     player: ['STD-076', 'STD-075', 'STD-090', 'STD-086'], fixedPlayerDeck: null,
     ai: ['STD-125', 'STD-131', 'STD-149', 'STD-129', 'STD-138'], fixedAiDeck: null
   }),
-  vengeance: Object.freeze({ player: [], fixedPlayerDeck: 'vengeance', ai: ['STD-125', 'STD-131', 'STD-149'], fixedAiDeck: null }),
+  // The opponent plays the Rider and Merc (both in the colourless sandbag deck).
+  vengeance: Object.freeze({ player: [], fixedPlayerDeck: 'vengeance', ai: ['STD-025', 'STD-043'], fixedAiDeck: 'tutorial-sandbag' }),
   // The player's deck holds the two Sp the script draws or accesses; the opponent plays Merc from a colourless deck.
   blue: Object.freeze({ player: ['STD-111', 'STD-116'], fixedPlayerDeck: 'tutorial-blue', ai: ['STD-043'], fixedAiDeck: 'tutorial-sandbag' })
 });
