@@ -394,7 +394,7 @@ const VENGEANCE_STEPS = [
   PURPLE_ADVANCE("紫の得意戦術は『カード位置の移動』と『仮想カードの生成』です"),
   PURPLE_ADVANCE("まず『開始』を押して、エリアを確認してください。", [{ kind: "action", action: "tutorial-advance", label: "開始" }]),
   // 2 レイヤード
-  PURPLE_ADVANCE("私が事前に並べておいた『ドールズ』が2体いますね。", [{ kind: "zone", owner: "player", zone: "front", label: "ドールズ2体" }]),
+  PURPLE_ADVANCE("私が事前に並べておいた『ドールズ』が2体いますね。", [PURPLE_CARD("STD-189", "ドールズ", "front")]),
   PURPLE_ADVANCE("指定のカードを素材(レイヤー)にして実行する必要のあるOb、▽これをレイヤードと呼びます。"),
   PURPLE_STEP("では『ドールズ・ギガンテス』を選んで、フロントに実行します。▽『ドールズ』2体を素材に選んでください。",
     [PURPLE_CARD("STD-205", "ギガンテス"), PURPLE_CARD("STD-189", "素材ドールズ", "front"), PURPLE_FRONT], { type: "layered", cardId: "STD-205", zone: "front" }),
