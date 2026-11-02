@@ -21,12 +21,12 @@ export const TUTORIAL_STEP_GUARDS = Object.freeze({
     16: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' }),
     26: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' })
   }),
-  // Purple (25 steps). 6: Gigantes is layered on both Dolls (the layered execution takes 1 or 2 materials; with one Doll left in the front the
-  // script's field is not the one it describes). 13: the turn ends with Gigantes put to sleep (the [セキュリティ] rest is asked as the turn ends):
-  // awake, the Rider would not be held to attacking it, and declining the rest is refused too.
+  // Purple (26 steps). 6: Gigantes is layered on both Dolls (the layered execution takes 1 or 2 materials; with one Doll left in the front the
+  // script's field is not the one it describes). 14: the optional [セキュリティ] rest asked as the turn ends (step 13) takes Gigantes (the step's
+  // answerChoice): awake, the Rider would not be held to attacking it. The step's expect refuses another pick and declining; this gives the reason.
   vengeance: Object.freeze({
     6: Object.freeze({ action: { materialCount: 2 }, reason: '素材は『ドールズ』2体を選んで。' }),
-    13: Object.freeze({ choose: option => option.cardId === 'STD-205', reason: 'スリープさせるのは『ギガンテス』。ギガンテスを選んで。' })
+    14: Object.freeze({ choose: option => option.cardId === 'STD-205', reason: 'スリープさせるのは『ギガンテス』。ギガンテスを選んで。' })
   })
 });
 function visibleCards(query) {
