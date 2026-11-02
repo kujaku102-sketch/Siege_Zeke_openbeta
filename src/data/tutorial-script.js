@@ -408,7 +408,10 @@ const VENGEANCE_STEPS = [
     [PURPLE_CARD("STD-194", "アクロィア"), { kind: "zone", owner: "player", zone: "back", label: "自分バック" }], { type: "play", cardId: "STD-194", zone: "back" }),
   PURPLE_ADVANCE("『アクロィア』は移動することでパワーアップと『ドールズ』の展開ができるObです。", [PURPLE_CARD("STD-194", "アクロィア", "back")]),
   PURPLE_STEP("このターンは『ギガンテス』をスリープし、攻撃に備えてターン終了しましょう！",
-    [PURPLE_END_TURN, PURPLE_CARD("STD-205", "ギガンテス", "front")], { type: "end-turn" }, { after: "vengeance-opponent" }),
+    [PURPLE_END_TURN, PURPLE_CARD("STD-205", "ギガンテス", "front")], { type: "end-turn" }, { leavesChoice: true }),
+  // 台本の1行に操作が2つ(終了ボタン、ギガンテスのスリープ)あるので、同じ行を2ステップで出す。ターン終了で開く任意の選択に、ギガンテスを選ぶ。
+  PURPLE_STEP("このターンは『ギガンテス』をスリープし、攻撃に備えてターン終了しましょう！",
+    [PURPLE_CARD("STD-205", "ギガンテス", "front")], { type: "answerChoice", cardId: "STD-205" }, { after: "vengeance-opponent" }),
   // 5 相手ターン
   PURPLE_ADVANCE("相手は『ライダー』を実行！早速攻撃してきましたね！", [PURPLE_CARD("STD-205", "ギガンテス", "front")]),
   PURPLE_ADVANCE("『装甲兵メルク』も出してきましたね。", [PURPLE_CARD("STD-043", "装甲兵 メルク", "front", "ai")]),
