@@ -9,7 +9,8 @@ import { makeUi } from "../parts/play.mjs";
 
 const { browser, flags, errors, newPage } = await openBrowser();
 const keyboardMode = flags.has("--keyboard");
-const ids = keyboardMode ? TUTORIAL_ITEMS.slice(0, 1).map((item) => item.id) : TUTORIAL_ITEMS.map((item) => item.id);
+const only = [...flags].find((flag) => flag.startsWith("--only="))?.slice(7); // --only=<tutorial id>: that tutorial alone (after a change to it)
+const ids = only ? [only] : keyboardMode ? TUTORIAL_ITEMS.slice(0, 1).map((item) => item.id) : TUTORIAL_ITEMS.map((item) => item.id);
 const report = [];
 try {
   for (const id of ids) {

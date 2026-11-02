@@ -15,7 +15,8 @@ import { makeUi } from "../parts/play.mjs";
 
 const IDS = TUTORIAL_ITEMS.map((item) => item.id);
 const boardOf = (id) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../../src/tutorial-boards/${id}.json`, import.meta.url)), "utf8"));
-const { browser, errors, newPage } = await openBrowser();
+const { browser, errors, newPage, flags } = await openBrowser();
+const only = [...flags].find((flag) => flag.startsWith("--only="))?.slice(7); // --only=<tutorial id>: the checks for that tutorial alone (after a change to it)
 const results = []; const failures = [];
 
 const done = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("sz-tutorial-done") ?? "[]"));
@@ -43,7 +44,7 @@ async function attempt(name, id, body) {
 const startFresh = async (page, id) => { await page.evaluate((tutorialId) => window.__SIMPLE_ZEKE_E2E__.start("tutorial", tutorialId, 1), id); await page.locator(".live-guide").waitFor({ state: "visible", timeout: 5000 }); };
 
 try {
-  for (const id of IDS) {
+  for (const id of only ? [only] : IDS) {
     await attempt("not-cleared", id, async (page, ui) => {
       await startFresh(page, id);
       await openMenu(ui); await ui.click('.runtime-host-options [data-live="home"]');
