@@ -9,7 +9,8 @@ try {
   const page = await newPage({ hook: false });
   await clickEntryControl(page, '[data-mode="ai"]');
   await page.locator('[data-start="ai"]').click();
-  if (!await page.locator(".r2-board").count() || !await page.locator(".r2-console").count() || !await page.locator(".r2-hand").count()) throw new Error("the match did not mount the separated board, console and hand layers");
+  // A real start draws 準備中… first and builds the match after that frame, so the layers are waited for.
+  await Promise.all([".r2-board", ".r2-console", ".r2-hand"].map((selector) => page.locator(selector).first().waitFor({ state: "attached", timeout: 10000 }))).catch(() => { throw new Error("the match did not mount the separated board, console and hand layers"); });
   await page.locator("[data-runtime-end-turn]").click();
   // The turn control counts each side's own turns: once the CPU is done it is enabled again as the player's 2nd turn.
   await page.waitForFunction(() => { const turn = document.querySelector("[data-runtime-end-turn]"); return turn?.dataset.turnSide === "mine" && turn.dataset.turn === "2" && !turn.disabled; }, null, { timeout: 15000 });
@@ -18,6 +19,7 @@ try {
   const phone = await newPage({ viewport: { width: 844, height: 390 }, touch: true, hook: false, path: "mobile/" });
   await clickEntryControl(phone, '[data-mode="ai"]');
   await phone.locator('[data-start="ai"]').click();
+  await phone.locator(".r2-hand [data-card-ref]").first().waitFor({ state: "attached", timeout: 10000 });
   await phone.locator(".r2-hand [data-card-ref]").first().click();
   const detail = await phone.locator(".r2-detail").evaluate((node) => {
     const rect = node.getBoundingClientRect();
