@@ -99,7 +99,13 @@ body[data-view] .r2-content .r2-wireframe-view .r2-tools-host { inset:0; width:1
 .r2-wireframe-view .wf-hud { position:absolute; inset:0; pointer-events:none; }
 .r2-wireframe-view .wf-hud button { pointer-events:auto; font-family:var(--wf-control-font); }
 .r2-wireframe-view .wf-hud svg { width:3.8cqh; height:3.8cqh; fill:none; stroke:currentColor; stroke-width:1.8; }
-.r2-wireframe-view .wf-gear { position:absolute; top:var(--wf-top); left:var(--wf-left); width:max(var(--wf-hit),7cqh); height:max(var(--wf-hit),7cqh); padding:.6rem; background:#30373c; border:1px solid #a3adb2; color:#e6e9e9; }
+/* The gear is one of the HUD's hexes (文豪, 2026-11-02, 「歯車ボタンは A 六角」): the log hex's green rim, dark face and
+   green glyph. The whole box takes the press; the hexagon is drawn by its two layers. */
+.r2-wireframe-view .wf-gear { position:absolute; top:var(--wf-top); left:var(--wf-left); width:max(var(--wf-hit),9cqh); height:max(calc(var(--wf-hit) * .87),7.8cqh); padding:1.5cqh; border:0; background:transparent; color:#00ff00; isolation:isolate; }
+.r2-wireframe-view .wf-gear::before,.r2-wireframe-view .wf-gear::after { content:""; position:absolute; clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); }
+.r2-wireframe-view .wf-gear::before { inset:0; background:#00ff00; z-index:-2; }
+.r2-wireframe-view .wf-gear::after { inset:.45cqh; background:linear-gradient(#0c1a0c,#030603); z-index:-1; }
+.r2-wireframe-view .wf-gear:focus-visible { outline:calc(var(--u) * .125) solid white; outline-offset:calc(var(--u) * .0625); }
 .r2-wireframe-view .wf-opp-hand { position:absolute; top:var(--wf-top); left:calc(var(--wf-left) + max(var(--wf-hit),7cqh) + 2.5cqh); display:flex; align-items:flex-end; gap:1.2cqh; pointer-events:none; }
 .r2-wireframe-view .wf-opp-hand-fan { position:relative; width:12cqh; height:8cqh; }
 .r2-wireframe-view .wf-opp-hand-fan i { position:absolute; left:calc(50% - 2.3cqh); bottom:0; width:4.6cqh; height:6.4cqh; box-sizing:border-box; border:1px solid #7f97a8; border-radius:.4cqh; background:repeating-linear-gradient(45deg,#11202c 0 .5cqh,#2a3d4b .5cqh .7cqh); box-shadow:0 0 .6cqh #0009; transform-origin:50% 140%; transform:rotate(var(--a)); }
@@ -172,7 +178,7 @@ body[data-view] .r2-content .r2-wireframe-view .wf-turn small { font:bold 4.1cqh
 body[data-view] .r2-content .r2-wireframe-view .wf-turn strong { font:9.2cqh/.95 Georgia,serif; color:white; }
 
 /* Screen-space layout. Lower bounds protect input, not the decorative shape. */
-.r2-wireframe-view .wf-gear svg { width:100%; height:100%; }
+.r2-wireframe-view .wf-gear svg { width:100%; height:100%; fill:currentColor; stroke:none; filter:drop-shadow(0 0 .4cqh #00ff0088); }
 .r2-wireframe-view .wf-self { left:var(--wf-left); bottom:var(--wf-bottom); }
 .r2-wireframe-view .wf-enemy { right:var(--wf-right); top:var(--wf-top); }
 .r2-wireframe-view .wf-status { width:max(9rem,33cqh); height:max(3.5rem,15.4cqh); }

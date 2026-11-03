@@ -160,6 +160,11 @@ export function actionBlock(model, cardRef, type) {
 }
 export const blockMessage = block => BLOCK_MESSAGES[block?.code] ?? '今は使えません';
 
+// The tutorial step asks the player to try this card's play (its play button in the step's focus): the popup's button
+// and a drop of the card on the board both say why it cannot work and move the step on.
+export const tutorialTriesPlay = (tutorial, card) => !tutorial?.flow?.complete
+  && (tutorial?.presentation?.focus ?? []).some(focus => focus.kind === 'button' && focus.button === 'play' && focus.cardId === card?.definition?.id);
+
 function operationsHtml(model, presentation) {
   // While a draft or required choice is open, its dialog is the only place to confirm.
   if (presentation.plan || presentation.request || model.requiredInput) return '';
@@ -171,8 +176,7 @@ function operationsHtml(model, presentation) {
   const routes = inHand ? handRoutes(card.definition.category) : [];
   // A tutorial step that asks the player to try a play that cannot work keeps that button pressable:
   // pressing it says why (surface-clicks.js, data-tutorial-try) and moves the tutorial on.
-  const tryFocus = (presentation.tutorial?.flow?.complete ? [] : presentation.tutorial?.presentation?.focus ?? [])
-    .some(focus => focus.kind === 'button' && focus.button === 'play' && focus.cardId === card.definition?.id);
+  const tryFocus = tutorialTriesPlay(presentation.tutorial, card);
   const fixed = routes.map(type => {
     const action = actions.find(item => actionTypeOf(item) === type);
     const block = action ? null : actionBlock(model, card.cardRef, type);

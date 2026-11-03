@@ -7,7 +7,8 @@ const ghostAt = (ghost, event) => {
 
 // Hand drag for a mounted match. The surface decides when a press becomes a drag;
 // this module owns the ghost, the hover mark, the drop and its rejection.
-export function createHandDrag({ root, ui, act, latest, schedule }) {
+// triesPlay(card): a tutorial step asks to try this card's play; onReject(block, cardRef): a drop was refused with block.
+export function createHandDrag({ root, ui, act, latest, schedule, triesPlay = () => false, onReject = () => {} }) {
   let drag = null;
   let flyOrigin = null;
   // Hand drag: the drop point picks the action. Each candidate is planned (a query,
@@ -53,13 +54,18 @@ export function createHandDrag({ root, ui, act, latest, schedule }) {
     const spell = actions.filter(action => actionTypeOf(action) === 'executeSpell');
     if (spell.length === 1) { act(ui.chooseAction(spell[0].actionId)); return null; }
     const playable = actions.some(action => action.kind !== 'fixed');
-    return playable ? MISPLACED
-      : actionBlock(model, cardRef, card.definition.category === 'Sp' ? 'executeSpell' : 'executeCard') ?? {};
+    const execute = card.definition.category === 'Sp' ? 'executeSpell' : 'executeCard';
+    // A tutorial step asking to try this card's play: the drop says why it cannot be played, not where it cannot go
+    // (文豪, 2026-11-02, the red symbol step).
+    const tried = triesPlay(card) ? actionBlock(model, cardRef, execute) : null;
+    if (tried?.code) return tried;
+    return playable ? MISPLACED : actionBlock(model, cardRef, execute) ?? {};
   };
   const MISPLACED = { message: 'そこには置けません' };
   let rejectDialog = null;
-  const reject = (ghost, block) => {
+  const reject = (ghost, block, cardRef) => {
     const reason = block.message ?? blockMessage(block);
+    onReject(block, cardRef);
     // A missing symbol points at its own lamp above the registry.
     if (block.code === 'SYMBOL_MISSING') for (const lamp of root.querySelectorAll(`[data-symbol-seat="${CSS.escape(latest()?.model.match.viewerSeat ?? '')}"] [data-symbol="${CSS.escape(block.symbol ?? '')}"]`)) {
       lamp.classList.remove('blink'); void lamp.getBoundingClientRect(); lamp.classList.add('blink');
@@ -89,7 +95,7 @@ export function createHandDrag({ root, ui, act, latest, schedule }) {
     flyOrigin = drop && rect ? { cardRef, rect } : null;
     let reason;
     try { reason = drop ? dropOn(cardRef, drop) : null; } finally { flyOrigin = null; }
-    if (reason) reject(ghost, reason); else ghost.remove();
+    if (reason) reject(ghost, reason, cardRef); else ghost.remove();
   };
   return Object.freeze({
     owns: pointerId => Boolean(drag) && pointerId === drag.pointerId,
