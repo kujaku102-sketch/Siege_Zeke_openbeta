@@ -25,7 +25,7 @@ body { overflow:hidden; }
   /* One width for the button column on every page ([戻る] + [次へ]), so the text column, and the pages cut to
      it, stay the same while the pages turn. */
   --guide-nav-width:10em;
-  position:fixed; left:max(var(--guide-left,1dvh),env(safe-area-inset-left,0px)); right:max(var(--guide-left,1dvh),env(safe-area-inset-right,0px)); bottom:auto;
+  position:fixed; left:max(var(--guide-left,1dvh),env(safe-area-inset-left,0px)); right:max(var(--guide-right,1dvh),env(safe-area-inset-right,0px)); bottom:auto;
   top:var(--guide-top,1dvh); width:auto; height:var(--guide-height,31.333dvh); max-height:none;
   display:grid; grid-template-columns:var(--guide-portrait-width,0px) minmax(0,1fr); grid-template-rows:minmax(0,1fr); gap:0;
   padding:0; border:0; border-radius:0; background:none; box-shadow:none; overflow:visible; z-index:calc(var(--z-modal) + 1); pointer-events:none;

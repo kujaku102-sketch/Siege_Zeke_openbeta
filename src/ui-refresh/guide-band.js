@@ -1,5 +1,6 @@
 // Where the tutorial guide sits (文豪, 2026-10-27): the screen is cut into three horizontal bands and the guide
-// takes one of them edge to edge, never anywhere in between, so it does not wander from step to step. The guide is
+// takes one of them from the left edge to the HUD column at the right (TURN, the memory: 文豪, 2026-11-04, 1b), never
+// anywhere in between, so it does not wander from step to step. The guide is
 // a group: the speech frame across the screen, and the portrait at its left standing on the frame's bottom edge
 // (their bottoms line up), taller than the frame, so it reaches up only. A band whose group would cover what the
 // step points at is skipped, in GUIDE_BAND_ORDER, and then one covering what is kept in sight (the opponent's
@@ -31,21 +32,26 @@ const rect = (left, top, width, height) => ({ left, top, right: left + width, bo
 // Middle band: the group centred on the screen. The group never leaves the screen.
 // aspect: the portrait art's width over its height. grow: how much taller this page needs the frame (px); the
 // portrait keeps its size and stands on the grown frame's bottom edge.
-export function guideLayout(band, viewport, aspect = 1, grow = 0) {
+// reserve: the share of the screen's width kept free at its right edge, the HUD column (TURN, the memory): the frame
+// ends an inset before it (文豪, 2026-11-04, 1b; this replaces 2026-10-27's edge to edge). fit: the frame's height cut
+// to its line (px, a step no band keeps clear of; 文豪, 2026-11-04, (i)), never taller than the band's own frame.
+export function guideLayout(band, viewport, aspect = 1, grow = 0, { reserve = 0, fit = null } = {}) {
   const inset = viewport.height * GUIDE_INSET_RATIO;
   const baseHeight = guideBandHeight(viewport) - 2 * inset;
-  const frameHeight = Math.min(baseHeight + Math.max(0, grow), viewport.height * GUIDE_FRAME_MAX_RATIO);
+  const fullHeight = Math.min(baseHeight + Math.max(0, grow), viewport.height * GUIDE_FRAME_MAX_RATIO);
+  const frameHeight = fit > 0 ? Math.min(fullHeight, fit) : fullHeight;
+  const right = viewport.width * (1 - Math.max(0, reserve)) - inset;
   const portraitHeight = Math.min(baseHeight * GUIDE_PORTRAIT_SCALE, viewport.height - 2 * inset);
   const portraitWidth = portraitHeight * aspect, groupHeight = Math.max(portraitHeight, frameHeight);
   const groupTop = { top: inset, middle: (viewport.height - groupHeight) / 2, bottom: viewport.height - inset - groupHeight }[band] ?? inset;
   const groupBottom = groupTop + groupHeight;
   return {
     band, inset,
-    group: rect(inset, groupTop, viewport.width - 2 * inset, groupHeight),
+    group: rect(inset, groupTop, right - inset, groupHeight),
     portrait: rect(inset, groupBottom - portraitHeight, portraitWidth, portraitHeight),
-    frame: rect(inset + portraitWidth, groupBottom - frameHeight, Math.max(0, viewport.width - 2 * inset - portraitWidth), frameHeight),
-    // The guide box: the frame's band across the whole width (the portrait column on its left).
-    box: rect(inset, groupBottom - frameHeight, viewport.width - 2 * inset, frameHeight)
+    frame: rect(inset + portraitWidth, groupBottom - frameHeight, Math.max(0, right - inset - portraitWidth), frameHeight),
+    // The guide box: the frame's band from the left inset to the HUD column (the portrait column on its left).
+    box: rect(inset, groupBottom - frameHeight, right - inset, frameHeight)
   };
 }
 
@@ -58,18 +64,29 @@ const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.le
 // opponent's board, TURN, the memory): between bands that cover the targets alike, the one covering least of it
 // wins (ties keep the order).
 // grow: the frame as its tallest page in the step needs it (the band is kept while the pages turn). portrait: false
-// while the portrait is hidden (an open panel lies under it): then the frame alone covers.
-export function chooseGuideBand(viewport, targets = [], preferred = null, { aspect = 1, grow = 0, keep = [], portrait: drawn = true } = {}) {
-  if (GUIDE_BAND_ORDER.includes(preferred)) return preferred;
+// while the portrait is hidden (an open panel lies under it): then the frame alone covers. reserve: as guideLayout.
+// fit: the height the step's tallest line needs (px). When every band covers a target, the frame is cut to it and the
+// bands are weighed again (文豪, 2026-11-04, (i)): { band, fit } says whether it was.
+export function chooseGuidePlacement(viewport, targets = [], preferred = null, { aspect = 1, grow = 0, keep = [], portrait: drawn = true, reserve = 0, fit = null } = {}) {
+  if (GUIDE_BAND_ORDER.includes(preferred)) return { band: preferred, fit: false };
   const visible = rects => rects.filter(t => t && t.right > t.left && t.bottom > t.top);
   const shown = visible(targets), kept = visible(keep);
-  let best = null;
-  for (const band of GUIDE_BAND_ORDER) {
-    const { portrait, frame } = guideLayout(band, viewport, aspect, grow);
-    const area = rects => rects.reduce((sum, target) => sum + (drawn ? overlap(portrait, target) : 0) + overlap(frame, target), 0);
-    const covered = area(shown), hidden = area(kept);
-    // Less than a square pixel apart is a tie (the bands' sums differ only by rounding).
-    if (!best || covered < best.covered - 1 || covered <= best.covered + 1 && hidden < best.hidden - 1) best = { band, covered, hidden };
-  }
-  return best.band;
+  const weigh = cut => {
+    let best = null;
+    for (const band of GUIDE_BAND_ORDER) {
+      const { portrait, frame } = guideLayout(band, viewport, aspect, grow, { reserve, fit: cut });
+      const area = rects => rects.reduce((sum, target) => sum + (drawn ? overlap(portrait, target) : 0) + overlap(frame, target), 0);
+      const covered = area(shown), hidden = area(kept);
+      // Less than a square pixel apart is a tie (the bands' sums differ only by rounding).
+      if (!best || covered < best.covered - 1 || covered <= best.covered + 1 && hidden < best.hidden - 1) best = { band, covered, hidden };
+    }
+    return best;
+  };
+  const full = weigh(null);
+  if (full.covered <= 1 || !(fit > 0)) return { band: full.band, fit: false };
+  return { band: weigh(fit).band, fit: true };
+}
+
+export function chooseGuideBand(viewport, targets = [], preferred = null, options = {}) {
+  return chooseGuidePlacement(viewport, targets, preferred, options).band;
 }

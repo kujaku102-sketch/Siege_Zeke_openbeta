@@ -1,6 +1,6 @@
 import { fitBoard, placePopup } from './model.js';
 import { applyGuideBand, GUIDE_PORTRAIT_ASPECT } from './guide.js';
-import { chooseGuideBand } from './guide-band.js';
+import { chooseGuidePlacement } from './guide-band.js';
 import { placeFlow } from './effect-flow.js';
 import { screenUnit } from './screen-unit.js';
 
@@ -119,9 +119,15 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       // A page too long for a third of the screen grows the frame (文豪, 2026-10-28): the band keeps clear with the
       // step's tallest page, and the page shown gets its own height.
       const grow = guideGrow();
-      const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}|${portrait}`;
-      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step, keep, portrait }) };
-      applyGuideBand(view, guideBand.band, viewport, grow.page);
+      // The frame ends before the HUD column at the right, TURN and the memory, as the share of the screen's width it
+      // takes on this screen (文豪, 2026-11-04, 1b); a HUD not standing at the right edge keeps nothing free.
+      const hud = shown([...root.querySelectorAll('[data-runtime-end-turn],.wf-memory')]);
+      const hudLeft = hud.length && Math.max(...hud.map(rect => rect.right)) >= viewport.width * .9 ? Math.min(...hud.map(rect => rect.left)) : viewport.width;
+      const reserve = Math.round(Math.max(0, viewport.width - hudLeft) / viewport.width * 1000) / 1000;
+      // A step no band keeps clear of cuts the frame to its line, and is weighed again (文豪, 2026-11-04, (i)).
+      const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}|${portrait}|${reserve}|${Math.round(grow.fit ?? 0)}`;
+      if (guideBand.key !== key) guideBand = { key, ...chooseGuidePlacement(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step, keep, portrait, reserve, fit: grow.fit }) };
+      applyGuideBand(view, guideBand.band, viewport, grow.page, { reserve, fit: guideBand.fit ? grow.fit : null });
       paginateGuide(guide);
     }
     // A floating effect flow keeps clear of the pick's targets and its prompt, and of the guide where it now stands.

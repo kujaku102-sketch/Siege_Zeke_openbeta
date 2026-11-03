@@ -207,14 +207,18 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       const key = `${presentation.text}\u0000${counter.width}\u0000${viewport.height}\u0000${fontEpoch}`;
       if (guidePaging.key === key) return;
       const base = guideLayout('bottom', viewport).frame.height;
-      guidePaging = { key, pages: splitGuidePages(presentation.text).map(page => ({ ...page, grow: Math.max(0, counter.frameHeight(page.text) - base) })) };
+      guidePaging = { key, lineHeight: counter.lineHeight, pages: splitGuidePages(presentation.text).map(page => { const need = counter.frameHeight(page.text); return { ...page, need, grow: Math.max(0, need - base) }; }) };
       schedule(() => { if (!disposed) render(ui.read()); }, 0);
     } finally { counter.dispose(); }
   };
   // How much the frame grows (px): for the page shown, and for the step's tallest page (the band is chosen for it).
+  // fit: the height the step's tallest page needs, for a frame cut to its line (null until the pages are counted); its
+  // spare line for a refused move's reason only while a reason is shown.
   const guideGrow = () => {
     const pages = guidePageShown && !guidePageShown.pending ? guidePaging.pages : null;
-    return pages ? { page: pages[guidePageShown.index]?.grow ?? 0, step: Math.max(0, ...pages.map(page => page.grow ?? 0)) } : { page: 0, step: 0 };
+    if (!pages) return { page: 0, step: 0, fit: null };
+    const tutorial = session.tutorial(), spare = tutorial.ok && tutorial.value.flow.error ? 0 : guidePaging.lineHeight ?? 0;
+    return { page: pages[guidePageShown.index]?.grow ?? 0, step: Math.max(0, ...pages.map(page => page.grow ?? 0)), fit: Math.max(0, ...pages.map(page => (page.need ?? 0) - spare)) || null };
   };
   const turnGuidePage = delta => {
     const shown = guidePageShown;

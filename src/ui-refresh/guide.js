@@ -7,11 +7,14 @@ export const GUIDE_PORTRAIT_ASPECT = 540 / 640;
 
 // The group's geometry goes on the match view, not on the guide: a guide redrawn for its next page keeps it.
 // Every value is a ratio of the screen (guideLayout), written as px for this screen; grow is the page's own.
-export function applyGuideBand(view, band, viewport, grow = 0) {
-  const { frame, portrait, box } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT, grow);
+// options: guideLayout's reserve (the HUD column kept free) and fit (the frame cut to its line).
+export function applyGuideBand(view, band, viewport, grow = 0, options = {}) {
+  const { frame, portrait, box } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT, grow, options);
   view.dataset.guideBand = band;
+  view.dataset.guideFit = options.fit > 0 ? "line" : "band";
   view.style.setProperty("--guide-top", `${box.top}px`);
   view.style.setProperty("--guide-left", `${box.left}px`);
+  view.style.setProperty("--guide-right", `${viewport.width - box.right}px`);
   view.style.setProperty("--guide-height", `${frame.height}px`);
   view.style.setProperty("--guide-portrait-width", `${portrait.width}px`);
   view.style.setProperty("--guide-portrait-height", `${portrait.height}px`);
