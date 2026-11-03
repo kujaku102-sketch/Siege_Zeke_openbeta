@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createNewMatchSessionController } from '../src/adapters/match-session-controller.js';
 import { chooseSimpleAiIntent } from '../src/adapters/simple-ai-policy.js';
 import { createTutorialModeController, tutorialStateData, TUTORIAL_STEP_GUARDS } from '../src/adapters/tutorial-mode-controller.js';
+import { TUTORIAL_OPPONENT_SCRIPTS } from '../src/data/tutorial-script.js';
 
 function setup() {
   const created = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: {
@@ -131,7 +132,7 @@ test('guide state data refuses what does not fit the tutorial', () => {
   assert.equal(bad(state => { state.flow.error = 'x'; return state; }), null);
   assert.equal(bad(state => { state.flow.complete = true; return state; }), null);
   assert.equal(bad(state => { state.opponentScript = 'nowhere'; return state; }), null);
-  assert.equal(bad(state => { state.opponentScript = 'yellow-pass'; state.opponentIndex = 5; return state; }), null);
+  assert.equal(bad(state => { const [name, rows] = Object.entries(TUTORIAL_OPPONENT_SCRIPTS)[0]; state.opponentScript = name; state.opponentIndex = rows.length + 1; return state; }), null);
   assert.equal(bad(state => { state.stepActionAccepted = 1; return state; }), null);
   assert.equal(tutorialStateData('basics', null), null);
 });

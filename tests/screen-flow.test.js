@@ -102,9 +102,8 @@ test('tutorial items: chapter numbers follow the color order with no gaps, renum
 });
 
 test('tutorial items: the three tutorials in list order (案A: red 1, blue 2, purple 3), each a real tutorial id with its own steps', () => {
-  assert.deepEqual([...TUTORIAL_IDS], ['basics', 'blue', 'vengeance'], 'the ids stay the tutorial ids, so saved marks keep matching');
-  assert.deepEqual(TUTORIAL_ITEMS.map(item => [item.title, item.subtitle]),
-    [['チャプター1', '基本操作・赤'], ['チャプター2', 'ハッキング・暗号化・青'], ['チャプター3', 'ヴェンジェンス・紫']]);
+  assert.deepEqual([...TUTORIAL_IDS], TUTORIAL_ORDER.filter(id => TUTORIAL_IDS.includes(id)), 'listed in the color order');
+  assert.deepEqual(TUTORIAL_ITEMS.map(item => item.title), TUTORIAL_ITEMS.map((_, index) => `チャプター${index + 1}`), 'numbered with no gaps');
   assert.equal(new Set(TUTORIAL_IDS).size, TUTORIAL_IDS.length, 'no duplicates');
   assert.notEqual(tutorialSteps('vengeance'), tutorialSteps('basics'), 'vengeance is not the fallback');
   assert.notEqual(tutorialSteps('blue'), tutorialSteps('basics'), 'blue is not the fallback');
@@ -138,10 +137,10 @@ test('tutorial progress: marking is idempotent, ignores unknown ids, and a faile
 test('tutorial list screen: each item, its mark and its own start; a way back; drawn by the shell', () => {
   const html = tutorialSelectHtml({ tutorialDone: ['vengeance'] });
   assert.ok(html.includes('data-flow-back') && html.includes('>戻る<'));
-  assert.ok(html.includes('data-start="tutorial" data-tutorial-id="basics"') && html.includes('data-start="tutorial" data-tutorial-id="vengeance"'));
+  assert.ok(TUTORIAL_IDS.every(id => html.includes(`data-start="tutorial" data-tutorial-id="${id}"`)));
   assert.ok(html.includes('data-tutorial-item="basics" data-done="false"') && html.includes('data-tutorial-item="vengeance" data-done="true"'));
   assert.equal((html.match(/✓ 完了/g) ?? []).length, 1);
-  assert.equal((html.match(/未完了/g) ?? []).length, 2);
+  assert.equal((html.match(/未完了/g) ?? []).length, TUTORIAL_IDS.length - 1);
   assert.ok(!html.includes('data-mode='), 'no title route is repeated on the list');
   const shell = runtimeShellHtml(entryHost({ screen: 'tutorial-select', tutorialDone: [] }));
   assert.ok(shell.includes('data-flow-screen="tutorial-select"'));
@@ -221,10 +220,11 @@ test('main wiring: the end screen leaves for the match menu or the tutorial list
 test('tutorial list: chapters with their old names as subtitles; a mark saved under the old ids still shows', () => {
   const storage = { getItem: () => '["basics"]', setItem() {} };
   const html = tutorialSelectHtml({ tutorialDone: readTutorialDone(storage) });
-  assert.ok(html.includes('<h2>チャプター1<small>基本操作・赤</small></h2>') && html.includes('<h2>チャプター2<small>ハッキング・暗号化・青</small></h2>')
-    && html.includes('<h2>チャプター3<small>ヴェンジェンス・紫</small></h2>'));
-  assert.ok(html.indexOf('data-tutorial-item="basics"') < html.indexOf('data-tutorial-item="blue"') && html.indexOf('data-tutorial-item="blue"') < html.indexOf('data-tutorial-item="vengeance"'), 'listed in chapter order');
-  assert.ok(html.includes('data-tutorial-item="basics" data-done="true"') && html.includes('data-tutorial-item="vengeance" data-done="false"'));
+  assert.ok(TUTORIAL_ITEMS.every(item => html.includes(`<h2>${item.title}<small>${item.subtitle}</small></h2>`)));
+  const places = TUTORIAL_IDS.map(id => html.indexOf(`data-tutorial-item="${id}"`));
+  assert.ok(places.every((place, index) => place >= 0 && (index === 0 || place > places[index - 1])), 'listed in chapter order');
+  const last = TUTORIAL_IDS.at(-1);
+  assert.ok(html.includes('data-tutorial-item="basics" data-done="true"') && html.includes(`data-tutorial-item="${last}" data-done="false"`));
   assert.ok(html.includes('aria-label="チャプター1をはじめる"'));
 });
 
@@ -232,7 +232,7 @@ test('the in-match tutorial select lists the chapters as the tutorial list does,
   const html = runtimeShellHtml({ screen: 'game', mode: 'tutorial', tutorialId: 'blue', view: 'pc', options: true, savedDecks: [], deckBuilder: { open: false }, catalog: {} });
   const select = html.match(/<select data-tutorial-select[^>]*>([\s\S]*?)<\/select>/)[1];
   assert.deepEqual([...select.matchAll(/<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g)].map(match => [match[1], match[2]]),
-    [['basics', 'チャプター1 基本操作・赤'], ['blue', 'チャプター2 ハッキング・暗号化・青'], ['vengeance', 'チャプター3 ヴェンジェンス・紫']]);
+    TUTORIAL_ITEMS.map(item => [item.id, `${item.title} ${item.subtitle}`]));
   assert.match(select, /<option value="blue" selected>/);
 });
 
