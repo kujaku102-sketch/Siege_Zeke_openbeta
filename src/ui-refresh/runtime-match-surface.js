@@ -69,7 +69,12 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   // guide moves past it (a refused move can be retried; a passed step leaves no stale reason behind).
   let noticeStep = null;
   const tutorialIndex = () => { const tutorial = session.tutorial(); return tutorial.ok ? tutorial.value.flow.index : null; };
-  const reportError = code => { noticeStep = tutorialIndex(); onError(code); };
+  const reportError = code => { noticeStep = tutorialIndex(); matchNotice = noticeStep === null; onError(code); };
+  // A match's notice goes once the player's next move goes through (文豪, 2026-11-03, M6; main.js clears it after 3 s too).
+  let matchNotice = false;
+  // A move the tutorial refused with a reason of its own: the guide says why, so no notice says it again
+  // (文豪, 2026-11-03, D2/D4).
+  const guideSaysWhy = code => { const tutorial = session.tutorial(); return String(code).startsWith('TUTORIAL_') && tutorial.ok && Boolean(tutorial.value.flow.error); };
   // The card a refused move was made with (the plan's, else the one picked) shakes where it stands, in the hand or on
   // the board, as a refused drop's ghost does; a code the player is not told about moves nothing.
   const shakeRefused = code => {
@@ -113,7 +118,9 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     if (guideAway && guideAway.step !== pageStep(tutorial.value.flow)) guideAway = null;
     const away = guideAway?.reason === guideReason(tutorial.value) ? { away: true } : {};
     const ended = tutorialEnded && tutorial.value.flow.complete ? { ended: true } : {};
-    return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}), ...away, ...ended } };
+    // While the opponent's script plays, the next step's line waits until it is done (文豪, 2026-11-03, X1).
+    const waiting = tutorial.value.opponentScript && !tutorial.value.flow.complete ? { waiting: true } : {};
+    return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}), ...away, ...ended, ...waiting } };
   };
   const tapGuide = () => {
     const tutorial = session.tutorial();
@@ -161,7 +168,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   let guideDetail = null;
   const showBadge = () => {
     if (disposed || !latest) return;
-    const tutorial = session.tutorial(), presentation = tutorial.ok && !tutorial.value.flow.complete ? tutorial.value.presentation : null;
+    const tutorial = session.tutorial(), presentation = tutorial.ok && !tutorial.value.flow.complete && !tutorial.value.opponentScript ? tutorial.value.presentation : null;
     const step = tutorial.ok ? pageStep(tutorial.value.flow) : null;
     if (guideDetail && guideDetail.step !== step) {
       const open = latest.model.ui.detailCardRef === guideDetail.cardRef;
@@ -222,7 +229,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     if (disposed) return;
     // A move the tutorial refused is redrawn as it stands, so the guide shows why. The guide comes back on every
     // refusal, also when the reason is the one it gave before, and the match waits again.
-    if (!result.ok) { shakeRefused(result.error.code); reportError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { guideAway = null; const read = ui.read(); if (read.ok) render(read); } return; }
+    if (!result.ok) { shakeRefused(result.error.code); if (!guideSaysWhy(result.error.code)) reportError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { guideAway = null; const read = ui.read(); if (read.ok) render(read); } return; }
     const next = result.value;
     const tutorial = tutorialView();
     const presentation = { ...next, view, effectsEnabled, boardStyle, tutorial:tutorial.ok ? tutorial.value : null };
@@ -281,7 +288,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       syncInteractionClasses(root, next);
       // With the guide put away on a step that wants a move, the move stays written on the board (文豪, 2026-10-29);
       // it goes when the step moves on or the guide comes back.
-      syncTutorialHint(root.querySelector('.wire-board'), tutorial.ok && tutorial.value.away ? currentTutorialHint(tutorial.value.flow, TUTORIAL_STEP_GUARDS) : '');
+      // A pick on the board says what to pick itself; the move's line waits until it is answered (文豪, 2026-11-03, D5).
+      syncTutorialHint(root.querySelector('.wire-board'), tutorial.ok && tutorial.value.away && !root.querySelector('.board-pick-guide') ? currentTutorialHint(tutorial.value.flow, TUTORIAL_STEP_GUARDS) : '');
       if (tutorial.ok) { schedule(watchPress, 0); schedule(showBadge, 0); }
       decorate(() => scenes.sync(next, effectsEnabled, shellRebuilt || runtimeChanged));
       if (geometryDirty) queueLayout();
@@ -298,6 +306,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     }
     selectionPeek.hideIfDetached();
     if (noticeStep !== null && tutorial.ok && tutorial.value.flow.index > noticeStep) { noticeStep = null; onNoticeClear(); }
+    if (matchNotice && next.events.some(event => event.type === 'action_committed' && event.actorSeat === next.model.match.viewerSeat)) { matchNotice = false; onNoticeClear(); }
     if (latest.eventReadError) onError(latest.eventReadError);
   };
   // A step that is already decided needs no confirm: a single pick (board or list,
@@ -329,16 +338,18 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   });
   // 文豪 (2026-11-02, #4): the play a step asks to try (the red symbol step), dropped on the board instead of pressed in its
   // popup, moves the step on once, the reason in the guide, as the popup's button does (surface-clicks.js, data-tutorial-try).
+  // The guide says why, so the board's dialog does not (文豪, 2026-11-03, D1): true tells the drag it was answered.
   const triesPlay = card => { const tutorial = session.tutorial(); return tutorial.ok && tutorialTriesPlay(tutorial.value, card); };
   const onDropRefused = (block, cardRef) => {
     const card = latest && handCard(latest.model, cardRef);
-    if (!block.code || !card || !triesPlay(card)) return;
+    if (!block.code || !card || !triesPlay(card)) return false;
     const next = session.advanceTutorial();
-    if (!next.ok) return reportError(next.error.code);
+    if (!next.ok) { reportError(next.error.code); return false; }
     noteTutorial(blockMessage(block));
     act(ui.read());
+    return true;
   };
-  const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule, triesPlay, onReject: onDropRefused });
+  const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule, onReject: onDropRefused });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,
     onTitle, onTutorialSkip, onToMenu, onSaveLog, endTutorial, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide, tapAnywhere };
   listener('click', event => {

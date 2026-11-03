@@ -300,6 +300,8 @@ const POSE = {
   pressed: { z: -.12, scale: .93, tilt: .25, shade: .72 },
   disabled: { z: 0, scale: 1, tilt: 1, shade: 1 },
 };
+// A turn of mine that cannot end just now: the same Finish face, dimmed (文豪, 2026-11-03, M5).
+const TURN_DIM = .5;
 
 // `onUsable(false|true)` reports a lost / restored context so the CSS buttons can take over.
 export function createHudScene(canvas, quality = DEFAULT_RENDER_QUALITY, { onUsable = () => {} } = {}) {
@@ -440,7 +442,8 @@ export function createHudScene(canvas, quality = DEFAULT_RENDER_QUALITY, { onUsa
         entry.group.rotation.set(-.14 * still.tilt + wobble[0] * .5, -.26 * still.tilt + wobble[1] * .5, .02);
         entry.body.material.uniforms.uColor.value.set(TURN_LOOKS[side].body);
         entry.face.material.uniforms.uMap.value = turnTextureFor(button);
-        for (const m of [entry.body.material, entry.face.material]) { m.uniforms.uSnap.value.set(low[0] / 2, low[1] / 2); m.uniforms.uShade.value = still.shade * (m === entry.body.material ? .95 : 1); }
+        const dim = state === 'disabled' && side === 'mine' ? TURN_DIM : 1;
+        for (const m of [entry.body.material, entry.face.material]) { m.uniforms.uSnap.value.set(low[0] / 2, low[1] / 2); m.uniforms.uShade.value = still.shade * dim * (m === entry.body.material ? .95 : 1); }
         return;
       }
       entry.group.rotation.set(-.2 * pose.tilt + wobble[0], (cx < 0 ? .26 : -.22) * pose.tilt + wobble[1], 0);

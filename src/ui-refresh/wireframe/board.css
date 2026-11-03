@@ -159,6 +159,9 @@ body[data-view] .r2-content .r2-wireframe-view .wf-unique .unique-effect-name { 
 .r2-wireframe-view .wf-turn .wf-turn-label { font:4.7cqh/1 Georgia,serif; color:white; }
 .r2-wireframe-view .wf-turn:disabled .wf-turn-label { font:2.8cqh/1.5 serif; }
 .r2-wireframe-view .wf-turn:disabled { opacity:1; cursor:default; }
+/* A turn of mine that cannot end just now: the same Finish face, dimmed (文豪, 2026-11-03, M5). */
+.r2-wireframe-view .wf-turn:disabled[data-turn-label="Finish"] .wf-turn-label { font:4.7cqh/1 Georgia,serif; }
+.r2-wireframe-view .wf-turn:disabled[data-turn-side="mine"][data-turn-label="Finish"] { filter:brightness(.5); }
 .r2-wireframe-view .wf-turn:active:not(:disabled) { transform:translateY(.5cqh); }
 .r2-wireframe-view .wf-turn:focus-visible { outline:calc(var(--u) * .125) solid white; outline-offset:calc(var(--u) * .125); filter:brightness(1.2); }
 .r2-wireframe-view .wf-memory { position:absolute; left:4.2cqh; right:0; top:29cqh; height:5.4cqh; border:1px solid #eee; border-radius:1.5cqh; background:#171717; color:#00ff00; box-shadow:inset 0 1.9cqh #303030; }

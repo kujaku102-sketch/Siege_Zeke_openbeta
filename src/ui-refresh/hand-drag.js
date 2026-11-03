@@ -7,8 +7,9 @@ const ghostAt = (ghost, event) => {
 
 // Hand drag for a mounted match. The surface decides when a press becomes a drag;
 // this module owns the ghost, the hover mark, the drop and its rejection.
-// triesPlay(card): a tutorial step asks to try this card's play; onReject(block, cardRef): a drop was refused with block.
-export function createHandDrag({ root, ui, act, latest, schedule, triesPlay = () => false, onReject = () => {} }) {
+// onReject(block, cardRef): a drop was refused with block, true when it was answered elsewhere (the tutorial guide
+// says why), and then no dialog says it again.
+export function createHandDrag({ root, ui, act, latest, schedule, onReject = () => false }) {
   let drag = null;
   let flyOrigin = null;
   // Hand drag: the drop point picks the action. Each candidate is planned (a query,
@@ -55,17 +56,17 @@ export function createHandDrag({ root, ui, act, latest, schedule, triesPlay = ()
     if (spell.length === 1) { act(ui.chooseAction(spell[0].actionId)); return null; }
     const playable = actions.some(action => action.kind !== 'fixed');
     const execute = card.definition.category === 'Sp' ? 'executeSpell' : 'executeCard';
-    // A tutorial step asking to try this card's play: the drop says why it cannot be played, not where it cannot go
-    // (文豪, 2026-11-02, the red symbol step).
-    const tried = triesPlay(card) ? actionBlock(model, cardRef, execute) : null;
-    if (tried?.code) return tried;
-    return playable ? MISPLACED : actionBlock(model, cardRef, execute) ?? {};
+    // A card whose play is blocked says why it cannot be played, not where it cannot go, in a tutorial step and a
+    // match alike (文豪, 2026-11-02, the red symbol step; 2026-11-03, M2).
+    const blocked = actionBlock(model, cardRef, execute);
+    if (blocked?.code) return blocked;
+    return playable ? MISPLACED : blocked ?? {};
   };
   const MISPLACED = { message: 'そこには置けません' };
   let rejectDialog = null;
   const reject = (ghost, block, cardRef) => {
     const reason = block.message ?? blockMessage(block);
-    onReject(block, cardRef);
+    const answered = onReject(block, cardRef);
     // A missing symbol points at its own lamp above the registry.
     if (block.code === 'SYMBOL_MISSING') for (const lamp of root.querySelectorAll(`[data-symbol-seat="${CSS.escape(latest()?.model.match.viewerSeat ?? '')}"] [data-symbol="${CSS.escape(block.symbol ?? '')}"]`)) {
       lamp.classList.remove('blink'); void lamp.getBoundingClientRect(); lamp.classList.add('blink');
@@ -75,6 +76,7 @@ export function createHandDrag({ root, ui, act, latest, schedule, triesPlay = ()
     ghost.classList.add('rejected');
     schedule(() => ghost.remove(), 420);
     rejectDialog?.remove();
+    if (answered) return;
     const dialog = root.ownerDocument.createElement('div');
     dialog.className = 'drop-reject-dialog';
     dialog.setAttribute('role', 'alertdialog');

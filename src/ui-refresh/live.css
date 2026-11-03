@@ -35,6 +35,12 @@ body { overflow:hidden; }
    pressable. */
 .r2-content .r2-guide.live-guide .live-guide-cast :is(img,.live-guide-noportrait) { position:absolute; left:0; bottom:0; width:var(--guide-portrait-width); height:var(--guide-portrait-height);
   object-fit:contain; object-position:center bottom; mask-image:none; border:0; background:transparent; pointer-events:none; z-index:2; }
+/* While a card detail is open the portrait steps out: the detail stands where it would (文豪, 2026-11-03, H4). */
+.r2-runtime-view:has(.r2-detail) .r2-guide.live-guide .live-guide-cast :is(img,.live-guide-noportrait) { visibility:hidden; }
+/* While the guide speaks the activation stack keeps out of its group (文豪, 2026-11-03, H2): under it in the top band,
+   right of the portrait in the middle one; the bottom band leaves the top left free. */
+.r2-runtime-view[data-guide-band="top"]:has(.live-guide) .r2-activation { top:calc(var(--guide-top) + var(--guide-height) + 1.6cqh); }
+.r2-runtime-view[data-guide-band="middle"]:has(.live-guide) .r2-activation { left:calc(var(--guide-left) + var(--guide-portrait-width) + 1.5cqh); }
 .r2-content .r2-guide.live-guide .live-guide-noportrait { display:grid; place-items:center; color:var(--gd-a); font-size:calc(var(--guide-portrait-width) * .5); line-height:1; text-shadow:0 0 .75em #00ff0088; }
 .r2-content .r2-guide.live-guide .live-guide-cast strong { position:relative; z-index:1; grid-column:2; grid-row:1; align-self:start; justify-self:start; margin:.4em 0 0 .9em; padding:0;
   color:var(--gd-a); font-size:1.05em; line-height:1.3; letter-spacing:.12em; text-shadow:0 0 .4em #00ff0099,0 .06em .2em #000; }
@@ -54,7 +60,7 @@ body { overflow:hidden; }
 .r2-content .r2-guide.live-guide button { min-height:2.75rem; min-width:2.75rem; margin:0; padding:0 .7em; border:.0625em solid #3a9d5d; border-radius:.35em; background:#122a28; color:#f3fff4;
   font:400 .85em/1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.08em; pointer-events:auto; }
 .r2-content .r2-guide.live-guide button:focus-visible { outline:.125em solid #f9df8a; outline-offset:.125em; }
-.r2-content .r2-guide.live-guide .live-guide-skip { grid-area:skip; border-color:transparent; background:transparent; color:var(--gd-dim); }
+.r2-content .r2-guide.live-guide .live-guide-skip { grid-area:skip; border-color:transparent; background:transparent; color:var(--gd-dim); font-size:.75em; }
 .r2-content .r2-guide.live-guide .live-guide-error { margin:.15em 0 0; color:#ffe066; }
 .r2-content .r2-guide.live-guide .live-guide-next { min-width:5em; border-color:var(--gd-a); background:#0f3a24; color:var(--gd-a); text-shadow:0 0 .4em #00ff0088; }
 /* Guide pages: the number beside [スキップ], [戻る] beside [次へ]. Until the screen's pages are cut (one frame, longer
@@ -276,6 +282,8 @@ body[data-view="mobile"] .r2-content .r2-detail {
 
 /* Motion stage 1: card flights, turn banner, arrival flashes (motion-fx.js). */
 .fx-motion-layer { position: fixed; inset: 0; pointer-events: none; z-index: 46; overflow: hidden; }
+/* The turn banner shows over the tutorial guide (its z-index is the modal's + 1) (文豪, 2026-11-03, H5). */
+.fx-motion-layer.fx-banner-layer { z-index: calc(var(--z-modal) + 2); }
 .fx-fly-card {
   position: fixed; box-sizing: border-box; border-radius: calc(var(--u) * .375); overflow: hidden; transform-origin: 50% 50%;
   background: linear-gradient(160deg, #24313b, #10181f); border: calc(var(--u) * .125) solid #b8ffff;

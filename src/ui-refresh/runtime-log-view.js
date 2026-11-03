@@ -9,7 +9,7 @@ const names = { install: 'インストール', executeCard: '実行', executeLay
   recoverRegistry: '回収', activateAbility: '固有能力', openingMulligan: '引き直し',
   // v2.4 opening: the opponent's decision is reported as one hidden kind (keep or redraw is not shown).
   keepOpeningHand: 'キープ', openingDecision: '開始手札の決定',
-  executeSpell:'スペル実行',mountCard:'実行',setScript:'Script設置',executeRegistry:'レジストリ実行',activateCardEffect:'効果起動',
+  executeSpell:'スペル実行',mountCard:'マウント',setScript:'Script設置',executeRegistry:'レジストリ実行',activateCardEffect:'効果起動',
   sandboxAddCard: 'カード追加', answerChoice: '対象確定', declineChoice: '見送る' };
 
 function runtimeEventText(event) {
