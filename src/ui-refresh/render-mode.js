@@ -29,6 +29,15 @@ export function urlRenderScale(url) {
   return Number.isFinite(value) ? Math.min(RENDER_SCALE_RANGE[1], Math.max(RENDER_SCALE_RANGE[0], value)) : null;
 }
 
+// The same scale picked in the debug window (文豪, 2026-11-04), kept in this browser; the URL's wins over it.
+// It takes effect in full only; compat keeps its own scale.
+export const RENDER_SCALE_STORAGE_KEY = 'sz-ui-render-scale';
+export const RENDER_SCALE_CHOICES = Object.freeze([0.5, 0.75, 1, 1.5, 2]);
+export const readRenderScale = value => {
+  const number = Number(value);
+  return value !== null && value !== '' && RENDER_SCALE_CHOICES.includes(number) ? number : null;
+};
+
 export function resolveRenderMode({ url = '', saved = null, detection = {}, contextLost = false } = {}) {
   const fromUrl = urlRenderPreference(url);
   const preference = fromUrl ?? readRenderPreference(saved);

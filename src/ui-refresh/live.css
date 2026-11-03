@@ -518,6 +518,7 @@ body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-deta
 .r2-debug-part button { justify-self:start; min-height:2.2em; padding:0 .8em; }
 .r2-debug-part code { color:#00ff00; font:1em/1.4 monospace; }
 .r2-debug-row { display:flex; flex-wrap:wrap; align-items:center; gap:calc(var(--u) * .5); }
+.r2-debug-row [aria-checked="true"] { outline:calc(var(--u) * .125) solid #00ff00; outline-offset:calc(var(--u) * -.125); }
 .r2-debug-row [role=status] { color:#00ff00; font-size:max(.625rem, calc(var(--u) * .6875)); }
 .r2-error-list { display:grid; gap:calc(var(--u) * .25); max-height:30dvh; margin:0; padding:0; overflow:auto; list-style:none; font:max(.625rem, calc(var(--u) * .625))/1.35 monospace; }
 .r2-error-list li { display:grid; gap:.15em; padding:.3em .4em; border-left:calc(var(--u) * .125) solid #ff6b6b; background:#ffffff0d; overflow-wrap:anywhere; }

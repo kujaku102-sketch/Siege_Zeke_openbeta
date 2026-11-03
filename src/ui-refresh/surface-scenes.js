@@ -90,10 +90,16 @@ export function createSurfaceScenes({ root, boardStyle, renderQuality, latest, l
       else { boardTried = null; hudTried = null; boardUsable = true; hudUsable = true; sceneNode = null; hudSynced = null; }
     },
     // The drawing resolution of the render mode. The life view resizes at once; the board and HUD
-    // scenes only exist in full, so they take it when setLowGpu(false) lets the next sync make them.
+    // scenes only exist in full: a scale picked during a match (the debug window) drops them, and the
+    // next sync makes them again at it.
     setRenderQuality(quality) {
       if (!quality || quality === renderQuality) return;
+      if (quality.scale === renderQuality?.scale && quality.maxPixels === renderQuality?.maxPixels) return;
       renderQuality = quality; lifeView?.setQuality(quality);
+      if (!lowGpu && (boardScene || hudScene)) {
+        boardScene?.dispose(); boardScene = null; hudScene?.dispose(); hudScene = null;
+        boardTried = null; hudTried = null; boardUsable = true; hudUsable = true; sceneNode = null; hudSynced = null; markBoard(); markHud();
+      }
     },
     // Forgets the hovered board target without redrawing the preview.
     dropHover() { boardHover = null; },
