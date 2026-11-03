@@ -215,6 +215,10 @@ body[data-view="mobile"] .r2-content .r2-detail { top:calc(calc(var(--u) * .5) +
 .r2-content .r2-entry { max-height:100%; padding-top:calc(var(--u) * 3.5); }
 .live-menu-nav { display:flex; flex-wrap:wrap; gap:calc(var(--u) * .5); }
 .r2-notice { position:fixed; z-index:20; bottom:calc(calc(var(--u) * .375) + env(safe-area-inset-bottom,0px)); left:calc(calc(var(--u) * .5) + env(safe-area-inset-left,0px)); max-width:45vw; padding:calc(var(--u) * .25) calc(var(--u) * .375); background:#09090bd9; color:#bdbdc4; font-size:max(.625rem, calc(var(--u) * .625)); line-height:1.4; pointer-events:none; }
+/* A match being built (文豪, 2026-11-04, 4-1): 準備中… over the whole screen, drawn before the build starts, taking
+   the presses meanwhile. The guide's type and green, a share of the screen height. */
+.r2-preparing { position:fixed; inset:0; z-index:calc(var(--z-modal) + 3); display:grid; place-items:center; margin:0; background:#050a0ccc;
+  color:#00ff00; font:400 max(.9375rem,4.2dvh)/1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.12em; text-shadow:0 0 .4em #00ff0099; }
 /* In a match a refused move's notice sits centred just above the hand, raised or lowered (surface-layout.js measures it). */
 .r2-content:has(.r2-runtime-view) .r2-notice { left:50%; translate:-50% 0; bottom:calc(var(--live-hand-rise,0%) + var(--u) * .375); text-align:center; }
 /* The card a refused move was made with shakes in place, like a refused drop's ghost; over a tutorial card's blink too. */

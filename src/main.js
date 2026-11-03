@@ -109,15 +109,28 @@ function degradeAfterLoss() {
   host.renderContextLost = true;surface?.configure(renderOptions());
   host.notice = '描画が不安定になったため軽量表示（WebGLなし）に切り替えました。タイトルのオプションで戻せます。';renderShell();
 }
+// Every way into a match the player takes says 準備中… first (文豪, 2026-11-04, 4-1): the build blocks the page and the
+// first paint of the board holds the GPU, so the shell is drawn with it, and the build runs as a task after the frame
+// that paints it (inside a frame callback, two frames on, its WebGL work waited on that frame's raster and the board
+// came later). A press meanwhile does nothing. The e2e hook still starts at once.
+let preparing = false;
+function prepared(enter) {
+  if (preparing) return;
+  preparing = true;host.preparing = true;renderShell();
+  requestAnimationFrame(() => setTimeout(async () => {
+    try {await enter();} finally {preparing = false;if (host.preparing) {host.preparing = false;renderShell();}}
+  },0));
+}
 function attachSession(next) {
+  host.preparing = false;
   surface?.dispose();surface = null;session = next;shellGeneration += 1;
   host.screen = 'game';host.options = false;host.notice = '';host.actor = session.scope().seatIds[0];renderShell(true);
   const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,...renderOptions(),onContextLost:degradeAfterLoss,
     boardStyle:new URLSearchParams(location.search).get('board') === 'classic' ? 'classic' : 'wireframe',
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
     effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;renderShell();},onTitle:leaveMatch,
-    onRematch:() => {const result = lifecycle.rematch();if (result.ok) attachSession(result.value);else notice(result.error.code);},
-    onTutorialSkip:skipTutorial,onSaveLog:saveMatchLog,onToMenu:() => leaveMatch(nextScreen('game',host.mode === 'tutorial' ? 'tutorial-complete' : 'match-menu')),onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}});
+    onRematch:() => prepared(() => {const result = lifecycle.rematch();if (result.ok) attachSession(result.value);else notice(result.error.code);}),
+    onTutorialSkip:() => prepared(skipTutorial),onSaveLog:saveMatchLog,onToMenu:() => leaveMatch(nextScreen('game',host.mode === 'tutorial' ? 'tutorial-complete' : 'match-menu')),onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}});
   if (mounted.ok) surface = mounted.value;else notice(mounted.error.code);
 }
 function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.getRandomValues(new Uint32Array(1))[0]) {
@@ -187,9 +200,9 @@ root.addEventListener('click',event => {
   // The title's tutorial and battle buttons keep data-mode for the CRT and old links but open their screens.
   if (d.flow) return goTo(nextScreen(host.screen,d.flow));
   if (button.hasAttribute('data-flow-back')) return goTo(nextScreen(host.screen,'back'));
-  if (d.start) return startMatch(d.start,d.start === 'tutorial' ? d.tutorialId : host.tutorialId);
+  if (d.start) return prepared(() => startMatch(d.start,d.start === 'tutorial' ? d.tutorialId : host.tutorialId));
   if (button.hasAttribute('data-online-battle')) return onOnlineBattle();
-  if (d.mode) return startMatch(d.mode);
+  if (d.mode) return prepared(() => startMatch(d.mode));
   if (d.view) {host.view = d.view;saveView(localStorage,d.view);surface?.configure({view:d.view});return renderShell();}
   if (d.live === 'options') host.options = true;
   else if (d.live === 'close-options') host.options = false;
@@ -243,12 +256,12 @@ root.addEventListener('change',async event => {
   else if (target.hasAttribute('data-catalog-owner')) host.catalog.catalogOwner = target.value;
   else if (target.hasAttribute('data-sandbox-actor')) return switchManualViewer(target.value);
   else if (target.hasAttribute('data-sandbox-active')) {if (host.busy) return renderShell();admin({type:'sandboxSelectActiveSeat',targetSeat:target.value});}
-  else if (target.hasAttribute('data-opponent-control')) {host.opponentControl = target.value;return startMatch('sandbox');}
-  else if (target.hasAttribute('data-tutorial-select')) return startMatch('tutorial',target.value);
+  else if (target.hasAttribute('data-opponent-control')) {host.opponentControl = target.value;return prepared(() => startMatch('sandbox'));}
+  else if (target.hasAttribute('data-tutorial-select')) return prepared(() => startMatch('tutorial',target.value));
   else {for (const id of ['player','ai']) for (const field of ['deck','user']) if (target.hasAttribute(`data-${id}-${field}`)) {
     host[`${id}${field === 'deck' ? 'DeckId' : 'UserId'}`] = target.value;
     if (field === 'deck') {const saved = host.savedDecks.find(item => `custom:${item.id}` === target.value);if (saved) host[`${id}UserId`] = saved.userId;}
-    return host.screen === 'game' ? startMatch(host.mode === 'sandbox' ? 'sandbox' : 'ai') : renderShell();}return;}
+    return host.screen === 'game' ? prepared(() => startMatch(host.mode === 'sandbox' ? 'sandbox' : 'ai')) : renderShell();}return;}
   renderShell();
 });
 const clearPress = () => {if (press) clearTimeout(press.timer);press = null;};
