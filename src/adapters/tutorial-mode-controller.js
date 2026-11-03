@@ -21,6 +21,38 @@ export const TUTORIAL_STEP_GUARDS = Object.freeze({
     16: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' }),
     26: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' })
   }),
+  // Yellow (27 steps). 3: the OC is paid (the choice's label). 5 / 16: the [セキュリティ] rest asked as a turn ends takes Shield Knight / the Herald
+  // (the step's answerChoice). 11: Shield Bash goes on the Rider. 13 / 25: the attacks hit the user. 23: the Triumph takes ①.
+  // The step's expect refuses another pick and declining; the reasons are for the guide.
+  yellow: Object.freeze({
+    3: Object.freeze({ reason: '『OC』の追加メモリ4を払って。' }),
+    5: Object.freeze({ reason: 'スリープさせるのは『大盾の騎士』。大盾の騎士を選んで。' }),
+    11: Object.freeze({ action: { targetCardId: 'STD-025' }, reason: '『シールドバッシュ』は相手の『ライダー』に使って。' }),
+    13: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' }),
+    16: Object.freeze({ reason: 'スリープさせるのは『伝令』。伝令を選んで。' }),
+    23: Object.freeze({ reason: '『騎士団の凱歌』は①の「自分Obすべてを+2/+2」を選んで。' }),
+    25: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' })
+  }),
+  // Black (29 steps). 6 / 11 / 13 / 14 / 22: the picks of the Conquistador's destroy, Remegeton's access, Solomon's destroy and placement, the decode
+  // (the step's answerChoice; the decoded Ob is placed in the front). 25: the Pact destroys exactly the Zombie Maker and the Resentful Doll, takes ② each time,
+  // and the first ② goes to the damaged Merc (the second then has only the other): both Mercs are destroyed. 27: the attack hits the user.
+  black: Object.freeze({
+    6: Object.freeze({ reason: '破壊するのは『怨念人形』を選んで。' }),
+    11: Object.freeze({ reason: 'アクセスは『魔術王ソロモン』を選んで。' }),
+    13: Object.freeze({ reason: '破壊するのは『レメゲトン』を選んで。' }),
+    14: Object.freeze({ reason: '出すのは『豹頭男爵フラウロス』を選んで。' }),
+    22: Object.freeze({ choose: option => option.kind === 'destination' ? option.label === 'フロント' : option.cardId === 'STD-150', reason: 'ゴミ箱の『怨念人形』を選んで、フロントに置いて。' }),
+    25: Object.freeze({
+      pickCount: 2,
+      choose: (option, context) => {
+        if (/^[①②]/.test(option.label ?? '')) return option.label.startsWith('②');
+        if (option.cardId === 'STD-043') return option.damage === Math.max(...(context?.options ?? []).filter(item => item.cardId === 'STD-043').map(item => item.damage));
+        return ['STD-152', 'STD-150'].includes(option.cardId);
+      },
+      reason: '『邪神との取引』は『ゾンビメイカー』と『怨念人形』の2体を壊して、②を選ぶ。1回目の②は、ダメージを受けている『メルク』に。'
+    }),
+    27: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' })
+  }),
   // Purple (26 steps). 6: Gigantes is layered on both Dolls (the layered execution takes 1 or 2 materials; with one Doll left in the front the
   // script's field is not the one it describes). 14: the optional [セキュリティ] rest asked as the turn ends (step 13) takes Gigantes (the step's
   // answerChoice): awake, the Rider would not be held to attacking it. The step's expect refuses another pick and declining; this gives the reason.
@@ -124,11 +156,21 @@ export function createTutorialModeController(tutorialId = 'basics', initial = nu
         const answered = expect?.type === 'answerChoice';
         if (!rule?.choose && !answered) return { ok: true, value: null };
         if (action.type === 'declineChoice') return refuse('TUTORIAL_CHOICE_NOT_EXPECTED', rule?.reason);
-        const options = (action.optionIds ?? []).map(id => query.requiredInput?.options?.find(option => option.optionId === id));
-        const picked = options.map(option => option && { kind: option.kind, label: option.label,
-          cardId: cards.find(card => card.cardRef === option.cardRef && !card.faceDown)?.definition.id ?? option.preview?.definitionId ?? null });
-        return picked.length && picked.every(option => option && (!rule?.choose || rule.choose(option))
-          && (!answered || matches(expect, { type: 'answerChoice', cardId: option.cardId })))
+        // What an option stands for: its card, label, placement zone, and the damage the card carries (two cards of one name are told apart by it).
+        const describe = option => {
+          const card = cards.find(item => item.cardRef === option.cardRef && !item.faceDown);
+          return { kind: option.kind, label: option.label, zone: option.zone, cardRef: option.cardRef ?? null,
+            cardId: card?.definition.id ?? option.preview?.definitionId ?? null, damage: Number(card?.status?.damage ?? 0) };
+        };
+        const picked = (action.optionIds ?? []).map(id => query.requiredInput?.options?.find(option => option.optionId === id)).map(option => option && describe(option));
+        // `choose(option, context)`: context.picked is the whole answer, context.options everything the choice offers. `pickCount` is how many options the
+        // answer must hold where the choice allows that many (the Pact's destroy takes two; its other choices take one).
+        const context = { picked, options: (query.requiredInput?.options ?? []).map(describe) };
+        const countOk = !rule?.pickCount || !(Number(query.requiredInput?.maximum) >= rule.pickCount) || picked.length === rule.pickCount;
+        // A placement (a destination option: front, back, or a layer) is judged by the guard alone when the step has one; every other option must be what the step's expect names.
+        return picked.length && countOk && picked.every(option => option && (!rule?.choose || rule.choose(option, context))
+          && (!answered || (option.zone !== undefined || option.kind === 'destination') && Boolean(rule?.choose)
+            || matches(expect, { type: 'answerChoice', cardId: option.cardId, label: option.label })))
           ? { ok: true, value: null } : refuse('TUTORIAL_CHOICE_NOT_EXPECTED', rule?.reason);
       }
       const card = cards.find(item => item.cardRef === (action.cardRef ?? action.attackerRef));

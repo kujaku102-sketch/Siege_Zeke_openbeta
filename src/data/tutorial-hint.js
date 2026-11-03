@@ -50,7 +50,7 @@ export function tutorialActionHint(step, guard = null) {
       if (expect.targetCardId) return `${name}で${quoted(expect.targetCardId)}を攻撃しよう`;
       return expect.targetType === "fortress" ? `${name}で相手ユーザーを攻撃しよう` : `${name}で攻撃しよう`;
     case "end-turn": return "ターンを終了しよう";
-    case "answerChoice": return `${name}を選ぼう`;
+    case "answerChoice": return expect.label ? `『${expect.label}』を選ぼう` : `${name}を選ぼう`;
     case "layered": return `${name}を${zone}にレイヤードしよう`;
     case "relog": return `${name}を${zone}へリログしよう`;
     case "activate-effect": return expect.targetCardId ? `${name}の効果を${quoted(expect.targetCardId)}を対象に発動しよう` : `${name}の効果を発動しよう`;

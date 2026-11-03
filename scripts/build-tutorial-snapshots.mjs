@@ -3,7 +3,7 @@
 // The tutorial is played by its own script (tutorial-autoplay.js) on a fixed seed and match id, and the
 // recorded commands are replayed to read the authority at every revision.
 //
-//   node scripts/build-tutorial-snapshots.mjs --write --out <dir> [--tutorial basics|vengeance|blue]
+//   node scripts/build-tutorial-snapshots.mjs --write --out <dir> [--tutorial basics|blue|yellow|vengeance|black]
 //   node scripts/build-tutorial-snapshots.mjs --check --out <dir> [--tutorial ...]   (exit 1 when a stored file is stale)
 //
 // There is no default directory: the files are test fixtures and live outside this repository.
@@ -19,7 +19,7 @@ import { createRuntimeSnapshot } from '../src/game/runtime/snapshot.js';
 import { submitRuntimeCommand } from '../src/game/runtime/transaction.js';
 import { CARD_VERSION, RULE_VERSION } from '../src/game/runtime/versions.js';
 
-export const TUTORIAL_BUILD_IDS = Object.freeze(['basics', 'vengeance', 'blue']);
+export const TUTORIAL_BUILD_IDS = Object.freeze(['basics', 'vengeance', 'blue', 'yellow', 'black']);
 export const TUTORIAL_BUILD_SEED = 20261030;
 
 // What the host starts a tutorial with (main.js startMatch), on a fixed seed and match id.
@@ -149,7 +149,7 @@ function main(argv) {
   const write = argv.includes('--write'), check = argv.includes('--check');
   const dir = option('--out');
   if (write === check || !dir) {
-    console.error('usage: build-tutorial-snapshots.mjs (--write | --check) --out <dir> [--tutorial basics|vengeance|blue]');
+    console.error('usage: build-tutorial-snapshots.mjs (--write | --check) --out <dir> [--tutorial basics|blue|yellow|vengeance|black]');
     return 2;
   }
   const only = option('--tutorial');
