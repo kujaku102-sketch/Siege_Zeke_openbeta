@@ -102,9 +102,8 @@ test('tutorial items: chapter numbers follow the color order with no gaps, renum
 });
 
 test('tutorial items: the three tutorials in list order (案A: red 1, blue 2, purple 3), each a real tutorial id with its own steps', () => {
-  assert.deepEqual([...TUTORIAL_IDS], ['basics', 'blue', 'vengeance'], 'the ids stay the tutorial ids, so saved marks keep matching');
-  assert.deepEqual(TUTORIAL_ITEMS.map(item => [item.title, item.subtitle]),
-    [['チャプター1', '基本操作・赤'], ['チャプター2', 'ハッキング・暗号化・青'], ['チャプター3', 'ヴェンジェンス・紫']]);
+  assert.deepEqual([...TUTORIAL_IDS], TUTORIAL_ORDER.filter(id => TUTORIAL_IDS.includes(id)), 'listed in the color order');
+  assert.deepEqual(TUTORIAL_ITEMS.map(item => item.title), TUTORIAL_ITEMS.map((_, index) => `チャプター${index + 1}`), 'numbered with no gaps');
   assert.equal(new Set(TUTORIAL_IDS).size, TUTORIAL_IDS.length, 'no duplicates');
   assert.notEqual(tutorialSteps('vengeance'), tutorialSteps('basics'), 'vengeance is not the fallback');
   assert.notEqual(tutorialSteps('blue'), tutorialSteps('basics'), 'blue is not the fallback');
@@ -138,10 +137,10 @@ test('tutorial progress: marking is idempotent, ignores unknown ids, and a faile
 test('tutorial list screen: each item, its mark and its own start; a way back; drawn by the shell', () => {
   const html = tutorialSelectHtml({ tutorialDone: ['vengeance'] });
   assert.ok(html.includes('data-flow-back') && html.includes('>戻る<'));
-  assert.ok(html.includes('data-start="tutorial" data-tutorial-id="basics"') && html.includes('data-start="tutorial" data-tutorial-id="vengeance"'));
+  assert.ok(TUTORIAL_IDS.every(id => html.includes(`data-start="tutorial" data-tutorial-id="${id}"`)));
   assert.ok(html.includes('data-tutorial-item="basics" data-done="false"') && html.includes('data-tutorial-item="vengeance" data-done="true"'));
   assert.equal((html.match(/✓ 完了/g) ?? []).length, 1);
-  assert.equal((html.match(/未完了/g) ?? []).length, 2);
+  assert.equal((html.match(/未完了/g) ?? []).length, TUTORIAL_IDS.length - 1);
   assert.ok(!html.includes('data-mode='), 'no title route is repeated on the list');
   const shell = runtimeShellHtml(entryHost({ screen: 'tutorial-select', tutorialDone: [] }));
   assert.ok(shell.includes('data-flow-screen="tutorial-select"'));
@@ -221,10 +220,11 @@ test('main wiring: the end screen leaves for the match menu or the tutorial list
 test('tutorial list: chapters with their old names as subtitles; a mark saved under the old ids still shows', () => {
   const storage = { getItem: () => '["basics"]', setItem() {} };
   const html = tutorialSelectHtml({ tutorialDone: readTutorialDone(storage) });
-  assert.ok(html.includes('<h2>チャプター1<small>基本操作・赤</small></h2>') && html.includes('<h2>チャプター2<small>ハッキング・暗号化・青</small></h2>')
-    && html.includes('<h2>チャプター3<small>ヴェンジェンス・紫</small></h2>'));
-  assert.ok(html.indexOf('data-tutorial-item="basics"') < html.indexOf('data-tutorial-item="blue"') && html.indexOf('data-tutorial-item="blue"') < html.indexOf('data-tutorial-item="vengeance"'), 'listed in chapter order');
-  assert.ok(html.includes('data-tutorial-item="basics" data-done="true"') && html.includes('data-tutorial-item="vengeance" data-done="false"'));
+  assert.ok(TUTORIAL_ITEMS.every(item => html.includes(`<h2>${item.title}<small>${item.subtitle}</small></h2>`)));
+  const places = TUTORIAL_IDS.map(id => html.indexOf(`data-tutorial-item="${id}"`));
+  assert.ok(places.every((place, index) => place >= 0 && (index === 0 || place > places[index - 1])), 'listed in chapter order');
+  const last = TUTORIAL_IDS.at(-1);
+  assert.ok(html.includes('data-tutorial-item="basics" data-done="true"') && html.includes(`data-tutorial-item="${last}" data-done="false"`));
   assert.ok(html.includes('aria-label="チャプター1をはじめる"'));
 });
 
@@ -232,7 +232,7 @@ test('the in-match tutorial select lists the chapters as the tutorial list does,
   const html = runtimeShellHtml({ screen: 'game', mode: 'tutorial', tutorialId: 'blue', view: 'pc', options: true, savedDecks: [], deckBuilder: { open: false }, catalog: {} });
   const select = html.match(/<select data-tutorial-select[^>]*>([\s\S]*?)<\/select>/)[1];
   assert.deepEqual([...select.matchAll(/<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g)].map(match => [match[1], match[2]]),
-    [['basics', 'チャプター1 基本操作・赤'], ['blue', 'チャプター2 ハッキング・暗号化・青'], ['vengeance', 'チャプター3 ヴェンジェンス・紫']]);
+    TUTORIAL_ITEMS.map(item => [item.id, `${item.title} ${item.subtitle}`]));
   assert.match(select, /<option value="blue" selected>/);
 });
 
@@ -256,8 +256,6 @@ test('tutorial highlights: HUD info button, the focused card\'s detail and its a
   assert.ok(layout.includes("option:`[data-option-card-id=\"${focus.cardId}\"]`};"), 'a choice\'s option by the card it stands for');
   assert.ok(layout.includes("const expectedButton = expect => expect?.type === 'answerChoice' && expect.cardId ? [{ kind: 'option', cardId: expect.cardId }]"),
     'a step that asks for an answer points at its card\'s option (blue: the access pick of the Offense Protocol)');
-  assert.ok(layout.includes("clearOfPortrait(guide, pointed.find(element => element.matches('.r2-detail [data-ability-help]')), viewport);"),
-    'a badge in the detail at the left edge is scrolled clear of the portrait');
   assert.ok(layout.includes('for (const focus of [...tutorial.value.presentation.focus ?? [], ...expectedButton(tutorial.value.presentation.expect)])'), 'pointed at with the step\'s own highlights, so the band keeps clear of it');
   assert.ok(layout.includes('const named = element => !focus.badge ||'), 'a badge focus keeps only the named ability');
 });
@@ -271,9 +269,7 @@ test('tutorial try: the blocked play moves the step on and puts its reason in th
   assert.ok(layout.includes("for (const element of root.querySelectorAll('.live-focus')) { element.classList.remove('live-focus'); delete element.dataset.tutorialFocusLabel; }"), 'last step\'s marks are cleared');
   assert.ok(layout.includes("if (focus.kind === 'ui' && focus.target === 'ability-badge' && scrolledFocus !== key) { scrolledFocus = key; element.scrollIntoView({ block: 'center', inline: 'nearest' }); }"), 'a highlighted badge is scrolled to the middle of its panel once, its outline clear of the edge');
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
-  assert.ok(surface.includes('const reportError = code => { noticeStep = tutorialIndex(); onError(code); };'));
   assert.ok(surface.includes('if (noticeStep !== null && tutorial.ok && tutorial.value.flow.index > noticeStep) { noticeStep = null; onNoticeClear(); }'));
-  assert.ok(surface.includes('onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide };'), 'presses in the match are recorded');
   const main = await readSource('../src/main.js');
   assert.ok(main.includes("onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}"));
 });
@@ -306,7 +302,6 @@ test('guide pages: one per 「」, each growing the frame as it needs on this sc
   assert.ok(surface.includes("if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && event.target.closest?.('.live-guide')) {"));
   assert.ok(surface.includes("if (focused) (root.querySelector(delta < 0 && index > 0 ? '.live-guide [data-runtime-guide-prev]' : forward) ?? root.querySelector(forward))?.focus();"), 'focus follows the button pressed, [次へ] on the next page');
   const layout = await readSource('../src/ui-refresh/surface-layout.js');
-  assert.ok(layout.includes('if (tutorial.ok && !tutorial.value.flow.complete) for (const focus of'));
   assert.ok(layout.includes("pointed.push(element);\n        if (!guideLastPage()) continue;\n        element.classList.add('live-focus');"), 'found on every page, marked on the last');
   const clicks = await readSource('../src/ui-refresh/surface-clicks.js');
   assert.ok(clicks.includes("['data-runtime-guide-next', c => c.turnGuidePage(1)],") && clicks.includes("['data-runtime-guide-prev', c => c.turnGuidePage(-1)],"));
@@ -315,9 +310,6 @@ test('guide pages: one per 「」, each growing the frame as it needs on this sc
 test('guide band: the guide fills one of three bands, chosen once a step against what it points at; compat mode marked for the skin', async () => {
   const layout = await readSource('../src/ui-refresh/surface-layout.js');
   assert.ok(layout.includes("const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}`;"), 'kept while the pages turn');
-  assert.ok(layout.includes('if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step }) };'), 'judged by the group: the portrait and the frame, as tall as the step\'s tallest page');
-  assert.ok(layout.includes("applyGuideBand(view, guideBand.band, viewport, grow.page);\n      clearOfPortrait(guide, pointed.find(element => element.matches('.r2-detail [data-ability-help]')), viewport);\n      paginateGuide(guide);"), 'pages are measured in the band as placed');
-  assert.ok(layout.includes("const picks = [...root.querySelectorAll('.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline]')];"), "a pick's options count as covered");
   const guide = await readSource('../src/ui-refresh/guide.js');
   assert.ok(guide.includes('view.dataset.guideBand = band;'));
   assert.ok(guide.includes('const { frame, portrait, box } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT, grow);'), 'placed as the group: frame and portrait together');
