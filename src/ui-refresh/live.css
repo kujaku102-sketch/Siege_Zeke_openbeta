@@ -60,7 +60,7 @@ body { overflow:hidden; }
 .r2-content .r2-guide.live-guide button { min-height:2.75rem; min-width:2.75rem; margin:0; padding:0 .7em; border:.0625em solid #3a9d5d; border-radius:.35em; background:#122a28; color:#f3fff4;
   font:400 .85em/1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.08em; pointer-events:auto; }
 .r2-content .r2-guide.live-guide button:focus-visible { outline:.125em solid #f9df8a; outline-offset:.125em; }
-.r2-content .r2-guide.live-guide .live-guide-skip { grid-area:skip; border-color:transparent; background:transparent; color:var(--gd-dim); }
+.r2-content .r2-guide.live-guide .live-guide-skip { grid-area:skip; border-color:transparent; background:transparent; color:var(--gd-dim); font-size:.75em; }
 .r2-content .r2-guide.live-guide .live-guide-error { margin:.15em 0 0; color:#ffe066; }
 .r2-content .r2-guide.live-guide .live-guide-next { min-width:5em; border-color:var(--gd-a); background:#0f3a24; color:var(--gd-a); text-shadow:0 0 .4em #00ff0088; }
 /* Guide pages: the number beside [スキップ], [戻る] beside [次へ]. Until the screen's pages are cut (one frame, longer

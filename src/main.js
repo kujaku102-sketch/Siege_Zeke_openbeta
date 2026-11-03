@@ -52,7 +52,12 @@ let shellGeneration = 0, adminSerial = 0, press = null, suppressDeckClickUntil =
 installAbilityHelp(root);
 const mobileViewport = installMobileViewport(root);
 // The raw code goes to the console only; the player sees a sentence or nothing.
-const notice = code => {const text = noticeText(code);console.debug('[notice]',code);if (text === null) return;host.notice = text;renderShell();};
+// In a match (not a tutorial, whose notice stays for its step) it goes after 3 s, or sooner once the player's next move
+// goes through (runtime-match-surface.js) (文豪, 2026-11-03, M6).
+let noticeTimer = null;
+const NOTICE_MS = 3000;
+const notice = code => {const text = noticeText(code);console.debug('[notice]',code);if (text === null) return;host.notice = text;renderShell();
+  clearTimeout(noticeTimer);if (host.screen === 'game' && host.mode !== 'tutorial') noticeTimer = setTimeout(() => {if (host.notice === text) {host.notice = '';renderShell();}},NOTICE_MS);};
 // Render mode (V092-09): compat draws no WebGL title, logo noise, 3D board, HUD or result shader,
 // only SVG/CSS. iOS WebKit starts in compat (context and memory limits) and a lost context drops to
 // it; the player picks auto / compat / full, kept in this browser only. ?render= wins and is not saved.

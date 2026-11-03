@@ -69,7 +69,9 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   // guide moves past it (a refused move can be retried; a passed step leaves no stale reason behind).
   let noticeStep = null;
   const tutorialIndex = () => { const tutorial = session.tutorial(); return tutorial.ok ? tutorial.value.flow.index : null; };
-  const reportError = code => { noticeStep = tutorialIndex(); onError(code); };
+  const reportError = code => { noticeStep = tutorialIndex(); matchNotice = noticeStep === null; onError(code); };
+  // A match's notice goes once the player's next move goes through (文豪, 2026-11-03, M6; main.js clears it after 3 s too).
+  let matchNotice = false;
   // A move the tutorial refused with a reason of its own: the guide says why, so no notice says it again
   // (文豪, 2026-11-03, D2/D4).
   const guideSaysWhy = code => { const tutorial = session.tutorial(); return String(code).startsWith('TUTORIAL_') && tutorial.ok && Boolean(tutorial.value.flow.error); };
@@ -304,6 +306,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     }
     selectionPeek.hideIfDetached();
     if (noticeStep !== null && tutorial.ok && tutorial.value.flow.index > noticeStep) { noticeStep = null; onNoticeClear(); }
+    if (matchNotice && next.events.some(event => event.type === 'action_committed' && event.actorSeat === next.model.match.viewerSeat)) { matchNotice = false; onNoticeClear(); }
     if (latest.eventReadError) onError(latest.eventReadError);
   };
   // A step that is already decided needs no confirm: a single pick (board or list,
@@ -346,7 +349,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     act(ui.read());
     return true;
   };
-  const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule, triesPlay, onReject: onDropRefused });
+  const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule, onReject: onDropRefused });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,
     onTitle, onTutorialSkip, onToMenu, onSaveLog, endTutorial, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide, tapAnywhere };
   listener('click', event => {
