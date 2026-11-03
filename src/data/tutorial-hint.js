@@ -24,14 +24,12 @@ function pressHint(step, expect) {
   return "光っているところを押そう";
 }
 
+// ボタンの名前に合わせる: Sp は「スペル実行」、Ob と Code は「実行」(Code を Ob の下へは「マウント」)。置き場の指定があれば入れる。
 function playHint(expect) {
   const name = quoted(expect.cardId);
   if (expect.hostCardId) return `${name}を${quoted(expect.hostCardId)}にマウントしよう`;
-  if (expect.targetCardId) return `${name}を${quoted(expect.targetCardId)}に使おう`;
-  if (CARD_LIBRARY[expect.cardId]?.category === "Ob") {
-    return expect.zone ? `${name}を${ZONE_NAME[expect.zone] ?? ""}に実行しよう` : `${name}を実行しよう`;
-  }
-  return `${name}を使おう`;
+  if (CARD_LIBRARY[expect.cardId]?.category === "Sp") return expect.targetCardId ? `${name}を${quoted(expect.targetCardId)}にスペル実行しよう` : `${name}をスペル実行しよう`;
+  return expect.zone ? `${name}を${ZONE_NAME[expect.zone] ?? ""}に実行しよう` : `${name}を実行しよう`;
 }
 
 // 手順 `step` の期待操作を求める一文。進めるだけの手順(`advance` で押す対象もないもの)と、最後の締めの手順は空文字。
@@ -52,7 +50,7 @@ export function tutorialActionHint(step, guard = null) {
     case "end-turn": return "ターンを終了しよう";
     case "answerChoice": return expect.label ? `『${expect.label}』を選ぼう` : `${name}を選ぼう`;
     case "layered": return `${name}を${zone}にレイヤードしよう`;
-    case "relog": return `${name}を${zone}へリログしよう`;
+    case "relog": return `${name}を${zone}へ再実行しよう`;
     case "activate-effect": return expect.targetCardId ? `${name}の効果を${quoted(expect.targetCardId)}を対象に発動しよう` : `${name}の効果を発動しよう`;
     case "registry-execute": return `${name}をレジストリから実行しよう`;
     case "registry-recover": return `${name}をレジストリから戻そう`;

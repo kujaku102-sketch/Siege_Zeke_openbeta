@@ -73,3 +73,14 @@ test("currentTutorialHint follows the flow and stays empty during the introducti
   flow.complete = true;
   assert.equal(currentTutorialHint(flow, TUTORIAL_STEP_GUARDS), "");
 });
+
+test("hints use the buttons' names: Sp is cast, a redeploy is a 再実行, a Code goes where the step puts it", () => {
+  assert.equal(hintAt("blue", 21), "『セキュリティウォール』をスペル実行しよう");
+  assert.equal(hintAt("blue", 12), "『オフェンスプロトコル』を『フラウ』にスペル実行しよう");
+  assert.equal(hintAt("vengeance", 18), "『アクロィア』をフロントへ再実行しよう");
+  assert.equal(hintAt("black", 10), "『断章・レメゲトン』をバックに実行しよう");
+  assert.equal(hintAt("yellow", 22), "『騎士団の凱歌』をスペル実行しよう");
+  for (const id of ["basics", "blue", "yellow", "vengeance", "black"]) {
+    tutorialSteps(id).forEach((step, index) => assert.doesNotMatch(hintAt(id, index), /使おう|リログ/, `${id}:${index}`));
+  }
+});
