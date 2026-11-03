@@ -45,22 +45,27 @@ export function playTutorialToWin({ session }) {
   // because a refused command changes nothing.
   const ranked = (options, expect, rule, query) => {
     const cards = cardsOf(query), idOf = ref => cards.find(card => card.cardRef === ref && !card.faceDown)?.definition.id;
+    // The option as a guard reads it, without the answer around it (a guard asks about the whole answer only when it is given one).
+    const described = option => ({ kind: option.kind, label: option.label, zone: option.zone, cardRef: option.cardRef ?? null,
+      cardId: idOf(option.cardRef) ?? option.preview?.definitionId ?? null,
+      damage: Number(cards.find(card => card.cardRef === option.cardRef && !card.faceDown)?.status?.damage ?? 0) });
     const score = option => {
       let value = 0;
       if (expect?.zone && option.zone === expect.zone) value += 4;
       if (expect?.targetType === 'fortress' && option.kind === 'user') value += 4;
       if (expect?.targetCardId && (idOf(option.cardRef) === expect.targetCardId)) value += 4;
       if (expect?.hostCardId && (idOf(option.hostRef ?? option.cardRef) === expect.hostCardId)) value += 4;
-      if (expect?.cardId && (option.preview?.definitionId === expect.cardId)) value += 4;
-      if (rule?.choose && rule.choose({ kind: option.kind, label: option.label, cardId: idOf(option.cardRef) ?? option.preview?.definitionId ?? null })) value += 2;
+      if (expect?.cardId && (option.preview?.definitionId === expect.cardId || idOf(option.cardRef) === expect.cardId)) value += 4;
+      if (expect?.label && option.label === expect.label) value += 4;
+      if (rule?.choose && rule.choose(described(option), { options: options.map(described) })) value += 2;
       if (String(option.label ?? '').startsWith('レイヤー1枚を破棄')) value += 1;
       return value;
     };
     return options.map((option, index) => ({ option, index, value: score(option) })).sort((a, b) => b.value - a.value || a.index - b.index).map(item => item.option);
   };
-  // A step's guard may name how many options its action must hold (materialCount: the layered materials); that many are tried first.
+  // A step's guard may name how many options an answer must hold (pickCount; materialCount: the layered materials); that many are tried first.
   const picks = (options, minimum, rule = null, maximum = 1) => {
-    const wanted = rule?.action?.materialCount;
+    const wanted = rule?.pickCount ?? rule?.action?.materialCount;
     return options.length
       ? [options.slice(0, Math.max(1, wanted <= maximum ? wanted : minimum ?? 1)), ...options.slice(1).map(option => [option])] : [];
   };
@@ -69,7 +74,7 @@ export function playTutorialToWin({ session }) {
     const query = port.query().value, input = query.requiredInput, step = tutorialSteps(flow().flow.tutorialId)[flow().flow.index];
     if (!input?.canAnswer) return false;
     const rule = TUTORIAL_STEP_GUARDS[flow().flow.tutorialId]?.[flow().flow.index] ?? null;
-    for (const optionSet of picks(ranked(input.options, step?.expect, rule, query), input.minimum)) {
+    for (const optionSet of picks(ranked(input.options, step?.expect, rule, query), input.minimum, rule, input.maximum)) {
       if (attempts > MAX_ATTEMPTS) return false;
       if (submit({ type: 'answerChoice', choiceId: input.choiceId, optionIds: optionSet.map(option => option.optionId), allocation: [] })) return true;
     }
