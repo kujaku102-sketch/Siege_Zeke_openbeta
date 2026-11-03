@@ -72,7 +72,7 @@ async function makeMove(ui, state) {
   if (!moved) await ui.settle({ preference: { scope: "レイヤー", mention: state.text } });
 }
 
-async function pressAsked(ui, state) {
+async function pressAsked(ui, state, onPopup = null) {
   const { page } = ui; const { expect } = state;
   if (expect.press === "info-button") { await ui.click("[data-runtime-counts]"); return; }
   const q = await ui.query();
@@ -84,6 +84,7 @@ async function pressAsked(ui, state) {
   if (expect.press === "attack-choice") {
     // the card is pressed, then its popup's attack is chosen: the target choice is what the step waits for
     await page.locator('.r2-popup [data-route="attack"]').first().waitFor({ state: "visible", timeout: 3000 });
+    if (onPopup) await onPopup(state, ui);
     await ui.click('.r2-popup [data-route="attack"]');
     return;
   }
@@ -97,7 +98,7 @@ async function pressAsked(ui, state) {
 // Plays the tutorial `id` (already started) to its closing line. `stopAfterMoves`: return after that many moves of the player (for a "first move" check).
 // Returns { steps, moves }.
 // `stopWhen(state)`: return as soon as the step the match is on satisfies it (before that step is read), with { stopped: state }.
-export async function playTutorial(page, id, { keyboard = false, stopAfterMoves = Infinity, stopWhen = null, ui = makeUi(page, { keyboard }) } = {}) {
+export async function playTutorial(page, id, { keyboard = false, stopAfterMoves = Infinity, stopWhen = null, onStep = null, onPopup = null, pace = 0, ui = makeUi(page, { keyboard }) } = {}) {
   let moves = 0, steps = 0, stuck = 0, last = "";
   for (let turn = 0; turn < 600; turn += 1) {
     await page.waitForFunction(() => { const t = window.__SIMPLE_ZEKE_E2E__.tutorial()?.value; return t && (t.flow.complete || ((document.querySelector(".live-guide[data-tutorial-step]") || t.presentation?.hintOnly && document.querySelector(".live-guide-away")) && t.opponentScript === null)); }, null, { timeout: 20000 })
@@ -105,6 +106,9 @@ export async function playTutorial(page, id, { keyboard = false, stopAfterMoves 
     const state = await tutorialState(page);
     if (state.flow.complete) return { steps, moves, complete: true };
     if (stopWhen?.(state)) return { steps, moves, stopped: state };
+    // For a run that is filmed: the step is shown for `pace` ms before it is read on; onStep may take the step itself (returns "taken" once it has made the move).
+    if (onStep && await onStep(state, ui) === "taken") { steps += 1; continue; }
+    if (pace) await page.waitForTimeout(pace);
     if (!state.text.trim()) throw new Error(`${id}: a guide step with no line (${state.guideStep})`);
     const mark = `${state.guideStep ?? state.flow.index}|${state.revision}`;
     stuck = mark === last ? stuck + 1 : 0; last = mark;
@@ -116,7 +120,7 @@ export async function playTutorial(page, id, { keyboard = false, stopAfterMoves 
       if (!expect && await page.locator("[data-runtime-tutorial-finish]").count()) return { steps, moves, closing: true };
       await ui.click("[data-runtime-tutorial-next]");
     } else if (expect.type === "advance") {
-      await putAway(ui, state); await pressAsked(ui, state);
+      await putAway(ui, state); await pressAsked(ui, state, onPopup);
       await page.waitForFunction((index) => window.__SIMPLE_ZEKE_E2E__.tutorial().value?.flow.index !== index, state.flow.index, { timeout: 3000 }).catch(() => { throw new Error(`${id}: pressing what the step asks did not move it on (${state.guideStep})`); });
       if (await page.locator(".r2-detail").count()) { await page.keyboard.press("Escape"); const close = page.locator("[data-close-detail]"); if (await close.count() && await close.first().isVisible()) await ui.click("[data-close-detail]"); }
     } else if (expect.type === "answerChoice") {
