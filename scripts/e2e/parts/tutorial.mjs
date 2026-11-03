@@ -46,8 +46,8 @@ export async function putAway(ui, state) {
   if (await page.evaluate(() => document.querySelector('[data-live-region="board"]')?.inert)) throw new Error("the match still waits with the guide put away");
 }
 
-function preferenceOf(expect) {
-  const preference = { scope: "レイヤー" };
+function preferenceOf(expect, text = "") {
+  const preference = { scope: "レイヤー", mention: text };
   if (expect.zone) preference.zone = expect.zone;
   if (expect.targetType === "fortress") preference.user = true;
   if (expect.targetCardId) { preference.targetId = expect.targetCardId; preference.cardOnly = true; }
@@ -63,12 +63,12 @@ async function makeMove(ui, state) {
   const want = types.find((type) => q.legalActions.some((entry) => (entry.actionType ?? entry.action?.type) === type
     && (!expect.cardId || cardsOf(q).some((c) => !c.faceDown && c.definition.id === expect.cardId && (entry.base?.cardRef ?? entry.base?.attackerRef ?? entry.action?.cardRef) === c.cardRef))));
   if (!want) throw new Error(`the step expects ${JSON.stringify(expect)} but no such action is legal now`);
-  await ui.action(want, expect.type === "end-turn" ? null : expect.cardId, preferenceOf(expect));
+  await ui.action(want, expect.type === "end-turn" ? null : expect.cardId, preferenceOf(expect, state.text));
   // The step is done when the move is made. If the guide has moved on to its next line, a choice still open (a Login's access) is for that line to
   // talk over and for a later step to answer; otherwise the choice is this move's own and is answered now.
   const here = state.guideStep;
   const moved = await ui.page.waitForFunction((was) => { const g = document.querySelector(".live-guide[data-tutorial-step]"); return g && g.dataset.tutorialStep !== was; }, here, { timeout: 1200 }).then(() => true, () => false);
-  if (!moved) await ui.settle();
+  if (!moved) await ui.settle({ preference: { scope: "レイヤー", mention: state.text } });
 }
 
 async function pressAsked(ui, state) {
@@ -113,7 +113,7 @@ export async function playTutorial(page, id, { keyboard = false, stopAfterMoves 
       await page.waitForFunction((index) => window.__SIMPLE_ZEKE_E2E__.tutorial().value?.flow.index !== index, state.flow.index, { timeout: 3000 }).catch(() => { throw new Error(`${id}: pressing what the step asks did not move it on (${state.guideStep})`); });
       if (await page.locator(".r2-detail").count()) { await page.keyboard.press("Escape"); const close = page.locator("[data-close-detail]"); if (await close.count() && await close.first().isVisible()) await ui.click("[data-close-detail]"); }
     } else if (expect.type === "answerChoice") {
-      await putAway(ui, state); await ui.settle({ preference: { cardId: expect.cardId, scope: "レイヤー" } });
+      await putAway(ui, state); await ui.settle({ preference: { cardId: expect.cardId, scope: "レイヤー", mention: state.text }, until: async () => (await tutorialState(page)).flow.index !== state.flow.index });
     } else {
       try { await putAway(ui, state); await makeMove(ui, state); } catch (error) { throw new Error(`${id} at ${state.guideStep} expecting ${JSON.stringify(expect)}: ${error.message}`); }
       moves += 1;

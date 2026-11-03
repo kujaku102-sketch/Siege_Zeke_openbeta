@@ -18,9 +18,13 @@ export function answerFor(request, query, preference = {}, hidden = new Set(), s
     && (!preference.cardId || option.preview?.definitionId === preference.cardId)
     && (!preference.user || option.kind !== "card")
     && (!preference.cardOnly || Boolean(option.cardRef ?? option.hostRef))
-    && (!preference.scope || !option.label || option.label.includes(preference.scope)));
+    && (!preference.scope || option.kind === "card" || !option.label || option.label.includes(preference.scope))); // the scope wording picks among scope options; a card option is named by its card
   const others = request.options.filter((option) => !preferred.includes(option)); const shown = (option) => !hidden.has(option.optionId);
-  const ordered = [...preferred.filter(shown), ...preferred.filter((option) => !shown(option)), ...others.filter(shown), ...others.filter((option) => !shown(option))];
+  // `mention`: the guide's line, read as a player reads it: the options it names (a card's name, a ①/② effect) are taken first, and as many of them as it names.
+  const named = (option) => Boolean(preference.mention && option.label && (preference.mention.includes(option.label.replace(/^[①②③]s*/, "")) || (/^[①②③]/.test(option.label) && preference.mention.includes(option.label[0] + "の"))));
+  const ordered = [...preferred.filter(shown), ...preferred.filter((option) => !shown(option)), ...others.filter(shown), ...others.filter((option) => !shown(option))]
+    .sort((a, b) => Number(named(b)) - Number(named(a)));
+  const namedCount = ordered.filter(named).length;
   const selected = [];
   const search = (start, count) => {
     if (!count) { const answer = { requestId: request.requestId, optionIds: [...selected], allocation: [] }; return validSelectionAnswer(request, answer) && !skip(answer) ? answer : null; }
@@ -31,7 +35,7 @@ export function answerFor(request, query, preference = {}, hidden = new Set(), s
     const option = ordered[0]; const answer = { requestId: request.requestId, optionIds: option ? [option.optionId] : [], allocation: option ? [{ optionId: option.optionId, amount: request.constraints.total }] : [] };
     if (validSelectionAnswer(request, answer) && !skip(answer)) return answer;
   }
-  for (let count = Math.max(request.constraints.minimum ?? 0, preference.pick ? 1 : 0); count <= Math.min(request.constraints.maximum ?? 0, ordered.length); count += 1) { const found = search(0, count); if (found) return found; }
+  for (let count = Math.max(request.constraints.minimum ?? 0, preference.pick ? 1 : 0, namedCount && namedCount <= (request.constraints.maximum ?? 0) ? namedCount : 0); count <= Math.min(request.constraints.maximum ?? 0, ordered.length); count += 1) { const found = search(0, count); if (found) return found; }
   throw new Error(`no valid safe selection: ${request.presentationKey}`);
 }
 
@@ -91,6 +95,8 @@ export function makeUi(page, { keyboard = false } = {}) {
   }
 
   async function choose(request, q, preference, path = [], refused = new Set()) {
+    // a guide that came back over the match (a tutorial refusing the answer) is put away first: while it speaks the choice waits
+    if (await page.locator(".live-guide-text").count() && !await page.locator(".live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next],[data-runtime-tutorial-finish])").count()) { await click(".live-guide-text"); await page.waitForFunction(() => !document.querySelector(".live-guide"), null, { timeout: 3000 }).catch(() => {}); }
     const answer = answerFor(request, q, preference, await hiddenSlots(request, q), (candidate) => refused.has(JSON.stringify([...path, candidate.optionIds])));
     for (const id of answer.optionIds) await pick(request.options.find((option) => option.optionId === id), q);
     for (const row of answer.allocation) await page.locator(`[data-allocation-option="${row.optionId}"]`).fill(String(row.amount));
@@ -100,11 +106,11 @@ export function makeUi(page, { keyboard = false } = {}) {
   }
 
   // Answer every open choice of the viewer until none is left; the opponent's choices are waited for.
-  async function settle({ decline = false, preference = { scope: "レイヤー" } } = {}) {
+  async function settle({ decline = false, preference = { scope: "レイヤー" }, until = null } = {}) {
     let lastChoice = null; let repeats = 0;
     for (let index = 0; index < 50; index += 1) {
       const q = await query(); const input = q.requiredInput;
-      if (!input) return;
+      if (!input || (index > 0 && until && await until())) return; // `until`: the caller's step has moved on, the choice now open belongs to the next one
       if (!input.canAnswer) { await page.waitForFunction(() => { const open = window.__SIMPLE_ZEKE_E2E__.query().value?.requiredInput; return !open || open.canAnswer; }); continue; }
       if (process.env.E2E_DEBUG && false) console.error("settle", index, input.presentationKey, input.actorSeat, JSON.stringify({ min: input.constraints?.minimum, max: input.constraints?.maximum, optional: input.optional, options: input.options?.map((o) => [o.label, o.zone, o.kind, o.preview?.definitionId]).slice(0, 8) }).slice(0, 400), await page.locator(".live-guide .live-guide-error").innerText().catch(() => ""));
       // An optional choice that the answer just given did not close (an answer that selects nothing leaves it open): first one option is picked (a tutorial may refuse
