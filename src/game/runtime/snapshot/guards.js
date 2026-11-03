@@ -57,7 +57,8 @@ export function copyJson(value, code, ancestors = new Set(), dropUndefined = fal
   ancestors.add(value);
   try {
     if (Array.isArray(value)) return dense(value, code).map(item => copyJson(item, code, ancestors, dropUndefined));
-    ordinary(value, code);
+    // The save side (dropUndefined) also takes a plain object with no prototype: the engine keeps some records that way. It is stored as a plain object.
+    if (!(dropUndefined && Object.getPrototypeOf(value) === null)) ordinary(value, code);
     const result = {};
     for (const key of Reflect.ownKeys(value)) {
       if (typeof key !== 'string') reject(code);

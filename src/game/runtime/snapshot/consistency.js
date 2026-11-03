@@ -46,8 +46,9 @@ export function checkRuntime(state, references, metadata, revision) {
     seatIds: [...metadata.seatIds],
     cards: built.value.entries.map(entry => {
       const card = physical.get(entry.identity.instanceId);
-      if (!card) reject(STATE);
-      const faceDown = own(card, 'faceDown', STATE, true);
+      // A card in flight (core/bridge.js: location kind 'inflight') is held by the effect that is resolving, not by a zone.
+      if (!card && entry.location?.kind !== 'inflight') reject(STATE);
+      const faceDown = card ? own(card, 'faceDown', STATE, true) : MISSING;
       if (faceDown !== MISSING && typeof faceDown !== 'boolean') reject(STATE);
       return { ...entry, faceDown: faceDown === true };
     })
