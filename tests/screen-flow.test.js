@@ -182,9 +182,9 @@ test('title: the tutorial and battle buttons open their screens; the battle butt
 test('main wiring: flow buttons before title modes, Escape and [戻る] through the table, no browser history', async () => {
   const main = await readSource('../src/main.js');
   const click = main.slice(main.indexOf("root.addEventListener('click'"));
-  assert.ok(click.indexOf('if (d.flow) return goTo(nextScreen(host.screen,d.flow));') < click.indexOf('if (d.mode) return startMatch(d.mode);'), 'data-flow wins over data-mode');
+  assert.ok(click.indexOf('if (d.flow) return goTo(nextScreen(host.screen,d.flow));') < click.indexOf('if (d.mode) return prepared(() => startMatch(d.mode));'), 'data-flow wins over data-mode');
   assert.ok(click.includes("if (button.hasAttribute('data-flow-back')) return goTo(nextScreen(host.screen,'back'));"));
-  assert.ok(click.includes("if (d.start) return startMatch(d.start,d.start === 'tutorial' ? d.tutorialId : host.tutorialId);"));
+  assert.ok(click.includes("if (d.start) return prepared(() => startMatch(d.start,d.start === 'tutorial' ? d.tutorialId : host.tutorialId));"));
   assert.ok(click.includes("if (button.hasAttribute('data-online-battle')) return onOnlineBattle();"));
   assert.ok(main.includes('function onOnlineBattle() {}'), 'online play is not connected');
   assert.ok(main.includes('const back = escapeScreen(host.screen,{overlayOpen:host.options || host.deckBuilder.open || host.catalogOpen});'));
