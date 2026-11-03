@@ -505,7 +505,14 @@ body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-deta
 .r2-title-render>div { display:flex; flex-wrap:wrap; gap:calc(var(--u) * .25); }
 .r2-title-render button { min-height:2.75rem; padding:0 .8em; }
 .r2-title-render button[aria-checked="true"] { outline:calc(var(--u) * .125) solid #00ff00; outline-offset:calc(var(--u) * -.125); }
-/* The options window's memory estimate (memory-estimate.js): a table at the end of the window, sizes in the window's own font. */
+/* The debug window (debug-view.js), opened from the options' デバッグ entry; over the CRT title too. Sizes in its own font. */
+.r2-content .r2-modal.r2-debug { z-index:calc(var(--z-modal) + 2); }
+.r2-debug>section { width:min(calc(var(--u) * 40),94vw); overflow:auto; }
+.r2-debug>section>header { display:flex; align-items:center; gap:calc(var(--u) * .625); }
+.r2-debug>section>header h2 { margin:0; }
+.r2-debug>section>header button { margin-left:auto; min-height:2.2em; padding:0 .8em; }
+.r2-debug-open { min-height:2.2em; padding:0 .8em; }
+/* The memory estimate (memory-estimate.js): a table, sizes in the window's own font. */
 .r2-memory { display:grid; gap:calc(var(--u) * .375); margin-top:calc(var(--u) * .75); padding-top:calc(var(--u) * .625); border-top:1px solid #ffffff22; }
 .r2-memory header { display:flex; align-items:center; gap:calc(var(--u) * .625); }
 .r2-memory h3 { margin:0; font-size:1em; }

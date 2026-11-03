@@ -94,8 +94,8 @@ function renderShell(replace = false) {
   restoreDeckViewport(root,viewport);
   syncEntryLogoGlitch(root,entryEffects(),{profile:host.logoNoiseProfile,videoFile:entryLogoVideoFile});
   syncEntryCrtViewport(root,entryEffects(),{menuOpen:host.options,view:host.view,fullscreen:host.fullscreen,tapDetails:host.tapDetails,effectsEnabled:host.effectsEnabled,masterVolume:host.masterVolume,storedCounts:host.storedCounts,sendMatchLogs:host.sendMatchLogs,
-    onReadyChange:() => syncLiveInputLocks(root,{optionsOpen:host.options,entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))})});
-  syncLiveInputLocks(root,{optionsOpen:host.options,entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))});
+    onReadyChange:() => syncLiveInputLocks(root,{optionsOpen:host.options || Boolean(host.debug),entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))})});
+  syncLiveInputLocks(root,{optionsOpen:host.options || Boolean(host.debug),entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))});
   mobileViewport.sync(host.view);
 }
 // A choice from the title or the options window is kept; it also clears a loss-driven fallback.
@@ -122,25 +122,27 @@ function prepared(enter) {
     try {await enter();} finally {preparing = false;if (host.preparing) {host.preparing = false;renderShell();}}
   },0));
 }
-// The options window's memory estimate (文豪, 2026-11-04) is counted only while the window shows it: when it opens and
-// on its 更新. A count still running when the window closes or counts again is dropped.
+// The debug window (文豪, 2026-11-04) opens from the options' デバッグ on the title and the board, and takes their place.
+// Its memory estimate is counted only while it shows: when it opens and on its 更新. A count still running when the
+// window closes or counts again is dropped.
 let memorySerial = 0;
 async function measureMemory() {
   const serial = ++memorySerial;host.memory = null;renderShell();
-  if (!host.options || !root.querySelector('[data-memory-estimate]')) return;
+  if (!host.debug || !root.querySelector('[data-memory-estimate]')) return;
   const facts = await sampleMemory(document,window);
-  if (serial !== memorySerial || !host.options || !root.querySelector('[data-memory-estimate]')) return;
+  if (serial !== memorySerial || !host.debug || !root.querySelector('[data-memory-estimate]')) return;
   host.memory = memoryEstimate(facts);renderShell();
 }
-function openOptions() {host.options = true;return measureMemory();}
+function openDebug() {host.options = false;host.debug = true;return measureMemory();}
+function closeDebug() {host.debug = false;memorySerial += 1;renderShell();}
 function attachSession(next) {
   host.preparing = false;
   surface?.dispose();surface = null;session = next;shellGeneration += 1;
-  host.screen = 'game';host.options = false;host.notice = '';host.actor = session.scope().seatIds[0];renderShell(true);
+  host.screen = 'game';host.options = false;host.debug = false;host.notice = '';host.actor = session.scope().seatIds[0];renderShell(true);
   const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,...renderOptions(),onContextLost:degradeAfterLoss,
     boardStyle:new URLSearchParams(location.search).get('board') === 'classic' ? 'classic' : 'wireframe',
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
-    effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:openOptions,onTitle:leaveMatch,
+    effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;renderShell();},onTitle:leaveMatch,
     onRematch:() => prepared(() => {const result = lifecycle.rematch();if (result.ok) attachSession(result.value);else notice(result.error.code);}),
     onTutorialSkip:() => prepared(skipTutorial),onSaveLog:saveMatchLog,onToMenu:() => leaveMatch(nextScreen('game',host.mode === 'tutorial' ? 'tutorial-complete' : 'match-menu')),onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}});
   if (mounted.ok) surface = mounted.value;else notice(mounted.error.code);
@@ -180,12 +182,12 @@ function downloadStored(name,place,items) {const link = document.createElement('
 const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;
 // A browser may refuse even the reading of localStorage; this runs first in pagehide and startMatch, so it must not throw.
 const markWonTutorial = () => {try {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);} catch {/* the tutorial stays unmarked */}};
-function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.screen = screen;host.options = false;host.catalogOpen = false;host.notice = '';renderShell(true);
+function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.debug = false;host.screen = screen;host.options = false;host.catalogOpen = false;host.notice = '';renderShell(true);
   if (screen !== 'entry') root.querySelector('[data-flow-back]')?.focus({preventScroll:true});}
 // Entry flow screens move by their own buttons and Escape only, never by the browser history (Q14).
 // Focus follows the move (a re-render drops it to the body, out of reach of Escape): a flow screen
 // starts on its [戻る], the title on the button that opened the screen just left.
-function goTo(screen) {if (!screen) return;const from = host.screen;host.screen = screen;host.options = false;host.catalogOpen = false;host.notice = '';renderShell();
+function goTo(screen) {if (!screen) return;const from = host.screen;host.screen = screen;host.options = false;host.debug = false;host.catalogOpen = false;host.notice = '';renderShell();
   const opener = {'tutorial-select':'[data-flow="open-tutorials"]','battle-setup':'[data-flow="open-battle"]'}[from];
   root.querySelector(screen === 'entry' ? opener ?? '[data-mode]' : '[data-flow-back]')?.focus({preventScroll:true});}
 // Online play (P02B) will connect here; until then its button is marked 準備中 and does nothing.
@@ -216,9 +218,11 @@ root.addEventListener('click',event => {
   if (button.hasAttribute('data-online-battle')) return onOnlineBattle();
   if (d.mode) return prepared(() => startMatch(d.mode));
   if (d.view) {host.view = d.view;saveView(localStorage,d.view);surface?.configure({view:d.view});return renderShell();}
-  if (d.live === 'options') return openOptions();
+  if (button.hasAttribute('data-debug-open')) return openDebug();
+  if (button.hasAttribute('data-debug-close')) return closeDebug();
   if (button.hasAttribute('data-memory-refresh')) return measureMemory();
-  if (d.live === 'close-options') host.options = false;
+  if (d.live === 'options') host.options = true;
+  else if (d.live === 'close-options') host.options = false;
   else if (d.live === 'home') return leaveMatch();
   else if (d.live === 'fullscreen') {void toggleFullscreen(document).then(() => renderShell());return;}
   else if (d.live === 'close-catalog') host.catalogOpen = false;
@@ -286,6 +290,7 @@ for (const name of ['pointerup','pointercancel','pointerleave']) root.addEventLi
 // Escape is taken on the document: opening the options or closing the deck builder leaves the focus
 // on <body>, and the key must still close the window or go back from there (V092-08).
 document.addEventListener('keydown',event => {if (event.key === 'Escape' && !event.target.closest?.('[data-match-root]')) {
+  if (host.debug) return closeDebug();
   const back = escapeScreen(host.screen,{overlayOpen:host.options || host.deckBuilder.open || host.catalogOpen});
   if (back) return goTo(back);
   host.options = false;host.deckBuilder.detailId = null;renderShell();}});

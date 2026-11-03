@@ -337,6 +337,8 @@ function mount(entry, initialOptions = {}) {
         items.push({ kind: "record", label, count: counts[kind] ?? 0, selector: `[data-stored-export="${kind}"]`, y: cursor }); cursor += rowGap;
       }
       items.push({ kind: "toggle", label: "対戦後に対戦ログを送信", checked: Boolean(options.sendMatchLogs), selector: "[data-toggle-send-logs]", y: cursor }); cursor += rowGap;
+      // The debug window is HTML over the CRT (debug-view.js); this row only opens it.
+      items.push({ kind: "open", label: "デバッグ", selector: "[data-debug-open]", y: cursor }); cursor += rowGap;
       const maxScroll = Math.max(0, cursor + panel.height * .02 - (view.bottom - view.top));
       const focusedItem = items.find(item => item.selector && entry.parentElement?.querySelector(`.r2-title-options ${item.selector}`) === document.activeElement);
       if (focusedItem && focusedItem.selector !== lastFocusedItem) {
@@ -408,7 +410,8 @@ function mount(entry, initialOptions = {}) {
         ctx.fillStyle = "#e8ffe8";
         ctx.textAlign = "left";
         ctx.fillText(item.label, left, y + rowHeight / 2, width * .84);
-        checkbox(row, item.checked);
+        if (item.kind === "open") { ctx.fillStyle = "#00ff00"; ctx.textAlign = "right"; ctx.fillText("▶", left + width, y + rowHeight / 2); }
+        else checkbox(row, item.checked);
         target(row, item.selector);
       }
       ctx.restore();

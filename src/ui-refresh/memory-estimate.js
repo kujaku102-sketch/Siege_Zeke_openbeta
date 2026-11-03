@@ -1,4 +1,4 @@
-// The options window's memory estimate (文豪, 2026-11-04): counted from what the page holds, the way the iOS compat
+// The debug window's memory estimate (文豪, 2026-11-04): counted from what the page holds, the way the iOS compat
 // review counted it, against a 1.4GB budget. It is not the browser's own number. main.js counts only while the window
 // is open: when it opens and on its 更新 button.
 // memoryEstimate is DOM-free (the rows from counted facts); sampleMemory reads the page; memoryHtml draws the block.
