@@ -24,6 +24,15 @@ import { installAbilityHelp } from './ui/ability-help.js';
 import { registerLocalFonts } from './ui/local-fonts.js';
 import { memoryEstimate, sampleMemory } from './ui-refresh/memory-estimate.js';
 import { clearSavedFiles, loadBuildRevision } from './ui-refresh/debug-tools.js';
+import { createErrorLog, errorLogText } from './ui-refresh/error-log.js';
+
+// The debug window's error log listens from here on. A new entry redraws an open window once a quarter second later,
+// never from a redraw it caused itself (a failing redraw would feed itself).
+let errorRedraw = null, errorRedrawing = false;
+const errorLog = createErrorLog(window,{changed:() => {
+  if (!host.debug || errorRedraw || errorRedrawing) return;
+  errorRedraw = setTimeout(() => {errorRedraw = null;errorRedrawing = true;try {renderShell();} finally {setTimeout(() => {errorRedrawing = false;},0);}},250);
+}});
 import { MAX_SAVED_DECKS, deckToRecipe, loadSavedDecks, normalizeSavedDeck, recommendDeck, saveDeckCollection, validateDeck } from './game/deck-builder.js';
 import { registerPwa } from './pwa.js';
 import { MATCH_LOGS, REPLAYS, loadStored, storedExport } from './adapters/match-record-store.js';
@@ -80,6 +89,7 @@ function renderShell(replace = false) {
   host.fullscreen = isFullscreen(document);
   const bound = session?.port(host.actor), read = bound?.ok ? bound.value.query() : null;
   host.busy = Boolean(read?.ok && read.value.requiredInput);
+  host.errors = host.debug ? {entries:errorLog.entries(),total:errorLog.total(),copied:host.errorCopied ?? null} : null;
   host.activeSeat = read?.ok ? read.value.status.activeSeat : 'player';
   const html = runtimeShellHtml(host);
   if (replace || screenRendered !== host.screen || !root.querySelector('[data-shell-overlays]')) {root.innerHTML = html;screenRendered = host.screen;}
@@ -134,8 +144,18 @@ async function measureMemory() {
   if (serial !== memorySerial || !host.debug || !root.querySelector('[data-memory-estimate]')) return;
   host.memory = memoryEstimate(facts);renderShell();
 }
-function openDebug() {host.options = false;host.debug = true;return measureMemory();}
+function openDebug() {host.options = false;host.debug = true;host.errorCopied = null;return measureMemory();}
 function closeDebug() {host.debug = false;memorySerial += 1;renderShell();}
+// まとめてコピー: the clipboard API, or a hidden text area where it is refused (an insecure origin).
+async function copyErrors() {
+  const value = errorLogText(errorLog.entries());
+  let copied = false;
+  try {await navigator.clipboard.writeText(value);copied = true;} catch {
+    const area = document.createElement('textarea');area.value = value;area.setAttribute('readonly','');area.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+    document.body.append(area);area.select();try {copied = document.execCommand('copy');} catch {copied = false;}area.remove();
+  }
+  host.errorCopied = copied;renderShell();
+}
 // 保存したファイルを消して読み直す: asked once, then every service worker and cache of this site go before the reload.
 async function clearAndReload() {
   if (!window.confirm('service worker の登録を外し、キャッシュを消してから読み直します。設定や対戦ログは消しません。よろしいですか？')) return;
@@ -228,6 +248,7 @@ root.addEventListener('click',event => {
   if (button.hasAttribute('data-debug-close')) return closeDebug();
   if (button.hasAttribute('data-memory-refresh')) return measureMemory();
   if (button.hasAttribute('data-debug-clear-reload')) return clearAndReload();
+  if (button.hasAttribute('data-error-copy')) return copyErrors();
   if (d.live === 'options') host.options = true;
   else if (d.live === 'close-options') host.options = false;
   else if (d.live === 'home') return leaveMatch();
