@@ -108,15 +108,19 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       // What a pick asks the player to press is kept clear as well as the step's highlights, and the floating effect
       // flow with them (文豪, 2026-11-03, H7).
       const picks = [...root.querySelectorAll('.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline]'), ...(flow ? [flow] : [])];
-      const rects = shown([...pointed, ...picks]);
+      // The guide's own controls ([開始], [次へ]) move with it: no band covers them (文豪, 2026-11-04, 1a).
+      const rects = shown([...pointed, ...picks].filter(element => !guide.contains(element)));
+      // A portrait hidden under an open panel (live.css) covers nothing (文豪, 2026-11-04, blue #15).
+      const cast = guide.querySelector('.live-guide-cast :is(img,.live-guide-noportrait)');
+      const portrait = Boolean(cast) && getComputedStyle(cast).visibility !== 'hidden';
       // Then, where it can, the opponent's board, TURN and the memory stay in sight (文豪, 2026-11-03, H1).
       const viewer = latest()?.model.match.viewerSeat, opponent = scope.seatIds.find(seat => seat !== viewer);
       const keep = shown([...root.querySelectorAll(`[data-live-region="board"] :is([data-seat="${opponent}"],[data-fortress="${opponent}"],[data-fx-seat="${opponent}"]),[data-runtime-end-turn],.wf-meter,.wf-memory`)]);
       // A page too long for a third of the screen grows the frame (文豪, 2026-10-28): the band keeps clear with the
       // step's tallest page, and the page shown gets its own height.
       const grow = guideGrow();
-      const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}`;
-      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step, keep }) };
+      const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}|${portrait}`;
+      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step, keep, portrait }) };
       applyGuideBand(view, guideBand.band, viewport, grow.page);
       paginateGuide(guide);
     }

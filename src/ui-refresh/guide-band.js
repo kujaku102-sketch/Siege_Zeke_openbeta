@@ -57,15 +57,16 @@ const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.le
 // every band covering something, the band covering least wins. keep: what stays in sight after that (the
 // opponent's board, TURN, the memory): between bands that cover the targets alike, the one covering least of it
 // wins (ties keep the order).
-// grow: the frame as its tallest page in the step needs it (the band is kept while the pages turn).
-export function chooseGuideBand(viewport, targets = [], preferred = null, { aspect = 1, grow = 0, keep = [] } = {}) {
+// grow: the frame as its tallest page in the step needs it (the band is kept while the pages turn). portrait: false
+// while the portrait is hidden (an open panel lies under it): then the frame alone covers.
+export function chooseGuideBand(viewport, targets = [], preferred = null, { aspect = 1, grow = 0, keep = [], portrait: drawn = true } = {}) {
   if (GUIDE_BAND_ORDER.includes(preferred)) return preferred;
   const visible = rects => rects.filter(t => t && t.right > t.left && t.bottom > t.top);
   const shown = visible(targets), kept = visible(keep);
   let best = null;
   for (const band of GUIDE_BAND_ORDER) {
     const { portrait, frame } = guideLayout(band, viewport, aspect, grow);
-    const area = rects => rects.reduce((sum, target) => sum + overlap(portrait, target) + overlap(frame, target), 0);
+    const area = rects => rects.reduce((sum, target) => sum + (drawn ? overlap(portrait, target) : 0) + overlap(frame, target), 0);
     const covered = area(shown), hidden = area(kept);
     // Less than a square pixel apart is a tie (the bands' sums differ only by rounding).
     if (!best || covered < best.covered - 1 || covered <= best.covered + 1 && hidden < best.hidden - 1) best = { band, covered, hidden };

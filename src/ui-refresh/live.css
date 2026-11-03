@@ -35,8 +35,9 @@ body { overflow:hidden; }
    pressable. */
 .r2-content .r2-guide.live-guide .live-guide-cast :is(img,.live-guide-noportrait) { position:absolute; left:0; bottom:0; width:var(--guide-portrait-width); height:var(--guide-portrait-height);
   object-fit:contain; object-position:center bottom; mask-image:none; border:0; background:transparent; pointer-events:none; z-index:2; }
-/* While a card detail is open the portrait steps out: the detail stands where it would (文豪, 2026-11-03, H4). */
-.r2-runtime-view:has(.r2-detail) .r2-guide.live-guide .live-guide-cast :is(img,.live-guide-noportrait) { visibility:hidden; }
+/* While a card detail or a choice list is open the portrait steps out: the panel stands where it would (文豪, 2026-11-03,
+   H4; the list 2026-11-04, blue #6). The band choice then counts the frame alone (surface-layout.js). */
+.r2-runtime-view:has(.r2-detail,.effect-dialog.is-list) .r2-guide.live-guide .live-guide-cast :is(img,.live-guide-noportrait) { visibility:hidden; }
 /* While the guide speaks the activation stack keeps out of its group (文豪, 2026-11-03, H2): under it in the top band,
    right of the portrait in the middle one; the bottom band leaves the top left free. */
 .r2-runtime-view[data-guide-band="top"]:has(.live-guide) .r2-activation { top:calc(var(--guide-top) + var(--guide-height) + 1.6cqh); }
