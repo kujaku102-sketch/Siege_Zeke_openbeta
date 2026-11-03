@@ -577,3 +577,40 @@ test('S02-SNAPSHOT-40: restore validates runtimeContext before cloning', () => {
   const extraKey = structuredClone(base); extraKey.engineState.runtimeContext.unexpected = true;
   rejects(restore(extraKey), 'SNAPSHOT_INVALID_STATE');
 });
+
+test('S02-SNAPSHOT-29: keeps what the last card damage did, later-turn delayed effects and an empty keyed follow-up table, and refuses malformed ones', () => {
+  const current = input();
+  const outcome = { targetUid: 'some-card', amount: 2, destructionDetermined: false, prevented: false };
+  const delayed = { event: 'turn_started', dueTurn: 3, type: 'move_source_from_trash', ownerId: 'player', cardUid: 'some-card', sourceName: 'x', destination: 'hand', resetDamage: false, standby: false, sleep: false };
+  Object.assign(current.engineState, { lastDamageOutcome: outcome, delayedEffects: [delayed], destroyLkiFollowUps: {} });
+  const restored = restore(create(current));
+  assert.equal(restored.ok, true, JSON.stringify(restored));
+  assert.deepEqual(restored.value.engineState.lastDamageOutcome, outcome);
+  assert.deepEqual(restored.value.engineState.delayedEffects, [delayed]);
+  const none = input(); none.engineState.lastDamageOutcome = null;
+  assert.equal(restore(create(none)).value.engineState.lastDamageOutcome, null);
+  for (const bad of [{ ...outcome, amount: -1 }, { ...outcome, extra: true }, { ...outcome, prevented: 'no' }, { targetUid: '', amount: 1, destructionDetermined: false, prevented: false }, 3]) {
+    const broken = input(); broken.engineState.lastDamageOutcome = bad;
+    rejects(createRuntimeSnapshot(broken), 'SNAPSHOT_INVALID_STATE');
+  }
+  for (const bad of [{ ...delayed, event: 'later' }, { ...delayed, type: '' }, { ...delayed, ownerId: 'nobody' }, 'x']) {
+    const broken = input(); broken.engineState.delayedEffects = [bad];
+    assert.equal(createRuntimeSnapshot(broken).ok, false);
+  }
+  const keyed = input(); keyed.engineState.destroyLkiFollowUps = { 'some-card': { type: 'x' } };
+  rejects(createRuntimeSnapshot(keyed), 'SNAPSHOT_UNSUPPORTED_STATE');
+});
+
+test('S02-SNAPSHOT-30: the save side takes a plain object with no prototype and stores it as a plain object; the load side stays strict', () => {
+  const current = input();
+  const bare = Object.create(null); bare.kept = 1;
+  current.engineState.provisional.push({ records: bare });
+  const snapshot = create(current);
+  assert.equal(Object.getPrototypeOf(snapshot.engineState.provisional[0].records), Object.prototype);
+  assert.deepEqual(snapshot.engineState.provisional[0].records, { kept: 1 });
+  const loaded = structuredClone(snapshot);
+  loaded.engineState.provisional[0].records = Object.assign(Object.create(null), { kept: 1 });
+  rejects(restore(loaded), 'SNAPSHOT_INVALID_INPUT');
+  const inherited = input(); inherited.engineState.provisional.push({ records: Object.create({ inherited: true }) });
+  rejects(createRuntimeSnapshot(inherited), 'SNAPSHOT_UNSUPPORTED_STATE');
+});

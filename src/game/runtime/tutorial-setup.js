@@ -11,6 +11,9 @@ const TUTORIALS = Object.freeze({
   }),
   // The opponent plays the Rider and Merc (both in the colourless sandbag deck).
   vengeance: Object.freeze({ player: [], fixedPlayerDeck: 'vengeance', ai: ['STD-025', 'STD-043'], fixedAiDeck: 'tutorial-sandbag' }),
+  // Yellow and black start from their start decks (the draws the script needs are put on top by the arrangement); the opponent plays from the sandbag deck.
+  yellow: Object.freeze({ player: [], fixedPlayerDeck: 'start-yellow', ai: ['STD-025', 'STD-020', 'STD-028'], fixedAiDeck: 'tutorial-sandbag' }),
+  black: Object.freeze({ player: ['STD-157', 'STD-158', 'STD-163'], fixedPlayerDeck: 'start-black', ai: ['STD-043'], fixedAiDeck: 'tutorial-sandbag' }),
   // The player's deck holds the two Sp the script draws or accesses; the opponent plays Merc from a colourless deck.
   blue: Object.freeze({ player: ['STD-111', 'STD-116'], fixedPlayerDeck: 'tutorial-blue', ai: ['STD-043'], fixedAiDeck: 'tutorial-sandbag' })
 });

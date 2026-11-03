@@ -2,7 +2,9 @@
 const BOARDS = Object.freeze({
   basics: () => import('./basics.json'),
   blue: () => import('./blue.json'),
-  vengeance: () => import('./vengeance.json')
+  yellow: () => import('./yellow.json'),
+  vengeance: () => import('./vengeance.json'),
+  black: () => import('./black.json')
 });
 
 export const TUTORIAL_WIN_CHECKPOINT = 'win';

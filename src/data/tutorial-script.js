@@ -23,8 +23,22 @@ export const TUTORIAL_PURPLE_HAND = Object.freeze(["STD-188", "STD-191", "STD-20
 export const TUTORIAL_PURPLE_FRONT = Object.freeze(["STD-189", "STD-189"]);
 export const TUTORIAL_PURPLE_REGISTRY = Object.freeze(["STD-190"]);
 export const TUTORIAL_PURPLE_OPPONENT_HAND = Object.freeze(["STD-025", "STD-043"]);
+// 黄チュートリアル(文豪の台本 04-黄-仮台本.md)。相手先攻。手札は大盾の騎士・伝令と、使わない華守り2枚(実物)。使わない黄のカード1枚を
+// 最初からレジストリに置いて黄シンボルを点灯させる。後攻の第1ターンは2枚ドロー(4.2)、大盾の騎士のOCで2枚、第2ターンの1枚、伝令のログインの1枚、
+// 手順8のインシデント(相手STR 5→2、5.3)で1枚、第3ターンの1枚。自分が引く順(上から): 台本に関係しない札が5枚、シールドバッシュ(6枚目)、台本に関係しない札、騎士団の凱歌(8枚目)。
+export const TUTORIAL_YELLOW_HAND = Object.freeze(["STD-125", "STD-126", "STD-131", "STD-131"]);
+export const TUTORIAL_YELLOW_REGISTRY = Object.freeze(["STD-129"]);
+export const TUTORIAL_YELLOW_DRAWS = Object.freeze(["STD-133", "STD-134", "STD-136", "STD-134", "STD-133", "STD-138", "STD-136", "STD-137"]);
+export const TUTORIAL_YELLOW_OPPONENT_HAND = Object.freeze(["STD-025", "STD-020", "STD-028"]);
+// 黒チュートリアル(文豪の台本 06-黒-台本修正案.md と判断A〜E)。先攻は自分(第1ターンはドローしない)。黒のカード1枚を最初からレジストリに置いて点灯させる。
+// 山札の上から: コンキスタドールの2枚ドローでレメゲトンと任意の札、第2ターンのドローで邪神との取引(レメゲトンのアクセスで山札は混ざるので、引き終えてからアクセス)。
+// 相手はメルクAを場に、メルクBを手札に持つ。
+export const TUTORIAL_BLACK_HAND = Object.freeze(["STD-150", "STD-155", "STD-156", "STD-152"]);
+export const TUTORIAL_BLACK_REGISTRY = Object.freeze(["STD-151"]);
+export const TUTORIAL_BLACK_DRAWS = Object.freeze(["STD-158", "STD-162", "STD-163"]);
+export const TUTORIAL_BLACK_OPPONENT_FRONT = Object.freeze(["STD-043"]);
+export const TUTORIAL_BLACK_OPPONENT_HAND = Object.freeze(["STD-043"]);
 export const TUTORIAL_OPPONENT_SCRIPTS = Object.freeze({
-  'yellow-pass': Object.freeze([{type:'endTurn'}]),
   // 赤チュートリアル: 相手はセキュリティのObガードマンを実行し、スリープさせてターンを終える。
   'guardman-demo': Object.freeze([{type:'executeCard',cardId:'STD-022',zone:'front'}, {type:'endTurn'}]),
   // 青チュートリアル: 1) 装甲兵 メルクを実行してスリープさせ、ターンを終える。2) 次のターン、メルクで相手ユーザーを攻撃してターンを終える。
@@ -32,7 +46,16 @@ export const TUTORIAL_OPPONENT_SCRIPTS = Object.freeze({
   'sandbag-2': Object.freeze([{type:'attack',cardId:'STD-043',targetType:'fortress'}, {type:'endTurn'}]),
   // 紫チュートリアル: ライダーを実行し、スリープ中の[セキュリティ]ギガンテスを攻撃(攻撃先はそれだけ)。メルクを実行してターンを終える(メルクのスリープは相手の操作が答える)。
   'vengeance-opponent': Object.freeze([{type:'executeCard',cardId:'STD-025',zone:'front'}, {type:'attack',cardId:'STD-025',targetCardId:'STD-205'},
-    {type:'executeCard',cardId:'STD-043',zone:'front'}, {type:'endTurn'}])
+    {type:'executeCard',cardId:'STD-043',zone:'front'}, {type:'endTurn'}]),
+  // 黄チュートリアル: 1) 開始の相手ターン: ライダーを実行し、(フロントに何もいない)自分ユーザーを攻撃する。2) 歩兵を実行してターンを終える(ライダーは攻撃しない)。
+  // 3) 騎馬兵を実行し、スリープ中の大盾の騎士を攻撃(相打ち)。歩兵で、残るスリープ中の伝令を攻撃する。
+  'yellow-open': Object.freeze([{type:'executeCard',cardId:'STD-025',zone:'front'}, {type:'attack',cardId:'STD-025',targetType:'fortress'}, {type:'endTurn'}]),
+  'yellow-turn2': Object.freeze([{type:'executeCard',cardId:'STD-020',zone:'front'}, {type:'endTurn'}]),
+  'yellow-turn3': Object.freeze([{type:'executeCard',cardId:'STD-028',zone:'front'}, {type:'attack',cardId:'STD-028',targetCardId:'STD-125'},
+    {type:'attack',cardId:'STD-020',targetCardId:'STD-126'}, {type:'endTurn'}]),
+  // 黒チュートリアル: 1) 何もせずターンを終える(終了時にメルクAをスリープ)。2) メルクBを実行してターンを終える(終了時にメルクA・Bをスリープ)。
+  'black-1': Object.freeze([{type:'endTurn'}]),
+  'black-2': Object.freeze([{type:'executeCard',cardId:'STD-043',zone:'front'}, {type:'endTurn'}])
 });
 
 // 「ようこそ」の挨拶は赤(basics)だけで流す。ほかの色は自分の手順1から始まる(文豪 2026-10-29)。
@@ -223,8 +246,9 @@ const BASIC_STEPS = [
   {
     speaker: TUTORIAL_SPEAKER,
     text: "Obを押してみると行動のメニューが出てきます。まずは『攻撃』を押してみましょう！",
-    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
-    expect: { type: "advance" }
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }, { kind: "route", cardId: "STD-091", routes: ["attack"], label: "攻撃" }],
+    // 押したら進む手順: アツトの『攻撃』を選んで、対象の選択が開いたら次へ(ui-refresh の PRESS_OPEN['attack-choice'])。
+    expect: { type: "advance", press: "attack-choice", cardId: "STD-091" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
@@ -235,6 +259,12 @@ const BASIC_STEPS = [
   {
     speaker: TUTORIAL_SPEAKER,
     text: "攻撃成功！ダメージが通り、相手ユーザーのSTRが削れました。",
+    focus: [{ kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "相手のSTRが減って『インシデント』が起きました。相手のメモリ上限が1増えて、こちらはカードを1枚引きます。",
     focus: [{ kind: "fortress", owner: "ai", label: "相手ユーザー" }],
     expect: { type: "advance" }
   },
@@ -411,9 +441,10 @@ const VENGEANCE_STEPS = [
     [PURPLE_END_TURN, PURPLE_CARD("STD-205", "ギガンテス", "front")], { type: "end-turn" }, { leavesChoice: true }),
   // 台本の1行に操作が2つ(終了ボタン、ギガンテスのスリープ)あるので、同じ行を2ステップで出す。ターン終了で開く任意の選択に、ギガンテスを選ぶ。
   PURPLE_STEP("このターンは『ギガンテス』をスリープし、攻撃に備えてターン終了しましょう！",
-    [PURPLE_CARD("STD-205", "ギガンテス", "front")], { type: "answerChoice", cardId: "STD-205" }, { after: "vengeance-opponent" }),
+    [PURPLE_CARD("STD-205", "ギガンテス", "front")], { type: "answerChoice", cardId: "STD-205" }, { after: "vengeance-opponent", hintOnly: true }),
   // 5 相手ターン
   PURPLE_ADVANCE("相手は『ライダー』を実行！早速攻撃してきましたね！", [PURPLE_CARD("STD-205", "ギガンテス", "front")]),
+  PURPLE_ADVANCE("ギガンテスの反撃で、ライダーは破壊されました！", [PURPLE_CARD("STD-205", "ギガンテス", "front")]),
   PURPLE_ADVANCE("『装甲兵メルク』も出してきましたね。", [PURPLE_CARD("STD-043", "装甲兵 メルク", "front", "ai")]),
   PURPLE_ADVANCE("相手は『メルク』をスリープしてターン終了のようです。", [PURPLE_CARD("STD-043", "装甲兵 メルク", "front", "ai")]),
   // 6 移動戦術の実践
@@ -429,12 +460,115 @@ const VENGEANCE_STEPS = [
   PURPLE_STEP("それでは『ギガンテス』と『アクロィア』で攻撃して、相手をやっつけましょう！",
     [PURPLE_CARD("STD-205", "ギガンテス", "front"), PURPLE_USER], { type: "attack", cardId: "STD-205", targetType: "fortress" }),
   PURPLE_STEP("それでは『ギガンテス』と『アクロィア』で攻撃して、相手をやっつけましょう！",
-    [PURPLE_CARD("STD-194", "アクロィア", "front"), PURPLE_USER], { type: "attack", cardId: "STD-194", targetType: "fortress" }),
+    [PURPLE_CARD("STD-194", "アクロィア", "front"), PURPLE_USER], { type: "attack", cardId: "STD-194", targetType: "fortress" }, { hintOnly: true }),
   PURPLE_STEP("やりましたね！私達の勝利です！▽今後とも劇団ヴェンジェンスをよろしくお願いしまーす！▽…案件じゃないですよ", undefined, null)
 ];
 
+// 黄(セキュリティで守る・OC・ドロー)。文豪の台本 04-黄-仮台本.md の「」を、原文のまま順番どおり1つずつ1ステップにしている。
+// 括弧の演出は focus / expect に移した。相手のターンは3本の台本('yellow-open'、'yellow-turn2'、'yellow-turn3')で、それぞれのターンの動きを続けて行い、
+// セリフ送りは相手のターンが終わってから(赤・青・紫と同じ)。1行に操作が2つある行(OCの実行と支払い、ターン終了とスリープ、凱歌の起動と①)は、同じ行を2ステップで出す。
+// 最後の2行は1ステップに「▽」でつなぐ(勝ちが確定すると最後のステップへ飛ぶため)。
+const TUT_CARD = BLUE_CARD;
+const TUT_USER = BLUE_USER;
+const TUT_STEP = BLUE_STEP;
+const TUT_ADVANCE = BLUE_ADVANCE;
+const TUT_END_TURN = PURPLE_END_TURN;
+
+const YELLOW_STEPS = [
+  // 1 開始(相手ターンで始まる)
+  TUT_STEP("黄のデッキを使います。", [{ kind: "action", action: "tutorial-advance", label: "開始" }], { type: "advance" }, { after: "yellow-open" }),
+  TUT_ADVANCE("さっそく相手の『ライダー』が攻撃してきました！2ダメージです。", [TUT_CARD("STD-025", "ライダー", "front", "ai")]),
+  TUT_ADVANCE("黄は『セキュリティ』で相手の攻撃を受け止めて、粘り強く戦うのが得意です。"),
+  // 2 大盾の騎士とOC
+  TUT_STEP("それではセキュリティを展開しましょう！『大盾の騎士』を実行します。メモリは1ですが、『OC』という追加メモリを4払う選択ができます。",
+    [TUT_CARD("STD-125", "大盾の騎士"), BLUE_FRONT], { type: "play", cardId: "STD-125", zone: "front" }, { leavesChoice: true }),
+  TUT_STEP("払うと、カードを2枚引けて、強くなります。払ってみましょう！", undefined, { type: "answerChoice", label: "+4払う" }),
+  // 3 ターン終了とスリープ
+  TUT_STEP("ターンを終了します。『セキュリティ』を持つObは、ターン終了時に1体スリープさせることで、相手の攻撃を引き受ける壁になれます。",
+    [TUT_END_TURN, TUT_CARD("STD-125", "大盾の騎士", "front")], { type: "end-turn" }, { leavesChoice: true }),
+  TUT_STEP("ターンを終了します。『セキュリティ』を持つObは、ターン終了時に1体スリープさせることで、相手の攻撃を引き受ける壁になれます。",
+    [TUT_CARD("STD-125", "大盾の騎士", "front")], { type: "answerChoice", cardId: "STD-125" }, { after: "yellow-turn2", hintOnly: true }),
+  // 4 相手の準備
+  TUT_ADVANCE("相手が『歩兵』を出しました。実行したターンは攻撃できません。", [TUT_CARD("STD-020", "歩兵", "front", "ai")]),
+  TUT_ADVANCE("OCで強くなった『大盾の騎士』を前に、相手は攻撃を躊躇してそのままターンエンドです！", [TUT_CARD("STD-125", "大盾の騎士", "front")]),
+  // 5 華守りと伝令
+  TUT_STEP("こちらも反撃です。『伝令』を実行しましょう。", [TUT_CARD("STD-126", "伝令"), BLUE_FRONT], { type: "play", cardId: "STD-126", zone: "front" }),
+  TUT_ADVANCE("伝令は、他に『セキュリティ』を持つObがいるので、カードを1枚引けました。", [TUT_CARD("STD-126", "伝令", "front")]),
+  // 6 シールドバッシュ
+  TUT_ADVANCE("『伝令』の効果で引いたカードを良く見てください！", [TUT_CARD("STD-138", "シールドバッシュ")]),
+  TUT_STEP("自分のエリアにある『セキュリティ』は2体。『シールドバッシュ』は、その数に1を足した3ダメージを与えます！",
+    [TUT_CARD("STD-138", "シールドバッシュ"), TUT_CARD("STD-025", "ライダー", "front", "ai")], { type: "play", cardId: "STD-138", targetCardId: "STD-025" }),
+  TUT_ADVANCE("ライダーを破壊！やりましたね！"),
+  // 8 攻撃
+  TUT_STEP("では『大盾の騎士』で相手ユーザーに反撃しましょう！", [TUT_CARD("STD-125", "大盾の騎士", "front"), TUT_USER], { type: "attack", cardId: "STD-125", targetType: "fortress" }),
+  TUT_ADVANCE("相手ユーザーのSTRは残り2、わずかです！", [TUT_USER]),
+  TUT_STEP("念のため『伝令』も守りの体制を構えてターンを渡しましょう", [TUT_END_TURN, TUT_CARD("STD-126", "伝令", "front")], { type: "end-turn" }, { leavesChoice: true }),
+  TUT_STEP("念のため『伝令』も守りの体制を構えてターンを渡しましょう", [TUT_CARD("STD-126", "伝令", "front")], { type: "answerChoice", cardId: "STD-126" }, { after: "yellow-turn3", hintOnly: true }),
+  // 9 相手ターン
+  TUT_ADVANCE("相手は騎馬兵を出して、すぐに攻撃してきました。"),
+  TUT_ADVANCE("『コンタクト』は出たターンでもObを攻撃できる能力です。"),
+  TUT_ADVANCE("『大盾の騎士』は騎馬兵と相打ちになってしまいました。"),
+  TUT_ADVANCE("しかし、二重の守りのおかげであなたにダメージは届いていません！", [TUT_CARD("STD-126", "伝令", "front")]),
+  // 10 フィニッシュ
+  TUT_ADVANCE("さぁ、トドメです！"),
+  TUT_STEP("今引いてきた『騎士団の凱歌』を起動しましょう！", [TUT_CARD("STD-137", "騎士団の凱歌")], { type: "play", cardId: "STD-137" }, { leavesChoice: true }),
+  TUT_STEP("今引いてきた『騎士団の凱歌』を起動しましょう！", undefined, { type: "answerChoice", label: "①自分Obすべてを+2/+2" }, { hintOnly: true }),
+  TUT_ADVANCE("これで『伝令』のATKは3、相手ユーザーのSTRを0にできます。", [TUT_CARD("STD-126", "伝令", "front")]),
+  TUT_STEP("では、相手ユーザーを攻撃しましょう", [TUT_CARD("STD-126", "伝令", "front"), TUT_USER], { type: "attack", cardId: "STD-126", targetType: "fortress" }),
+  TUT_STEP("やりましたね！私達の勝利です！▽耐えきって勝つ戦術、これが聖機構騎士団です！", undefined, null)
+];
+
+// 黒(ログアウトと破壊・デコード)。文豪の台本 06-黒-台本修正案.md を、修正反映版(06-黒-台本-修正反映.md)の決めに沿って1つずつ1ステップにしている。
+// 手順3の「カードを2枚引きました」はログアウトの行より先(4.7.1)、手順6の邪神は「手札の」(判断B)。
+// 1行に操作が2つある行(ソロモンのログインでレメゲトンを破壊しフラウロスを出す)は、同じ行を2ステップで出す。邪神との取引の中の選択(破壊する2体、②、対象のメルク)は、
+// 1ステップの中でガード(TUTORIAL_STEP_GUARDS)が固定する。
+const BLACK_STEPS = [
+  // 1 開始
+  TUT_ADVANCE("黒のスタートデッキ、チュートリアルです。"),
+  TUT_ADVANCE("自分のObを破壊して力に変える、リスクも厭わない諸刃の剣戦術が得意です。", [{ kind: "action", action: "tutorial-advance", label: "開始" }]),
+  // 2 怨念人形
+  TUT_STEP("まず『怨念人形』をフロントに実行しましょう。メモリ1です。", [TUT_CARD("STD-150", "怨念人形"), BLUE_FRONT], { type: "play", cardId: "STD-150", zone: "front" }),
+  TUT_ADVANCE("『ログアウト』はエリアで破壊された時に起動する能力です。", [TUT_CARD("STD-150", "怨念人形", "front")]),
+  // 3 執念のコンキスタドール(自分のObを破壊)
+  TUT_STEP("次に『執念のコンキスタドール』を実行します。", [TUT_CARD("STD-155", "コンキスタドール"), BLUE_FRONT], { type: "play", cardId: "STD-155", zone: "front" }, { leavesChoice: true }),
+  TUT_ADVANCE("『ログイン』能力で自分のOb1体を破壊してカードを2枚引くことができます。", [TUT_CARD("STD-155", "コンキスタドール", "front")]),
+  TUT_STEP("破壊するのは『怨念人形』を選びましょう。", [TUT_CARD("STD-150", "怨念人形", "front")], { type: "answerChoice", cardId: "STD-150" }),
+  TUT_ADVANCE("そして、カードを2枚引きました。"),
+  TUT_ADVANCE("『怨念人形』が破壊されて、『ログアウト』が起動します。相手の『装甲兵 メルク』に1ダメージです！", [TUT_CARD("STD-043", "装甲兵 メルク", "front", "ai")]),
+  TUT_STEP("ターンを終了しましょう。", [TUT_END_TURN], { type: "end-turn" }, { after: "black-1" }),
+  // 4 レメゲトン&ソロモン
+  TUT_STEP("私達のターンですね。では『断章・レメゲトン』を実行してみましょう。", [TUT_CARD("STD-158", "レメゲトン"), { kind: "zone", owner: "player", zone: "back", label: "自分バック" }],
+    { type: "play", cardId: "STD-158", zone: "back" }, { leavesChoice: true }),
+  TUT_STEP("ログイン能力で『魔術王ソロモン』にアクセスして手札に加えましょう！", undefined, { type: "answerChoice", cardId: "STD-157" }),
+  TUT_STEP("そのまま、『ソロモン』を実行しましょう", [TUT_CARD("STD-157", "ソロモン"), BLUE_FRONT], { type: "play", cardId: "STD-157", zone: "front" }, { leavesChoice: true }),
+  TUT_STEP("そしてログイン能力も起動です！▽『レメゲトン』を破壊します。▽それを触媒に手札の『豹頭男爵フラウロス』をドラッグします！",
+    [TUT_CARD("STD-158", "レメゲトン", "back")], { type: "answerChoice", cardId: "STD-158" }, { leavesChoice: true }),
+  TUT_STEP("そしてログイン能力も起動です！▽『レメゲトン』を破壊します。▽それを触媒に手札の『豹頭男爵フラウロス』をドラッグします！",
+    [TUT_CARD("STD-156", "フラウロス")], { type: "answerChoice", cardId: "STD-156" }, { hintOnly: true }),
+  TUT_ADVANCE("ここでひとくち解説です。▽ドラッグで出したObのログイン能力は使えません。", [TUT_CARD("STD-156", "フラウロス", "front")]),
+  TUT_ADVANCE("つまりログイン能力は『実行』時だけですね！", [TUT_CARD("STD-156", "フラウロス", "front")]),
+  // 5 ターン終了
+  TUT_STEP("それではターンを終了してください。", [TUT_END_TURN], { type: "end-turn" }, { after: "black-2" }),
+  // 6 ゾンビメイカー(デコード)
+  TUT_ADVANCE("私達のターンです。先程破壊した『レメゲトン』の効果が起動して手札に加わっていますね。", [TUT_CARD("STD-158", "レメゲトン")]),
+  TUT_ADVANCE("黒にはこのように破壊されても戻ってくるタイプのカードも存在します。", [TUT_CARD("STD-158", "レメゲトン")]),
+  TUT_ADVANCE("ばんばん壊しましょう。"),
+  TUT_STEP("では『ゾンビメイカー』を実行しましょう。", [TUT_CARD("STD-152", "ゾンビメイカー"), BLUE_FRONT], { type: "play", cardId: "STD-152", zone: "front" }, { leavesChoice: true }),
+  TUT_STEP("『ログイン』能力内のキーワード、『デコード』は、ゴミ箱から直接エリアに出す効果です。ゴミ箱にいる『怨念人形』を選んでください。", undefined, { type: "answerChoice", cardId: "STD-150" }),
+  TUT_ADVANCE("この効果でデコードされたObは、このターンの終了時に破壊されてしまいますが…", [TUT_CARD("STD-150", "怨念人形", "front")]),
+  TUT_ADVANCE("そうなる前に、ゾンビメイカー共々▽手札の『邪神との取引』の弾にしてしまいましょう！", [TUT_CARD("STD-163", "邪神との取引")]),
+  TUT_STEP("『邪神との取引』を実行して『ゾンビメイカー』『怨念人形』の2体を選び、②の効果を2回起動させましょう",
+    [TUT_CARD("STD-163", "邪神との取引"), TUT_CARD("STD-152", "ゾンビメイカー", "front"), TUT_CARD("STD-150", "怨念人形", "front")], { type: "play", cardId: "STD-163" }),
+  TUT_ADVANCE("残ったメルクには、破壊された『怨念人形』の『ログアウト』で1ダメージ。これで破壊です！"),
+  TUT_ADVANCE("やった！2体のセキュリティを突破して相手ユーザーの懐はガラ空きです！", [TUT_USER]),
+  // 7 とどめ
+  TUT_STEP("今のうちに勝負を決めましょう！フラウロスで相手ユーザーを攻撃です。", [TUT_CARD("STD-156", "フラウロス", "front"), TUT_USER], { type: "attack", cardId: "STD-156", targetType: "fortress" }),
+  TUT_STEP("やった！私たちの勝利です！", undefined, null)
+];
+
 const introSteps = (tutorialId) => tutorialId === "basics" ? INTRO_STEPS : [];
-const tutorialSteps = (tutorialId) => tutorialId === "vengeance" ? VENGEANCE_STEPS : tutorialId === "blue" ? BLUE_STEPS : BASIC_STEPS;
+const TUTORIAL_STEPS = Object.freeze({ basics: BASIC_STEPS, blue: BLUE_STEPS, yellow: YELLOW_STEPS, vengeance: VENGEANCE_STEPS, black: BLACK_STEPS });
+const tutorialSteps = (tutorialId) => TUTORIAL_STEPS[tutorialId] ?? BASIC_STEPS;
 
 export function createTutorialFlow(tutorialId = "basics") {
   return { tutorialId, introIndex: 0, introComplete: introSteps(tutorialId).length === 0, index: 0, complete: false, error: "", pendingAction: null };

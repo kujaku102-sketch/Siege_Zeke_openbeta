@@ -75,7 +75,7 @@ test('tutorial normal play and attack use ports; opponent cannot act before scri
   }
   assert.equal(game.tutorial().value.flow.index, 30);
 });
-test('red step 37: the Junk Parts anywhere but under Atto is refused with the guard reason, alone in the back too', () => {
+test('red step 38: the Junk Parts anywhere but under Atto is refused with the guard reason, alone in the back too', () => {
   const controller = createTutorialModeController('basics');
   const card = (id, zone) => ({ cardRef: `r-${id}`, definition: { id }, faceDown: false, mounted: [], location: { zone } });
   const seat = (seatId, cards) => ({ seatId, hand: { cards: cards.filter(item => item.location.zone === 'hand') },
@@ -88,14 +88,14 @@ test('red step 37: the Junk Parts anywhere but under Atto is refused with the gu
     attack: expect => ({ type: 'attack', attackerRef: `r-${expect.cardId}`, target: expect.targetCardId ? { kind: 'card', cardRef: `r-${expect.targetCardId}` } : { kind: 'user', seatId: 'b' } }),
     'end-turn': () => ({ type: 'endTurn' })
   };
-  while (controller.presentation().flow.index < 37 || !controller.presentation().flow.introComplete) {
+  while (controller.presentation().flow.index < 38 || !controller.presentation().flow.introComplete) {
     const expect = controller.presentation().presentation.expect;
     if (!controller.presentation().flow.introComplete || expect.type === 'advance') { assert.equal(controller.advance().ok, true); continue; }
     const action = moves[expect.type](expect);
     assert.equal(controller.authorize(query, action).ok, true, JSON.stringify(expect));
     controller.accepted(query, action);
   }
-  const reason = TUTORIAL_STEP_GUARDS.basics[37].reason;
+  const reason = TUTORIAL_STEP_GUARDS.basics[38].reason;
   for (const action of [{ type: 'executeCard', cardRef: 'r-STD-078', destination: { zone: 'back' } },
     { type: 'mountCard', cardRef: 'r-STD-078', hostRef: 'r-STD-021' },
     { type: 'executeCard', cardRef: 'r-STD-078', destination: { zone: 'front' } }]) {

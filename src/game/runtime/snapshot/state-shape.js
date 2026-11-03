@@ -1,6 +1,6 @@
 import { restoreRngState } from '../rng.js';
 import { buildRequiredInput } from '../required-input.js';
-import { FORMAT_ERROR, INVALID, SnapshotError, STATE, UNSUPPORTED, copyJson, dense, exact, nonempty, ordinary, own, reject, seatIds } from './guards.js';
+import { FORMAT_ERROR, INVALID, MISSING, SnapshotError, STATE, UNSUPPORTED, copyJson, dense, exact, nonempty, ordinary, own, reject, seatIds } from './guards.js';
 
 const STATE_KEYS = [
   'runtimeContext', 'mode', 'tutorialId', 'playerDeckId', 'aiDeckId', 'playerUserId', 'aiUserId', 'players', 'active',
@@ -16,11 +16,15 @@ const STATE_KEYS = [
 const OPTIONAL_ROOT = {
   null: ['deferredAttack', 'deferredDestruction', 'deferredSpellCleanup', 'std230AmbushCleanup', 'securityRestWindow',
     'attackResumeStage', 'std094TurnEndQueue', 'std141TurnEndQueue', 'std142TurnEndQueue', 'opening', 'std142DestroyBatch', 'std211DestructionBatch'],
-  array: ['deferredTrashMoves', 'destroyLkiFollowUps', 'independentEffects'],
+  array: ['deferredTrashMoves', 'independentEffects'],
+  // The engine keeps this one as an object keyed by card uid; an empty array is also accepted.
+  emptyEither: ['destroyLkiFollowUps'],
   object: ['runtimeDestructionContinuations', 'std142DestructionContinuations', 'std211DestructionContinuations'],
   boolean: ['drainingIndependentEffects', 'resolvingStd165', 'skipSavageTurnEnd'],
   player: ['std094TurnEndDone', 'std141TurnEndDone', 'std142TurnEndDone', 'resumeTurnEndAfterSelection'],
-  turnTable: ['fieldEntryTurns']
+  turnTable: ['fieldEntryTurns'],
+  // What the last card damage did (core/deal-damage.js writes it; the cards that read it reset it first). Null or the four fields.
+  damageOutcome: ['lastDamageOutcome']
 };
 const CONTEXT_KEYS = ['matchId', 'seatIds', 'identityState', 'rngState', 'uidAliases'];
 
@@ -42,7 +46,39 @@ export function allowedRootKeys(input, code, live) {
   return state;
 }
 
+function validateDamageOutcome(state) {
+  for (const name of OPTIONAL_ROOT.damageOutcome) {
+    if (!Object.hasOwn(state, name)) continue;
+    const value = own(state, name, STATE);
+    if (value === null) continue;
+    const outcome = exact(value, ['targetUid', 'amount', 'destructionDetermined', 'prevented'], STATE);
+    if (!nonempty(outcome.targetUid) || !Number.isSafeInteger(outcome.amount) || outcome.amount < 0 || Object.is(outcome.amount, -0)
+      || typeof outcome.destructionDetermined !== 'boolean' || typeof outcome.prevented !== 'boolean') reject(STATE);
+  }
+}
+
+// Effects the engine has put off to a later turn start / turn end (core/turn-delayed.js): plain data naming the event they wait for, what to do and
+// whose card it is. They are stored and restored as they are.
+const DELAYED_EVENTS = ['turn_started', 'turn_ended'];
+function validateDelayedEffects(state) {
+  for (const effect of dense(own(state, 'delayedEffects', STATE), STATE)) {
+    ordinary(effect, STATE);
+    copyJson(effect, STATE);
+    if (!DELAYED_EVENTS.includes(own(effect, 'event', STATE)) || !nonempty(own(effect, 'type', STATE))) reject(STATE);
+    for (const key of ['ownerId', 'controllerId', 'turnPlayerId']) {
+      const value = own(effect, key, STATE, true);
+      if (value !== MISSING && value !== 'player' && value !== 'ai') reject(STATE);
+    }
+    for (const key of ['cardUid', 'sourceName']) {
+      const value = own(effect, key, STATE, true);
+      if (value !== MISSING && value !== null && !nonempty(value)) reject(STATE);
+    }
+  }
+}
+
 function validateOptionalRoot(state) {
+  validateDamageOutcome(state);
+  validateDelayedEffects(state);
   for (const name of OPTIONAL_ROOT.null) {
     if (Object.hasOwn(state, name) && own(state, name, STATE) !== null) reject(UNSUPPORTED);
   }
@@ -52,6 +88,17 @@ function validateOptionalRoot(state) {
     const rows = dense(value, STATE);
     copyJson(rows, STATE);
     if (rows.length !== 0) reject(UNSUPPORTED);
+  }
+  for (const name of OPTIONAL_ROOT.emptyEither) {
+    if (!Object.hasOwn(state, name)) continue;
+    const value = own(state, name, STATE);
+    if (Array.isArray(value)) {
+      if (dense(value, STATE).length !== 0) reject(UNSUPPORTED);
+    } else {
+      ordinary(value, STATE);
+      copyJson(value, STATE);
+      if (Reflect.ownKeys(value).length !== 0) reject(UNSUPPORTED);
+    }
   }
   for (const name of OPTIONAL_ROOT.object) {
     if (!Object.hasOwn(state, name)) continue;
@@ -109,7 +156,7 @@ function idleState(state) {
     'deferredDeclaredScriptCleanup', 'placementCostBatch', 'triggerThread', 'threadNotice', 'selectedUid', 'openAdmin', 'pending', 'prompt']) {
     if (own(state, key, STATE) !== null) reject(UNSUPPORTED);
   }
-  for (const key of ['selectionQueue', 'victoryFacts', 'scriptActivationQueue', 'triggerQueue', 'delayedEffects', 'declaredEffects', 'responseEventQueue']) {
+  for (const key of ['selectionQueue', 'victoryFacts', 'scriptActivationQueue', 'triggerQueue', 'declaredEffects', 'responseEventQueue']) {
     if (dense(own(state, key, STATE), STATE).length) reject(UNSUPPORTED);
   }
   const victory = own(state, 'victory', STATE);
@@ -132,6 +179,8 @@ export function snapshotState(state, metadata, referenceState, revision) {
   const depth = own(state, 'effectDepth', STATE);
   if (!['ai', 'tutorial'].includes(mode) || phase !== 'main'
     || processing !== false || resolving !== false || depth !== 0) reject(UNSUPPORTED);
+  validateDamageOutcome(state);
+  validateDelayedEffects(state);
   const required = buildRequiredInput({ metadata, revision, engineState: state, referenceState }, metadata.seatIds[0]);
   if (!required.ok || required.value === null) reject(UNSUPPORTED);
 }

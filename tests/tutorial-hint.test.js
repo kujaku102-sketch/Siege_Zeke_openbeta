@@ -6,6 +6,8 @@ import { advanceTutorialIntroduction, completeTutorialIntroduction, createTutori
 
 const TUTORIAL_IDS = ["basics", "blue", "vengeance"];
 const hintAt = (tutorialId, index) => tutorialActionHint(tutorialSteps(tutorialId)[index], TUTORIAL_STEP_GUARDS[tutorialId]?.[index] ?? null);
+// The first step of a tutorial whose expect matches (the script's indices move when a line is added).
+const hintOf = (tutorialId, expect) => hintAt(tutorialId, tutorialSteps(tutorialId).findIndex((step) => Object.entries(expect).every(([key, value]) => step.expect?.[key] === value)));
 
 test("the greeting plays only before red; blue and purple start at their own step 1", () => {
   const red = createTutorialFlow("basics");
@@ -68,8 +70,28 @@ test("currentTutorialHint follows the flow and stays empty during the introducti
   assert.equal(currentTutorialHint(flow, TUTORIAL_STEP_GUARDS), "");
   completeTutorialIntroduction(flow);
   assert.equal(currentTutorialHint(flow, TUTORIAL_STEP_GUARDS), "");
-  flow.index = 37;
+  flow.index = 38;
   assert.equal(currentTutorialHint(flow, TUTORIAL_STEP_GUARDS), "『ジャンクパーツ』を『アツト』にマウントしよう");
   flow.complete = true;
   assert.equal(currentTutorialHint(flow, TUTORIAL_STEP_GUARDS), "");
+});
+
+test("hints use the buttons' names: Sp is cast, a redeploy is a 再実行, a Code goes where the step puts it", () => {
+  assert.equal(hintOf("blue", { type: "play", cardId: "STD-110" }), "『セキュリティウォール』をスペル実行しよう");
+  assert.equal(hintOf("blue", { type: "play", cardId: "STD-111" }), "『オフェンスプロトコル』を『フラウ』にスペル実行しよう");
+  assert.equal(hintOf("vengeance", { type: "relog" }), "『アクロィア』をフロントへ再実行しよう");
+  assert.equal(hintOf("black", { type: "play", cardId: "STD-158" }), "『断章・レメゲトン』をバックに実行しよう");
+  assert.equal(hintOf("yellow", { type: "play", cardId: "STD-137" }), "『騎士団の凱歌』をスペル実行しよう");
+  for (const id of ["basics", "blue", "yellow", "vengeance", "black"]) {
+    tutorialSteps(id).forEach((step, index) => assert.doesNotMatch(hintAt(id, index), /使おう|リログ/, `${id}:${index}`));
+  }
+});
+
+test("the red 『攻撃』 step asks for the press of the attack on Atto; the second line of a doubled step is hint-only", () => {
+  const press = tutorialSteps("basics").find((step) => step.expect?.press === "attack-choice");
+  assert.equal(tutorialActionHint(press), "『アツト』を押して『攻撃』を選ぼう");
+  assert.equal(press.expect.type, "advance");
+  const hintOnly = (id) => tutorialSteps(id).filter((step) => step.hintOnly);
+  assert.deepEqual(["yellow", "vengeance", "black"].map((id) => hintOnly(id).length), [3, 2, 1]);
+  for (const id of ["yellow", "vengeance", "black"]) for (const step of hintOnly(id)) assert.notEqual(step.expect?.type, "advance", id);
 });
