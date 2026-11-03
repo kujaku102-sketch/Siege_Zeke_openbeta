@@ -20,6 +20,7 @@ function pressHint(step, expect) {
     const badge = step.focus?.find((item) => item.kind === "ui" && item.target === "ability-badge")?.badge ?? "アビリティ";
     return `${quoted(expect.cardId)}の${badge}バッジを押そう`;
   }
+  if (expect.press === "attack-choice") return `${quoted(expect.cardId)}を押して『攻撃』を選ぼう`;
   if (expect.press === "card-detail") return `${quoted(expect.cardId)}の詳細を開こう`;
   return "光っているところを押そう";
 }

@@ -246,8 +246,9 @@ const BASIC_STEPS = [
   {
     speaker: TUTORIAL_SPEAKER,
     text: "Obを押してみると行動のメニューが出てきます。まずは『攻撃』を押してみましょう！",
-    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }],
-    expect: { type: "advance" }
+    focus: [{ kind: "card", cardId: "STD-091", owner: "player", zone: "front", label: "アツト" }, { kind: "route", cardId: "STD-091", routes: ["attack"], label: "攻撃" }],
+    // 押したら進む手順: アツトの『攻撃』を選んで、対象の選択が開いたら次へ(ui-refresh の PRESS_OPEN['attack-choice'])。
+    expect: { type: "advance", press: "attack-choice", cardId: "STD-091" }
   },
   {
     speaker: TUTORIAL_SPEAKER,
@@ -258,6 +259,12 @@ const BASIC_STEPS = [
   {
     speaker: TUTORIAL_SPEAKER,
     text: "攻撃成功！ダメージが通り、相手ユーザーのSTRが削れました。",
+    focus: [{ kind: "fortress", owner: "ai", label: "相手ユーザー" }],
+    expect: { type: "advance" }
+  },
+  {
+    speaker: TUTORIAL_SPEAKER,
+    text: "相手のSTRが減って『インシデント』が起きました。相手のメモリ上限が1増えて、こちらはカードを1枚引きます。",
     focus: [{ kind: "fortress", owner: "ai", label: "相手ユーザー" }],
     expect: { type: "advance" }
   },
@@ -434,9 +441,10 @@ const VENGEANCE_STEPS = [
     [PURPLE_END_TURN, PURPLE_CARD("STD-205", "ギガンテス", "front")], { type: "end-turn" }, { leavesChoice: true }),
   // 台本の1行に操作が2つ(終了ボタン、ギガンテスのスリープ)あるので、同じ行を2ステップで出す。ターン終了で開く任意の選択に、ギガンテスを選ぶ。
   PURPLE_STEP("このターンは『ギガンテス』をスリープし、攻撃に備えてターン終了しましょう！",
-    [PURPLE_CARD("STD-205", "ギガンテス", "front")], { type: "answerChoice", cardId: "STD-205" }, { after: "vengeance-opponent" }),
+    [PURPLE_CARD("STD-205", "ギガンテス", "front")], { type: "answerChoice", cardId: "STD-205" }, { after: "vengeance-opponent", hintOnly: true }),
   // 5 相手ターン
   PURPLE_ADVANCE("相手は『ライダー』を実行！早速攻撃してきましたね！", [PURPLE_CARD("STD-205", "ギガンテス", "front")]),
+  PURPLE_ADVANCE("ギガンテスの反撃で、ライダーは破壊されました！", [PURPLE_CARD("STD-205", "ギガンテス", "front")]),
   PURPLE_ADVANCE("『装甲兵メルク』も出してきましたね。", [PURPLE_CARD("STD-043", "装甲兵 メルク", "front", "ai")]),
   PURPLE_ADVANCE("相手は『メルク』をスリープしてターン終了のようです。", [PURPLE_CARD("STD-043", "装甲兵 メルク", "front", "ai")]),
   // 6 移動戦術の実践
@@ -452,7 +460,7 @@ const VENGEANCE_STEPS = [
   PURPLE_STEP("それでは『ギガンテス』と『アクロィア』で攻撃して、相手をやっつけましょう！",
     [PURPLE_CARD("STD-205", "ギガンテス", "front"), PURPLE_USER], { type: "attack", cardId: "STD-205", targetType: "fortress" }),
   PURPLE_STEP("それでは『ギガンテス』と『アクロィア』で攻撃して、相手をやっつけましょう！",
-    [PURPLE_CARD("STD-194", "アクロィア", "front"), PURPLE_USER], { type: "attack", cardId: "STD-194", targetType: "fortress" }),
+    [PURPLE_CARD("STD-194", "アクロィア", "front"), PURPLE_USER], { type: "attack", cardId: "STD-194", targetType: "fortress" }, { hintOnly: true }),
   PURPLE_STEP("やりましたね！私達の勝利です！▽今後とも劇団ヴェンジェンスをよろしくお願いしまーす！▽…案件じゃないですよ", undefined, null)
 ];
 
@@ -469,6 +477,7 @@ const TUT_END_TURN = PURPLE_END_TURN;
 const YELLOW_STEPS = [
   // 1 開始(相手ターンで始まる)
   TUT_STEP("黄のデッキを使います。", [{ kind: "action", action: "tutorial-advance", label: "開始" }], { type: "advance" }, { after: "yellow-open" }),
+  TUT_ADVANCE("さっそく相手の『ライダー』が攻撃してきました！2ダメージです。", [TUT_CARD("STD-025", "ライダー", "front", "ai")]),
   TUT_ADVANCE("黄は『セキュリティ』で相手の攻撃を受け止めて、粘り強く戦うのが得意です。"),
   // 2 大盾の騎士とOC
   TUT_STEP("それではセキュリティを展開しましょう！『大盾の騎士』を実行します。メモリは1ですが、『OC』という追加メモリを4払う選択ができます。",
@@ -478,7 +487,7 @@ const YELLOW_STEPS = [
   TUT_STEP("ターンを終了します。『セキュリティ』を持つObは、ターン終了時に1体スリープさせることで、相手の攻撃を引き受ける壁になれます。",
     [TUT_END_TURN, TUT_CARD("STD-125", "大盾の騎士", "front")], { type: "end-turn" }, { leavesChoice: true }),
   TUT_STEP("ターンを終了します。『セキュリティ』を持つObは、ターン終了時に1体スリープさせることで、相手の攻撃を引き受ける壁になれます。",
-    [TUT_CARD("STD-125", "大盾の騎士", "front")], { type: "answerChoice", cardId: "STD-125" }, { after: "yellow-turn2" }),
+    [TUT_CARD("STD-125", "大盾の騎士", "front")], { type: "answerChoice", cardId: "STD-125" }, { after: "yellow-turn2", hintOnly: true }),
   // 4 相手の準備
   TUT_ADVANCE("相手が『歩兵』を出しました。実行したターンは攻撃できません。", [TUT_CARD("STD-020", "歩兵", "front", "ai")]),
   TUT_ADVANCE("OCで強くなった『大盾の騎士』を前に、相手は攻撃を躊躇してそのままターンエンドです！", [TUT_CARD("STD-125", "大盾の騎士", "front")]),
@@ -494,16 +503,16 @@ const YELLOW_STEPS = [
   TUT_STEP("では『大盾の騎士』で相手ユーザーに反撃しましょう！", [TUT_CARD("STD-125", "大盾の騎士", "front"), TUT_USER], { type: "attack", cardId: "STD-125", targetType: "fortress" }),
   TUT_ADVANCE("相手ユーザーのSTRは残り2、わずかです！", [TUT_USER]),
   TUT_STEP("念のため『伝令』も守りの体制を構えてターンを渡しましょう", [TUT_END_TURN, TUT_CARD("STD-126", "伝令", "front")], { type: "end-turn" }, { leavesChoice: true }),
-  TUT_STEP("念のため『伝令』も守りの体制を構えてターンを渡しましょう", [TUT_CARD("STD-126", "伝令", "front")], { type: "answerChoice", cardId: "STD-126" }, { after: "yellow-turn3" }),
+  TUT_STEP("念のため『伝令』も守りの体制を構えてターンを渡しましょう", [TUT_CARD("STD-126", "伝令", "front")], { type: "answerChoice", cardId: "STD-126" }, { after: "yellow-turn3", hintOnly: true }),
   // 9 相手ターン
-  TUT_ADVANCE("相手が騎馬兵を出してきました。"),
+  TUT_ADVANCE("相手は騎馬兵を出して、すぐに攻撃してきました。"),
   TUT_ADVANCE("『コンタクト』は出たターンでもObを攻撃できる能力です。"),
-  TUT_ADVANCE("『大盾の騎士』が倒されてしまいました。"),
+  TUT_ADVANCE("『大盾の騎士』は騎馬兵と相打ちになってしまいました。"),
   TUT_ADVANCE("しかし、二重の守りのおかげであなたにダメージは届いていません！", [TUT_CARD("STD-126", "伝令", "front")]),
   // 10 フィニッシュ
   TUT_ADVANCE("さぁ、トドメです！"),
   TUT_STEP("今引いてきた『騎士団の凱歌』を起動しましょう！", [TUT_CARD("STD-137", "騎士団の凱歌")], { type: "play", cardId: "STD-137" }, { leavesChoice: true }),
-  TUT_STEP("今引いてきた『騎士団の凱歌』を起動しましょう！", undefined, { type: "answerChoice", label: "①自分Obすべてを+2/+2" }),
+  TUT_STEP("今引いてきた『騎士団の凱歌』を起動しましょう！", undefined, { type: "answerChoice", label: "①自分Obすべてを+2/+2" }, { hintOnly: true }),
   TUT_ADVANCE("これで『伝令』のATKは3、相手ユーザーのSTRを0にできます。", [TUT_CARD("STD-126", "伝令", "front")]),
   TUT_STEP("では、相手ユーザーを攻撃しましょう", [TUT_CARD("STD-126", "伝令", "front"), TUT_USER], { type: "attack", cardId: "STD-126", targetType: "fortress" }),
   TUT_STEP("やりましたね！私達の勝利です！▽耐えきって勝つ戦術、これが聖機構騎士団です！", undefined, null)
@@ -535,7 +544,7 @@ const BLACK_STEPS = [
   TUT_STEP("そしてログイン能力も起動です！▽『レメゲトン』を破壊します。▽それを触媒に手札の『豹頭男爵フラウロス』をドラッグします！",
     [TUT_CARD("STD-158", "レメゲトン", "back")], { type: "answerChoice", cardId: "STD-158" }, { leavesChoice: true }),
   TUT_STEP("そしてログイン能力も起動です！▽『レメゲトン』を破壊します。▽それを触媒に手札の『豹頭男爵フラウロス』をドラッグします！",
-    [TUT_CARD("STD-156", "フラウロス")], { type: "answerChoice", cardId: "STD-156" }),
+    [TUT_CARD("STD-156", "フラウロス")], { type: "answerChoice", cardId: "STD-156" }, { hintOnly: true }),
   TUT_ADVANCE("ここでひとくち解説です。▽ドラッグで出したObのログイン能力は使えません。", [TUT_CARD("STD-156", "フラウロス", "front")]),
   TUT_ADVANCE("つまりログイン能力は『実行』時だけですね！", [TUT_CARD("STD-156", "フラウロス", "front")]),
   // 5 ターン終了
@@ -550,6 +559,7 @@ const BLACK_STEPS = [
   TUT_ADVANCE("そうなる前に、ゾンビメイカー共々▽手札の『邪神との取引』の弾にしてしまいましょう！", [TUT_CARD("STD-163", "邪神との取引")]),
   TUT_STEP("『邪神との取引』を実行して『ゾンビメイカー』『怨念人形』の2体を選び、②の効果を2回起動させましょう",
     [TUT_CARD("STD-163", "邪神との取引"), TUT_CARD("STD-152", "ゾンビメイカー", "front"), TUT_CARD("STD-150", "怨念人形", "front")], { type: "play", cardId: "STD-163" }),
+  TUT_ADVANCE("残ったメルクには、破壊された『怨念人形』の『ログアウト』で1ダメージ。これで破壊です！"),
   TUT_ADVANCE("やった！2体のセキュリティを突破して相手ユーザーの懐はガラ空きです！", [TUT_USER]),
   // 7 とどめ
   TUT_STEP("今のうちに勝負を決めましょう！フラウロスで相手ユーザーを攻撃です。", [TUT_CARD("STD-156", "フラウロス", "front"), TUT_USER], { type: "attack", cardId: "STD-156", targetType: "fortress" }),
