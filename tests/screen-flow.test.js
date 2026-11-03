@@ -295,9 +295,9 @@ test('while the guide speaks the gear stays live and all else in its region wait
 
 test('guide pages: one per 「」, each growing the frame as it needs on this screen; turned by buttons and arrows; earlier pages lock the match and hide highlights', async () => {
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
-  assert.ok(surface.includes("guidePaging = { key, pages: splitGuidePages(presentation.text).map(page => ({ ...page, grow: Math.max(0, counter.frameHeight(page.text) - base) })) };"));
+  assert.ok(surface.includes('guidePaging = { key, lineHeight: counter.lineHeight, pages: splitGuidePages(presentation.text).map(page => { const need = counter.frameHeight(page.text); return { ...page, need, grow: Math.max(0, need - base) }; }) };'));
   assert.ok(surface.includes("const key = `${presentation.text}\\u0000${counter.width}\\u0000${viewport.height}\\u0000${fontEpoch}`;"), 'measured again when the screen or the fonts change');
-  assert.ok(surface.includes('return pages ? { page: pages[guidePageShown.index]?.grow ?? 0, step: Math.max(0, ...pages.map(page => page.grow ?? 0)) } : { page: 0, step: 0 };'), 'the page shown, and the step\'s tallest page');
+  assert.ok(surface.includes('if (!pages) return { page: 0, step: 0, fit: null };') && surface.includes('return { page: pages[guidePageShown.index]?.grow ?? 0, step: Math.max(0, ...pages.map(page => page.grow ?? 0)), fit: Math.max(0, ...pages.map(page => (page.need ?? 0) - spare)) || null };'), 'the page shown, the tallest page of the step, and the height that tallest page needs');
   assert.ok(surface.includes("for (const name of ['board', 'console', 'hand', 'hand-toggle', 'popup', 'selection', 'detail', 'drawer']) { const host = root.querySelector(`[data-live-region=\"${name}\"]`); if (host) lockRegion(host, reading); }"));
   assert.ok(surface.includes("if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && event.target.closest?.('.live-guide')) {"));
   assert.ok(surface.includes("if (focused) (root.querySelector(delta < 0 && index > 0 ? '.live-guide [data-runtime-guide-prev]' : forward) ?? root.querySelector(forward))?.focus();"), 'focus follows the button pressed, [次へ] on the next page');
@@ -309,10 +309,10 @@ test('guide pages: one per 「」, each growing the frame as it needs on this sc
 
 test('guide band: the guide fills one of three bands, chosen once a step against what it points at; compat mode marked for the skin', async () => {
   const layout = await readSource('../src/ui-refresh/surface-layout.js');
-  assert.ok(layout.includes("const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}`;"), 'kept while the pages turn');
+  assert.ok(layout.includes("const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}|${portrait}|${reserve}|${Math.round(grow.fit ?? 0)}`;"), 'kept while the pages turn');
   const guide = await readSource('../src/ui-refresh/guide.js');
   assert.ok(guide.includes('view.dataset.guideBand = band;'));
-  assert.ok(guide.includes('const { frame, portrait, box } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT, grow);'), 'placed as the group: frame and portrait together');
+  assert.ok(guide.includes('const { frame, portrait, box } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT, grow, options);'), 'placed as the group: frame and portrait together');
   const css = await readSource('../src/ui-refresh/live.css');
   assert.ok(!css.includes('[data-guide-band="top"] .r2-guide.live-guide .live-guide-cast'), 'the portrait stands on the frame in every band');
   assert.ok(css.includes('.live-guide[data-paging="pending"] .live-guide-text { overflow:hidden; }') && !/data-paging="pending"\][^{]*\{[^}]*visibility:hidden/.test(css), 'the line shows while the pages are cut');
