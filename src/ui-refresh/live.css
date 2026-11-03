@@ -505,3 +505,16 @@ body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-deta
 .r2-title-render>div { display:flex; flex-wrap:wrap; gap:calc(var(--u) * .25); }
 .r2-title-render button { min-height:2.75rem; padding:0 .8em; }
 .r2-title-render button[aria-checked="true"] { outline:calc(var(--u) * .125) solid #00ff00; outline-offset:calc(var(--u) * -.125); }
+/* The options window's memory estimate (memory-estimate.js): a table at the end of the window, sizes in the window's own font. */
+.r2-memory { display:grid; gap:calc(var(--u) * .375); margin-top:calc(var(--u) * .75); padding-top:calc(var(--u) * .625); border-top:1px solid #ffffff22; }
+.r2-memory header { display:flex; align-items:center; gap:calc(var(--u) * .625); }
+.r2-memory h3 { margin:0; font-size:1em; }
+.r2-memory header button { margin-left:auto; min-height:2.2em; padding:0 .8em; }
+.r2-memory p { margin:0; font-size:max(.625rem, calc(var(--u) * .6875)); line-height:1.4; }
+.r2-memory table { width:100%; border-collapse:collapse; font-size:max(.6875rem, calc(var(--u) * .75)); }
+.r2-memory :is(th,td) { padding:.25em .4em; border-bottom:1px solid #ffffff1a; text-align:left; vertical-align:top; }
+.r2-memory td { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.r2-memory th small { display:block; color:#9db3bd; font-size:.85em; font-weight:normal; }
+.r2-memory thead th { color:#9db3bd; font-weight:normal; }
+.r2-memory thead th:not(:first-child) { text-align:right; }
+.r2-memory tfoot :is(th,td) { border-bottom:0; color:#00ff00; font-weight:bold; }

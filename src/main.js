@@ -22,6 +22,7 @@ import { installMobileViewport } from './ui-refresh/mobile-viewport.js';
 import { captureDeckViewport, restoreDeckViewport } from './ui/deck-viewport.js';
 import { installAbilityHelp } from './ui/ability-help.js';
 import { registerLocalFonts } from './ui/local-fonts.js';
+import { memoryEstimate, sampleMemory } from './ui-refresh/memory-estimate.js';
 import { MAX_SAVED_DECKS, deckToRecipe, loadSavedDecks, normalizeSavedDeck, recommendDeck, saveDeckCollection, validateDeck } from './game/deck-builder.js';
 import { registerPwa } from './pwa.js';
 import { MATCH_LOGS, REPLAYS, loadStored, storedExport } from './adapters/match-record-store.js';
@@ -121,6 +122,17 @@ function prepared(enter) {
     try {await enter();} finally {preparing = false;if (host.preparing) {host.preparing = false;renderShell();}}
   },0));
 }
+// The options window's memory estimate (文豪, 2026-11-04) is counted only while the window shows it: when it opens and
+// on its 更新. A count still running when the window closes or counts again is dropped.
+let memorySerial = 0;
+async function measureMemory() {
+  const serial = ++memorySerial;host.memory = null;renderShell();
+  if (!host.options || !root.querySelector('[data-memory-estimate]')) return;
+  const facts = await sampleMemory(document,window);
+  if (serial !== memorySerial || !host.options || !root.querySelector('[data-memory-estimate]')) return;
+  host.memory = memoryEstimate(facts);renderShell();
+}
+function openOptions() {host.options = true;return measureMemory();}
 function attachSession(next) {
   host.preparing = false;
   surface?.dispose();surface = null;session = next;shellGeneration += 1;
@@ -128,7 +140,7 @@ function attachSession(next) {
   const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,...renderOptions(),onContextLost:degradeAfterLoss,
     boardStyle:new URLSearchParams(location.search).get('board') === 'classic' ? 'classic' : 'wireframe',
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
-    effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;renderShell();},onTitle:leaveMatch,
+    effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:openOptions,onTitle:leaveMatch,
     onRematch:() => prepared(() => {const result = lifecycle.rematch();if (result.ok) attachSession(result.value);else notice(result.error.code);}),
     onTutorialSkip:() => prepared(skipTutorial),onSaveLog:saveMatchLog,onToMenu:() => leaveMatch(nextScreen('game',host.mode === 'tutorial' ? 'tutorial-complete' : 'match-menu')),onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}});
   if (mounted.ok) surface = mounted.value;else notice(mounted.error.code);
@@ -204,8 +216,9 @@ root.addEventListener('click',event => {
   if (button.hasAttribute('data-online-battle')) return onOnlineBattle();
   if (d.mode) return prepared(() => startMatch(d.mode));
   if (d.view) {host.view = d.view;saveView(localStorage,d.view);surface?.configure({view:d.view});return renderShell();}
-  if (d.live === 'options') host.options = true;
-  else if (d.live === 'close-options') host.options = false;
+  if (d.live === 'options') return openOptions();
+  if (button.hasAttribute('data-memory-refresh')) return measureMemory();
+  if (d.live === 'close-options') host.options = false;
   else if (d.live === 'home') return leaveMatch();
   else if (d.live === 'fullscreen') {void toggleFullscreen(document).then(() => renderShell());return;}
   else if (d.live === 'close-catalog') host.catalogOpen = false;
