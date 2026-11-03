@@ -3,6 +3,7 @@ import { BOARD_CAMERA } from './geometry.js';
 import { DEFAULT_RENDER_QUALITY, renderResolution, observeDrawing, drawingLimit, watchContextLoss } from './render-resolution.js';
 import { createCardMeshes } from './card-meshes.js';
 import { boardPieces } from './board-view.js';
+import { fxMs } from '../fx-speed.js';
 
 // Decorative geometry only: the board and the card slabs. Public cards, targets and
 // action IDs live in the SVG overlay. No engine access and no interactive objects.
@@ -71,7 +72,7 @@ export function createBoardScene(canvas, svg, quality = DEFAULT_RENDER_QUALITY, 
     if(cards.follow(svg))draw();
     if(win.performance.now()<until||moving())frame=win.requestAnimationFrame(tick);
   };
-  const watch=()=>{until=win.performance.now()+FOLLOW_MS;if(!frame)frame=win.requestAnimationFrame(tick);};
+  const watch=()=>{until=win.performance.now()+fxMs(FOLLOW_MS);if(!frame)frame=win.requestAnimationFrame(tick);};
   const unwatch=watchContextLoss(canvas,{
     onLost(){lost=true;win.cancelAnimationFrame(frame);frame=0;onUsable(false);},
     onRestored(){lost=false;onUsable(true);observer.request();watch();}

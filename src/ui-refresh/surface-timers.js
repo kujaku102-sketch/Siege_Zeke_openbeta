@@ -1,3 +1,5 @@
+import { fxMs } from './fx-speed.js';
+
 // Timers of one mounted match. Every task is dropped once the match is disposed,
 // and clear() cancels whatever is still pending.
 export function createSurfaceTimers({ root, disposed, motionRemaining }) {
@@ -9,14 +11,15 @@ export function createSurfaceTimers({ root, disposed, motionRemaining }) {
   };
   const cancel = token => { clearTimeout(token); timers.delete(token); };
   // Opponent steps wait for the current move's motion; the token stays the same
-  // across re-arming, so the controller's cancel still reaches it.
+  // across re-arming, so the controller's cancel still reaches it. The step's own
+  // pause and the margin follow the effect speed (motionRemaining already does).
   const paced = (task, delay) => {
     const token = { timer: null };
     const arm = wait => { token.timer = schedule(() => {
       const left = motionRemaining();
-      if (left > 0) arm(left + 160); else task();
+      if (left > 0) arm(left + fxMs(160)); else task();
     }, wait); };
-    arm(delay);
+    arm(fxMs(delay));
     return token;
   };
   const cancelPaced = token => cancel(token.timer);
