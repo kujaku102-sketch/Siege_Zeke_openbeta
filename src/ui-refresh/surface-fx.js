@@ -5,6 +5,7 @@ import { runtimeActivationHtml, activationSide, runtimeThreadItemHtml } from './
 import { activeTurnCount } from './wireframe/controls-view.js';
 import { createMemoryFlash } from './wireframe/memory-meter.js';
 import { createImpactFx } from './impact-fx.js';
+import { fxMs } from './fx-speed.js';
 
 const THREAD_DONE_MS = 400, THREAD_STEP_MS = 150;
 const CALLOUT_MS = 2000, CALLOUT_LEAVE_MS = 400, CALLOUT_CLOSE_MS = 250, CALLOUT_MAX = 4;
@@ -21,7 +22,7 @@ function createActivationCallout(root) {
   const doc = root.ownerDocument, win = doc.defaultView ?? globalThis, timers = new Set();
   let stack = null;
   const threads = new Map();
-  const later = (fn, ms) => { const id = win.setTimeout(() => { timers.delete(id); fn(); }, ms); timers.add(id); };
+  const later = (fn, ms) => { const id = win.setTimeout(() => { timers.delete(id); fn(); }, fxMs(ms)); timers.add(id); };
   // A re-render drops nodes it did not write; while rows are up, put the stacks straight back.
   const watcher = typeof win.MutationObserver === 'function' ? new win.MutationObserver(() => {
     const view = root.querySelector('.r2-runtime-view');

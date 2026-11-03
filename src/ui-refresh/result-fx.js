@@ -1,3 +1,4 @@
+import { fxSpeed } from "./fx-speed.js";
 // Decorative only: the end screen's outcome and buttons stay HTML. A win gets dot confetti; a defeat the same confetti
 // with noise running through it once it is up, and on (文豪, 2026-11-01); a draw nothing for now.
 let active = null;
@@ -80,7 +81,7 @@ function confetti(canvas, { noise = false } = {}) {
     if (stopped) return;
     frame = requestAnimationFrame(draw);
     if (last && now - last < 1000 / CONFETTI.fps) return;
-    const dt = last ? Math.min(.1, (now - last) / 1000) : 0;
+    const dt = last ? Math.min(.1, (now - last) / 1000) * fxSpeed() : 0;
     last = now; started ||= now;
     resize();
     g.clearRect(0, 0, width, height);
@@ -93,7 +94,7 @@ function confetti(canvas, { noise = false } = {}) {
       g.fillRect(Math.round(piece.x), Math.round(piece.y), face < .35 ? 1 : piece.size, piece.size);
     }
     if (noise) {
-      const shown = noiseFrame(random, width, height, Math.min(1, Math.max(0, ((now - started) / 1000 - NOISE.after) / NOISE.rise)));
+      const shown = noiseFrame(random, width, height, Math.min(1, Math.max(0, ((now - started) * fxSpeed() / 1000 - NOISE.after) / NOISE.rise)));
       for (const tear of shown.tears) {
         g.putImageData(g.getImageData(0, tear.y, width, tear.h), tear.dx, tear.y);
         g.fillStyle = tear.cast; g.fillRect(0, tear.y, width, tear.h);

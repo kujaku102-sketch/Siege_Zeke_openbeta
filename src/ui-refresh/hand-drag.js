@@ -1,5 +1,6 @@
 import { resolveInteractionTarget } from '../adapters/interaction-targets.js';
 import { actionBlock, blockMessage, actionTypeOf, handCard } from './runtime-read-view.js';
+import { fxMs } from './fx-speed.js';
 
 const ghostAt = (ghost, event) => {
   ghost.style.transform = `translate(${event.clientX}px, ${event.clientY}px) translate(-50%, -60%) scale(.62)`;
@@ -70,11 +71,11 @@ export function createHandDrag({ root, ui, act, latest, schedule, onReject = () 
     // A missing symbol points at its own lamp above the registry.
     if (block.code === 'SYMBOL_MISSING') for (const lamp of root.querySelectorAll(`[data-symbol-seat="${CSS.escape(latest()?.model.match.viewerSeat ?? '')}"] [data-symbol="${CSS.escape(block.symbol ?? '')}"]`)) {
       lamp.classList.remove('blink'); void lamp.getBoundingClientRect(); lamp.classList.add('blink');
-      schedule(() => lamp.classList.remove('blink'), 1300);
+      schedule(() => lamp.classList.remove('blink'), fxMs(1300));
     }
     ghost.hidden = false;
     ghost.classList.add('rejected');
-    schedule(() => ghost.remove(), 420);
+    schedule(() => ghost.remove(), fxMs(420));
     rejectDialog?.remove();
     if (answered) return;
     const dialog = root.ownerDocument.createElement('div');
@@ -83,7 +84,7 @@ export function createHandDrag({ root, ui, act, latest, schedule, onReject = () 
     dialog.textContent = reason;
     root.ownerDocument.body.append(dialog);
     rejectDialog = dialog;
-    schedule(() => { dialog.remove(); if (rejectDialog === dialog) rejectDialog = null; }, 1800);
+    schedule(() => { dialog.remove(); if (rejectDialog === dialog) rejectDialog = null; }, fxMs(1800));
   };
   // Open panels may float over the board; the drop goes to what lies beneath them.
   const dropNodeAt = (x, y) => root.ownerDocument.elementsFromPoint(x, y)

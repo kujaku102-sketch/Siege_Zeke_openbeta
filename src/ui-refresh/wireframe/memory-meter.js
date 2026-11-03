@@ -1,3 +1,4 @@
+import { fxMs } from "../fx-speed.js";
 // The memory gauge: the whole "く" frame holds ten cells, one per point of max
 // memory. Lit cells are what is left to spend, open grey cells what has been
 // spent, and cells past the max stay blank. While more than ten are left to
@@ -74,7 +75,7 @@ export function createMemoryFlash(root) {
       sheet = doc.createElement('style'); sheet.dataset.fxMemory = '';
       sheet.textContent = cells.map(i => `.wf-meter [data-mem-cell="${i}"]`).join(',') + `{animation:wf-mem-spent ${FLASH_MS}ms ease-out}`;
       doc.head.append(sheet);
-      timer = win.setTimeout(stop, FLASH_MS);
+      timer = win.setTimeout(stop, fxMs(FLASH_MS));
     },
     dispose() { stop(); last = null; }
   });

@@ -1,3 +1,4 @@
+import { fxMs } from "./fx-speed.js";
 // Local opt-in prototype: draw the existing title layout onto a curved WebGL viewport.
 // The original HTML buttons remain in the document for keyboard and screen-reader use.
 const CRT_CURVE = 0.16;
@@ -224,7 +225,7 @@ function mount(entry, initialOptions = {}) {
       const box = localRect(button, frame);
       const active = button === hovered || button === document.activeElement;
       const glitchAge = performance.now() - (glitchStart.get(button) ?? -Infinity);
-      const glitching = glitchAge >= 0 && glitchAge < BUTTON_GLITCH_MS;
+      const glitching = glitchAge >= 0 && glitchAge < fxMs(BUTTON_GLITCH_MS);
       const ink = active ? "#fff" : "#111820";
       if (active) {
         ctx.fillStyle = "#111820";

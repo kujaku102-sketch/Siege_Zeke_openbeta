@@ -1,5 +1,6 @@
 import { cardAtk, cardHasKeyword, visibleHandExecutionPayment } from "../game/engine.js";
 import { isObCard } from "../game/card-types.js";
+import { fxMs } from "../ui-refresh/fx-speed.js";
 const BOARD_ZONES = new Set(["front", "back"]);
 const USER_ABILITY_LABELS = Object.freeze({
   turbo: "TURBO BOOST",
@@ -296,7 +297,7 @@ export function planVisualEffects(root, previous, state, queuedEffects = []) {
 
 function removeAfterAnimation(element, duration = 900) {
   element.addEventListener("animationend", () => element.remove(), { once: true });
-  setTimeout(() => element.remove(), duration);
+  setTimeout(() => element.remove(), fxMs(duration));
 }
 
 function transientClass(element, className) {

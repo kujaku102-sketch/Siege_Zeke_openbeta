@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HUD_ICONS } from './controls-view.js';
 import { DEFAULT_RENDER_QUALITY, renderResolution, observeDrawing, drawingLimit, watchContextLoss } from './render-resolution.js';
+import { fxMs } from '../fx-speed.js';
 
 // PS1-style drawing of the TURN button, the three hex buttons and the memory
 // gauge, on one canvas behind the turn controls. The buttons stay HTML (clicks, focus, labels, hit
@@ -362,7 +363,7 @@ export function createHudScene(canvas, quality = DEFAULT_RENDER_QUALITY, { onUsa
     const sheet = doc.head?.querySelector('style[data-fx-memory]') ?? null;
     if (sheet && sheet !== meter.sheet) { meter.flash = flashCells(sheet); meter.flashAt = now; }
     meter.sheet = sheet;
-    const flashing = meter.flash.length && now - meter.flashAt < FLASH_MS, fade = flashing ? 1 - (now - meter.flashAt) / FLASH_MS : 0;
+    const flashFor = fxMs(FLASH_MS), flashing = meter.flash.length && now - meter.flashAt < flashFor, fade = flashing ? 1 - (now - meter.flashAt) / flashFor : 0;
     if (!flashing) meter.flash = [];
     cells.forEach((cell, i) => {
       const mesh = meter.cells[i], state = CELL_LOOKS[cell.dataset.memState] ? cell.dataset.memState : 'blank', { side, depth } = CELL_LOOKS[state];

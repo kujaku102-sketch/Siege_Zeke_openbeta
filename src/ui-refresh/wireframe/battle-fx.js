@@ -1,5 +1,6 @@
 // Presentation only: public events + visible board geometry. Never delays a command.
 import { screenUnit } from '../screen-unit.js';
+import { fxMs } from '../fx-speed.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const valid = r => r && [r.left,r.top,r.width,r.height].every(Number.isFinite) && r.width > 0 && r.height > 0;
@@ -79,7 +80,7 @@ export function createBattleFx(root) {
       const entry={animations:[],timer:null}; active.set(group,entry);
       const duration=cue.kind==='attack'?300:cue.kind==='deploy'?360:620;
       // Schedule cleanup before drawing so a decorative API failure cannot leak it.
-      entry.timer=win.setTimeout(()=>remove(group),duration);
+      entry.timer=win.setTimeout(()=>remove(group),fxMs(duration));
       animate(group,[{opacity:1},{opacity:0}],duration,entry);
       if (cue.kind==='attack') {
         const [x,y]=center(cue.from),[tx,ty]=center(cue.to);

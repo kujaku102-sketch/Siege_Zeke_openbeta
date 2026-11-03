@@ -1,3 +1,4 @@
+import { fxMs } from "./fx-speed.js";
 // Presentation only: how hard a batch of damage lands. The viewer's own hits
 // shake the screen; a critical one (CRITICAL_DAMAGE or more in one hit) first
 // freezes every running animation for a beat, then shakes harder under a red
@@ -75,7 +76,7 @@ export function createImpactFx(root) {
   const reduced = () => Boolean(win.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const timers = new Set(), animations = new Set();
   let vignette = null, paused = [], seed = 1;
-  const later = (fn, ms) => { const id = win.setTimeout(() => { timers.delete(id); try { fn(); } catch { /* decorative */ } }, ms); timers.add(id); };
+  const later = (fn, ms) => { const id = win.setTimeout(() => { timers.delete(id); try { fn(); } catch { /* decorative */ } }, fxMs(ms)); timers.add(id); };
   const animate = (node, frames, options) => {
     if (!node?.animate) return;
     const animation = node.animate(frames, options);

@@ -25,6 +25,7 @@ import { registerLocalFonts } from './ui/local-fonts.js';
 import { memoryEstimate, sampleMemory } from './ui-refresh/memory-estimate.js';
 import { clearSavedFiles, loadBuildRevision } from './ui-refresh/debug-tools.js';
 import { createErrorLog, errorLogText } from './ui-refresh/error-log.js';
+import { FX_SPEED_STORAGE_KEY, readFxSpeed, setFxSpeed } from './ui-refresh/fx-speed.js';
 
 // The debug window's error log listens from here on. A new entry redraws an open window once a quarter second later,
 // never from a redraw it caused itself (a failing redraw would feed itself).
@@ -84,6 +85,13 @@ const readRenderScaleSaved = () => {try {return readRenderScale(localStorage.get
 host.renderScale = readRenderScaleSaved();
 const renderScale = () => urlRenderScale(location.search) ?? host.renderScale;
 const renderOptions = () => {const {mode} = renderMode();return {lowGpu:mode === 'compat',renderQuality:renderQualityFor(mode,renderScale())};};
+// The effect speed of the debug window, kept in this browser; ×1 unless one was picked.
+host.fxSpeed = setFxSpeed((() => {try {return readFxSpeed(localStorage.getItem(FX_SPEED_STORAGE_KEY));} catch {return 1;}})());
+function pickFxSpeed(value) {
+  host.fxSpeed = setFxSpeed(value);
+  try {localStorage.setItem(FX_SPEED_STORAGE_KEY,String(host.fxSpeed));} catch {/* the choice still holds for this page */}
+  renderShell();
+}
 function setRenderScale(value) {
   host.renderScale = readRenderScale(value);
   try {localStorage.setItem(RENDER_SCALE_STORAGE_KEY,String(host.renderScale ?? 1));} catch {/* the choice still holds for this page */}
@@ -258,6 +266,7 @@ root.addEventListener('click',event => {
   if (button.hasAttribute('data-debug-clear-reload')) return clearAndReload();
   if (button.hasAttribute('data-error-copy')) return copyErrors();
   if (d.renderScale) return setRenderScale(d.renderScale);
+  if (d.fxSpeed) return pickFxSpeed(d.fxSpeed);
   if (d.live === 'options') host.options = true;
   else if (d.live === 'close-options') host.options = false;
   else if (d.live === 'home') return leaveMatch();

@@ -1,4 +1,5 @@
 import { CARD_ART } from '../data/card-art.generated.js';
+import { fxMs } from './fx-speed.js';
 
 // Presentation only: one move's public events played as beats (impact, turn
 // banner, card flights). Never blocks input; the next move fast-forwards it.
@@ -120,7 +121,7 @@ export function createMotionFx(root) {
   const timers = new Set(), animations = new Set(), rules = new Map();
   let layer = null, bannerLayer = null, sheet = null, frame = null, endsAt = 0, disposed = false;
   const later = (task, delay) => {
-    const timer = win.setTimeout(() => { timers.delete(timer); if (!disposed) { try { task(); } catch { /* decorative */ } } }, delay);
+    const timer = win.setTimeout(() => { timers.delete(timer); if (!disposed) { try { task(); } catch { /* decorative */ } } }, fxMs(delay));
     timers.add(timer);
   };
   // Rules live outside the patched tree, so a re-render cannot drop a hidden or blinking state.
@@ -229,7 +230,7 @@ export function createMotionFx(root) {
     }
     const guess = motionTimeline({ impact: planMotion(events, before, before, viewerSeat).impact,
       turn: events.some(event => event.type === 'turn_started'), flights: arriving });
-    endsAt = now() + guess.end + 32;
+    endsAt = now() + fxMs(guess.end) + 32;
     const start = () => {
       frame = null;
       if (disposed) return;
@@ -253,10 +254,10 @@ export function createMotionFx(root) {
         syncRules(); landed();
         for (const [seat, symbols] of installs) flashLamps(seat, symbols);
       }, time.end);
-      endsAt = now() + time.end;
+      endsAt = now() + fxMs(time.end);
     };
     frame = win.requestAnimationFrame ? win.requestAnimationFrame(start) : (start(), null);
-    return guess.end;
+    return fxMs(guess.end);
   };
   const remaining = () => Math.max(0, endsAt - (win.performance?.now() ?? Date.now()));
   return { play, flush, remaining, dispose() { disposed = true; flush(); } };

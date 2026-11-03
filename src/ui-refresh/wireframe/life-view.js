@@ -1,4 +1,5 @@
 import { DEFAULT_RENDER_QUALITY, DISPLAY_FONT, renderResolution, observeDrawing } from './render-resolution.js';
+import { fxMs } from '../fx-speed.js';
 // Local presentation animation, never a second game state. A new receipt
 // retargets from the current displayed position; authoritative STR stays in DOM.
 export function attachLifeView(root, quality = DEFAULT_RENDER_QUALITY) {
@@ -10,7 +11,7 @@ export function attachLifeView(root, quality = DEFAULT_RENDER_QUALITY) {
     const {width:w,height:h}=renderResolution(rect.width,rect.height,quality,globalThis.devicePixelRatio);
     if(canvas.width!==w)canvas.width=w;if(canvas.height!==h)canvas.height=h;
     const c=canvas.getContext('2d');c.clearRect(0,0,w,h);
-    const t=animate?Math.min(1,(now-track.started)/450):1;
+    const t=animate?Math.min(1,(now-track.started)/fxMs(450)):1;
     track.display=track.from+(track.target-track.from)*(1-(1-t)**3);
     const direction=track.mine?1:-1,anchor=track.mine?w-h*.7:h*.7;
     c.textAlign='center';c.textBaseline='bottom';
