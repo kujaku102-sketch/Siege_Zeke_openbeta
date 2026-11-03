@@ -200,8 +200,9 @@ function uniqueHtml(model,presentation) {
 // A move refused by the tutorial shows its reason (flow.error) under the line.
 function guideHtml(tutorial) {
   if (!tutorial?.presentation || tutorial.ended) return '';
-  // Put away by a tap on its line until the next step (runtime-match-surface.js, tapGuide): only [スキップ] stays.
-  if (tutorial.away) return '<aside class="live-guide-away" aria-label="チュートリアル"><button class="live-guide-skip" data-runtime-tutorial-skip>スキップ</button></aside>';
+  // Put away by a tap on its line until the next step (runtime-match-surface.js, tapGuide), or waiting while the
+  // opponent's script plays (its next line comes once it is done): only [スキップ] stays.
+  if (tutorial.away || tutorial.waiting) return '<aside class="live-guide-away" aria-label="チュートリアル"><button class="live-guide-skip" data-runtime-tutorial-skip>スキップ</button></aside>';
   const complete = tutorial.flow.complete === true;
   const {presentation,flow} = tutorial, navigator = tutorialNavigator(flow.tutorialId);
   // Pages (runtime-match-surface.js): the step's own button only on the last page.

@@ -116,7 +116,9 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     if (guideAway && guideAway.step !== pageStep(tutorial.value.flow)) guideAway = null;
     const away = guideAway?.reason === guideReason(tutorial.value) ? { away: true } : {};
     const ended = tutorialEnded && tutorial.value.flow.complete ? { ended: true } : {};
-    return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}), ...away, ...ended } };
+    // While the opponent's script plays, the next step's line waits until it is done (文豪, 2026-11-03, X1).
+    const waiting = tutorial.value.opponentScript && !tutorial.value.flow.complete ? { waiting: true } : {};
+    return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}), ...away, ...ended, ...waiting } };
   };
   const tapGuide = () => {
     const tutorial = session.tutorial();
@@ -164,7 +166,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   let guideDetail = null;
   const showBadge = () => {
     if (disposed || !latest) return;
-    const tutorial = session.tutorial(), presentation = tutorial.ok && !tutorial.value.flow.complete ? tutorial.value.presentation : null;
+    const tutorial = session.tutorial(), presentation = tutorial.ok && !tutorial.value.flow.complete && !tutorial.value.opponentScript ? tutorial.value.presentation : null;
     const step = tutorial.ok ? pageStep(tutorial.value.flow) : null;
     if (guideDetail && guideDetail.step !== step) {
       const open = latest.model.ui.detailCardRef === guideDetail.cardRef;

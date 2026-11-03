@@ -103,7 +103,8 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
     for (const element of root.querySelectorAll('.live-focus')) { element.classList.remove('live-focus'); delete element.dataset.tutorialFocusLabel; }
     // What the step points at is found on every page (the guide keeps clear of it), but marked only on the last.
     const pointed = [];
-    if (tutorial.ok && !tutorial.value.flow.complete) for (const focus of [...tutorial.value.presentation.focus ?? [], ...expectedButton(tutorial.value.presentation.expect)]) {
+    // The next step's marks wait with its line while the opponent's script plays.
+    if (tutorial.ok && !tutorial.value.flow.complete && !tutorial.value.opponentScript) for (const focus of [...tutorial.value.presentation.focus ?? [], ...expectedButton(tutorial.value.presentation.expect)]) {
       const seat = scope.seatIds[focus.owner === 'ai' ? 1 : 0];
       const selectors = {card:`[data-card-id="${focus.cardId}"][data-seat="${seat}"][data-zone="${focus.zone}"]`,
         // A zone on the 3D board has no box of its own: its empty slots stand for it.
