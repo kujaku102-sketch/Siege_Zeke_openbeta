@@ -17,25 +17,6 @@ const EXPECTED_ROUTES = Object.freeze({ play: ['executeCard', 'executeSpell', 'm
 const expectedButton = expect => expect?.type === 'answerChoice' && expect.cardId ? [{ kind: 'option', cardId: expect.cardId }]
   : EXPECTED_ROUTES[expect?.type] && expect.cardId ? [{ kind: 'route', cardId: expect.cardId, routes: EXPECTED_ROUTES[expect.type] }] : [];
 
-// The card detail sits at the screen's left edge, where the guide's portrait stands: a badge the line points at is
-// scrolled within the detail to a free side of the portrait it can reach, the nearer one (blue: the Hacking badge
-// while it is explained). Where neither can be reached it stays as it is.
-function clearOfPortrait(guide, badge, viewport) {
-  const portrait = guide.querySelector('.live-guide-cast img,.live-guide-noportrait')?.getBoundingClientRect();
-  if (!badge || !portrait) return;
-  const rect = badge.getBoundingClientRect();
-  if (rect.right <= portrait.left || rect.left >= portrait.right || rect.bottom <= portrait.top || rect.top >= portrait.bottom) return;
-  let scroller = badge.parentElement;
-  while (scroller && scroller.scrollHeight <= scroller.clientHeight && !scroller.matches('.r2-detail')) scroller = scroller.parentElement;
-  if (!scroller) return;
-  const box = scroller.getBoundingClientRect(), gap = viewport.height * .02;
-  const room = { up: scroller.scrollTop, down: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop };
-  // How far to scroll (+ down the content) so the badge sits just below or just above the portrait, inside the detail.
-  const moves = [rect.top - (portrait.bottom + gap), rect.bottom - (portrait.top - gap)]
-    .filter(move => (move < 0 ? -move <= room.up : move <= room.down) && rect.top - move >= box.top && rect.bottom - move <= box.bottom);
-  if (moves.length) scroller.scrollTop += moves.sort((a, b) => Math.abs(a) - Math.abs(b))[0];
-}
-
 export function createSurfaceLayout({ root, session, scope, boardStyle, latest, requestFrame, disposed, guideLastPage = () => true, paginateGuide = () => {}, guideStep = () => null, guideGrow = () => ({ page: 0, step: 0 }) }) {
   let layoutFrame = null;
   let scrolledFocus = null;
@@ -86,14 +67,6 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       popupMeasure.popup.style.left = `${popupMeasure.position.left}px`;
       popupMeasure.popup.style.top = `${popupMeasure.position.top}px`;
     }
-    // A floating effect flow keeps clear of the pick's targets and its prompt.
-    const flow = root.querySelector('[data-live-region="selection"] > .effect-flow');
-    if (flow) {
-      const obstacles = [...root.querySelectorAll('.request-target,.board-pick-guide,.r2-console,.r2-popup')]
-        .map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
-      const position = placeFlow(flow.getBoundingClientRect(), obstacles, viewport);
-      flow.style.left = `${position.left}px`; flow.style.top = `${position.top}px`;
-    }
     // A refused move's notice sits just above the hand (the shell draws it, outside this root): the hand's top as it
     // stands now, raised or lowered, as a share of the screen's height.
     const handHost = root.querySelector('.r2-hand-host'), content = root.closest?.('.r2-content');
@@ -129,18 +102,29 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       }
     }
     const guide = root.querySelector('.live-guide'), view = root.querySelector('.r2-runtime-view');
+    const flow = root.querySelector('[data-live-region="selection"] > .effect-flow');
+    const shown = elements => elements.map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
     if (guide && view) {
-      // What a pick asks the player to press is kept clear as well as the step's highlights.
-      const picks = [...root.querySelectorAll('.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline]')];
-      const rects = [...pointed, ...picks].map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
+      // What a pick asks the player to press is kept clear as well as the step's highlights, and the floating effect
+      // flow with them (文豪, 2026-11-03, H7).
+      const picks = [...root.querySelectorAll('.request-target,.runtime-selection-option,[data-runtime-confirm],[data-runtime-back],[data-runtime-decline]'), ...(flow ? [flow] : [])];
+      const rects = shown([...pointed, ...picks]);
+      // Then, where it can, the opponent's board, TURN and the memory stay in sight (文豪, 2026-11-03, H1).
+      const viewer = latest()?.model.match.viewerSeat, opponent = scope.seatIds.find(seat => seat !== viewer);
+      const keep = shown([...root.querySelectorAll(`[data-live-region="board"] :is([data-seat="${opponent}"],[data-fortress="${opponent}"],[data-fx-seat="${opponent}"]),[data-runtime-end-turn],.wf-meter,.wf-memory`)]);
       // A page too long for a third of the screen grows the frame (文豪, 2026-10-28): the band keeps clear with the
       // step's tallest page, and the page shown gets its own height.
       const grow = guideGrow();
       const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}`;
-      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step }) };
+      if (guideBand.key !== key) guideBand = { key, band: chooseGuideBand(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step, keep }) };
       applyGuideBand(view, guideBand.band, viewport, grow.page);
-      clearOfPortrait(guide, pointed.find(element => element.matches('.r2-detail [data-ability-help]')), viewport);
       paginateGuide(guide);
+    }
+    // A floating effect flow keeps clear of the pick's targets and its prompt, and of the guide where it now stands.
+    if (flow) {
+      const obstacles = shown([...root.querySelectorAll('.request-target,.board-pick-guide,.r2-console,.r2-popup,.live-guide .live-guide-speech,.live-guide .live-guide-cast :is(img,.live-guide-noportrait)')]);
+      const position = placeFlow(flow.getBoundingClientRect(), obstacles, viewport);
+      flow.style.left = `${position.left}px`; flow.style.top = `${position.top}px`;
     }
   };
   const queueLayout = () => {

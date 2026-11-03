@@ -118,7 +118,7 @@ export function createMotionFx(root) {
   const doc = root.ownerDocument, win = doc.defaultView;
   const reduced = () => Boolean(win?.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const timers = new Set(), animations = new Set(), rules = new Map();
-  let layer = null, sheet = null, frame = null, endsAt = 0, disposed = false;
+  let layer = null, bannerLayer = null, sheet = null, frame = null, endsAt = 0, disposed = false;
   const later = (task, delay) => {
     const timer = win.setTimeout(() => { timers.delete(timer); if (!disposed) { try { task(); } catch { /* decorative */ } } }, delay);
     timers.add(timer);
@@ -140,6 +140,14 @@ export function createMotionFx(root) {
     doc.body.append(layer);
     return layer;
   };
+  // The turn banner has a layer of its own over the tutorial guide; flights stay under it (文豪, 2026-11-03, H5).
+  const ensureBannerLayer = () => {
+    if (bannerLayer) return bannerLayer;
+    bannerLayer = doc.createElement('div');
+    bannerLayer.className = 'fx-motion-layer fx-banner-layer'; bannerLayer.setAttribute('aria-hidden', 'true');
+    doc.body.append(bannerLayer);
+    return bannerLayer;
+  };
   const animate = (node, frames, options) => {
     if (!node.animate) return;
     const animation = node.animate(frames, options);
@@ -155,13 +163,13 @@ export function createMotionFx(root) {
     frame = null;
     for (const animation of animations) animation.cancel();
     animations.clear(); rules.clear(); syncRules();
-    layer?.remove(); layer = null; endsAt = 0;
+    layer?.remove(); layer = null; bannerLayer?.remove(); bannerLayer = null; endsAt = 0;
   };
   const banner = (turn, duration, still) => {
     const node = doc.createElement('div');
     node.className = `fx-turn-banner ${turn.mine ? 'mine' : 'enemy'}`;
     node.innerHTML = `<small>TURN ${Number(turn.turnNumber) || ''}</small><strong>${turn.mine ? 'YOUR TURN' : 'ENEMY TURN'}</strong>`;
-    ensureLayer().append(node);
+    ensureBannerLayer().append(node);
     animate(node, still
       ? [{ opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: 1, offset: .8 }, { opacity: 0 }]
       : [{ opacity: 0, transform: 'translate(-50%,-50%) translateX(-18vw) skewX(-12deg)' },
