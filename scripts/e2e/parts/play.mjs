@@ -147,7 +147,9 @@ export function makeUi(page, { keyboard = false } = {}) {
     const card = cardId && cardsOf(q).find((c) => !c.faceDown && c.definition.id === cardId && (["attack", "redeploy", "activateCardEffect"].includes(type) ? ["front", "back"].includes(c.location?.zone) : c.location?.zone === "hand") && entryFor(c));
     const entry = entryFor(card);
     if (!entry) throw new Error(`legal action missing: ${type} ${cardId ?? ""}`);
-    if (card) {
+    // The action may already be chosen on screen (a tutorial step that asked to press the card and its attack): its question is open, answered from there.
+    const chosen = await page.locator("[data-runtime-back]").first().isVisible().catch(() => false);
+    if (card && !chosen) {
       const cardSelector = `[data-card-ref="${card.cardRef}"]`;
       if (card.location?.zone === "hand") await cardShown(cardSelector);
       if (["front", "back"].includes(card.location?.zone) && await page.locator('[data-layer="hand"]:not([hidden])').count()) await click("[data-runtime-hand]");
@@ -158,7 +160,7 @@ export function makeUi(page, { keyboard = false } = {}) {
         if (tap === 2) throw new Error(`the card did not take the selection: ${cardSelector}`);
       }
     }
-    await click(`[data-action-id="${entry.actionId}"]`);
+    if (!chosen) await click(`[data-action-id="${entry.actionId}"]`);
     if (entry.kind === "fixed") return "moved";
     let selections = []; let path = []; const moved = async () => (await query()).status.revision !== q.status.revision;
     for (let index = 0; index < 6; index += 1) {

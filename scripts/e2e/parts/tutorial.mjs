@@ -1,5 +1,5 @@
 // Playing a tutorial from its own script. Each step of src/data/tutorial-script.js says what it expects (`expect`):
-//   advance (press the guide's [次へ]; with `press`: press the thing it names)   play / install / attack / layered / relog / activate-effect / end-turn (make that move)
+//   advance (press the guide's [次へ]; with `press`: press the thing it names; for attack-choice, the card and then its attack)   play / install / attack / layered / relog / activate-effect / end-turn (make that move)
 //   answerChoice (answer the open choice with the named card)                  null (the closing line)
 // This reads the step the match is on (the hook's tutorial().presentation.expect) and does that, so a script can be added to or changed without touching
 // the e2e: no step number and no card is written here, the card to use is the one in the step's `expect`.
@@ -22,6 +22,7 @@ export async function startTutorial(page, id) {
   if (!started.ok) throw new Error(`${id}: could not start: ${JSON.stringify(started)}`);
 }
 
+// A step marked hintOnly says nothing: the guide stays away and only the hint shows (the wait in playTutorial accepts that).
 // A guide line may run over several pages (how many depends on the screen): press [次へ] up to its last page.
 export async function readPages(ui) {
   const { page } = ui;
@@ -80,6 +81,12 @@ async function pressAsked(ui, state) {
   const selector = `[data-card-ref="${card.cardRef}"]`;
   if (card.location.zone === "hand") await ui.cardShown(selector);
   await ui.click(selector);
+  if (expect.press === "attack-choice") {
+    // the card is pressed, then its popup's attack is chosen: the target choice is what the step waits for
+    await page.locator('.r2-popup [data-route="attack"]').first().waitFor({ state: "visible", timeout: 3000 });
+    await ui.click('.r2-popup [data-route="attack"]');
+    return;
+  }
   if (expect.press === "ability-badge") {
     // The badge is scrolled to the middle of the detail once it is marked: pressed after that settles.
     await page.waitForFunction(() => { const badge = document.querySelector(".r2-detail [data-ability-help].live-focus"), top = badge?.getBoundingClientRect().top; const still = top !== undefined && top === window.__badgeTop; window.__badgeTop = top; return still; }, null, { polling: 150, timeout: 3000 });
@@ -93,13 +100,13 @@ async function pressAsked(ui, state) {
 export async function playTutorial(page, id, { keyboard = false, stopAfterMoves = Infinity, stopWhen = null, ui = makeUi(page, { keyboard }) } = {}) {
   let moves = 0, steps = 0, stuck = 0, last = "";
   for (let turn = 0; turn < 600; turn += 1) {
-    await page.waitForFunction(() => { const t = window.__SIMPLE_ZEKE_E2E__.tutorial()?.value; return t && (t.flow.complete || (document.querySelector(".live-guide[data-tutorial-step]") && t.opponentScript === null)); }, null, { timeout: 20000 })
+    await page.waitForFunction(() => { const t = window.__SIMPLE_ZEKE_E2E__.tutorial()?.value; return t && (t.flow.complete || ((document.querySelector(".live-guide[data-tutorial-step]") || t.presentation?.hintOnly && document.querySelector(".live-guide-away")) && t.opponentScript === null)); }, null, { timeout: 20000 })
       .catch(() => { throw new Error(`${id}: the guide never came back (after ${steps} steps)`); });
     const state = await tutorialState(page);
     if (state.flow.complete) return { steps, moves, complete: true };
     if (stopWhen?.(state)) return { steps, moves, stopped: state };
     if (!state.text.trim()) throw new Error(`${id}: a guide step with no line (${state.guideStep})`);
-    const mark = `${state.guideStep}|${state.revision}`;
+    const mark = `${state.guideStep ?? state.flow.index}|${state.revision}`;
     stuck = mark === last ? stuck + 1 : 0; last = mark;
     if (stuck >= 3) throw new Error(`${id}: stuck on ${state.guideStep}: ${JSON.stringify(state.expect)}`);
     await readPages(ui);
