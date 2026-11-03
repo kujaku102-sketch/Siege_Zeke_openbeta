@@ -211,11 +211,13 @@ test("lowGpu reaches the match surface and the title; the drawn layers never tak
   assert.ok(main.includes("const renderDetection = {iosWebKit:isIosWebKit({"));
   assert.ok(main.includes("const lowGpu = () => renderMode().mode === 'compat';"));
   assert.ok(main.includes("host.effectsEnabled && !lowGpu()"));
-  assert.ok(main.includes("return {lowGpu:mode === 'compat',renderQuality:renderQualityFor(mode,urlRenderScale(location.search))};"));
-  assert.ok(!main.includes("setItem('renderScale'") && !/localStorage\.setItem\([^)]*[Ss]cale/.test(main), "the sample scale is never saved");
+  assert.ok(main.includes("return {lowGpu:mode === 'compat',renderQuality:renderQualityFor(mode,renderScale())};"));
+  assert.ok(main.includes("const renderScale = () => urlRenderScale(location.search) ?? host.renderScale;"), "the URL's ?renderScale= wins over the saved choice");
+  assert.ok(main.includes("localStorage.setItem(RENDER_SCALE_STORAGE_KEY,String(host.renderScale ?? 1))"), "the scale picked in the debug window is saved in this browser");
+  assert.ok(!main.includes("setItem('renderScale'"), "the URL sample itself is never what is saved");
   assert.ok(main.includes("view:host.view,...renderOptions(),onContextLost:degradeAfterLoss,"));
-  // A switch (a choice or a lost context) reconfigures the mounted match with the same pair.
-  assert.equal(main.split("surface?.configure(renderOptions());").length - 1, 2);
+  // A switch (a mode choice, a lost context or a picked render scale) reconfigures the mounted match with the same pair.
+  assert.equal(main.split("surface?.configure(renderOptions());").length - 1, 3);
   const surface = await readSource("../src/ui-refresh/runtime-match-surface.js");
   assert.ok(surface.includes("if (options.renderQuality) scenes.setRenderQuality(options.renderQuality);"));
   const scenes = await readSource("../src/ui-refresh/surface-scenes.js");
