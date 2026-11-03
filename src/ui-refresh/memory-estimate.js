@@ -26,15 +26,18 @@ export function memoryEstimate({ images = [], canvases = [], filters = [], layer
   return { rows, totalMB, percent: totalMB / MEMORY_LIMIT_MB * 100, jsReadable: jsHeap !== null };
 }
 
-const mb = value => `${value.toFixed(1)}MB`;
-const pct = value => `${value.toFixed(1)}%`;
+export const mb = value => `${value.toFixed(1)}MB`;
+export const pct = value => `${value.toFixed(1)}%`;
+// The block's words, shared with the CRT menu's drawing of it.
+export const MEMORY_TEXT = Object.freeze({ title: 'メモリの見積もり', refresh: '更新', pending: '数えています…', total: '合計', noJs: 'JS を除く',
+  lead: 'ページが持っている画像・canvas・SVG のフィルター・層の大きさ（縦×横×4バイト）から計算した見積もり。ブラウザが実際に使っているメモリの値ではない。上限は 1.4GB として計算。' });
 // null: not counted yet (the window just opened or 更新 was pressed).
 export function memoryHtml(estimate) {
-  const head = '<header><h3>メモリの見積もり</h3><button data-memory-refresh>更新</button></header>';
-  const lead = '<p>ページが持っている画像・canvas・SVG のフィルター・層の大きさ（縦×横×4バイト）から計算した見積もり。ブラウザが実際に使っているメモリの値ではない。上限は 1.4GB として計算。</p>';
-  if (!estimate) return `<section class="r2-memory" data-memory-estimate aria-label="メモリの見積もり" aria-busy="true">${head}${lead}<p data-memory-pending>数えています…</p></section>`;
+  const head = `<header><h3>${MEMORY_TEXT.title}</h3><button data-memory-refresh>${MEMORY_TEXT.refresh}</button></header>`;
+  const lead = `<p>${MEMORY_TEXT.lead}</p>`;
+  if (!estimate) return `<section class="r2-memory" data-memory-estimate aria-label="メモリの見積もり" aria-busy="true">${head}${lead}<p data-memory-pending>${MEMORY_TEXT.pending}</p></section>`;
   const row = item => `<tr data-memory-row="${item.key}"><th scope="row">${esc(item.label)}<small>${esc(item.note)}</small></th><td>${item.mb === null ? '—' : mb(item.mb)}</td><td>${item.percent === null ? '—' : pct(item.percent)}</td></tr>`;
-  return `<section class="r2-memory" data-memory-estimate aria-label="メモリの見積もり">${head}${lead}<table><thead><tr><th scope="col">内訳</th><th scope="col">見積もり</th><th scope="col">上限比</th></tr></thead><tbody>${estimate.rows.map(row).join('')}</tbody><tfoot><tr data-memory-row="total"><th scope="row">合計${estimate.jsReadable ? '' : '<small>JS を除く</small>'}</th><td>${mb(estimate.totalMB)}</td><td>${pct(estimate.percent)}</td></tr></tfoot></table></section>`;
+  return `<section class="r2-memory" data-memory-estimate aria-label="メモリの見積もり">${head}${lead}<table><thead><tr><th scope="col">内訳</th><th scope="col">見積もり</th><th scope="col">上限比</th></tr></thead><tbody>${estimate.rows.map(row).join('')}</tbody><tfoot><tr data-memory-row="total"><th scope="row">${MEMORY_TEXT.total}${estimate.jsReadable ? '' : `<small>${MEMORY_TEXT.noJs}</small>`}</th><td>${mb(estimate.totalMB)}</td><td>${pct(estimate.percent)}</td></tr></tfoot></table></section>`;
 }
 
 // The natural size of an image address, read once per page; an address that fails counts as 0x0.

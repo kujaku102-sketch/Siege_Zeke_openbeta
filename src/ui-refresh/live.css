@@ -505,15 +505,26 @@ body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-deta
 .r2-title-render>div { display:flex; flex-wrap:wrap; gap:calc(var(--u) * .25); }
 .r2-title-render button { min-height:2.75rem; padding:0 .8em; }
 .r2-title-render button[aria-checked="true"] { outline:calc(var(--u) * .125) solid #00ff00; outline-offset:calc(var(--u) * -.125); }
-/* The debug window (debug-view.js), opened from the options' デバッグ entry; over the CRT title too. Sizes in its own font. */
-.r2-content .r2-modal.r2-debug { z-index:calc(var(--z-modal) + 2); }
-.r2-debug>section { width:min(calc(var(--u) * 40),94vw); overflow:auto; }
-.r2-debug>section>header { display:flex; align-items:center; gap:calc(var(--u) * .625); }
-.r2-debug>section>header h2 { margin:0; }
-.r2-debug>section>header button { margin-left:auto; min-height:2.2em; padding:0 .8em; }
-.r2-debug-open { min-height:2.2em; padding:0 .8em; }
-/* Its parts are <section>s inside the window's own: not boxes of their own (preview.css .r2-modal section). */
-.r2-debug>section :is(.r2-debug-part,.r2-memory) { width:auto; max-height:none; overflow:visible; padding:calc(var(--u) * .625) 0 0; border:0; border-top:1px solid #ffffff22; border-radius:0; background:none; }
+/* The options window's two pages (debug-view.js): デバッグ ▶ slides the options out to the left and the debug page in
+   from the right, ◀ 戻る the other way. The window keeps its width and scrolls up and down; the page left behind lies
+   out of the flow, so the window is as tall as the page shown. The slide follows the effect speed (fx-speed.js runs
+   transitions at it); with the effects off or reduced motion the page changes at once. */
+.r2-pager { --page-slide:.32s; position:relative; overflow-x:clip; }
+.r2-page { transition:transform var(--page-slide) ease-in-out, visibility 0s linear var(--page-slide); }
+.r2-pager[data-page="options"] [data-options-page],.r2-pager[data-page="debug"] [data-debug-page] { position:relative; transform:none; visibility:visible; transition:transform var(--page-slide) ease-in-out, visibility 0s; }
+.r2-pager[data-page="debug"] [data-options-page] { position:absolute; inset:0 0 auto 0; transform:translateX(-100%); visibility:hidden; }
+.r2-pager[data-page="options"] [data-debug-page] { position:absolute; inset:0 0 auto 0; transform:translateX(100%); visibility:hidden; }
+.r2-content[data-effects="off"] .r2-page { transition:none; }
+@media (prefers-reduced-motion:reduce) { .r2-page { transition:none !important; } }
+.r2-debug-open { display:flex; align-items:center; justify-content:space-between; gap:.6em; min-height:2.2em; padding:0 .8em; }
+.r2-title-options .r2-debug-open { width:100%; }
+.r2-debug>header { display:flex; align-items:center; gap:calc(var(--u) * .625); }
+.r2-debug>header h2 { margin:0; }
+.r2-debug>header button { min-height:2.2em; padding:0 .8em; }
+/* The debug page and its parts are <section>s inside the window's own: not boxes of their own (preview.css .r2-modal section). */
+.r2-modal .r2-debug,.r2-modal .r2-debug :is(.r2-debug-part,.r2-memory) { width:auto; max-height:none; overflow:visible; border:0; border-radius:0; background:none; }
+.r2-modal .r2-debug { padding:0; }
+.r2-modal .r2-debug :is(.r2-debug-part,.r2-memory) { padding:calc(var(--u) * .625) 0 0; border-top:1px solid #ffffff22; }
 .r2-debug-part { display:grid; gap:calc(var(--u) * .375); margin-top:calc(var(--u) * .75); padding-top:calc(var(--u) * .625); border-top:1px solid #ffffff22; }
 .r2-debug-part h3 { margin:0; font-size:1em; }
 .r2-debug-part p { margin:0; font-size:max(.625rem, calc(var(--u) * .6875)); line-height:1.4; }
@@ -527,7 +538,8 @@ body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-deta
 .r2-error-list :is(time,small) { color:#9db3bd; }
 /* The memory estimate (memory-estimate.js): a table, sizes in the window's own font. */
 .r2-memory { display:grid; gap:calc(var(--u) * .375); margin-top:calc(var(--u) * .75); padding-top:calc(var(--u) * .625); border-top:1px solid #ffffff22; }
-.r2-memory header { display:flex; align-items:center; gap:calc(var(--u) * .625); }
+.r2-memory header { display:flex; align-items:center; gap:calc(var(--u) * .625); margin-bottom:0; }
+.r2-modal .r2-memory header { margin-bottom:0; }
 .r2-memory h3 { margin:0; font-size:1em; }
 .r2-memory header button { margin-left:auto; min-height:2.2em; padding:0 .8em; }
 .r2-memory p { margin:0; font-size:max(.625rem, calc(var(--u) * .6875)); line-height:1.4; }

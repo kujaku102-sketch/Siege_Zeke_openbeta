@@ -29,6 +29,8 @@ export function setFxSpeed(value, doc = globalThis.document) {
 }
 
 const choice = (value, current) => `<button data-fx-speed="${value}" role="radio" aria-checked="${current === value}">×${value}</button>`;
+// The block's words, shared with the CRT menu's drawing of it.
+export const FX_SPEED_NOTE = '演出の時間に1つの倍率を通す（×2 で半分の時間）。CSS のアニメーションとトランジションは画面全体に効く。選んだ値はこのブラウザに保存する。既定は ×1。';
 export function fxSpeedHtml(current = speed) {
-  return `<section class="r2-debug-part" data-debug-fx-speed aria-label="演出のスピード"><h3>演出のスピード</h3><div class="r2-debug-row" role="radiogroup" aria-label="演出のスピード">${FX_SPEEDS.map(value => choice(value, current)).join('')}</div><p>演出の時間に1つの倍率を通す（×2 で半分の時間）。CSS のアニメーションとトランジションは画面全体に効く。選んだ値はこのブラウザに保存する。既定は ×1。</p></section>`;
+  return `<section class="r2-debug-part" data-debug-fx-speed aria-label="演出のスピード"><h3>演出のスピード</h3><div class="r2-debug-row" role="radiogroup" aria-label="演出のスピード">${FX_SPEEDS.map(value => choice(value, current)).join('')}</div><p>${FX_SPEED_NOTE}</p></section>`;
 }

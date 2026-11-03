@@ -39,12 +39,17 @@ export function createErrorLog(win, { limit = ERROR_LOG_LIMIT, changed = () => {
 // The whole log as plain text, newest first (what コピー puts on the clipboard).
 export const errorLogText = entries => entries.map(entry => [`[${entry.at}] ${entry.kind}: ${entry.message}`, entry.where, entry.stack].filter(Boolean).join('\n')).join('\n\n');
 
+// The page's words, shared with the CRT menu's drawing of it.
+export const ERROR_LOG_TEXT = Object.freeze({ note: `window の error と unhandledrejection を、新しい順に最大${ERROR_LOG_LIMIT}件残す。残すのはこのページの中だけで、読み直したときや、メモリ不足でページが落とされたときは残らない。`,
+  empty: '記録はない。', copy: 'まとめてコピー', copied: 'コピーした', failed: 'コピーできなかった' });
+export const errorLogHeading = (shown, total) => `エラーの記録（${shown}件${total > shown ? `／このページを開いてから ${total}件` : ''}）`;
+
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 // entries: newest first; total: every entry since the page opened; copied: the last コピー's outcome (null before one).
 export function errorLogHtml({ entries = [], total = 0, copied = null } = {}) {
   const list = entries.length
     ? `<ol class="r2-error-list">${entries.map(entry => `<li data-error-entry><b>${esc(entry.kind)}</b> <time>${esc(entry.at)}</time><span>${esc(entry.message)}</span>${entry.where ? `<small>${esc(entry.where)}</small>` : ''}</li>`).join('')}</ol>`
-    : '<p data-error-empty>記録はない。</p>';
-  const status = copied === null ? '' : `<span data-error-copied role="status">${copied ? 'コピーした' : 'コピーできなかった'}</span>`;
-  return `<section class="r2-debug-part" data-debug-errors aria-label="エラーの記録"><h3>エラーの記録（${entries.length}件${total > entries.length ? `／このページを開いてから ${total}件` : ''}）</h3><p>window の error と unhandledrejection を、新しい順に最大${ERROR_LOG_LIMIT}件残す。残すのはこのページの中だけで、読み直したときや、メモリ不足でページが落とされたときは残らない。</p><div class="r2-debug-row"><button data-error-copy ${entries.length ? '' : 'disabled'}>まとめてコピー</button>${status}</div>${list}</section>`;
+    : `<p data-error-empty>${ERROR_LOG_TEXT.empty}</p>`;
+  const status = copied === null ? '' : `<span data-error-copied role="status">${copied ? ERROR_LOG_TEXT.copied : ERROR_LOG_TEXT.failed}</span>`;
+  return `<section class="r2-debug-part" data-debug-errors aria-label="エラーの記録"><h3>${errorLogHeading(entries.length, total)}</h3><p>${ERROR_LOG_TEXT.note}</p><div class="r2-debug-row"><button data-error-copy ${entries.length ? '' : 'disabled'}>${ERROR_LOG_TEXT.copy}</button>${status}</div>${list}</section>`;
 }

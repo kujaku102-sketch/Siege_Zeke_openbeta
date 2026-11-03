@@ -120,7 +120,8 @@ function renderShell(replace = false) {
   }
   restoreDeckViewport(root,viewport);
   syncEntryLogoGlitch(root,entryEffects(),{profile:host.logoNoiseProfile,videoFile:entryLogoVideoFile});
-  syncEntryCrtViewport(root,entryEffects(),{menuOpen:host.options,view:host.view,fullscreen:host.fullscreen,tapDetails:host.tapDetails,effectsEnabled:host.effectsEnabled,masterVolume:host.masterVolume,storedCounts:host.storedCounts,sendMatchLogs:host.sendMatchLogs,
+  syncEntryCrtViewport(root,entryEffects(),{menuOpen:host.options,debugOpen:Boolean(host.options && host.debug),
+    debug:{build:host.build,errors:host.errors,memory:host.memory,renderScale:host.renderScale ?? 1,renderScaleUrl:host.renderScaleUrl,compat:host.render?.mode === 'compat',fxSpeed:host.fxSpeed},view:host.view,fullscreen:host.fullscreen,tapDetails:host.tapDetails,effectsEnabled:host.effectsEnabled,masterVolume:host.masterVolume,storedCounts:host.storedCounts,sendMatchLogs:host.sendMatchLogs,
     onReadyChange:() => syncLiveInputLocks(root,{optionsOpen:host.options || Boolean(host.debug),entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))})});
   syncLiveInputLocks(root,{optionsOpen:host.options || Boolean(host.debug),entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))});
   mobileViewport.sync(host.view);
@@ -149,19 +150,25 @@ function prepared(enter) {
     try {await enter();} finally {preparing = false;if (host.preparing) {host.preparing = false;renderShell();}}
   },0));
 }
-// The debug window (文豪, 2026-11-04) opens from the options' デバッグ on the title and the board, and takes their place.
-// Its memory estimate is counted only while it shows: when it opens and on its 更新. A count still running when the
-// window closes or counts again is dropped.
+// The debug page (文豪, 2026-11-04) is the options window's second page, on the title (HTML and CRT menus) and the
+// board: デバッグ ▶ slides to it, ◀ 戻る and Escape slide back. Its memory estimate is counted only while it shows:
+// when it opens and on its 更新. A count still running when the page or the window closes, or counts again, is dropped.
 let memorySerial = 0;
+const debugShown = () => host.options && host.debug && Boolean(root.querySelector('[data-debug-page] [data-memory-estimate]'));
 async function measureMemory() {
   const serial = ++memorySerial;host.memory = null;renderShell();
-  if (!host.debug || !root.querySelector('[data-memory-estimate]')) return;
+  if (!debugShown()) return;
   const facts = await sampleMemory(document,window);
-  if (serial !== memorySerial || !host.debug || !root.querySelector('[data-memory-estimate]')) return;
+  if (serial !== memorySerial || !debugShown()) return;
   host.memory = memoryEstimate(facts);renderShell();
 }
-function openDebug() {host.options = false;host.debug = true;host.errorCopied = null;return measureMemory();}
-function closeDebug() {host.debug = false;memorySerial += 1;renderShell();}
+// The window scrolls back to its top and the focus moves to the page shown.
+function turnOptionsPage(focus) {
+  root.querySelector('.r2-pager')?.closest('section')?.scrollTo?.(0,0);
+  root.querySelector(focus)?.focus({preventScroll:true});
+}
+function openDebug() {host.options = true;host.debug = true;host.errorCopied = null;const counted = measureMemory();turnOptionsPage('[data-debug-page] [data-debug-close]');return counted;}
+function closeDebug() {host.debug = false;memorySerial += 1;renderShell();turnOptionsPage('[data-options-page] [data-debug-open]');}
 // まとめてコピー: the clipboard API, or a hidden text area where it is refused (an insecure origin).
 async function copyErrors() {
   const value = errorLogText(errorLog.entries());
@@ -184,7 +191,7 @@ function attachSession(next) {
   const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,...renderOptions(),onContextLost:degradeAfterLoss,
     boardStyle:new URLSearchParams(location.search).get('board') === 'classic' ? 'classic' : 'wireframe',
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
-    effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;renderShell();},onTitle:leaveMatch,
+    effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;host.debug = false;renderShell();},onTitle:leaveMatch,
     onRematch:() => prepared(() => {const result = lifecycle.rematch();if (result.ok) attachSession(result.value);else notice(result.error.code);}),
     onTutorialSkip:() => prepared(skipTutorial),onSaveLog:saveMatchLog,onToMenu:() => leaveMatch(nextScreen('game',host.mode === 'tutorial' ? 'tutorial-complete' : 'match-menu')),onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}});
   if (mounted.ok) surface = mounted.value;else notice(mounted.error.code);
@@ -267,8 +274,8 @@ root.addEventListener('click',event => {
   if (button.hasAttribute('data-error-copy')) return copyErrors();
   if (d.renderScale) return setRenderScale(d.renderScale);
   if (d.fxSpeed) return pickFxSpeed(d.fxSpeed);
-  if (d.live === 'options') host.options = true;
-  else if (d.live === 'close-options') host.options = false;
+  if (d.live === 'options') {host.options = true;host.debug = false;}
+  else if (d.live === 'close-options') {host.options = false;host.debug = false;}
   else if (d.live === 'home') return leaveMatch();
   else if (d.live === 'fullscreen') {void toggleFullscreen(document).then(() => renderShell());return;}
   else if (d.live === 'close-catalog') host.catalogOpen = false;

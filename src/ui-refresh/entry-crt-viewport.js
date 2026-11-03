@@ -1,8 +1,10 @@
 import { fxMs } from "./fx-speed.js";
+import { drawCrtDebugPage } from "./crt-debug-page.js";
 // Local opt-in prototype: draw the existing title layout onto a curved WebGL viewport.
 // The original HTML buttons remain in the document for keyboard and screen-reader use.
 const CRT_CURVE = 0.16;
 const BUTTON_GLITCH_MS = 220;
+const PAGE_SLIDE_MS = 320;
 const MENU_FONT = 'SZDotGothic, "Yu Gothic UI", sans-serif';
 const POINTER_ACTIVATION_SLOP = 12;
 const vertexSource = `
@@ -187,7 +189,10 @@ function mount(entry, initialOptions = {}) {
   let ready = false;
   let pressed = null;
   let menuTargets = [];
-  let menuScroll = 0;
+  // Each menu page keeps its own scroll; `slide` is the page change in progress.
+  const scrolls = { options: 0, debug: 0 };
+  let menuPage = "options";
+  let slide = null;
   let menuScrollMax = 0;
   let lastFocusedItem = null;
   const glitchStart = new Map();
@@ -298,7 +303,7 @@ function mount(entry, initialOptions = {}) {
       ctx.imageSmoothingEnabled = true;
     }
     menuTargets = [];
-    if (!options.menuOpen) menuScroll = 0, menuScrollMax = 0;
+    if (!options.menuOpen) { menuPage = "options"; slide = null; scrolls.options = 0; scrolls.debug = 0; menuScrollMax = 0; }
     if (options.menuOpen) {
       const panel = { x: frame.width * .26, y: frame.height * .145, width: frame.width * .48, height: frame.height * .71 };
       const unit = frame.height;
@@ -307,123 +312,182 @@ function mount(entry, initialOptions = {}) {
       ctx.strokeStyle = "#00ff00";
       ctx.lineWidth = Math.max(1, unit * .002);
       ctx.strokeRect(panel.x, panel.y, panel.width, panel.height);
-      ctx.fillStyle = "#00ff00";
-      ctx.font = `400 ${Math.max(15, unit * .047)}px ${MENU_FONT}`;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText("オプション", panel.x + panel.width * .07, panel.y + panel.height * .105);
-      const closeBox = { x: panel.x + panel.width * .81, y: panel.y + panel.height * .045, width: panel.width * .14, height: panel.height * .12 };
-      ctx.font = `400 ${Math.max(12, unit * .035)}px ${MENU_FONT}`;
-      ctx.fillText("閉じる", closeBox.x, closeBox.y + closeBox.height / 2);
-      menuTargets.push({ box: closeBox, selector: '[data-live="close-options"]' });
-      ctx.strokeStyle = "rgba(0,255,0,.6)";
-      ctx.beginPath(); ctx.moveTo(panel.x + panel.width * .06, panel.y + panel.height * .18); ctx.lineTo(panel.x + panel.width * .94, panel.y + panel.height * .18); ctx.stroke();
-      // Rows sit in a list that scrolls under the header when it outgrows the panel.
+      // The options and the debug page slide like the HTML window's pages (debug-view.js): デバッグ ▶ sends the
+      // options out to the left and brings the debug page in from the right, ◀ 戻る the other way, at the effect
+      // speed. Only the page at rest takes the pointer.
+      const wanted = options.debugOpen ? "debug" : "options";
+      if (wanted !== menuPage) { slide = { from: menuPage, to: wanted, at: performance.now() }; menuPage = wanted; scrolls[wanted] = 0; lastFocusedItem = null; }
+      const progress = slide ? Math.min(1, (performance.now() - slide.at) / fxMs(PAGE_SLIDE_MS)) : 1;
+      if (progress >= 1) slide = null;
+      const eased = progress < .5 ? 2 * progress * progress : 1 - (-2 * progress + 2) ** 2 / 2;
+      const focusedIn = selector => entry.parentElement?.querySelector(`.r2-title-options ${selector}`) === document.activeElement;
       const view = { top: panel.y + panel.height * .2, bottom: panel.y + panel.height * .97 };
-      const rowGap = panel.height * .084;
-      const rowHeight = panel.height * .07;
-      const counts = options.storedCounts ?? { logs: 0, replays: 0 };
-      const toggles = [
-        ["全画面", Boolean(options.fullscreen), '[data-live="fullscreen"]'],
-        ["PC版", options.view === "pc", '[data-view="pc"]'],
-        ["モバイル版", options.view === "mobile", '[data-view="mobile"]'],
-        ["通常タップで詳細", Boolean(options.tapDetails), '[data-title-tap-details]'],
-        ["演出", Boolean(options.effectsEnabled), '[data-toggle-effects]']
-      ];
-      const items = [];
-      let cursor = panel.height * .04;
-      for (const [label, checked, selector] of toggles) { items.push({ kind: "toggle", label, checked, selector, y: cursor }); cursor += rowGap; }
-      items.push({ kind: "volume", y: cursor + panel.height * .03 }); cursor += panel.height * .2;
-      for (const [label, kind] of [["対戦ログ", "logs"], ["対戦リプレイ", "replays"]]) {
-        items.push({ kind: "record", label, count: counts[kind] ?? 0, selector: `[data-stored-export="${kind}"]`, y: cursor }); cursor += rowGap;
-      }
-      items.push({ kind: "toggle", label: "対戦後に対戦ログを送信", checked: Boolean(options.sendMatchLogs), selector: "[data-toggle-send-logs]", y: cursor }); cursor += rowGap;
-      // The debug window is HTML over the CRT (debug-view.js); this row only opens it.
-      items.push({ kind: "open", label: "デバッグ", selector: "[data-debug-open]", y: cursor }); cursor += rowGap;
-      const maxScroll = Math.max(0, cursor + panel.height * .02 - (view.bottom - view.top));
-      const focusedItem = items.find(item => item.selector && entry.parentElement?.querySelector(`.r2-title-options ${item.selector}`) === document.activeElement);
-      if (focusedItem && focusedItem.selector !== lastFocusedItem) {
-        if (focusedItem.y < menuScroll) menuScroll = focusedItem.y;
-        else if (focusedItem.y + rowHeight > menuScroll + view.bottom - view.top) menuScroll = focusedItem.y + rowHeight - (view.bottom - view.top);
-      }
-      lastFocusedItem = focusedItem?.selector ?? null;
-      menuScroll = Math.max(0, Math.min(maxScroll, menuScroll));
-      menuScrollMax = maxScroll;
-      const visible = box => box.y >= view.top - 1 && box.y + box.height <= view.bottom + 1;
-      const target = (box, selector) => { if (visible(box)) menuTargets.push({ box, selector }); };
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(panel.x, view.top, panel.width, view.bottom - view.top);
-      ctx.clip();
       const left = panel.x + panel.width * .07;
       const width = panel.width * .86;
-      const checkbox = (box, checked) => {
-        const size = Math.min(rowHeight * .75, unit * .044);
-        const cx = box.x + box.width - size;
-        const cy = box.y + (rowHeight - size) / 2;
-        ctx.strokeStyle = "#00ff00";
-        ctx.lineWidth = Math.max(1.5, unit * .003);
-        ctx.strokeRect(cx, cy, size, size);
-        if (checked) { ctx.beginPath(); ctx.moveTo(cx + size * .18, cy + size * .51); ctx.lineTo(cx + size * .43, cy + size * .75); ctx.lineTo(cx + size * .85, cy + size * .18); ctx.stroke(); }
-      };
-      for (const item of items) {
-        const y = view.top + item.y - menuScroll;
-        if (item.kind === "volume") {
-          ctx.fillStyle = "#e8ffe8";
-          ctx.textAlign = "left";
-          ctx.font = `400 ${Math.max(13, unit * .037)}px ${MENU_FONT}`;
-          ctx.fillText(`音量  ${options.masterVolume ?? 7}/10`, left, y);
-          const barsY = y + panel.height * .055;
-          const barGap = Math.max(2, unit * .005);
-          const barWidth = (width - barGap * 9) / 10;
-          const barHeight = panel.height * .074;
-          for (let index = 0; index < 10; index += 1) {
-            const box = { x: left + index * (barWidth + barGap), y: barsY, width: barWidth, height: barHeight };
-            ctx.fillStyle = index < (options.masterVolume ?? 7) ? "#00ff00" : "#183b2e";
-            ctx.fillRect(box.x, box.y, box.width, box.height);
-            target(box, `[data-volume="${index + 1}"]`);
-          }
-          continue;
-        }
-        ctx.font = `400 ${Math.max(14, unit * .041)}px ${MENU_FONT}`;
-        const row = { x: left, y, width, height: rowHeight };
-        const focused = item === focusedItem;
-        if (item.kind === "record") {
-          const button = { x: left + width * .68, y, width: width * .32, height: rowHeight };
-          if (focused) { ctx.fillStyle = "rgba(0,255,0,.14)"; ctx.fillRect(button.x, button.y, button.width, button.height); }
-          ctx.fillStyle = "#e8ffe8";
-          ctx.textAlign = "left";
-          ctx.fillText(item.label, left, y + rowHeight / 2, width * .4);
-          ctx.fillStyle = "#00ff00";
-          ctx.textAlign = "right";
-          ctx.fillText(`${item.count}件`, left + width * .64, y + rowHeight / 2);
-          ctx.strokeStyle = item.count ? "#00ff00" : "#2f6b46";
-          ctx.lineWidth = Math.max(1, unit * .002);
-          ctx.strokeRect(button.x, button.y, button.width, button.height);
-          ctx.fillStyle = item.count ? "#e8ffe8" : "#5d7f68";
-          ctx.textAlign = "center";
-          ctx.font = `400 ${Math.max(12, unit * .033)}px ${MENU_FONT}`;
-          ctx.fillText("書き出す", button.x + button.width / 2, y + rowHeight / 2, button.width - 4);
-          if (item.count) target(button, item.selector);
-          continue;
-        }
-        if (focused) { ctx.fillStyle = "rgba(0,255,0,.14)"; ctx.fillRect(row.x, row.y, row.width, row.height); }
-        ctx.fillStyle = "#e8ffe8";
+      const header = (title, titleX, button, live) => {
+        ctx.fillStyle = "#00ff00";
+        ctx.font = `400 ${Math.max(15, unit * .047)}px ${MENU_FONT}`;
         ctx.textAlign = "left";
-        ctx.fillText(item.label, left, y + rowHeight / 2, width * .84);
-        if (item.kind === "open") { ctx.fillStyle = "#00ff00"; ctx.textAlign = "right"; ctx.fillText("▶", left + width, y + rowHeight / 2); }
-        else checkbox(row, item.checked);
-        target(row, item.selector);
-      }
-      ctx.restore();
-      if (maxScroll > 0) {
+        ctx.textBaseline = "middle";
+        ctx.fillText(title, titleX, panel.y + panel.height * .105);
+        ctx.font = `400 ${Math.max(12, unit * .035)}px ${MENU_FONT}`;
+        if (focusedIn(button.selector)) { ctx.fillStyle = "rgba(0,255,0,.14)"; ctx.fillRect(button.box.x, button.box.y, button.box.width, button.box.height); ctx.fillStyle = "#00ff00"; }
+        ctx.fillText(button.label, button.box.x, button.box.y + button.box.height / 2);
+        if (live) menuTargets.push({ box: button.box, selector: button.selector });
+        ctx.strokeStyle = "rgba(0,255,0,.6)";
+        ctx.beginPath(); ctx.moveTo(panel.x + panel.width * .06, panel.y + panel.height * .18); ctx.lineTo(panel.x + panel.width * .94, panel.y + panel.height * .18); ctx.stroke();
+      };
+      const scrollbar = maxScroll => {
+        if (maxScroll <= 0) return;
         const track = { x: panel.x + panel.width * .975, y: view.top, height: view.bottom - view.top };
         const thumb = track.height * (track.height / (track.height + maxScroll));
         ctx.fillStyle = "rgba(0,255,0,.18)";
         ctx.fillRect(track.x, track.y, Math.max(2, unit * .004), track.height);
         ctx.fillStyle = "#00ff00";
-        ctx.fillRect(track.x, track.y + (track.height - thumb) * (menuScroll / maxScroll), Math.max(2, unit * .004), thumb);
-      }
+        ctx.fillRect(track.x, track.y + (track.height - thumb) * (scrolls[menuPage] / maxScroll), Math.max(2, unit * .004), thumb);
+      };
+      const drawOptionsPage = (dx, live) => {
+        ctx.save();
+        ctx.translate(dx, 0);
+        header("オプション", panel.x + panel.width * .07, { label: "閉じる", selector: '[data-live="close-options"]', box: { x: panel.x + panel.width * .81, y: panel.y + panel.height * .045, width: panel.width * .14, height: panel.height * .12 } }, live);
+        // Rows sit in a list that scrolls under the header when it outgrows the panel. デバッグ ▶ is the first row,
+        // in view as the menu opens.
+        const rowGap = panel.height * .084;
+        const rowHeight = panel.height * .07;
+        const counts = options.storedCounts ?? { logs: 0, replays: 0 };
+        const toggles = [
+          ["全画面", Boolean(options.fullscreen), '[data-live="fullscreen"]'],
+          ["PC版", options.view === "pc", '[data-view="pc"]'],
+          ["モバイル版", options.view === "mobile", '[data-view="mobile"]'],
+          ["通常タップで詳細", Boolean(options.tapDetails), '[data-title-tap-details]'],
+          ["演出", Boolean(options.effectsEnabled), '[data-toggle-effects]']
+        ];
+        const items = [];
+        let cursor = panel.height * .04;
+        items.push({ kind: "open", label: "デバッグ", selector: "[data-debug-open]", y: cursor }); cursor += rowGap;
+        for (const [label, checked, selector] of toggles) { items.push({ kind: "toggle", label, checked, selector, y: cursor }); cursor += rowGap; }
+        items.push({ kind: "volume", y: cursor + panel.height * .03 }); cursor += panel.height * .2;
+        for (const [label, kind] of [["対戦ログ", "logs"], ["対戦リプレイ", "replays"]]) {
+          items.push({ kind: "record", label, count: counts[kind] ?? 0, selector: `[data-stored-export="${kind}"]`, y: cursor }); cursor += rowGap;
+        }
+        items.push({ kind: "toggle", label: "対戦後に対戦ログを送信", checked: Boolean(options.sendMatchLogs), selector: "[data-toggle-send-logs]", y: cursor }); cursor += rowGap;
+        const maxScroll = Math.max(0, cursor + panel.height * .02 - (view.bottom - view.top));
+        const focusedItem = live ? items.find(item => item.selector && focusedIn(item.selector)) : null;
+        if (live) {
+          if (focusedItem && focusedItem.selector !== lastFocusedItem) {
+            if (focusedItem.y < scrolls.options) scrolls.options = focusedItem.y;
+            else if (focusedItem.y + rowHeight > scrolls.options + view.bottom - view.top) scrolls.options = focusedItem.y + rowHeight - (view.bottom - view.top);
+          }
+          lastFocusedItem = focusedItem?.selector ?? null;
+          menuScrollMax = maxScroll;
+        }
+        scrolls.options = Math.max(0, Math.min(maxScroll, scrolls.options));
+        const visible = box => box.y >= view.top - 1 && box.y + box.height <= view.bottom + 1;
+        const target = (box, selector) => { if (live && visible(box)) menuTargets.push({ box, selector }); };
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(panel.x, view.top, panel.width, view.bottom - view.top);
+        ctx.clip();
+        const checkbox = (box, checked) => {
+          const size = Math.min(rowHeight * .75, unit * .044);
+          const cx = box.x + box.width - size;
+          const cy = box.y + (rowHeight - size) / 2;
+          ctx.strokeStyle = "#00ff00";
+          ctx.lineWidth = Math.max(1.5, unit * .003);
+          ctx.strokeRect(cx, cy, size, size);
+          if (checked) { ctx.beginPath(); ctx.moveTo(cx + size * .18, cy + size * .51); ctx.lineTo(cx + size * .43, cy + size * .75); ctx.lineTo(cx + size * .85, cy + size * .18); ctx.stroke(); }
+        };
+        for (const item of items) {
+          const y = view.top + item.y - scrolls.options;
+          if (item.kind === "volume") {
+            ctx.fillStyle = "#e8ffe8";
+            ctx.textAlign = "left";
+            ctx.font = `400 ${Math.max(13, unit * .037)}px ${MENU_FONT}`;
+            ctx.fillText(`音量  ${options.masterVolume ?? 7}/10`, left, y);
+            const barsY = y + panel.height * .055;
+            const barGap = Math.max(2, unit * .005);
+            const barWidth = (width - barGap * 9) / 10;
+            const barHeight = panel.height * .074;
+            for (let index = 0; index < 10; index += 1) {
+              const box = { x: left + index * (barWidth + barGap), y: barsY, width: barWidth, height: barHeight };
+              ctx.fillStyle = index < (options.masterVolume ?? 7) ? "#00ff00" : "#183b2e";
+              ctx.fillRect(box.x, box.y, box.width, box.height);
+              target(box, `[data-volume="${index + 1}"]`);
+            }
+            continue;
+          }
+          ctx.font = `400 ${Math.max(14, unit * .041)}px ${MENU_FONT}`;
+          const row = { x: left, y, width, height: rowHeight };
+          const focused = item === focusedItem;
+          if (item.kind === "record") {
+            const button = { x: left + width * .68, y, width: width * .32, height: rowHeight };
+            if (focused) { ctx.fillStyle = "rgba(0,255,0,.14)"; ctx.fillRect(button.x, button.y, button.width, button.height); }
+            ctx.fillStyle = "#e8ffe8";
+            ctx.textAlign = "left";
+            ctx.fillText(item.label, left, y + rowHeight / 2, width * .4);
+            ctx.fillStyle = "#00ff00";
+            ctx.textAlign = "right";
+            ctx.fillText(`${item.count}件`, left + width * .64, y + rowHeight / 2);
+            ctx.strokeStyle = item.count ? "#00ff00" : "#2f6b46";
+            ctx.lineWidth = Math.max(1, unit * .002);
+            ctx.strokeRect(button.x, button.y, button.width, button.height);
+            ctx.fillStyle = item.count ? "#e8ffe8" : "#5d7f68";
+            ctx.textAlign = "center";
+            ctx.font = `400 ${Math.max(12, unit * .033)}px ${MENU_FONT}`;
+            ctx.fillText("書き出す", button.x + button.width / 2, y + rowHeight / 2, button.width - 4);
+            if (item.count) target(button, item.selector);
+            continue;
+          }
+          if (focused) { ctx.fillStyle = "rgba(0,255,0,.14)"; ctx.fillRect(row.x, row.y, row.width, row.height); }
+          ctx.fillStyle = "#e8ffe8";
+          ctx.textAlign = "left";
+          ctx.fillText(item.label, left, y + rowHeight / 2, width * .84);
+          if (item.kind === "open") { ctx.fillStyle = "#00ff00"; ctx.textAlign = "right"; ctx.fillText("▶", left + width, y + rowHeight / 2); }
+          else checkbox(row, item.checked);
+          target(row, item.selector);
+        }
+        ctx.restore();
+        if (live) scrollbar(maxScroll);
+        ctx.restore();
+      };
+      const drawDebugPage = (dx, live) => {
+        ctx.save();
+        ctx.translate(dx, 0);
+        header("デバッグ", panel.x + panel.width * .3, { label: "◀ 戻る", selector: "[data-debug-close]", box: { x: panel.x + panel.width * .06, y: panel.y + panel.height * .045, width: panel.width * .2, height: panel.height * .12 } }, live);
+        const area = { left, width, top: view.top, bottom: view.bottom, unit, font: MENU_FONT };
+        const debug = options.debug ?? {};
+        const laidOut = drawCrtDebugPage(ctx, debug, area, { scroll: scrolls.debug, paint: false });
+        const maxScroll = Math.max(0, laidOut.height - (view.bottom - view.top));
+        const focusedItem = live ? laidOut.all.find(item => focusedIn(item.selector)) : null;
+        if (live) {
+          if (focusedItem && focusedItem.selector !== lastFocusedItem) {
+            if (focusedItem.y < scrolls.debug) scrolls.debug = focusedItem.y;
+            else if (focusedItem.y + focusedItem.height > scrolls.debug + view.bottom - view.top) scrolls.debug = focusedItem.y + focusedItem.height - (view.bottom - view.top);
+          }
+          lastFocusedItem = focusedItem?.selector ?? null;
+          menuScrollMax = maxScroll;
+        }
+        scrolls.debug = Math.max(0, Math.min(maxScroll, scrolls.debug));
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(panel.x, view.top, panel.width, view.bottom - view.top);
+        ctx.clip();
+        const drawn = drawCrtDebugPage(ctx, debug, area, { scroll: scrolls.debug, focused: focusedItem?.selector ?? null });
+        ctx.restore();
+        if (live) { menuTargets.push(...drawn.targets); scrollbar(maxScroll); }
+        ctx.restore();
+      };
+      const pages = { options: drawOptionsPage, debug: drawDebugPage };
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(panel.x, panel.y, panel.width, panel.height);
+      ctx.clip();
+      if (slide) {
+        const side = slide.to === "debug" ? 1 : -1;
+        pages[slide.from](-side * eased * panel.width, false);
+        pages[slide.to](side * (1 - eased) * panel.width, false);
+      } else pages[menuPage](0, true);
+      ctx.restore();
     }
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -468,14 +532,14 @@ function mount(entry, initialOptions = {}) {
   listen(canvas, "wheel", event => {
     if (!options.menuOpen || !menuScrollMax) return;
     event.preventDefault();
-    menuScroll = Math.max(0, Math.min(menuScrollMax, menuScroll + event.deltaY * .5));
+    scrolls[menuPage] = Math.max(0, Math.min(menuScrollMax, scrolls[menuPage] + event.deltaY * .5));
     redraw();
   });
   listen(canvas, "pointermove", event => {
     if (!pressed || !options.menuOpen || !menuScrollMax || pressed.pointerId !== event.pointerId) return;
     const box = canvas.getBoundingClientRect();
     const scale = entry.getBoundingClientRect().height / Math.max(1, box.height);
-    menuScroll = Math.max(0, Math.min(menuScrollMax, menuScroll - (event.clientY - (pressed.lastY ?? pressed.clientY)) * scale));
+    scrolls[menuPage] = Math.max(0, Math.min(menuScrollMax, scrolls[menuPage] - (event.clientY - (pressed.lastY ?? pressed.clientY)) * scale));
     pressed.lastY = event.clientY;
     redraw();
   });
@@ -505,7 +569,7 @@ function mount(entry, initialOptions = {}) {
   listen(canvas, "webglcontextlost", event => { event.preventDefault(); dispose(); });
   observer.observe(entry);
   entry.append(canvas);
-  document.fonts.load('24px SZDotGothic', 'オプション全画面モバイル版通常タップで詳細演出音量閉じる対戦ログリプレイ件書き出す後に送信0123456789').then(redraw, redraw);
+  document.fonts.load('24px SZDotGothic', 'オプション全画面モバイル版通常タップで詳細演出音量閉じる対戦ログリプレイ件書き出す後に送信0123456789デバッグ◀▶戻る版保存したファイルを消して読み直すエラーの記録まとめてコピーメモリの見積もり更新合計描画の倍率演出のスピード×.%MB').then(redraw, redraw);
   document.fonts.ready.then(redraw);
   function tick(now) {
     if (disposed) return;
@@ -525,7 +589,7 @@ function mount(entry, initialOptions = {}) {
     for (const [node, type, handler] of listeners) node.removeEventListener(type, handler);
     publishReady(false);
     options = {};
-    menuScroll = 0;
+    scrolls.options = 0; scrolls.debug = 0;
     canvas.remove();
     gl.deleteTexture(texture); gl.deleteBuffer(buffer); gl.deleteProgram(program);
     gl.deleteShader(vertex); gl.deleteShader(fragment);

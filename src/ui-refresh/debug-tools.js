@@ -20,8 +20,11 @@ export async function clearSavedFiles(workers = globalThis.navigator?.serviceWor
 }
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+// The page's words, shared with the CRT menu's drawing of it.
+export const BUILD_TEXT = Object.freeze({ loading: '読み込み中…', none: '読めない（release-manifest.json がない、または読めなかった）', note: 'このページを開いたときに読んだ release-manifest.json の値。',
+  clear: '保存したファイルを消して読み直す', clearNote: 'service worker の登録を外し、キャッシュ（caches）を消してから読み直す。設定や対戦ログなど、このブラウザに保存した値は消さない。押すと確認が1回出る。' });
 // build: undefined while the manifest is read, else { revision } (null when there is none).
 export function buildHtml(build) {
-  const value = build === undefined ? '読み込み中…' : build.revision ? `<code data-build-revision>${esc(build.revision)}</code>` : '読めない（release-manifest.json がない、または読めなかった）';
-  return `<section class="r2-debug-part" data-debug-build aria-label="版"><h3>版</h3><p>buildRevision：${value}</p><p>このページを開いたときに読んだ release-manifest.json の値。</p><button data-debug-clear-reload>保存したファイルを消して読み直す</button><p>service worker の登録を外し、キャッシュ（caches）を消してから読み直す。設定や対戦ログなど、このブラウザに保存した値は消さない。押すと確認が1回出る。</p></section>`;
+  const value = build === undefined ? BUILD_TEXT.loading : build.revision ? `<code data-build-revision>${esc(build.revision)}</code>` : BUILD_TEXT.none;
+  return `<section class="r2-debug-part" data-debug-build aria-label="版"><h3>版</h3><p>buildRevision：${value}</p><p>${BUILD_TEXT.note}</p><button data-debug-clear-reload>${BUILD_TEXT.clear}</button><p>${BUILD_TEXT.clearNote}</p></section>`;
 }
