@@ -6,7 +6,7 @@ import { expandRuntimeDeck } from "../runtime/factory.js";
 import { drawCardRaw } from "./draw.js";
 import { OPENING_ORDER } from "./opening.js";
 import { hydrateCard } from "./prepare.js";
-import { arrangeBlueTutorial, arrangeLab, arrangeSandbox, arrangeTutorial, arrangeVengeanceTutorial } from "./setup-arrange.js";
+import { arrangeBlackTutorial, arrangeBlueTutorial, arrangeLab, arrangeSandbox, arrangeTutorial, arrangeVengeanceTutorial, arrangeYellowTutorial } from "./setup-arrange.js";
 import { runtimeRng, shuffle } from "./shared.js";
 import { startTurn } from "./turn.js";
 
@@ -65,8 +65,11 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
   if (runtimeContext !== null) rng = runtimeRng(runtimeContext);
   const isVengeanceTutorial = mode === "tutorial" && tutorialId === "vengeance";
   const isBlueTutorial = mode === "tutorial" && tutorialId === "blue";
-  const selectedPlayerDeck = isVengeanceTutorial ? DECK_OPTIONS.vengeance : isBlueTutorial ? DECK_OPTIONS["tutorial-blue"] : (DECK_OPTIONS[playerDeckId] ?? DECK_OPTIONS.red);
-  const selectedAiDeck = isBlueTutorial || isVengeanceTutorial ? DECK_OPTIONS["tutorial-sandbag"] : (DECK_OPTIONS[aiDeckId] ?? DECK_OPTIONS.yellow);
+  const isYellowTutorial = mode === "tutorial" && tutorialId === "yellow";
+  const isBlackTutorial = mode === "tutorial" && tutorialId === "black";
+  const sandbagOpponent = isBlueTutorial || isVengeanceTutorial || isYellowTutorial || isBlackTutorial;
+  const selectedPlayerDeck = isVengeanceTutorial ? DECK_OPTIONS.vengeance : isYellowTutorial ? DECK_OPTIONS["start-yellow"] : isBlackTutorial ? DECK_OPTIONS["start-black"] : isBlueTutorial ? DECK_OPTIONS["tutorial-blue"] : (DECK_OPTIONS[playerDeckId] ?? DECK_OPTIONS.red);
+  const selectedAiDeck = sandbagOpponent ? DECK_OPTIONS["tutorial-sandbag"] : (DECK_OPTIONS[aiDeckId] ?? DECK_OPTIONS.yellow);
   const skipInitialDecks = runtimeContext !== null && (mode === "lab" || (mode === "sandbox" && !sandboxDeckSetup));
   const red = skipInitialDecks ? [] : expandRuntimeDeck(runtimeContext, playerDeckRecipe ?? selectedPlayerDeck.recipe, "player");
   const yellow = skipInitialDecks ? [] : expandRuntimeDeck(runtimeContext, aiDeckRecipe ?? selectedAiDeck.recipe, "ai");
@@ -79,6 +82,8 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
   if (mode === "tutorial") {
     if (isVengeanceTutorial) arrangeVengeanceTutorial(players, runtimeContext);
     else if (isBlueTutorial) arrangeBlueTutorial(players, runtimeContext);
+    else if (isYellowTutorial) arrangeYellowTutorial(players, runtimeContext);
+    else if (isBlackTutorial) arrangeBlackTutorial(players, runtimeContext);
     else arrangeTutorial(players, runtimeContext);
   }
   else if (mode === "lab") arrangeLab(players, runtimeContext);
@@ -92,13 +97,14 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
     ...(runtimeContext === null ? {} : { runtimeContext }),
     mode,
     tutorialId,
-    playerDeckId: isVengeanceTutorial ? "vengeance" : isBlueTutorial ? "tutorial-blue" : playerDeckId,
-    aiDeckId: isBlueTutorial || isVengeanceTutorial ? "tutorial-sandbag" : aiDeckId,
+    playerDeckId: isVengeanceTutorial ? "vengeance" : isYellowTutorial ? "start-yellow" : isBlackTutorial ? "start-black" : isBlueTutorial ? "tutorial-blue" : playerDeckId,
+    aiDeckId: sandbagOpponent ? "tutorial-sandbag" : aiDeckId,
     playerUserId,
     aiUserId,
     players,
-    active: "player",
-    firstPlayer: "player",
+    // 黄のチュートリアルは相手のターンから始まる(台本の手順1)。自分は後攻で、第1ターンは2枚ドローする(4.2)。
+    active: isYellowTutorial ? "ai" : "player",
+    firstPlayer: isYellowTutorial ? "ai" : "player",
     turnNumber: 1,
     phase: "main",
     winner: null,
