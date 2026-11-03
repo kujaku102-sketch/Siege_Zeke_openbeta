@@ -457,6 +457,11 @@ body[data-view] .r2-content .r2-runtime-view.r2-wireframe-view .board-pick-guide
   font-size: clamp(.75rem, 3.4cqh, 1rem); max-width: 40cqw; row-gap: .25em;
 }
 body[data-view] .r2-content .r2-runtime-view.r2-wireframe-view .board-pick-guide button { min-height: var(--wf-hit); padding: 0 .8em; }
+/* With the guide put away its [スキップ] holds the top centre: the prompt sits just under it (文豪, 2026-11-04, 3). The
+   button's bottom from its own rule: its top, then 1.5em of .7 of the away type plus its two borders, then a gap. */
+body[data-view] .r2-content:has(.live-guide-away) .r2-runtime-view.r2-wireframe-view .board-pick-guide {
+  top: calc(max(1dvh, env(safe-area-inset-top, 0px)) + 1.14 * max(.9375rem, 4.2dvh) + 1dvh);
+}
 /* Choice dialog: header, rows and cards scale with the stage; the list takes the room that is left. */
 body[data-view="mobile"] .r2-content .r2-wireframe-view .effect-modal .cp-head { margin: 0 0 .4em; padding: 0 0 .35em; gap: .5em; }
 body[data-view="mobile"] .r2-content .r2-wireframe-view .effect-modal .cp-head h2 { font-size: clamp(1rem, 5.2cqh, 1.45rem); margin: 0; }
