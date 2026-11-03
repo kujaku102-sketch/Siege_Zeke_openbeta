@@ -497,7 +497,7 @@ const YELLOW_STEPS = [
   // 6 シールドバッシュ
   TUT_ADVANCE("『伝令』の効果で引いたカードを良く見てください！", [TUT_CARD("STD-138", "シールドバッシュ")]),
   TUT_STEP("自分のエリアにある『セキュリティ』は2体。『シールドバッシュ』は、その数に1を足した3ダメージを与えます！",
-    [TUT_CARD("STD-138", "シールドバッシュ"), TUT_CARD("STD-025", "ライダー", "front", "ai")], { type: "play", cardId: "STD-138", targetCardId: "STD-025" }),
+    [TUT_CARD("STD-138", "シールドバッシュ"), TUT_CARD("STD-125", "大盾の騎士", "front"), TUT_CARD("STD-126", "伝令", "front"), TUT_CARD("STD-025", "ライダー", "front", "ai")], { type: "play", cardId: "STD-138", targetCardId: "STD-025" }),
   TUT_ADVANCE("ライダーを破壊！やりましたね！"),
   // 8 攻撃
   TUT_STEP("では『大盾の騎士』で相手ユーザーに反撃しましょう！", [TUT_CARD("STD-125", "大盾の騎士", "front"), TUT_USER], { type: "attack", cardId: "STD-125", targetType: "fortress" }),
