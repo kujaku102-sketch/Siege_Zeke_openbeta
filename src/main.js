@@ -21,6 +21,7 @@ import { noticeText } from './ui-refresh/notice-text.js';
 import { installMobileViewport } from './ui-refresh/mobile-viewport.js';
 import { captureDeckViewport, restoreDeckViewport } from './ui/deck-viewport.js';
 import { installAbilityHelp } from './ui/ability-help.js';
+import { registerLocalFonts } from './ui/local-fonts.js';
 import { MAX_SAVED_DECKS, deckToRecipe, loadSavedDecks, normalizeSavedDeck, recommendDeck, saveDeckCollection, validateDeck } from './game/deck-builder.js';
 import { registerPwa } from './pwa.js';
 import { MATCH_LOGS, REPLAYS, loadStored, storedExport } from './adapters/match-record-store.js';
@@ -49,7 +50,7 @@ const host = {screen:'entry',mode:'sandbox',tutorialId:'basics',
   catalogOpen:false,catalog:{query:'',expansion:'all',catalogOwner:'player'},tutorialDone:readTutorialDone(globalThis.localStorage)};
 let surface = null, session = null, screenRendered = null, entryLogoVideoFile = null;
 let shellGeneration = 0, adminSerial = 0, press = null, suppressDeckClickUntil = 0;
-installAbilityHelp(root);
+installAbilityHelp(root);registerLocalFonts();
 const mobileViewport = installMobileViewport(root);
 // The raw code goes to the console only; the player sees a sentence or nothing.
 // In a match (not a tutorial, whose notice stays for its step) it goes after 3 s, or sooner once the player's next move

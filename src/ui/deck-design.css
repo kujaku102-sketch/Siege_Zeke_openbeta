@@ -1,5 +1,4 @@
-@font-face{font-family:SZKaiso;src:url('../assets/fonts-local/Kaisotai-Next-UP-B.woff2') format('woff2');font-weight:400;font-display:swap}
-@font-face{font-family:SZMakinas;src:url('../assets/fonts-local/Makinas-4-Flat.otf') format('opentype');font-weight:400;font-display:swap}
+/* SZKaiso and SZMakinas are registered from ui/local-fonts.js, only when their optional files are present. */
 :root { --sz-circuit:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 140 60'%3E%3Cg fill='none' stroke='%23d5fff9' stroke-opacity='.3'%3E%3Cpath d='M140 8H108L96 20H60L48 8H12M140 19H117L105 31H77L65 43H32M140 43H120L108 55H64M140 31H125L111 45H95'/%3E%3Ccircle cx='12' cy='8' r='2.5'/%3E%3Ccircle cx='32' cy='43' r='2.5'/%3E%3Ccircle cx='64' cy='55' r='2.5'/%3E%3C/g%3E%3C/svg%3E"); }
 .deck-design { --deck-circuit:var(--sz-circuit); }
 .deck-design .deck-builder { color:#e1f2f6; border:1px solid #368393; border-radius:calc(var(--u) * .1875); background:linear-gradient(120deg,#0b1d2bf7,#111728 65%,#27152bf7); }
