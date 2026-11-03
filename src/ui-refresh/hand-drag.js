@@ -7,7 +7,8 @@ const ghostAt = (ghost, event) => {
 
 // Hand drag for a mounted match. The surface decides when a press becomes a drag;
 // this module owns the ghost, the hover mark, the drop and its rejection.
-// triesPlay(card): a tutorial step asks to try this card's play; onReject(block, cardRef): a drop was refused with block.
+// triesPlay(card): a tutorial step asks to try this card's play; onReject(block, cardRef): a drop was refused with block,
+// true when it was answered elsewhere (the tutorial guide says why), and then no dialog says it again.
 export function createHandDrag({ root, ui, act, latest, schedule, triesPlay = () => false, onReject = () => {} }) {
   let drag = null;
   let flyOrigin = null;
@@ -65,7 +66,7 @@ export function createHandDrag({ root, ui, act, latest, schedule, triesPlay = ()
   let rejectDialog = null;
   const reject = (ghost, block, cardRef) => {
     const reason = block.message ?? blockMessage(block);
-    onReject(block, cardRef);
+    const answered = onReject(block, cardRef);
     // A missing symbol points at its own lamp above the registry.
     if (block.code === 'SYMBOL_MISSING') for (const lamp of root.querySelectorAll(`[data-symbol-seat="${CSS.escape(latest()?.model.match.viewerSeat ?? '')}"] [data-symbol="${CSS.escape(block.symbol ?? '')}"]`)) {
       lamp.classList.remove('blink'); void lamp.getBoundingClientRect(); lamp.classList.add('blink');
@@ -75,6 +76,7 @@ export function createHandDrag({ root, ui, act, latest, schedule, triesPlay = ()
     ghost.classList.add('rejected');
     schedule(() => ghost.remove(), 420);
     rejectDialog?.remove();
+    if (answered) return;
     const dialog = root.ownerDocument.createElement('div');
     dialog.className = 'drop-reject-dialog';
     dialog.setAttribute('role', 'alertdialog');

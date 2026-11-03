@@ -139,7 +139,9 @@ export function createSurfaceFx({ root, boardStyle }) {
       return { priorAnchors, priorBoardAnchors, priorMotion };
     },
     play(next, { priorAnchors, priorBoardAnchors, priorMotion }, effectsEnabled) {
-      callout.show(next.events, next.model.match.viewerSeat, effectsEnabled);
+      // The open log already lists these rows; the stack waits until it is closed (文豪, 2026-11-03, D6).
+      if (next.model.ui.logOpen) callout.hide();
+      else callout.show(next.events, next.model.match.viewerSeat, effectsEnabled);
       try { memoryFlash.play(next.model, effectsEnabled); } catch { /* decorative */ }
       if (!effectsEnabled) { battleFx?.clear(); motion?.flush(); impact.clear(); }
       if (effectsEnabled && next.events.length) {
