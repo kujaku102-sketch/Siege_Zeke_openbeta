@@ -23,7 +23,7 @@ export async function startTutorial(page, id) {
 }
 
 // A guide line may run over several pages (how many depends on the screen): press [次へ] up to its last page.
-async function readPages(ui) {
+export async function readPages(ui) {
   const { page } = ui;
   await page.waitForFunction(() => !document.querySelector('.live-guide[data-paging="pending"]'), null, { timeout: 5000 }).catch(() => {});
   for (let turn = 0; turn < 12; turn += 1) {
@@ -36,7 +36,7 @@ async function readPages(ui) {
 }
 
 // While the guide speaks the match takes no input; on a step that asks for a move a tap on its line puts it away.
-async function putAway(ui, state) {
+export async function putAway(ui, state) {
   const { page } = ui;
   const press = state.focus.some((f) => f.kind === "button");
   if (!await page.locator(".live-guide").count()) return;
@@ -89,13 +89,15 @@ async function pressAsked(ui, state) {
 
 // Plays the tutorial `id` (already started) to its closing line. `stopAfterMoves`: return after that many moves of the player (for a "first move" check).
 // Returns { steps, moves }.
-export async function playTutorial(page, id, { keyboard = false, stopAfterMoves = Infinity, ui = makeUi(page, { keyboard }) } = {}) {
+// `stopWhen(state)`: return as soon as the step the match is on satisfies it (before that step is read), with { stopped: state }.
+export async function playTutorial(page, id, { keyboard = false, stopAfterMoves = Infinity, stopWhen = null, ui = makeUi(page, { keyboard }) } = {}) {
   let moves = 0, steps = 0, stuck = 0, last = "";
   for (let turn = 0; turn < 600; turn += 1) {
     await page.waitForFunction(() => { const t = window.__SIMPLE_ZEKE_E2E__.tutorial()?.value; return t && (t.flow.complete || (document.querySelector(".live-guide[data-tutorial-step]") && t.opponentScript === null)); }, null, { timeout: 20000 })
       .catch(() => { throw new Error(`${id}: the guide never came back (after ${steps} steps)`); });
     const state = await tutorialState(page);
     if (state.flow.complete) return { steps, moves, complete: true };
+    if (stopWhen?.(state)) return { steps, moves, stopped: state };
     if (!state.text.trim()) throw new Error(`${id}: a guide step with no line (${state.guideStep})`);
     const mark = `${state.guideStep}|${state.revision}`;
     stuck = mark === last ? stuck + 1 : 0; last = mark;
