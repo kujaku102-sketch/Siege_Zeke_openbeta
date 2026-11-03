@@ -174,7 +174,7 @@ export function makeUi(page, { keyboard = false } = {}) {
         refused.add(JSON.stringify(path));
         if (process.env.E2E_DEBUG) console.error("refused", JSON.stringify(path), await page.locator(".live-guide .live-guide-error").innerText().catch(() => ""));
         refusals.push(await page.evaluate((ref) => { const notice = document.querySelector(".r2-notice"), hand = document.querySelector(".r2-hand-host"); const n = notice?.getBoundingClientRect(), h = hand?.getBoundingClientRect();
-          return { type: ref ? "card" : "none", shook: Boolean(ref) && (window.__refusedShakes ?? []).includes(ref), notice: n && h ? { text: notice.textContent, gap: Math.round(h.top - n.bottom), centre: Math.round((n.left + n.right) / 2 - innerWidth / 2), viewportHeight: innerHeight } : null }; }, card?.cardRef ?? null));
+          return { type: ref ? "card" : "none", shook: Boolean(ref) && (window.__refusedShakes ?? []).includes(ref), guide: document.querySelector(".live-guide .live-guide-error")?.textContent ?? null, notice: n && h ? { text: notice.textContent, gap: Math.round(h.top - n.bottom), centre: Math.round((n.left + n.right) / 2 - innerWidth / 2), viewportHeight: innerHeight } : null }; }, card?.cardRef ?? null));
         if (await page.locator(".live-guide-text").count() && !await page.locator(".live-guide :is([data-runtime-guide-next],[data-runtime-tutorial-next],[data-runtime-tutorial-finish])").count()) await click(".live-guide-text");
         for (let back = 0; back < 4 && await page.locator("[data-runtime-back]").first().isVisible().catch(() => false); back += 1) await click("[data-runtime-back]");
         return "refused";

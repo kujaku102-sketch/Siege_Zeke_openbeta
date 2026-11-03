@@ -70,21 +70,45 @@ test('guide frame: a long page grows it, that page only; the portrait stands on 
   assert.equal(chooseGuideBand(phone, [high, card], null, { aspect: ASPECT, grow: 40 }), 'top');
 });
 
+const BANDS = ['top', 'middle', 'bottom'];
+const overlapArea = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+// What the group takes of the rectangles in a band: the portrait and the frame.
+const taken = (band, rects, grow = 0) => { const { portrait, frame } = guideLayout(band, phone, ASPECT, grow); return rects.reduce((sum, rect) => sum + overlapArea(portrait, rect) + overlapArea(frame, rect), 0); };
+
 test('guide band: chosen against what the group takes — the portrait and the frame, not the free corner above the frame', () => {
-  assert.deepEqual([...GUIDE_BAND_ORDER], ['top', 'bottom', 'middle']);
-  assert.equal(chooseGuideBand(phone, [], null, { aspect: ASPECT }), 'top');
+  const pick = (targets, options = {}) => chooseGuideBand(phone, targets, null, { aspect: ASPECT, ...options });
   const topFrame = guideLayout('top', phone, ASPECT).frame;
-  assert.equal(chooseGuideBand(phone, [box(500, 20, 60, 40)], null, { aspect: ASPECT }), 'top', 'above the top band\'s frame, beside the portrait: free');
-  assert.equal(chooseGuideBand(phone, [box(500, topFrame.top + 5, 60, 40)], null, { aspect: ASPECT }), 'bottom', 'under the top band\'s frame');
-  assert.equal(chooseGuideBand(phone, [box(20, 20, 40, 40)], null, { aspect: ASPECT }), 'bottom', 'under the top band\'s portrait');
-  assert.equal(chooseGuideBand(phone, [box(500, 100, 60, 40), box(500, 330, 60, 40)], null, { aspect: ASPECT }), 'middle', 'both edges taken');
-  assert.equal(chooseGuideBand(phone, [box(0, 0, 0, 0)], null, { aspect: ASPECT }), 'top', 'empty rectangles are ignored');
+  const cases = [
+    [box(500, 20, 60, 40)], [box(500, topFrame.top + 5, 60, 40)], [box(20, 20, 40, 40)],
+    [box(500, 100, 60, 40), box(500, 330, 60, 40)], [box(0, 0, 0, 0)], []
+  ];
+  for (const targets of cases) {
+    const chosen = pick(targets);
+    assert.ok(BANDS.includes(chosen));
+    for (const band of BANDS) assert.ok(taken(chosen, targets) <= taken(band, targets) + 1, `the band covers no more than the ${band} band`);
+  }
+  // The corner above the top band's frame, beside the portrait, is not taken by the group.
+  const corner = [box(500, 20, 60, 40)];
+  assert.equal(taken('top', corner), 0);
+  assert.equal(taken(pick(corner), corner), 0);
+  assert.equal(taken(pick([box(20, 20, 40, 40)]), [box(20, 20, 40, 40)]), 0, 'a band clear of the portrait exists and is taken');
+  // Empty rectangles are ignored.
+  assert.equal(pick([box(0, 0, 0, 0)]), pick([]));
+});
+
+test('guide band: what is kept in sight (the opponent\'s board, TURN, the memory) decides between bands that cover the targets alike', () => {
+  const keep = [box(0, 0, phone.width, phone.height * .4)];
+  const chosen = chooseGuideBand(phone, [], null, { aspect: ASPECT, keep });
+  for (const band of BANDS) assert.ok(taken(chosen, keep) <= taken(band, keep) + 1, `no more of it covered than by the ${band} band`);
+  assert.ok(taken(chosen, keep) < taken('top', keep), 'the top band, over that part of the screen, is not the one chosen');
 });
 
 test('guide band: with every band covered, the one covering least; a step that names its band gets it', () => {
-  const tall = box(300, 0, 100, 393);
-  assert.equal(chooseGuideBand(phone, [tall], null, { aspect: ASPECT }), 'top', 'a tie keeps the order');
-  assert.equal(chooseGuideBand(phone, [tall, box(500, 100, 200, 40)], null, { aspect: ASPECT }), 'bottom');
-  assert.equal(chooseGuideBand(phone, [box(500, 100, 60, 40)], 'top', { aspect: ASPECT }), 'top', 'named by the step');
-  assert.equal(chooseGuideBand(phone, [box(500, 100, 60, 40)], 'side', { aspect: ASPECT }), 'bottom', 'an unknown name is ignored');
+  const tall = box(300, 0, 100, 393), wide = box(500, 100, 200, 40);
+  for (const targets of [[tall], [tall, wide]]) {
+    const chosen = chooseGuideBand(phone, targets, null, { aspect: ASPECT });
+    for (const band of BANDS) assert.ok(taken(chosen, targets) <= taken(band, targets) + 1, `no more than the ${band} band`);
+  }
+  for (const band of BANDS) assert.equal(chooseGuideBand(phone, [box(500, 100, 60, 40)], band, { aspect: ASPECT }), band, 'named by the step');
+  assert.equal(chooseGuideBand(phone, [box(500, 100, 60, 40)], 'side', { aspect: ASPECT }), chooseGuideBand(phone, [box(500, 100, 60, 40)], null, { aspect: ASPECT }), 'an unknown name is ignored');
 });

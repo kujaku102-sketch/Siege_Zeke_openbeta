@@ -590,7 +590,7 @@ test('tutorial red step 13: Atto\'s blocked play stays pressable in its popup, n
   ui.selectCard(hand('STD-091'));
   const read=ui.read().value,html=runtimeGameHtml(read.model,{...read,tutorial:session.tutorial().value});
   assert.match(html,/<aside class="r2-popup" aria-label="カード操作" data-card-id="STD-091">/);
-  assert.match(html,/<button aria-disabled="true" data-tutorial-try="SYMBOL_MISSING" data-route="executeCard" data-block-code="SYMBOL_MISSING" title="シンボル不足で実行できません">実行<\/button>/);
+  assert.match(html,/<button aria-disabled="true" aria-label="実行を試す" data-tutorial-try="SYMBOL_MISSING" data-route="executeCard" data-block-code="SYMBOL_MISSING">実行<\/button>/);
   // The same card outside such a step is plainly disabled.
   const later=runtimeGameHtml(read.model,{...read,tutorial:{...session.tutorial().value,presentation:{...session.tutorial().value.presentation,focus:[]}}});
   assert.match(later,/<button disabled aria-disabled="true" data-route="executeCard" data-block-code="SYMBOL_MISSING"/);

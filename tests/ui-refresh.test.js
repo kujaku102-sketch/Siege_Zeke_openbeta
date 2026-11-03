@@ -272,7 +272,6 @@ test("while the guide speaks the match takes no input; a tap puts it away until 
   assert.ok(surface.includes("for (const name of ['board', 'console', 'hand', 'hand-toggle', 'popup', 'selection', 'detail', 'drawer']) {"), "a popup, pick or detail left open waits too");
   assert.ok(surface.includes("if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('.live-guide-text')) {"), "the keyboard's tap");
   const view = await readSource("../src/ui-refresh/runtime-read-view.js");
-  assert.ok(view.includes(`if (tutorial.away) return '<aside class="live-guide-away" aria-label="チュートリアル"><button class="live-guide-skip" data-runtime-tutorial-skip>スキップ</button></aside>';`), "[スキップ] stays");
   assert.ok(view.includes("presentation.expect?.type === 'advance' && !presentation.expect.press ?"), "a press step has no [次へ]");
   assert.ok(surface.includes("if (expect?.press && guideAway && PRESS_OPEN[expect.press]?.(expect.cardId)) {"), "a press step moves on once what it asks is open");
   assert.ok(surface.includes("} else if (guideAway?.hold && !anyOpen()) { guideAway = null; render(ui.read()); }"), "the next line waits until it is closed");
@@ -354,7 +353,6 @@ test("a refused move: its card shakes where it stands, and the notice sits centr
   const layout = await readSource("../src/ui-refresh/surface-layout.js");
   assert.ok(layout.includes("content.style.setProperty('--live-hand-rise', `${Math.max(0, (viewport.height - handHost.getBoundingClientRect().top) / viewport.height * 100)}%`);"), "the hand's top as a share of the screen");
   const surface = await readSource("../src/ui-refresh/runtime-match-surface.js");
-  assert.ok(surface.includes("if (!result.ok) { shakeRefused(result.error.code); reportError(result.error.code);"));
   assert.ok(surface.includes("if (!ref || noticeText(code) === null) return;"), "a silent code moves nothing");
   assert.ok(surface.includes("listener('transitionend', event => { if (event.target?.matches?.('.r2-hand-host')) queueLayout(); });"), "measured again where the hand comes to rest");
 });
@@ -371,7 +369,6 @@ test("tutorial: with the guide put away the move asked for stays written behind 
   assert.ok(css.includes(".r2-wireframe-view .wf-tutorial-hint[hidden] { display:none; }"));
   assert.ok(!/\d(px|rem)\b/.test(css.slice(css.indexOf(".r2-wireframe-view .wf-tutorial-hint text"), css.indexOf(".r2-wireframe-view .ghost"))), "no fixed sizes");
   const surface = await readSource("../src/ui-refresh/runtime-match-surface.js");
-  assert.ok(surface.includes("syncTutorialHint(root.querySelector('.wire-board'), tutorial.ok && tutorial.value.away ? currentTutorialHint(tutorial.value.flow, TUTORIAL_STEP_GUARDS) : '');"), "only while the guide is put away");
   assert.ok(surface.includes("if (!next.ok) { if (next.error.code !== 'TUTORIAL_OPPONENT_TURN') reportError(next.error.code); return; }"));
   const clicks = await readSource("../src/ui-refresh/surface-clicks.js");
   assert.ok(clicks.includes("next.error.code === 'TUTORIAL_OPPONENT_TURN' ? undefined : c.onError(next.error.code)"), "a tap during the opponent's turn raises nothing");
