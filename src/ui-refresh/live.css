@@ -512,6 +512,11 @@ body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-deta
 .r2-debug>section>header h2 { margin:0; }
 .r2-debug>section>header button { margin-left:auto; min-height:2.2em; padding:0 .8em; }
 .r2-debug-open { min-height:2.2em; padding:0 .8em; }
+.r2-debug-part { display:grid; gap:calc(var(--u) * .375); margin-top:calc(var(--u) * .75); padding-top:calc(var(--u) * .625); border-top:1px solid #ffffff22; }
+.r2-debug-part h3 { margin:0; font-size:1em; }
+.r2-debug-part p { margin:0; font-size:max(.625rem, calc(var(--u) * .6875)); line-height:1.4; }
+.r2-debug-part button { justify-self:start; min-height:2.2em; padding:0 .8em; }
+.r2-debug-part code { color:#00ff00; font:1em/1.4 monospace; }
 /* The memory estimate (memory-estimate.js): a table, sizes in the window's own font. */
 .r2-memory { display:grid; gap:calc(var(--u) * .375); margin-top:calc(var(--u) * .75); padding-top:calc(var(--u) * .625); border-top:1px solid #ffffff22; }
 .r2-memory header { display:flex; align-items:center; gap:calc(var(--u) * .625); }

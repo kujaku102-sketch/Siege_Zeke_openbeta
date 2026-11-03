@@ -23,6 +23,7 @@ import { captureDeckViewport, restoreDeckViewport } from './ui/deck-viewport.js'
 import { installAbilityHelp } from './ui/ability-help.js';
 import { registerLocalFonts } from './ui/local-fonts.js';
 import { memoryEstimate, sampleMemory } from './ui-refresh/memory-estimate.js';
+import { clearSavedFiles, loadBuildRevision } from './ui-refresh/debug-tools.js';
 import { MAX_SAVED_DECKS, deckToRecipe, loadSavedDecks, normalizeSavedDeck, recommendDeck, saveDeckCollection, validateDeck } from './game/deck-builder.js';
 import { registerPwa } from './pwa.js';
 import { MATCH_LOGS, REPLAYS, loadStored, storedExport } from './adapters/match-record-store.js';
@@ -135,6 +136,11 @@ async function measureMemory() {
 }
 function openDebug() {host.options = false;host.debug = true;return measureMemory();}
 function closeDebug() {host.debug = false;memorySerial += 1;renderShell();}
+// 保存したファイルを消して読み直す: asked once, then every service worker and cache of this site go before the reload.
+async function clearAndReload() {
+  if (!window.confirm('service worker の登録を外し、キャッシュを消してから読み直します。設定や対戦ログは消しません。よろしいですか？')) return;
+  try {await clearSavedFiles();} finally {location.reload();}
+}
 function attachSession(next) {
   host.preparing = false;
   surface?.dispose();surface = null;session = next;shellGeneration += 1;
@@ -221,6 +227,7 @@ root.addEventListener('click',event => {
   if (button.hasAttribute('data-debug-open')) return openDebug();
   if (button.hasAttribute('data-debug-close')) return closeDebug();
   if (button.hasAttribute('data-memory-refresh')) return measureMemory();
+  if (button.hasAttribute('data-debug-clear-reload')) return clearAndReload();
   if (d.live === 'options') host.options = true;
   else if (d.live === 'close-options') host.options = false;
   else if (d.live === 'home') return leaveMatch();
@@ -297,6 +304,8 @@ document.addEventListener('keydown',event => {if (event.key === 'Escape' && !eve
 window.addEventListener('pagehide',() => {markWonTutorial();clearPress();mobileViewport.dispose();lifecycle.dispose();surface = null;session = null;});
 window.addEventListener('pageshow',event => {if (event.persisted) location.reload();});
 renderShell(true);registerPwa();
+// The running release, read once as the page starts (debug window).
+void loadBuildRevision().then(build => {host.build = build;if (host.debug) renderShell();});
 
 // Explicit test-mode hook: semantic commands and detached safe reads only.
 if (new URLSearchParams(location.search).get('e2e') === '1') window.__SIMPLE_ZEKE_E2E__ = Object.freeze({
