@@ -15,7 +15,9 @@ export function numberTutorialItems(entries, order = TUTORIAL_ORDER) {
 export const TUTORIAL_ITEMS = numberTutorialItems([
   { id: 'basics', subtitle: '基本操作・赤', summary: '赤デッキで、インストール・実行・攻撃から、実行先選択、QA、セキュリティ、マウント、任意追加効果まで。' },
   { id: 'blue', subtitle: 'ハッキング・暗号化・青', summary: '青デッキで、シンボルのインストール、ログイン効果のアクセス、Spで得るハッキング、セキュリティ、暗号化まで。' },
-  { id: 'vengeance', subtitle: 'ヴェンジェンス・紫', summary: '紫デッキで、レイヤードと、Obの移動（再実行・スペル）。素材のドールズからギガンテス、アクロィアの移動と骨抜きまで。' }
+  { id: 'yellow', subtitle: 'セキュリティ・OC・黄', summary: '黄デッキで、OC（追加メモリ）、ターン終了時のスリープ、セキュリティで攻撃を受け止める戦い方と、ダメージ、凱歌まで。' },
+  { id: 'vengeance', subtitle: 'ヴェンジェンス・紫', summary: '紫デッキで、レイヤードと、Obの移動（再実行・スペル）。素材のドールズからギガンテス、アクロィアの移動と骨抜きまで。' },
+  { id: 'black', subtitle: 'ログアウト・デコード・黒', summary: '黒デッキで、自分のObを破壊して引くログイン、ログアウト、アクセスとドラッグ、ゴミ箱からのデコード、邪神との取引まで。' }
 ]);
 export const TUTORIAL_IDS = Object.freeze(TUTORIAL_ITEMS.map(item => item.id));
 
