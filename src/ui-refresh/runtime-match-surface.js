@@ -109,14 +109,25 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   let tutorialEnded = false;
   const endTutorial = () => { tutorialEnded = true; const read = ui.read(); if (read.ok) render(read); };
   const guideReason = value => value.flow.error || (tutorialNote?.index === value.flow.index ? tutorialNote.text : '') || '';
-  const tutorialView = () => {
+  // A step marked hintOnly (tutorial-script.js) repeats the line before it: the guide does not say it again, only the
+  // hint (文豪, 2026-11-03, 案の6). It starts put away with the hint on the board; a refused move brings it back with
+  // the hint as its line and the reason under it.
+  const hintOnly = value => Boolean(value.presentation?.hintOnly) && value.flow.introComplete && !value.flow.complete;
+  const guideTutorial = () => {
     const tutorial = session.tutorial();
+    if (!tutorial.ok || !hintOnly(tutorial.value)) return tutorial;
+    const text = currentTutorialHint(tutorial.value.flow, TUTORIAL_STEP_GUARDS);
+    return { ok: true, value: { ...tutorial.value, presentation: { ...tutorial.value.presentation, text, parts: undefined } } };
+  };
+  const tutorialView = () => {
+    const tutorial = guideTutorial();
     if (!tutorial.ok) { guidePageShown = null; return tutorial; }
     const page = pageFor(tutorial.value);
     guidePageShown = page;
     const note = tutorialNote?.index === tutorial.value.flow.index ? { note: tutorialNote.text } : {};
     if (guideAway && guideAway.step !== pageStep(tutorial.value.flow)) guideAway = null;
-    const away = guideAway?.reason === guideReason(tutorial.value) ? { away: true } : {};
+    const reason = guideReason(tutorial.value);
+    const away = guideAway?.reason === reason || hintOnly(tutorial.value) && !reason ? { away: true } : {};
     const ended = tutorialEnded && tutorial.value.flow.complete ? { ended: true } : {};
     // While the opponent's script plays, the next step's line waits until it is done (文豪, 2026-11-03, X1).
     const waiting = tutorial.value.opponentScript && !tutorial.value.flow.complete ? { waiting: true } : {};
@@ -150,7 +161,10 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const PRESS_OPEN = {
     'info-button': () => root.hasAttribute('data-count-peek'),
     'ability-badge': cardId => Boolean(root.querySelector(`.r2-detail[data-card-id="${cardId}"] [data-ability-help][aria-expanded="true"]`)),
-    'card-detail': cardId => Boolean(root.querySelector(`.r2-detail[data-card-id="${cardId}"]`))
+    'card-detail': cardId => Boolean(root.querySelector(`.r2-detail[data-card-id="${cardId}"]`)),
+    // The card's attack is chosen and its target choice is open (red: Atto's 『攻撃』, 文豪, 2026-11-03, 案の8).
+    'attack-choice': cardId => latest?.request?.presentationKey === 'attack-target'
+      && latest.model.seats.flatMap(seat => [...seat.front.cards, ...seat.back.cards]).find(card => card.cardRef === latest.preview?.sourceRef)?.definition?.id === cardId
   };
   const anyOpen = () => root.hasAttribute('data-count-peek') || Boolean(root.querySelector('.r2-detail,[data-ability-help][aria-expanded="true"]'));
   const watchPress = () => {
@@ -184,7 +198,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     if (latest.model.ui.detailCardRef !== card.cardRef) render(ui.showDetail(card.cardRef));
   };
   const paginateGuide = guide => {
-    const tutorial = session.tutorial(), presentation = tutorial.ok ? tutorial.value.presentation : null;
+    const tutorial = guideTutorial(), presentation = tutorial.ok ? tutorial.value.presentation : null;
     if (!presentation || presentation.parts) return;
     const counter = createGuideLineCounter(guide);
     if (!counter) return;
@@ -288,8 +302,10 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       syncInteractionClasses(root, next);
       // With the guide put away on a step that wants a move, the move stays written on the board (文豪, 2026-10-29);
       // it goes when the step moves on or the guide comes back.
-      // A pick on the board says what to pick itself; the move's line waits until it is answered (文豪, 2026-11-03, D5).
-      syncTutorialHint(root.querySelector('.wire-board'), tutorial.ok && tutorial.value.away && !root.querySelector('.board-pick-guide') ? currentTutorialHint(tutorial.value.flow, TUTORIAL_STEP_GUARDS) : '');
+      // A pick on the board says what to pick itself; the move's line waits until it is answered (文豪, 2026-11-03, D5),
+      // but on a hint-only step the hint is all the guide says, so it stays.
+      const boardPick = Boolean(root.querySelector('.board-pick-guide')) && !(tutorial.ok && hintOnly(tutorial.value));
+      syncTutorialHint(root.querySelector('.wire-board'), tutorial.ok && tutorial.value.away && !boardPick ? currentTutorialHint(tutorial.value.flow, TUTORIAL_STEP_GUARDS) : '');
       if (tutorial.ok) { schedule(watchPress, 0); schedule(showBadge, 0); }
       decorate(() => scenes.sync(next, effectsEnabled, shellRebuilt || runtimeChanged));
       if (geometryDirty) queueLayout();

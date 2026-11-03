@@ -8,10 +8,10 @@ const failure = code => ({ ok: false, error: { code } });
 // fields the step's action must also match; `choose` is the test every option picked while the step
 // resolves must pass (picking none, or declining, is refused too); `reason` is shown in the guide.
 export const TUTORIAL_STEP_GUARDS = Object.freeze({
-  // Red (44 steps; index 37): the Junk Parts must be mounted under Atto. Alone in a slot, or under the soldier,
+  // Red (46 steps: the press of 『攻撃』 at 28, the incident line at 31; index 38): the Junk Parts must be mounted under Atto. Alone in a slot, or under the soldier,
   // Atto stays at ATK 3 and cannot break the Guardman (STR 4), so the soldier never reaches the user.
   basics: Object.freeze({
-    37: Object.freeze({ action: { hostCardId: 'STD-091' }, reason: 'ジャンクパーツは『アツト』の下に実行して、マウントして。' })
+    38: Object.freeze({ action: { hostCardId: 'STD-091' }, reason: 'ジャンクパーツは『アツト』の下に実行して、マウントして。' })
   }),
   // Blue (28 steps). 6: Rutile's access must take the Offense Protocol (the Assault Program is in the list too).
   // 12: the Offense Protocol goes on Frau. 16 / 26: Frau, who has Hacking, must hit the user, not Merc.
@@ -21,19 +21,19 @@ export const TUTORIAL_STEP_GUARDS = Object.freeze({
     16: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' }),
     26: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' })
   }),
-  // Yellow (27 steps). 3: the OC is paid (the choice's label). 5 / 16: the [セキュリティ] rest asked as a turn ends takes Shield Knight / the Herald
-  // (the step's answerChoice). 11: Shield Bash goes on the Rider. 13 / 25: the attacks hit the user. 23: the Triumph takes ①.
+  // Yellow (28 steps; the Rider's attack line is index 1). 4: the OC is paid (the choice's label). 6 / 17: the [セキュリティ] rest asked as a turn ends takes Shield Knight / the Herald
+  // (the step's answerChoice). 12: Shield Bash goes on the Rider. 14 / 26: the attacks hit the user. 24: the Triumph takes ①.
   // The step's expect refuses another pick and declining; the reasons are for the guide.
   yellow: Object.freeze({
-    3: Object.freeze({ reason: '『OC』の追加メモリ4を払って。' }),
-    5: Object.freeze({ reason: 'スリープさせるのは『大盾の騎士』。大盾の騎士を選んで。' }),
-    11: Object.freeze({ action: { targetCardId: 'STD-025' }, reason: '『シールドバッシュ』は相手の『ライダー』に使って。' }),
-    13: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' }),
-    16: Object.freeze({ reason: 'スリープさせるのは『伝令』。伝令を選んで。' }),
-    23: Object.freeze({ reason: '『騎士団の凱歌』は①の「自分Obすべてを+2/+2」を選んで。' }),
-    25: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' })
+    4: Object.freeze({ reason: '『OC』の追加メモリ4を払って。' }),
+    6: Object.freeze({ reason: 'スリープさせるのは『大盾の騎士』。大盾の騎士を選んで。' }),
+    12: Object.freeze({ action: { targetCardId: 'STD-025' }, reason: '『シールドバッシュ』は相手の『ライダー』に使って。' }),
+    14: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' }),
+    17: Object.freeze({ reason: 'スリープさせるのは『伝令』。伝令を選んで。' }),
+    24: Object.freeze({ reason: '『騎士団の凱歌』は①の「自分Obすべてを+2/+2」を選んで。' }),
+    26: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' })
   }),
-  // Black (29 steps). 6 / 11 / 13 / 14 / 22: the picks of the Conquistador's destroy, Remegeton's access, Solomon's destroy and placement, the decode
+  // Black (30 steps; the Merc line after the Pact is index 26). 6 / 11 / 13 / 14 / 22: the picks of the Conquistador's destroy, Remegeton's access, Solomon's destroy and placement, the decode
   // (the step's answerChoice; the decoded Ob is placed in the front). 25: the Pact destroys exactly the Zombie Maker and the Resentful Doll, takes ② each time,
   // and the first ② goes to the damaged Merc (the second then has only the other): both Mercs are destroyed. 27: the attack hits the user.
   black: Object.freeze({
@@ -51,9 +51,9 @@ export const TUTORIAL_STEP_GUARDS = Object.freeze({
       },
       reason: '『邪神との取引』は『ゾンビメイカー』と『怨念人形』の2体を壊して、②を選ぶ。1回目の②は、ダメージを受けている『メルク』に。'
     }),
-    27: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' })
+    28: Object.freeze({ action: { targetType: 'fortress' }, reason: '攻撃は相手ユーザーを選んで。' })
   }),
-  // Purple (26 steps). 6: Gigantes is layered on both Dolls (the layered execution takes 1 or 2 materials; with one Doll left in the front the
+  // Purple (27 steps; the Rider-destroyed line is index 16). 6: Gigantes is layered on both Dolls (the layered execution takes 1 or 2 materials; with one Doll left in the front the
   // script's field is not the one it describes). 14: the optional [セキュリティ] rest asked as the turn ends (step 13) takes Gigantes (the step's
   // answerChoice): awake, the Rider would not be held to attacking it. The step's expect refuses another pick and declining; this gives the reason.
   vengeance: Object.freeze({
