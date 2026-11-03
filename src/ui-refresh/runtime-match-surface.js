@@ -1,5 +1,5 @@
 import { createMatchUiController } from '../adapters/match-ui-controller.js';
-import { runtimeGameHtml, runtimeGameRegions } from './runtime-read-view.js';
+import { runtimeGameHtml, runtimeGameRegions, tutorialTriesPlay, handCard, blockMessage } from './runtime-read-view.js';
 import { patchHtml } from './dom-patch.js';
 import { isSinglePick } from './choice-read-view.js';
 import { validSelectionAnswer } from '../game/runtime/selection-contract.js';
@@ -327,7 +327,18 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   handDock = attachHandDock(root, {
     busy: () => requestUsesHand(latest), changed: queueLayout
   });
-  const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule });
+  // 文豪 (2026-11-02, #4): the play a step asks to try (the red symbol step), dropped on the board instead of pressed in its
+  // popup, moves the step on once, the reason in the guide, as the popup's button does (surface-clicks.js, data-tutorial-try).
+  const triesPlay = card => { const tutorial = session.tutorial(); return tutorial.ok && tutorialTriesPlay(tutorial.value, card); };
+  const onDropRefused = (block, cardRef) => {
+    const card = latest && handCard(latest.model, cardRef);
+    if (!block.code || !card || !triesPlay(card)) return;
+    const next = session.advanceTutorial();
+    if (!next.ok) return reportError(next.error.code);
+    noteTutorial(blockMessage(block));
+    act(ui.read());
+  };
+  const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule, triesPlay, onReject: onDropRefused });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,
     onTitle, onTutorialSkip, onToMenu, onSaveLog, endTutorial, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide, tapAnywhere };
   listener('click', event => {
