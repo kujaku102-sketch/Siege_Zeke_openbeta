@@ -512,6 +512,8 @@ body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-deta
 .r2-debug>section>header h2 { margin:0; }
 .r2-debug>section>header button { margin-left:auto; min-height:2.2em; padding:0 .8em; }
 .r2-debug-open { min-height:2.2em; padding:0 .8em; }
+/* Its parts are <section>s inside the window's own: not boxes of their own (preview.css .r2-modal section). */
+.r2-debug>section :is(.r2-debug-part,.r2-memory) { width:auto; max-height:none; overflow:visible; padding:calc(var(--u) * .625) 0 0; border:0; border-top:1px solid #ffffff22; border-radius:0; background:none; }
 .r2-debug-part { display:grid; gap:calc(var(--u) * .375); margin-top:calc(var(--u) * .75); padding-top:calc(var(--u) * .625); border-top:1px solid #ffffff22; }
 .r2-debug-part h3 { margin:0; font-size:1em; }
 .r2-debug-part p { margin:0; font-size:max(.625rem, calc(var(--u) * .6875)); line-height:1.4; }
