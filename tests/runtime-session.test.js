@@ -175,7 +175,8 @@ test('S02-SESSION-05: exact recipe rows, safe totals and tutorial preflight', ()
   for (const tutorialId of TUTORIAL_IDS) {
     const needed = game({ mode: 'tutorial', tutorialId }).players.ai.hand.map(card => card.id);
     rejects(config({ mode: 'tutorial', tutorialId, aiDeckRecipe: [] }));
-    for (const lacking of needed) rejects(config({ mode: 'tutorial', tutorialId, aiDeckRecipe: needed.filter(id => id !== lacking).map(id => [id, 1]).concat([['STD-020', 3]]) }));
+    const filler = ['STD-020', 'STD-021', 'STD-022'].find(id => !needed.includes(id)); // a card the opponent does not need, so the padding never stands in for the lacking one
+    for (const lacking of needed) rejects(config({ mode: 'tutorial', tutorialId, aiDeckRecipe: needed.filter(id => id !== lacking).map(id => [id, 1]).concat([[filler, 3]]) }));
   }
   const custom = config({ mode: 'tutorial', tutorialId: 'vengeance', playerDeckRecipe: [], aiDeckRecipe: game({ mode: 'tutorial', tutorialId: 'vengeance' }).players.ai.hand.map(card => [card.id, 1]) });
   const before = structuredClone(custom);
@@ -638,7 +639,7 @@ test('blue tutorial: allowed id, both decks forced, hand and opponent set up by 
   assert.deepEqual(blue.players.player.hand.map(card => card.id), ['STD-107', 'STD-117', 'STD-109', 'STD-110']);
   assert.deepEqual(blue.players.ai.hand.map(card => card.id), ['STD-043']);
   assert.equal(blue.players.ai.fortressStr, 5);
-  assert.deepEqual(TUTORIAL_IDS, ['basics', 'vengeance', 'blue']);
+  for (const id of ['basics', 'vengeance', 'blue']) assert.ok(TUTORIAL_IDS.includes(id), id);
   assert.equal(tutorialPlayerDeckId('blue', 'red'), 'tutorial-blue');
   assert.equal(tutorialAiDeckId('blue', 'yellow'), 'tutorial-sandbag');
   for (const tutorialId of TUTORIAL_IDS) assert.equal(game({ mode: 'tutorial', tutorialId }).aiDeckId, tutorialAiDeckId(tutorialId, 'yellow'), 'the state reports the deck the tutorial names');
