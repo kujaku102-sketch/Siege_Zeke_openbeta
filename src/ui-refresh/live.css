@@ -364,7 +364,7 @@ body[data-view="mobile"] .r2-content .r2-detail {
 .board-pick-guide strong { flex: 1 1 100%; white-space: normal; text-align: center; overflow-wrap: anywhere; }
 .board-pick-guide button { flex: none; white-space: nowrap; }
 /* The two ways to place a card that can also be set as a Script (H3): a row of its own; the pressed way lights its slots. */
-.board-pick-modes, .board-pick-options { display: flex; flex: 1 1 100%; flex-wrap: wrap; justify-content: center; gap: .35em; }
+.board-pick-modes { display: flex; flex: 1 1 100%; flex-wrap: wrap; justify-content: center; gap: .35em; }
 /* A card placed by an effect (H2): its name follows the title on the same line. */
 .board-pick-guide strong b { color: #69e8ff; font-weight: 700; }
 .board-pick-guide .board-pick-modes button[aria-pressed="true"] { border-color: #69e8ff; color: #69e8ff; box-shadow: 0 0 .6em #69e8ff88; }

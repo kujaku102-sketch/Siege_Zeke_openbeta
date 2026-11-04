@@ -22,15 +22,11 @@ export const isSinglePick = request => !['allocation', 'random'].includes(reques
   && request?.constraints?.minimum <= 1 && request.constraints.maximum === 1;
 // The engine's own prompt line when it has one, otherwise the generic label.
 export const requestTitle = request => request?.title ?? presentationLabel(request?.presentationKey);
-// A card placed by an effect into an area with no empty slot (pending-input.js: slot null) has no slot to tap;
-// choosing it is the forced placement that fails, so the bar offers it as a button.
-export const isBarOption = option => option?.kind === 'destination' && ['front', 'back'].includes(option.zone) && option.slot === null;
-// Single picks whose every option can be hit on the board (or sits on the bar) need no option list.
+// Single picks whose every option can be hit on the board need no option list.
 export const isBoardPick = (request, interaction) => isSinglePick(request)
   && interaction?.requestId === request.requestId && interaction.options.length > 0
-  && interaction.options.every(option => option.targets.some(target => ['slot', 'user'].includes(target.kind))
-    || isBarOption(request.options.find(item => item.optionId === option.optionId)));
-// The own Obs a card placed by an effect can be stacked under (a destination naming a card): where they sit on the board.
+  && interaction.options.every(option => option.targets.some(target => ['slot', 'user'].includes(target.kind)));
+// The own Obs a card placed by an effect can be mounted under (a destination naming a card): where they sit on the board.
 export const stackTargets = (request, interaction) => {
   const ids = new Set((request?.options ?? []).filter(option => option.kind === 'destination' && option.cardRef).map(option => option.optionId));
   return (interaction?.options ?? []).filter(option => ids.has(option.optionId)).flatMap(option => option.targets.filter(target => target.kind === 'slot'));
