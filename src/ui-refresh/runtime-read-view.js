@@ -267,18 +267,19 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
   // A card that can also be set as a Script: the bar picks the way, and the board lights only its slots (H3).
   const modes = boardPick && presentation.placementMode ? `<span class="board-pick-modes" role="group" aria-label="置き方">${[['card', 'Obとして配置'], ['script', 'Scriptとして設置']]
     .map(([mode, label]) => `<button data-runtime-place-mode="${mode}" aria-pressed="${presentation.placementMode === mode}">${label}</button>`).join('')}</span>` : '';
-  // A card placed by an effect (H2): the bar names the card (the choice's `placing`), the own Obs to stack it under
-  // wear 「重ねる」 on the board, and an area with no empty slot is a button here, as there is no slot to tap.
+  // A card placed by an effect (H2): one short line, the title and the card (the choice's `placing`), no instruction
+  // (文豪, 2026-11-05: less explaining on the board); the own Obs to mount it under wear 「マウント」 on the board, and an
+  // area with no empty slot is a button here, as there is no slot to tap.
   const placing = boardPick && !presentation.plan && model.requiredInput?.choiceId === request.requestId ? model.requiredInput.placing ?? null : null;
   const placingName = placing ? placing.label ?? placing.preview?.name ?? '' : '';
   const stacks = boardPick && request.options.some(option => option.kind === 'destination' && option.cardRef);
   const full = boardPick ? request.options.filter(isBarOption) : [];
-  const prompt = stacks ? '明るいマスか、「重ねる」のカードを選択' : isBoardSlotRequest(request) || placing ? '盤面の明るいマスを選択' : '盤面で光っている対象を選択';
+  const prompt = placing ? '' : stacks ? '明るいマスか、「マウント」のカードを選択' : isBoardSlotRequest(request) ? '盤面の明るいマスを選択' : '盤面で光っている対象を選択';
   const barOptions = full.length ? `<span class="board-pick-options" role="group" aria-label="空きのない列">${full
-    .map(option => `<button data-option-id="${esc(option.optionId)}">${esc(option.label)}：空きなし（ゴミ箱へ）</button>`).join('')}</span>` : '';
+    .map(option => `<button data-option-id="${esc(option.optionId)}">${esc(option.label)}（空きなし→ゴミ箱）</button>`).join('')}</span>` : '';
   // On the board the flow floats clear of the targets; in a dialog it heads the options.
   const selection = !wants('selection') ? null : (boardPick ? flow : '') + (boardPick
-    ? `<aside class="board-pick-guide" role="status" data-request-id="${esc(request.requestId)}"><strong>${esc(requestTitle(request))}</strong>${placingName ? `<span class="board-pick-placing">置くカード：<b>${esc(placingName)}</b></span>` : ''}<span>${prompt}</span>${modes}${barOptions}${presentation.plan ? '<button data-runtime-back>戻る</button>' : ''}${decline ? '<button data-runtime-decline>選ばない</button>' : ''}</aside>`
+    ? `<aside class="board-pick-guide" role="status" data-request-id="${esc(request.requestId)}"><strong>${esc(requestTitle(request))}${placingName ? `：<b>${esc(placingName)}</b>` : ''}</strong>${prompt ? `<span>${prompt}</span>` : ''}${modes}${barOptions}${presentation.plan ? '<button data-runtime-back>戻る</button>' : ''}${decline ? '<button data-runtime-decline>選ばない</button>' : ''}</aside>`
     : wants('selection') && (request || presentation.plan?.completion)
     ? presentation.collapsed ? `<button class="runtime-selection-reopen" data-selection-collapse aria-label="選択画面を開く">${selectionEyeHtml()}</button>`
       : `<aside class="effect-modal" data-selection-purpose="${presentation.plan ? 'draft' : 'required'}">${request ? selectionRequestHtml(request, { cards: visibleCards(model), answer: selected,

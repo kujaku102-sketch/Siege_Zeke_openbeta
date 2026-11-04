@@ -138,7 +138,7 @@ export function syncTutorialHint(svg, text) {
   if (label.textContent !== text) label.textContent = text;
   hint.toggleAttribute('hidden', !text);
 }
-// The own Obs a card placed by an effect can be stacked under wear 「重ねる」 on their top-right corner (文豪, 2026-11-05, H2),
+// The own Obs a card placed by an effect can be mounted under wear 「マウント」 on their top-right corner (文豪, 2026-11-05, H2),
 // in board units so the tag follows the camera. Empty here; the surface fills it (syncPickBadges).
 export function syncPickBadges(svg, model, targets, text) {
   const layer = svg?.querySelector('.wf-pick-badges');
@@ -146,7 +146,7 @@ export function syncPickBadges(svg, model, targets, text) {
   const {slots} = geometry(model);
   const html = targets.map(target => slots.find(s => s.seatId === target.seatId && s.zone === target.zone && s.slot === target.slot)).filter(Boolean).map(slot => {
     const at = project(slot.x + CARD.width * .3, slot.y - CARD.height * .42);
-    return `<g class="wf-pick-badge" transform="translate(${at.x} ${at.y})"><rect x="-46" y="-18" width="92" height="36" rx="18"/><text y="8" font-size="22" text-anchor="middle">${esc(text)}</text></g>`;
+    return `<g class="wf-pick-badge" transform="translate(${at.x} ${at.y})"><rect x="-58" y="-18" width="116" height="36" rx="18"/><text y="8" font-size="22" text-anchor="middle">${esc(text)}</text></g>`;
   }).join('');
   if (layer.innerHTML !== html) layer.innerHTML = html;
 }

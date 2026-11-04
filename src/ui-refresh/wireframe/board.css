@@ -58,7 +58,7 @@ body[data-view] .r2-content .r2-wireframe-view .wire-board-host { position:absol
 /* A tutorial's 「〇〇をしよう」 behind the opponent's back row while the guide is put away; sizes in board units. */
 .r2-wireframe-view .wf-tutorial-hint[hidden] { display:none; }
 .r2-wireframe-view .wf-tutorial-hint text { fill:#f9df8a; font-family:var(--wf-control-font); letter-spacing:.06em; stroke:#0b141c; stroke-width:6; paint-order:stroke fill; }
-/* 「重ねる」 on the own Obs a card placed by an effect can be stacked under (H2); sizes in board units. */
+/* 「マウント」 on the own Obs a card placed by an effect can be mounted under (H2); sizes in board units. */
 .r2-wireframe-view .wf-pick-badge rect { fill:#69e8ff; stroke:#05121a; stroke-width:2; }
 .r2-wireframe-view .wf-pick-badge text { fill:#05121a; font-family:var(--wf-control-font); font-weight:700; }
 .r2-wireframe-view .ghost { fill:#c2ed9533; stroke:#c2ed95; stroke-width:2; }
