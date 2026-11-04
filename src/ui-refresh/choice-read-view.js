@@ -7,7 +7,9 @@ const PRESENTATION_LABELS = {
   'attack-target': '攻撃対象を選択', 'execution-targets': '効果の対象を選択',
   'card-effect': '起動する効果を選択', 'effect-destination': '移動先を選択',
   'layered-materials': 'レイヤードの素材を選択', 'trigger-order': '解決順を選択',
-  'opening-mulligan': '引き直すカードを選択'
+  'opening-mulligan': '引き直すカードを選択',
+  // An effect places a card: a row, or an own Ob to layer it under (pending-input.js).
+  'access-drag-place': '配置先を選択', 'decode-place': '配置先を選択', 'std048-draw-place': '配置先を選択'
 };
 export const presentationLabel = key => PRESENTATION_LABELS[key] ?? '選択';
 // Slot-only requests are answered on the board itself, as before the runtime split.
