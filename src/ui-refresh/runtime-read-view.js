@@ -2,7 +2,7 @@ import { CARD_ART } from '../data/card-art.generated.js';
 import { wireframeBoardHtml, wireframeStatusHtml } from './wireframe/board-view.js';
 import { wireframeControlsHtml } from './wireframe/controls-view.js';
 import { abilityBadgeDefinition } from '../data/ability-badges.js';
-import { selectionRequestHtml, selectionEyeHtml, isBarOption, isBoardPick, isBoardSlotRequest, isSinglePick, requestTitle } from './choice-read-view.js';
+import { selectionRequestHtml, selectionEyeHtml, isBoardPick, isBoardSlotRequest, isSinglePick, requestTitle } from './choice-read-view.js';
 import { requiredSelectionRequest } from '../game/runtime/selection-contract.js';
 import { validSelectionAnswer } from '../game/runtime/selection-contract.js';
 import { runtimeLogHtml, runtimeResultHtml } from './runtime-log-view.js';
@@ -268,18 +268,14 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
   const modes = boardPick && presentation.placementMode ? `<span class="board-pick-modes" role="group" aria-label="置き方">${[['card', 'Obとして配置'], ['script', 'Scriptとして設置']]
     .map(([mode, label]) => `<button data-runtime-place-mode="${mode}" aria-pressed="${presentation.placementMode === mode}">${label}</button>`).join('')}</span>` : '';
   // A card placed by an effect (H2): one short line, the title and the card (the choice's `placing`), no instruction
-  // (文豪, 2026-11-05: less explaining on the board); the own Obs to mount it under wear 「マウント」 on the board, and an
-  // area with no empty slot is a button here, as there is no slot to tap.
+  // (文豪, 2026-11-05: less explaining on the board); the own Obs to mount it under wear 「マウント」 on the board.
   const placing = boardPick && !presentation.plan && model.requiredInput?.choiceId === request.requestId ? model.requiredInput.placing ?? null : null;
   const placingName = placing ? placing.label ?? placing.preview?.name ?? '' : '';
   const stacks = boardPick && request.options.some(option => option.kind === 'destination' && option.cardRef);
-  const full = boardPick ? request.options.filter(isBarOption) : [];
   const prompt = placing ? '' : stacks ? '明るいマスか、「マウント」のカードを選択' : isBoardSlotRequest(request) ? '盤面の明るいマスを選択' : '盤面で光っている対象を選択';
-  const barOptions = full.length ? `<span class="board-pick-options" role="group" aria-label="空きのない列">${full
-    .map(option => `<button data-option-id="${esc(option.optionId)}">${esc(option.label)}（空きなし→ゴミ箱）</button>`).join('')}</span>` : '';
   // On the board the flow floats clear of the targets; in a dialog it heads the options.
   const selection = !wants('selection') ? null : (boardPick ? flow : '') + (boardPick
-    ? `<aside class="board-pick-guide" role="status" data-request-id="${esc(request.requestId)}"><strong>${esc(requestTitle(request))}${placingName ? `：<b>${esc(placingName)}</b>` : ''}</strong>${prompt ? `<span>${prompt}</span>` : ''}${modes}${barOptions}${presentation.plan ? '<button data-runtime-back>戻る</button>' : ''}${decline ? '<button data-runtime-decline>選ばない</button>' : ''}</aside>`
+    ? `<aside class="board-pick-guide" role="status" data-request-id="${esc(request.requestId)}"><strong>${esc(requestTitle(request))}${placingName ? `：<b>${esc(placingName)}</b>` : ''}</strong>${prompt ? `<span>${prompt}</span>` : ''}${modes}${presentation.plan ? '<button data-runtime-back>戻る</button>' : ''}${decline ? '<button data-runtime-decline>選ばない</button>' : ''}</aside>`
     : wants('selection') && (request || presentation.plan?.completion)
     ? presentation.collapsed ? `<button class="runtime-selection-reopen" data-selection-collapse aria-label="選択画面を開く">${selectionEyeHtml()}</button>`
       : `<aside class="effect-modal" data-selection-purpose="${presentation.plan ? 'draft' : 'required'}">${request ? selectionRequestHtml(request, { cards: visibleCards(model), answer: selected,
