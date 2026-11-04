@@ -312,7 +312,7 @@ test('guide band: the guide fills one of three bands, chosen once a step against
   assert.ok(layout.includes("const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}|${portrait}|${reserve}|${Math.round(grow.fit ?? 0)}`;"), 'kept while the pages turn');
   const guide = await readSource('../src/ui-refresh/guide.js');
   assert.ok(guide.includes('view.dataset.guideBand = band;'));
-  assert.ok(guide.includes('const { frame, portrait, box, over } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT, grow, options);'), 'placed as the group: frame and portrait together');
+  assert.ok(guide.includes('const { frame, portrait, box, bust } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT, grow, options);'), 'placed as the group: frame and portrait together');
   const css = await readSource('../src/ui-refresh/live.css');
   assert.ok(!css.includes('[data-guide-band="top"] .r2-guide.live-guide .live-guide-cast'), 'the portrait stands on the frame in every band');
   assert.ok(css.includes('.live-guide[data-paging="pending"] .live-guide-text { overflow:hidden; }') && !/data-paging="pending"\][^{]*\{[^}]*visibility:hidden/.test(css), 'the line shows while the pages are cut');
