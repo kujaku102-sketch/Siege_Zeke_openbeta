@@ -41,7 +41,7 @@ export const TUTORIAL_STEP_GUARDS = Object.freeze({
     11: Object.freeze({ reason: 'アクセスは『魔術王ソロモン』を選んで。' }),
     13: Object.freeze({ reason: '破壊するのは『レメゲトン』を選んで。' }),
     14: Object.freeze({ reason: '出すのは『豹頭男爵フラウロス』を選んで。' }),
-    22: Object.freeze({ choose: option => option.kind === 'destination' ? option.label === 'フロント' : option.cardId === 'STD-150', reason: 'ゴミ箱の『怨念人形』を選んで、フロントに置いて。' }),
+    22: Object.freeze({ choose: option => option.kind === 'destination' ? option.zone === 'front' : option.cardId === 'STD-150', reason: 'ゴミ箱の『怨念人形』を選んで、フロントに置いて。' }),
     25: Object.freeze({
       pickCount: 2,
       choose: (option, context) => {

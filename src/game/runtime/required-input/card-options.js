@@ -31,6 +31,18 @@ export function cardReference(engineState, referenceState, metadata, viewerSeat,
   return cardReferenceResolver(engineState, referenceState, metadata, viewerSeat)(uid);
 }
 
+const cardPreview = definition => ({ definitionId:definition.id,name:definition.name,
+  definition:{id:definition.id,name:definition.name,category:definition.category,color:definition.color ?? null,
+    cost:definition.cost ?? null,atk:definition.atk ?? null,str:definition.str ?? null,text:definition.text ?? '',classes:[...(definition.classes ?? [])]} });
+
+// The card a placement choice is about: its reference (null while no reference frame covers it), its name and its preview.
+// The actor sees it: it came from their hand or the trash.
+export function placedCardView(engineState, referenceState, metadata, actorSeat, card) {
+  const definition = CARD_LIBRARY[card.id];
+  return { cardRef: cardReference(engineState, referenceState, metadata, actorSeat, card.uid), label: card.name,
+    ...(definition ? { preview: cardPreview(definition) } : {}) };
+}
+
 export function cardOptions(engineState, referenceState, metadata, actorSeat, candidates, labels = {}, surfacePermission = false) {
   const actorId = metadata.seatIds[0] === actorSeat ? 'player' : 'ai';
   const reference = cardReferenceResolver(engineState, referenceState, metadata, actorSeat);
@@ -44,9 +56,7 @@ export function cardOptions(engineState, referenceState, metadata, actorSeat, ca
       optionId: optionId(index), kind: 'card',
       cardRef: reference(uid),
       label: visible ? (typeof labels?.[uid] === 'string' ? labels[uid] : found.card.name) : null,
-      ...(definition ? { preview: { definitionId:definition.id,name:definition.name,
-        definition:{id:definition.id,name:definition.name,category:definition.category,color:definition.color ?? null,
-          cost:definition.cost ?? null,atk:definition.atk ?? null,str:definition.str ?? null,text:definition.text ?? '',classes:[...(definition.classes ?? [])]} } } : {})
+      ...(definition ? { preview: cardPreview(definition) } : {})
     };
   });
 }

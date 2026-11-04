@@ -1,11 +1,14 @@
 import { isObCard } from "../../card-types.js";
 import { settleStd048MandatoryPlacement } from "../../../cards/std/std_048_effects.js";
 import { runEffectEntry } from "../../core/effects.js";
+import { vacantBoardSlots } from "../../board-slots.js";
 import { addLog, findCard } from "../../core/shared.js";
 import { resumeTriggerThreadAfterSelection } from "../../core/triggers.js";
 import { emitEffectPlacement, placeByMode, placeCardByEffect, setCardSleeping } from "./placement.js";
 
-export function resolveAccessDragPlacementCore(state, playerId, zone, underUid = null) {
+// `slot` is the slot the user picked in `zone` (null: the lowest empty one, or none when the area is full, which is the forced-placement failure).
+// A picked slot must be empty and cannot go with a host.
+export function resolveAccessDragPlacementCore(state, playerId, zone, underUid = null, slot = null) {
   const pending = state.pending;
   if (!["access-drag-place", "decode-place", "std048-draw-place"].includes(pending?.type) || pending.playerId !== playerId) return false;
   const player = state.players[playerId];
@@ -14,6 +17,7 @@ export function resolveAccessDragPlacementCore(state, playerId, zone, underUid =
     ? pending.cards.find((item) => item.uid === uid)
     : state.players[playerId].hand.find((item) => item.uid === uid);
   if (!card) return false;
+  if (slot !== null && (underUid || !vacantBoardSlots(player[zone] ?? [], { controllerId: playerId, zoneName: zone, limit: player.user?.[`${zone}Limit`] }).includes(slot))) return false;
   state.pending = null;
   if (pending.type === "decode-place") {
     const target = state.players[playerId][zone];
@@ -27,7 +31,7 @@ export function resolveAccessDragPlacementCore(state, playerId, zone, underUid =
       host.mounted.push(card);
       addLog(state, `${pending.sourceName}: ${card.name}を${host.name}の下へ配置。`, "effect");
     } else {
-      const outcome = placeByMode(state, playerId, card, { zone, from: "trash", source: pending.sourceName, suppressScriptWindow: true });
+      const outcome = placeByMode(state, playerId, card, { zone, from: "trash", source: pending.sourceName, suppressScriptWindow: true, requestedSlot: slot });
       if (outcome !== "placed") {
         const queue = pending.queue.slice(1); const cards = pending.cards?.filter((item) => item.uid !== uid);
         state.pending = queue.length ? { ...pending, queue, cards, sourceUid: queue[0] } : null;
@@ -38,7 +42,7 @@ export function resolveAccessDragPlacementCore(state, playerId, zone, underUid =
     }
   } else {
     const placement = placeCardByEffect(state, {
-      sourceOwnerId: playerId, controllerId: playerId, sourceZone: "hand", targetZone: zone, cardUid: uid, underUid, sourceName: pending.sourceName,
+      sourceOwnerId: playerId, controllerId: playerId, sourceZone: "hand", targetZone: zone, cardUid: uid, underUid, requestedSlot: slot, sourceName: pending.sourceName,
       placementCause: pending.type === "access-drag-place" ? "access_drag" : "effect",
       onPlaced: (placedCard) => { placedCard.summoningSick = zone === "front"; }
     });
@@ -70,6 +74,6 @@ export function resolveAccessDragPlacementCore(state, playerId, zone, underUid =
   return true;
 }
 
-export function resolveAccessDragPlacement(state, playerId, zone, underUid = null) {
-  return runEffectEntry(state, "placement", playerId, () => resolveAccessDragPlacementCore(state, playerId, zone, underUid));
+export function resolveAccessDragPlacement(state, playerId, zone, underUid = null, slot = null) {
+  return runEffectEntry(state, "placement", playerId, () => resolveAccessDragPlacementCore(state, playerId, zone, underUid, slot));
 }

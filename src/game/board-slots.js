@@ -98,3 +98,9 @@ export function projectZoneSlots(cards, { controllerId, zoneName, limit } = {}) 
   const maximum = Math.max(capacity, 0, ...assigned.keys());
   return Array.from({ length: maximum }, (_, index) => assigned.get(index + 1) ?? null);
 }
+
+// The empty slot numbers of an area, lowest first. It only reads: a card with no valid slot yet is counted where normalization would put it.
+export function vacantBoardSlots(cards, { controllerId, zoneName, limit } = {}) {
+  const capacity = normalizedLimit(limit, cards.length);
+  return projectZoneSlots(cards, { controllerId, zoneName, limit }).flatMap((card, index) => !card && index < capacity ? [index + 1] : []);
+}
