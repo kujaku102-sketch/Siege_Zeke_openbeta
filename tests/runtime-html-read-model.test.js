@@ -583,7 +583,7 @@ test('a card placed by an effect is picked on the board: each empty slot, the Ob
   assert.equal(isBoardPick(odd, buildInteractionRequest(odd, placementModel)), false);
 });
 
-test('the bar names the card being placed, asks for a slot or an Ob to stack under, and offers a full area as a button', () => {
+test('the bar is one line, the title and the card being placed, and offers a full area as a button', () => {
   const current = session();
   const ui = createMatchUiController({ session: current, viewerSeat: 'seat-a' }).value;
   const read = ui.read().value;
@@ -593,12 +593,14 @@ test('the bar names the card being placed, asks for a slot or an Ob to stack und
   const presentation = { ...read, model, plan: null, request, stage: null, interactionRequest: buildInteractionRequest(request, model), boardStyle: 'wireframe' };
   const selection = runtimeGameRegions(model, presentation).selection;
   assert.match(selection, /board-pick-guide/);
-  assert.match(selection, /<strong>配置先を選択<\/strong><span class="board-pick-placing">置くカード：<b>変形合体レッパオー・G<\/b><\/span><span>盤面の明るいマスを選択<\/span>/);
-  assert.match(selection, /<button data-option-id="f">フロント：空きなし（ゴミ箱へ）<\/button>/);
+  assert.match(selection, /<strong>配置先を選択：<b>変形合体レッパオー・G<\/b><\/strong><span class="board-pick-options"/);
+  // One line only: no instruction under the title (文豪, 2026-11-05).
+  assert.doesNotMatch(selection, /明るいマス|選択<\/span>/);
+  assert.match(selection, /<button data-option-id="f">フロント（空きなし→ゴミ箱）<\/button>/);
   assert.doesNotMatch(selection, /effect-modal|data-runtime-back/);
-  // With an Ob to stack under, the instruction names it too.
+  // With an Ob to mount under, still the one line.
   const withHost = { ...presentation, request: placement, interactionRequest: { ...buildInteractionRequest(placement, model),
     options: buildInteractionRequest(placement, placementModel).options } };
-  assert.match(runtimeGameRegions(model, withHost).selection, /明るいマスか、「重ねる」のカードを選択/);
+  assert.match(runtimeGameRegions(model, withHost).selection, /<strong>配置先を選択：<b>変形合体レッパオー・G<\/b><\/strong><span class="board-pick-options"/);
   ui.dispose(); current.dispose();
 });

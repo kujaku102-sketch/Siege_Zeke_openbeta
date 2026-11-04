@@ -1,7 +1,7 @@
-// Screen check: a card placed by an effect (a drag after an access; the decode and the rule draw ask the same way) picks one empty slot on
-// the board only (文豪, 2026-11-05, H2). No popup; the bar says 「配置先を選択」 and names the card being placed; every empty own slot lights
-// and nothing else but the own face-up Obs it can be stacked under, which wear 「重ねる」; a tap on a lit empty slot places the card in that
-// very slot and the bar goes.
+﻿// Screen check: a card placed by an effect (a drag after an access; the decode and the rule draw ask the same way) picks one empty slot on
+// the board only (文豪, 2026-11-05, H2). No popup; the bar is one line, 「配置先を選択：<the card being placed>」, with no instruction; every
+// empty own slot lights and nothing else but the own face-up Obs it can be mounted under, which wear 「マウント」; a tap on a lit empty slot
+// places the card in that very slot and the bar goes.
 // The board is made in a sandbox match through the test hook: an Ob whose login accesses a card and drags it is executed to the front, and
 // its access is answered. The card is found by what its text says, not by its id; the sandbox decks are the default ones.
 import { CARD_LIBRARY } from "../../../src/data/cards.js";
@@ -45,17 +45,18 @@ try {
   await until(page, () => Boolean(document.querySelector(".board-pick-guide")), null, "the bar over the board");
   const seen = await page.evaluate((seat) => ({
     modal: Boolean(document.querySelector(".effect-modal")),
-    title: document.querySelector(".board-pick-guide strong")?.textContent ?? null,
-    placing: document.querySelector(".board-pick-guide .board-pick-placing b")?.textContent ?? null,
+    
+    placing: document.querySelector(".board-pick-guide strong b")?.textContent ?? null,
+    line: document.querySelector(".board-pick-guide strong")?.textContent ?? null, spans: document.querySelectorAll(".board-pick-guide > span").length,
     lit: [...document.querySelectorAll(`.board-slot.request-target[data-seat="${seat}"]:not([data-card-ref])`)].map((slot) => `${slot.dataset.zone}${slot.dataset.slot}`),
     litCards: [...document.querySelectorAll(".board-slot.request-target[data-card-ref]")].map((slot) => slot.dataset.cardRef),
     badges: [...document.querySelectorAll(".wf-pick-badge text")].map((text) => text.textContent),
     other: document.querySelectorAll(`.board-slot.request-target:not([data-seat="${seat}"])`).length
   }), me);
   if (seen.modal) throw new Error("a popup opened over the placement");
-  if (seen.title !== "配置先を選択" || seen.placing !== placing) throw new Error(`the bar: ${JSON.stringify(seen)} (placing ${placing})`);
+  if (seen.line !== `配置先を選択：${placing}` || seen.placing !== placing || seen.spans) throw new Error(`the bar is one line, the title and the card: ${JSON.stringify(seen)} (placing ${placing})`);
   if (seen.lit.sort().join() !== [...empty].sort().join() || seen.other) throw new Error(`every empty own slot and nothing else lights: ${JSON.stringify(seen)} (empty ${empty})`);
-  if (seen.litCards.sort().join() !== [...hosts].sort().join() || seen.badges.length !== hosts.length || seen.badges.some((text) => text !== "重ねる")) throw new Error(`the Obs to stack under wear 「重ねる」: ${JSON.stringify(seen)}`);
+  if (seen.litCards.sort().join() !== [...hosts].sort().join() || seen.badges.length !== hosts.length || seen.badges.some((text) => text !== "マウント")) throw new Error(`the Obs to mount under wear 「マウント」: ${JSON.stringify(seen)}`);
   // A slot that is not the first one, so the card cannot land there by default.
   const target = empty.find((slot) => slot.startsWith("back") && slot !== "back1") ?? empty.at(-1);
   const [, zone, slot] = /^(front|back)(\d+)$/.exec(target);
