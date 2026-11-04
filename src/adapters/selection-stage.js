@@ -26,3 +26,20 @@ export function stagedInteraction(interaction, stage) {
   if (!interaction || !stage) return interaction;
   return { ...interaction, options: interaction.options.filter(option => stage.optionIds.includes(option.optionId)) };
 }
+
+// A card that can also be set as a Script answers one placement two ways on the same back
+// slots (as itself, or set as a Script). The bar's toggle picks the way; the board lights
+// only that way's options (文豪, 2026-11-05, H3).
+export const PLACEMENT_MODES = ['card', 'script'];
+export const placementModes = request => {
+  const options = request?.options ?? [];
+  const script = options.filter(option => option?.kind === 'asScript').length;
+  return script > 0 && script < options.length ? PLACEMENT_MODES : null;
+};
+export const modeOptionIds = (request, mode) => new Set(request.options
+  .filter(option => (option.kind === 'asScript') === (mode === 'script')).map(option => option.optionId));
+export function modeInteraction(interaction, request, mode) {
+  if (!interaction || !placementModes(request)) return interaction;
+  const ids = modeOptionIds(request, mode);
+  return { ...interaction, options: interaction.options.filter(option => ids.has(option.optionId)) };
+}

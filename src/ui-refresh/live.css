@@ -363,6 +363,9 @@ body[data-view="mobile"] .r2-content .r2-detail {
 .board-pick-guide { flex-wrap: wrap; justify-content: center; row-gap: calc(var(--u) * .375); width: max-content; max-width: min(calc(var(--u) * 45), calc(100vw - calc(var(--u) * 2))); }
 .board-pick-guide strong { flex: 1 1 100%; white-space: normal; text-align: center; overflow-wrap: anywhere; }
 .board-pick-guide button { flex: none; white-space: nowrap; }
+/* The two ways to place a card that can also be set as a Script (H3): a row of its own; the pressed way lights its slots. */
+.board-pick-modes { display: flex; flex: 1 1 100%; flex-wrap: wrap; justify-content: center; gap: .35em; }
+.board-pick-guide .board-pick-modes button[aria-pressed="true"] { border-color: #69e8ff; color: #69e8ff; box-shadow: 0 0 .6em #69e8ff88; }
 
 /* Effect flow: the card whose effect is asking for a pick, with the clause being resolved lit. */
 .effect-flow {

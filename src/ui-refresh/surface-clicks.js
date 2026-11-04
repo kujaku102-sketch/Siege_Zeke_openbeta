@@ -31,6 +31,7 @@ const BUTTONS = [
   ['data-runtime-confirm', c => c.act(c.ui.confirm())],
   ['data-runtime-decline', c => c.act(c.ui.decline())],
   ['data-runtime-back', c => c.act(c.ui.back())],
+  ['data-runtime-place-mode', (c, target) => c.act(c.ui.setPlacementMode(target.dataset.runtimePlaceMode))],
   ['data-runtime-hand', c => c.act(c.ui.toggleHand())],
   ['data-runtime-log', c => c.act(c.ui.toggleLog())],
   ['data-selection-collapse', c => c.act(c.ui.toggleCollapsed())],

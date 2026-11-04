@@ -264,9 +264,12 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
   // Required choices use it too; an optional one offers 選ばない instead of 戻る.
   const boardPick = request && isBoardPick(request, presentation.interactionRequest);
   const decline = !presentation.plan && model.requiredInput?.optional;
+  // A card that can also be set as a Script: the bar picks the way, and the board lights only its slots (H3).
+  const modes = boardPick && presentation.placementMode ? `<span class="board-pick-modes" role="group" aria-label="置き方">${[['card', 'Obとして配置'], ['script', 'Scriptとして設置']]
+    .map(([mode, label]) => `<button data-runtime-place-mode="${mode}" aria-pressed="${presentation.placementMode === mode}">${label}</button>`).join('')}</span>` : '';
   // On the board the flow floats clear of the targets; in a dialog it heads the options.
   const selection = !wants('selection') ? null : (boardPick ? flow : '') + (boardPick
-    ? `<aside class="board-pick-guide" role="status" data-request-id="${esc(request.requestId)}"><strong>${esc(requestTitle(request))}</strong><span>${isBoardSlotRequest(request) ? '盤面の明るいマスを選択' : '盤面で光っている対象を選択'}</span>${presentation.plan ? '<button data-runtime-back>戻る</button>' : ''}${decline ? '<button data-runtime-decline>選ばない</button>' : ''}</aside>`
+    ? `<aside class="board-pick-guide" role="status" data-request-id="${esc(request.requestId)}"><strong>${esc(requestTitle(request))}</strong><span>${isBoardSlotRequest(request) ? '盤面の明るいマスを選択' : '盤面で光っている対象を選択'}</span>${modes}${presentation.plan ? '<button data-runtime-back>戻る</button>' : ''}${decline ? '<button data-runtime-decline>選ばない</button>' : ''}</aside>`
     : wants('selection') && (request || presentation.plan?.completion)
     ? presentation.collapsed ? `<button class="runtime-selection-reopen" data-selection-collapse aria-label="選択画面を開く">${selectionEyeHtml()}</button>`
       : `<aside class="effect-modal" data-selection-purpose="${presentation.plan ? 'draft' : 'required'}">${request ? selectionRequestHtml(request, { cards: visibleCards(model), answer: selected,
