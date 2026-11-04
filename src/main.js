@@ -126,7 +126,7 @@ function renderShell(replace = false) {
     debug:{build:host.build,errors:host.errors,memory:host.memory,renderScale:host.renderScale ?? 1,renderScaleUrl:host.renderScaleUrl,compat:host.render?.mode === 'compat',fxSpeed:host.fxSpeed},view:host.view,fullscreen:host.fullscreen,tapDetails:host.tapDetails,effectsEnabled:host.effectsEnabled,masterVolume:host.masterVolume,storedCounts:host.storedCounts,sendMatchLogs:host.sendMatchLogs,
     onReadyChange:() => syncLiveInputLocks(root,{optionsOpen:host.options || Boolean(host.debug),entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))})});
   syncLiveInputLocks(root,{optionsOpen:host.options || Boolean(host.debug),entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))});
-  mobileViewport.sync(host.view);
+  mobileViewport.sync(host.view,host.screen);
 }
 // A choice from the title or the options window is kept; it also clears a loss-driven fallback.
 function setRenderPreference(value) {

@@ -57,9 +57,18 @@ function cssInset(view, content, name) {
   return Number.parseFloat(fallback) || 0;
 }
 
+// What a tall screen asks for, or null: a phone (the mobile view) is turned on every screen; a PC window is made
+// landscape on the match and the tutorial only (文豪, 2026-11-04, x: the guide cannot hold a line there), its title
+// and menus staying usable as they are.
+export function turnRequest({ view, screen, width, height }) {
+  if (!(height > width)) return null;
+  if (view === 'mobile') return 'device';
+  return screen === 'game' ? 'window' : null;
+}
+
 export function installMobileViewport(root, windowObject = root?.ownerDocument?.defaultView) {
   if (!root || !windowObject) return { sync() {}, dispose() {} };
-  let view = "pc";
+  let view = "pc", screen = null;
   const visual = windowObject.visualViewport;
   const update = () => {
     const content = root.querySelector('.r2-content');
@@ -79,11 +88,11 @@ export function installMobileViewport(root, windowObject = root?.ownerDocument?.
     content.style.setProperty('--mobile-console-width', `${metrics.consoleWidth}px`);
     content.style.setProperty('--mobile-play-width', `${metrics.playWidth}px`);
     content.style.setProperty('--mobile-gutter', `${metrics.gutter}px`);
-    const portrait = view === 'mobile' && metrics.viewportHeight > metrics.viewportWidth;
-    content.inert = portrait;
-    content.classList.toggle('r2-portrait-blocked', portrait);
+    const turn = turnRequest({ view, screen, width: metrics.viewportWidth, height: metrics.viewportHeight });
+    content.inert = Boolean(turn);
+    content.classList.toggle('r2-portrait-blocked', Boolean(turn));
     const rotate = root.querySelector('.r2-rotate');
-    if (rotate) rotate.hidden = !portrait;
+    if (rotate) { rotate.hidden = !turn; rotate.dataset.turn = turn ?? ''; }
     return metrics;
   };
   const onViewportChange = () => update();
@@ -91,7 +100,7 @@ export function installMobileViewport(root, windowObject = root?.ownerDocument?.
   visual?.addEventListener('resize', onViewportChange, { passive: true });
   visual?.addEventListener('scroll', onViewportChange, { passive: true });
   return {
-    sync(nextView = view) { view = nextView; return update(); },
+    sync(nextView = view, nextScreen = screen) { view = nextView; screen = nextScreen; return update(); },
     dispose() {
       windowObject.removeEventListener('resize', onViewportChange);
       visual?.removeEventListener('resize', onViewportChange);

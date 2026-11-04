@@ -80,6 +80,12 @@ small { color:var(--muted); }
 .r2-log p { margin:calc(var(--u) * .625) 0; font-size:max(.625rem, calc(var(--u) * .75)); line-height:1.7; }
 .r2-modal { position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:calc(var(--u) * .75); background:#000a; backdrop-filter:blur(5px); }.r2-modal section { width:min(calc(var(--u) * 28.75),100%); max-height:calc(100svh - calc(var(--u) * 1.5)); overflow:auto; padding:calc(var(--u) * 1.5); border:1px solid #71717a; border-radius:calc(var(--u) * .625); background:#18181b; }.r2-modal header { display:flex; justify-content:space-between; align-items:center; margin-bottom:calc(var(--u) * 1.25); }.r2-modal h2 { font-size:max(.625rem, calc(var(--u) * 1.25)); }.r2-modal p { margin:calc(var(--u) * .75) 0; line-height:1.6; font-size:max(.625rem, calc(var(--u) * .8125)); }.r2-modal small { display:block; font-size:max(.625rem, calc(var(--u) * .6875)); line-height:1.7; }.r2-modal label { display:flex; gap:calc(var(--u) * .5); font-size:max(.625rem, calc(var(--u) * .8125)); align-items:center; margin:calc(var(--u) * 1.125) 0 calc(var(--u) * .5); }.r2-view-options { display:flex; gap:calc(var(--u) * .625); }.r2-view-options>button { flex:1; }
 .r2-rotate { position:fixed; z-index:100; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:calc(var(--u) * 1.25); padding:calc(var(--u) * 2); text-align:center; background:#111114; }.r2-rotate>span { font-size:max(.625rem, calc(var(--u) * 4.375)); }.r2-rotate h1 { font-size:max(.625rem, calc(var(--u) * 1.375)); }.r2-rotate p { font-size:max(.625rem, calc(var(--u) * .875)); color:#a1a1aa; line-height:1.8; }.r2-portrait-blocked { visibility:hidden; }
+/* A phone turned upright asks to turn the device; a PC window taller than wide, on the match and the tutorial, to be made
+   landscape (mobile-viewport.js, turnRequest; 文豪, 2026-11-04, x). */
+.r2-rotate>div { display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * 1.25); }
+.r2-rotate[data-turn="window"] .r2-rotate-device,.r2-rotate:not([data-turn="window"]) .r2-rotate-window { display:none; }
+/* The window's message sized by the window's short side (a PC's --u is small in a tall window). */
+.r2-rotate[data-turn="window"] h1 { font-size:5vmin; } .r2-rotate[data-turn="window"] p { font-size:2.6vmin; }
 /* Dedicated mobile shell. PC markup is not rearranged into this structure. */
 [data-layout="mobile"] { height:calc(100svh - calc(var(--u) * 4)); }
 [data-layout="mobile"] .r2-stage { inset:calc(var(--u) * .25) calc(var(--u) * .75); }
