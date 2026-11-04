@@ -1,5 +1,5 @@
 import { fitBoard, placePopup } from './model.js';
-import { applyGuideBand, GUIDE_PORTRAIT_ASPECT } from './guide.js';
+import { applyGuideBand, guideMinFrame, guideNavHeight, GUIDE_PORTRAIT_ASPECT } from './guide.js';
 import { chooseGuidePlacement } from './guide-band.js';
 import { placeFlow } from './effect-flow.js';
 import { screenUnit } from './screen-unit.js';
@@ -14,6 +14,8 @@ import { screenUnit } from './screen-unit.js';
 const EXPECTED_ROUTES = Object.freeze({ play: ['executeCard', 'executeSpell', 'mountCard', 'setScript'], install: ['install'],
   attack: ['attack'], layered: ['executeLayered'], relog: ['redeploy'], 'activate-effect': ['activateCardEffect'] });
 // A step that asks for a choice's answer points at the option of its card (blue: the access pick of the Offense Protocol).
+// The step's grow with its cut height ((i), fit) never below the buttons' column (px; 0 where they share the name's line).
+const withButtons = (grow, buttons) => grow.fit > 0 && buttons > grow.fit ? { ...grow, fit: buttons } : grow;
 const expectedButton = expect => expect?.type === 'answerChoice' && expect.cardId ? [{ kind: 'option', cardId: expect.cardId }]
   : EXPECTED_ROUTES[expect?.type] && expect.cardId ? [{ kind: 'route', cardId: expect.cardId, routes: EXPECTED_ROUTES[expect.type] }] : [];
 
@@ -118,7 +120,8 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       const keep = shown([...root.querySelectorAll(`[data-live-region="board"] :is([data-seat="${opponent}"],[data-fortress="${opponent}"],[data-fx-seat="${opponent}"]),[data-runtime-end-turn],.wf-meter,.wf-memory`)]);
       // A page too long for a third of the screen grows the frame (文豪, 2026-10-28): the band keeps clear with the
       // step's tallest page, and the page shown gets its own height.
-      const grow = guideGrow();
+      // A frame cut to its line keeps a phone's button column inside it (文豪, 2026-11-04).
+      const grow = withButtons(guideGrow(), guideNavHeight(guide));
       // The frame ends before the HUD column at the right, TURN and the memory, as the share of the screen's width it
       // takes on this screen (文豪, 2026-11-04, 1b); a HUD not standing at the right edge keeps nothing free.
       const hud = shown([...root.querySelectorAll('[data-runtime-end-turn],.wf-memory')]);
@@ -126,8 +129,11 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       const reserve = Math.round(Math.max(0, viewport.width - hudLeft) / viewport.width * 1000) / 1000;
       // A step no band keeps clear of cuts the frame to its line, and is weighed again (文豪, 2026-11-04, (i)).
       const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}|${portrait}|${reserve}|${Math.round(grow.fit ?? 0)}`;
-      if (guideBand.key !== key) guideBand = { key, ...chooseGuidePlacement(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step, keep, portrait, reserve, fit: grow.fit }) };
-      applyGuideBand(view, guideBand.band, viewport, grow.page, { reserve, fit: guideBand.fit ? grow.fit : null });
+      // Where the frame beside the portrait would hold less than GUIDE_MIN_LINE_EM a line, it runs over the portrait
+      // (文豪, 2026-11-04: 4:3 and portrait screens).
+      const minFrame = guideMinFrame(guide);
+      if (guideBand.key !== key) guideBand = { key, ...chooseGuidePlacement(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step, keep, portrait, reserve, fit: grow.fit, minFrame }) };
+      applyGuideBand(view, guideBand.band, viewport, grow.page, { reserve, fit: guideBand.fit ? grow.fit : null, minFrame });
       paginateGuide(guide);
     }
     // A floating effect flow keeps clear of the pick's targets and its prompt, and of the guide where it now stands.

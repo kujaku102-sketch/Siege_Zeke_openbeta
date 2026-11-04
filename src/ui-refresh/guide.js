@@ -1,4 +1,4 @@
-import { guideLayout } from "./guide-band.js";
+import { guideLayout, GUIDE_MIN_LINE_EM } from "./guide-band.js";
 
 // The guide is one group (guide-band.js): the speech frame across the screen and the portrait at its left,
 // standing on the frame's bottom edge and reaching up out of it, its own background let through.
@@ -7,17 +7,42 @@ export const GUIDE_PORTRAIT_ASPECT = 540 / 640;
 
 // The group's geometry goes on the match view, not on the guide: a guide redrawn for its next page keeps it.
 // Every value is a ratio of the screen (guideLayout), written as px for this screen; grow is the page's own.
-// options: guideLayout's reserve (the HUD column kept free) and fit (the frame cut to its line).
+// options: guideLayout's reserve (the HUD column kept free), fit (the frame cut to its line) and minFrame (the frame
+// over the portrait where it would be narrower beside it).
 export function applyGuideBand(view, band, viewport, grow = 0, options = {}) {
-  const { frame, portrait, box } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT, grow, options);
+  const { frame, portrait, box, over } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT, grow, options);
   view.dataset.guideBand = band;
   view.dataset.guideFit = options.fit > 0 ? "line" : "band";
+  view.dataset.guideOver = over ? "on" : "off";
   view.style.setProperty("--guide-top", `${box.top}px`);
   view.style.setProperty("--guide-left", `${box.left}px`);
   view.style.setProperty("--guide-right", `${viewport.width - box.right}px`);
   view.style.setProperty("--guide-height", `${frame.height}px`);
   view.style.setProperty("--guide-portrait-width", `${portrait.width}px`);
   view.style.setProperty("--guide-portrait-height", `${portrait.height}px`);
+}
+
+// The frame's least width on this screen (px): GUIDE_MIN_LINE_EM of the guide's type for the text, and the frame's
+// own sides as laid out now (border, padding, and on a phone the buttons' column).
+export function guideMinFrame(guide) {
+  const speech = guide.querySelector(".live-guide-speech"), text = guide.querySelector(".live-guide-text");
+  if (!speech || !text) return 0;
+  const font = parseFloat(guide.ownerDocument.defaultView.getComputedStyle(guide).fontSize) || 0;
+  return Math.ceil(GUIDE_MIN_LINE_EM * font + Math.max(0, speech.getBoundingClientRect().width - text.clientWidth));
+}
+
+// The height the frame needs for its buttons where they stand in a column at its right (phones): the column's items
+// as laid out now, with the frame's border and padding. Where they share the name's line (PC) the text's own count
+// holds them already: 0. A frame cut to its line ((i)) is never cut below this.
+export function guideNavHeight(guide) {
+  const speech = guide.querySelector(".live-guide-speech"), nav = speech?.querySelector("nav");
+  if (!nav) return 0;
+  const style = guide.ownerDocument.defaultView.getComputedStyle(speech);
+  if (!style.gridTemplateAreas.includes('"text nav"')) return 0;
+  const items = [...nav.children].map(item => item.getBoundingClientRect().height).filter(height => height > 0);
+  if (!items.length) return 0;
+  const sides = ["paddingTop", "paddingBottom", "borderTopWidth", "borderBottomWidth"].reduce((sum, name) => sum + (parseFloat(style[name]) || 0), 0);
+  return Math.ceil(items.reduce((sum, height) => sum + height, 0) + sides);
 }
 
 // Lines a text takes in the speech frame as laid out on this screen: a hidden twin of the dialogue line set to

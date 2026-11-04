@@ -19,6 +19,10 @@ export const GUIDE_PORTRAIT_SCALE = 1.6;
 // A page too long for the frame grows it, that page only (文豪, 2026-10-28), up to this share of the screen height:
 // two thirds, so the frame stays on the screen in every band and a third of the board stays in sight.
 export const GUIDE_FRAME_MAX_RATIO = 2 / 3;
+// The text column's least width, in em of the guide's type (about 15 characters a line). A frame narrower than that
+// beside the portrait (a 4:3 or a portrait screen) runs over the portrait instead, from the group's left edge; the
+// portrait stays, the frame on it (文豪, 2026-11-04). 16:9 and wider keep the frame beside it.
+export const GUIDE_MIN_LINE_EM = 16;
 
 // A third of the screen, on a phone and on a PC alike.
 export function guideBandHeight(viewport) {
@@ -35,7 +39,9 @@ const rect = (left, top, width, height) => ({ left, top, right: left + width, bo
 // reserve: the share of the screen's width kept free at its right edge, the HUD column (TURN, the memory): the frame
 // ends an inset before it (文豪, 2026-11-04, 1b; this replaces 2026-10-27's edge to edge). fit: the frame's height cut
 // to its line (px, a step no band keeps clear of; 文豪, 2026-11-04, (i)), never taller than the band's own frame.
-export function guideLayout(band, viewport, aspect = 1, grow = 0, { reserve = 0, fit = null } = {}) {
+// minFrame: the frame's least width (px, GUIDE_MIN_LINE_EM of text and the frame's own sides); a frame narrower
+// beside the portrait starts at the group's left edge over it (over: true).
+export function guideLayout(band, viewport, aspect = 1, grow = 0, { reserve = 0, fit = null, minFrame = 0 } = {}) {
   const inset = viewport.height * GUIDE_INSET_RATIO;
   const baseHeight = guideBandHeight(viewport) - 2 * inset;
   const fullHeight = Math.min(baseHeight + Math.max(0, grow), viewport.height * GUIDE_FRAME_MAX_RATIO);
@@ -45,11 +51,12 @@ export function guideLayout(band, viewport, aspect = 1, grow = 0, { reserve = 0,
   const portraitWidth = portraitHeight * aspect, groupHeight = Math.max(portraitHeight, frameHeight);
   const groupTop = { top: inset, middle: (viewport.height - groupHeight) / 2, bottom: viewport.height - inset - groupHeight }[band] ?? inset;
   const groupBottom = groupTop + groupHeight;
+  const over = right - inset - portraitWidth < minFrame, frameLeft = over ? inset : inset + portraitWidth;
   return {
-    band, inset,
+    band, inset, over,
     group: rect(inset, groupTop, right - inset, groupHeight),
     portrait: rect(inset, groupBottom - portraitHeight, portraitWidth, portraitHeight),
-    frame: rect(inset + portraitWidth, groupBottom - frameHeight, Math.max(0, right - inset - portraitWidth), frameHeight),
+    frame: rect(frameLeft, groupBottom - frameHeight, Math.max(0, right - frameLeft), frameHeight),
     // The guide box: the frame's band from the left inset to the HUD column (the portrait column on its left).
     box: rect(inset, groupBottom - frameHeight, right - inset, frameHeight)
   };
@@ -64,17 +71,17 @@ const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.le
 // opponent's board, TURN, the memory): between bands that cover the targets alike, the one covering least of it
 // wins (ties keep the order).
 // grow: the frame as its tallest page in the step needs it (the band is kept while the pages turn). portrait: false
-// while the portrait is hidden (an open panel lies under it): then the frame alone covers. reserve: as guideLayout.
+// while the portrait is hidden (an open panel lies under it): then the frame alone covers. reserve, minFrame: as guideLayout.
 // fit: the height the step's tallest line needs (px). When every band covers a target, the frame is cut to it and the
 // bands are weighed again (文豪, 2026-11-04, (i)): { band, fit } says whether it was.
-export function chooseGuidePlacement(viewport, targets = [], preferred = null, { aspect = 1, grow = 0, keep = [], portrait: drawn = true, reserve = 0, fit = null } = {}) {
+export function chooseGuidePlacement(viewport, targets = [], preferred = null, { aspect = 1, grow = 0, keep = [], portrait: drawn = true, reserve = 0, fit = null, minFrame = 0 } = {}) {
   if (GUIDE_BAND_ORDER.includes(preferred)) return { band: preferred, fit: false };
   const visible = rects => rects.filter(t => t && t.right > t.left && t.bottom > t.top);
   const shown = visible(targets), kept = visible(keep);
   const weigh = cut => {
     let best = null;
     for (const band of GUIDE_BAND_ORDER) {
-      const { portrait, frame } = guideLayout(band, viewport, aspect, grow, { reserve, fit: cut });
+      const { portrait, frame } = guideLayout(band, viewport, aspect, grow, { reserve, fit: cut, minFrame });
       const area = rects => rects.reduce((sum, target) => sum + (drawn ? overlap(portrait, target) : 0) + overlap(frame, target), 0);
       const covered = area(shown), hidden = area(kept);
       // Less than a square pixel apart is a tie (the bands' sums differ only by rounding).
