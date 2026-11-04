@@ -15,6 +15,8 @@ import { cardCurrentStr, continuousEffectConditionMatches } from "./stats.js";
 import { drainTriggerQueue, emitGameEvent, resumeStalledTriggerThread, traceTriggerBodyAnswered } from "./triggers.js";
 import { CUSTOM_DRAIN_INDEPENDENT_EFFECTS, CUSTOM_RESOLVE_DECLARED_SCRIPT } from "../effects/custom/index.js";
 import { executeRuntimeActions } from "../effects/generic/actions.js";
+import { settleUnplaceableChoice } from "../effects/generic/access-drag.js";
+import { effectPlacementRoom } from "../effects/generic/placement.js";
 import { destroyCard } from "../effects/generic/destroy.js";
 import { moveCardToTrash } from "../effects/generic/trash.js";
 import { executeTriggerAction } from "../effects/generic/trigger-actions.js";
@@ -39,6 +41,7 @@ export function resolveEffect(state, resolver) {
     if (outermost) {
       // Still inside the effect (effectDepth has not dropped, so triggers raised here only queue): its source cleanup, the
       // rule-based state check (5.1: always on) and its judgement come before any waiting trigger starts (4.7.1, 1.2.1).
+      settleUnplaceableChoice(state);
       continueDeferredSpellCleanup(state);
       resolveMandatoryStateChecks(state);
       if (TRACE && tracing()) traceChoiceDiff(state, pendingBefore, promptBefore);
@@ -249,7 +252,7 @@ function finishDeclaredScriptCleanup(state) {
     declaredEffectId: declared.id
   });
   player.scriptActivatedTurn = state.turnNumber;
-  for (const candidate of player.hand.filter((card) => card.id === "STD-179")) {
+  for (const candidate of player.hand.filter((card) => card.id === "STD-179" && effectPlacementRoom(state, declared.playerId))) {
     const request = createSelectionRequest({ mode: "scope", scopeField: "place", scopeOptions: ["ドラッグしない", "スリープしてドラッグする"],
       label: `${candidate.name}: 手札からスリープしてドラッグ`, message: candidate.text,
       continuation: { type: "std179-place", playerId: declared.playerId, sourceUid: candidate.uid, sourceName: candidate.name } });

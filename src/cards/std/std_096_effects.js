@@ -4,6 +4,7 @@ import { flattenedLayerCount, normalizeMountedStack } from "../../game/layered-s
 import { createSelectionRequest, isSelectionRequestFeasible } from "../../game/selection-model.js";
 import { continueAttackAfterCost } from "../../game/core/battle.js";
 import { PASS } from "../../game/effects/custom/index.js";
+import { effectPlacementRoom } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_096.js)
 export function std096AttackCore({ attacker, player, playerId, target, state }) {
@@ -18,7 +19,8 @@ export function std096AttackCore({ attacker, player, playerId, target, state }) 
           exactBudget: 2, candidateValues: Object.fromEntries(candidates.map((card) => [card.uid, Number(card.cost ?? 0)])) });
         return isSelectionRequestFeasible(feasibility);
       });
-      if (!hasFeasibleLayer) attacker.skipQ3LayerAttackChoice = true;
+      // The effect is optional: with no empty slot to place into, or nothing to total 2, it is not offered.
+      if (!hasFeasibleLayer || !effectPlacementRoom(state, playerId)) attacker.skipQ3LayerAttackChoice = true;
     }
     if (!attacker.skipQ3LayerAttackChoice) {
       const layerCost = attacker.id === "STD-238" ? 2 : 1;
