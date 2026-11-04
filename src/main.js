@@ -336,7 +336,9 @@ root.addEventListener('change',async event => {
   else if (target.hasAttribute('data-sandbox-actor')) return switchManualViewer(target.value);
   else if (target.hasAttribute('data-sandbox-active')) {if (host.busy) return renderShell();admin({type:'sandboxSelectActiveSeat',targetSeat:target.value});}
   else if (target.hasAttribute('data-opponent-control')) {host.opponentControl = target.value;return prepared(() => startMatch('sandbox'));}
-  else if (target.hasAttribute('data-tutorial-select')) return prepared(() => startMatch('tutorial',target.value));
+  // The tutorial picked is read now: prepared() redraws the options before it starts, and that sets the select back
+  // to the tutorial still running.
+  else if (target.hasAttribute('data-tutorial-select')) {const tutorialId = target.value;return prepared(() => startMatch('tutorial',tutorialId));}
   else {for (const id of ['player','ai']) for (const field of ['deck','user']) if (target.hasAttribute(`data-${id}-${field}`)) {
     host[`${id}${field === 'deck' ? 'DeckId' : 'UserId'}`] = target.value;
     if (field === 'deck') {const saved = host.savedDecks.find(item => `custom:${item.id}` === target.value);if (saved) host[`${id}UserId`] = saved.userId;}
