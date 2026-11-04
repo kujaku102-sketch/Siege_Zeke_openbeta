@@ -312,15 +312,15 @@ test('guide band: the guide fills one of three bands, chosen once a step against
   assert.ok(layout.includes("const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}|${portrait}|${reserve}|${Math.round(grow.fit ?? 0)}`;"), 'kept while the pages turn');
   const guide = await readSource('../src/ui-refresh/guide.js');
   assert.ok(guide.includes('view.dataset.guideBand = band;'));
-  assert.ok(guide.includes('const { frame, portrait, box } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT, grow, options);'), 'placed as the group: frame and portrait together');
+  assert.ok(guide.includes('const { frame, portrait, box, over } = guideLayout(band, viewport, GUIDE_PORTRAIT_ASPECT, grow, options);'), 'placed as the group: frame and portrait together');
   const css = await readSource('../src/ui-refresh/live.css');
   assert.ok(!css.includes('[data-guide-band="top"] .r2-guide.live-guide .live-guide-cast'), 'the portrait stands on the frame in every band');
   assert.ok(css.includes('.live-guide[data-paging="pending"] .live-guide-text { overflow:hidden; }') && !/data-paging="pending"\][^{]*\{[^}]*visibility:hidden/.test(css), 'the line shows while the pages are cut');
   assert.ok(guide.includes('frameHeight(value) { return Math.ceil(chrome + (count(value) + 1) * lineHeight); },'), "one line kept for a refused move's reason");
   // PC (文豪, 2026-10-28): the buttons in one row on the speaker-name line, the text across the frame; phones keep the column.
-  assert.ok(css.includes('body[data-view="pc"] .r2-content .r2-guide.live-guide .live-guide-speech { grid-template-columns:minmax(0,1fr); }'));
-  assert.ok(css.includes('body[data-view="pc"] .r2-content .r2-guide.live-guide nav { position:absolute; top:.3em; right:.45em; grid-column:1;'), 'on the name line, top right: no line of the frame for them; placed in the frame\'s one column, not a zero-width second');
-  assert.ok(css.includes('grid-template-areas:"page skip turn"; gap:0 .6em; margin:0; }'), 'one row');
+  assert.ok(css.includes('body[data-view="pc"] .r2-content .r2-guide.live-guide .live-guide-speech { grid-template-columns:minmax(0,1fr); grid-template-areas:"head" "text"; }'));
+  assert.ok(css.includes('body[data-view="pc"] .r2-content .r2-guide.live-guide .live-guide-head { grid-area:head; display:flex; flex-wrap:wrap;'), 'the name and the buttons share one row, wrapping where it is too short');
+  assert.ok(css.includes('body[data-view="pc"] .r2-content .r2-guide.live-guide nav { display:flex; flex-wrap:wrap; justify-content:flex-end;'), 'the buttons at the right');
   assert.ok(!/body\[data-view="pc"\][^{]*\{[^}]*\d+px/.test(css), 'sized as ratios, no px');
   const surface = await readSource('../src/ui-refresh/runtime-match-surface.js');
   assert.ok(surface.includes("root.querySelector('.r2-runtime-view')?.classList.toggle('live-low-gpu', lowGpu);"));

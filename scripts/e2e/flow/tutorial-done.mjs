@@ -56,7 +56,10 @@ try {
     await attempt("skip", id, async (page, ui) => {
       await startFresh(page, id);
       const before = await scope(page);
-      await ui.click("[data-runtime-tutorial-skip]");
+      if (await page.locator(".live-guide [data-runtime-tutorial-skip]").count()) throw new Error("the guide still carries a skip");
+      await openMenu(ui);
+      page.once("dialog", (dialog) => dialog.accept());
+      await ui.click(".runtime-host-options [data-runtime-tutorial-skip]");
       await page.waitForFunction((matchId) => { const now = window.__SIMPLE_ZEKE_E2E__.scope(); return now && now.matchId !== matchId; }, before.matchId, { timeout: 10000 }).catch(() => { throw new Error("skip did not start the win board as a new match"); });
       const won = (await scope(page)).matchId;
       await page.waitForFunction(() => window.__SIMPLE_ZEKE_E2E__.tutorial().value?.flow.complete, null, { timeout: 10000 });

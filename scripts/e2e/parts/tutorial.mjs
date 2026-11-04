@@ -101,7 +101,7 @@ async function pressAsked(ui, state, onPopup = null) {
 export async function playTutorial(page, id, { keyboard = false, stopAfterMoves = Infinity, stopWhen = null, onStep = null, onPopup = null, pace = 0, ui = makeUi(page, { keyboard }) } = {}) {
   let moves = 0, steps = 0, stuck = 0, last = "";
   for (let turn = 0; turn < 600; turn += 1) {
-    await page.waitForFunction(() => { const t = window.__SIMPLE_ZEKE_E2E__.tutorial()?.value; return t && (t.flow.complete || ((document.querySelector(".live-guide[data-tutorial-step]") || t.presentation?.hintOnly && document.querySelector(".live-guide-away")) && t.opponentScript === null)); }, null, { timeout: 20000 })
+    await page.waitForFunction(() => { const t = window.__SIMPLE_ZEKE_E2E__.tutorial()?.value; return t && (t.flow.complete || ((document.querySelector(".live-guide[data-tutorial-step]") || t.presentation?.hintOnly && !document.querySelector(".live-guide")) && t.opponentScript === null)); }, null, { timeout: 20000 })
       .catch(() => { throw new Error(`${id}: the guide never came back (after ${steps} steps)`); });
     const state = await tutorialState(page);
     if (state.flow.complete) return { steps, moves, complete: true };
