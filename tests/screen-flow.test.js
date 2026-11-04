@@ -14,8 +14,10 @@ const readSource = async path => (await readFile(new URL(path, import.meta.url),
 const entryHost = (extra = {}) => ({ screen: 'entry', mode: 'sandbox', tutorialId: 'basics', view: 'pc', savedDecks: [], deckBuilder: { open: false },
   catalog: {}, opponentControl: 'manual', playerDeckId: 'start-red', aiDeckId: 'start-yellow', playerUserId: 'doors_zx', aiUserId: 'doors_zx', ...extra });
 
-test('external links: the addresses are not set yet, and only https counts as set', () => {
-  assert.deepEqual({ ...EXTERNAL_LINKS }, { download: '', discord: '' }, 'no placeholder address is shipped');
+test('external links: the download address is not set yet, and only https counts as set', () => {
+  assert.equal(EXTERNAL_LINKS.download, '', 'no placeholder address is shipped');
+  assert.ok(externalHref(EXTERNAL_LINKS.discord)?.startsWith('https://'), 'the Discord address is a set https address');
+  assert.deepEqual(Object.keys(EXTERNAL_LINKS), ['download', 'discord']);
   assert.ok(Object.isFrozen(EXTERNAL_LINKS));
   assert.equal(externalHref('https://example.test/client'), 'https://example.test/client');
   assert.equal(externalHref('  https://example.test/x  '), 'https://example.test/x');
@@ -25,12 +27,12 @@ test('external links: the addresses are not set yet, and only https counts as se
 
 test('external links: one place says where the page runs, and it is always the web for now', () => {
   assert.equal(runtimeTarget(), 'web');
-  assert.deepEqual(titleLinks().map(link => [link.key, link.href]), [['download', null], ['discord', null]]);
+  assert.deepEqual(titleLinks().map(link => [link.key, link.href === null]), [['download', true], ['discord', false]]);
   assert.deepEqual(titleLinks({ download: 'https://a.test/', discord: 'https://b.test/' }, 'desktop').map(link => link.key), ['discord'], 'the desktop client hides the download link');
 });
 
 test('external links: a link without an address is 準備中 and cannot be followed; a set one opens a new tab', () => {
-  const pending = titleLinksHtml();
+  const pending = titleLinksHtml(titleLinks({ download: '', discord: '' }));
   assert.equal((pending.match(/準備中/g) ?? []).length, 2);
   assert.ok(!pending.includes('href='), 'no href while not set');
   assert.equal((pending.match(/aria-disabled="true"/g) ?? []).length, 2);
