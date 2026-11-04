@@ -1,6 +1,5 @@
 import { cardHasKeyword } from '../../engine.js';
-import { isObCard } from '../../card-types.js';
-import { vacantBoardSlots } from '../../board-slots.js';
+import { PLACEMENT_CHOICE_TYPES, placementChoices } from '../../effects/generic/access-drag.js';
 import { cardOptions, cardReference, placedCardView } from './card-options.js';
 import { selectionInput } from './selection-input.js';
 import { choiceId, fixedPick, optionId, seatForPlayer } from './shared.js';
@@ -71,21 +70,11 @@ function pendingInput(engineState, referenceState, metadata, revision, pending) 
       }
     };
   }
-  if (['access-drag-place', 'decode-place', 'std048-draw-place'].includes(pending?.type)) {
+  if (PLACEMENT_CHOICE_TYPES.includes(pending?.type)) {
     const actorSeat = seatForPlayer(metadata, pending.playerId);
-    const player = engineState.players[pending.playerId];
-    const uid = pending.queue[0];
-    const placing = pending.type === 'decode-place' ? pending.cards.find(card => card.uid === uid) : player.hand.find(card => card.uid === uid);
-    // Only a Code goes under an Ob already on the board (rulebook 3.4); any other card has the empty slots only.
-    const hosts = placing?.category !== 'Code' ? [] : ['front', 'back'].flatMap(zone => player[zone]
-      .filter(card => !card.faceDown && isObCard(card))
-      .map(card => ({ zone, underUid: card.uid })));
-    // One option per empty slot, front first, lowest slot first. An area with no empty slot keeps one option with no slot:
-    // choosing it is the forced placement that fails (the card goes to the trash), as before.
-    const slots = ['front', 'back'].flatMap(zone => {
-      const empty = vacantBoardSlots(player[zone], { controllerId: pending.playerId, zoneName: zone, limit: player.user?.[`${zone}Limit`] });
-      return empty.length ? empty.map(slot => ({ zone, slot })) : [{ zone, slot: null }];
-    });
+    // One option per empty slot, front first, lowest slot first; then the Obs a Code can go under. An area with no empty slot offers nothing:
+    // a forced placement is not asked when no option is left (settleUnplaceableChoice), so the options are never empty here.
+    const { placing, slots, hosts } = placementChoices(engineState, pending);
     const destinations = [...slots, ...hosts];
     return {
       source: 'placement', playerId: pending.playerId, actorSeat,
@@ -97,7 +86,7 @@ function pendingInput(engineState, referenceState, metadata, revision, pending) 
         optional: false, minimum: 1, maximum: 1,
         options: [
           ...slots.map(({ zone, slot }, index) => ({
-            optionId: optionId(index), kind: 'destination', label: `${zone === 'front' ? 'フロント' : 'バック'}${slot ?? ''}`, zone, slot
+            optionId: optionId(index), kind: 'destination', label: `${zone === 'front' ? 'フロント' : 'バック'}${slot}`, zone, slot
           })),
           ...hosts.map((host, index) => ({
             optionId: optionId(slots.length + index), kind: 'destination', label: 'レイヤー配置',
