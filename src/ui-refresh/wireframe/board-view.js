@@ -138,6 +138,18 @@ export function syncTutorialHint(svg, text) {
   if (label.textContent !== text) label.textContent = text;
   hint.toggleAttribute('hidden', !text);
 }
+// The own Obs a card placed by an effect can be stacked under wear 「重ねる」 on their top-right corner (文豪, 2026-11-05, H2),
+// in board units so the tag follows the camera. Empty here; the surface fills it (syncPickBadges).
+export function syncPickBadges(svg, model, targets, text) {
+  const layer = svg?.querySelector('.wf-pick-badges');
+  if (!layer) return;
+  const {slots} = geometry(model);
+  const html = targets.map(target => slots.find(s => s.seatId === target.seatId && s.zone === target.zone && s.slot === target.slot)).filter(Boolean).map(slot => {
+    const at = project(slot.x + CARD.width * .3, slot.y - CARD.height * .42);
+    return `<g class="wf-pick-badge" transform="translate(${at.x} ${at.y})"><rect x="-46" y="-18" width="92" height="36" rx="18"/><text y="8" font-size="22" text-anchor="middle">${esc(text)}</text></g>`;
+  }).join('');
+  if (layer.innerHTML !== html) layer.innerHTML = html;
+}
 export function wireframeStatusHtml(seat, mine, uniqueButton = '') {
   return `<aside class="wf-status ${mine?'wf-self':'wf-enemy'}" data-user-seat="${esc(seat.seatId)}" data-fx-zone="hand" data-fx-seat="${esc(seat.seatId)}">${uniqueButton ? `<div class="r2-console wf-unique">${uniqueButton}</div>` : ''}<div class="wf-user-window"><button class="wf-user-title" data-runtime-profile="${esc(seat.seatId)}" aria-label="${esc(seat.user.name)} のユーザー詳細">${mine?'':'<b aria-hidden="true">●●●</b>'}<span>${esc(seat.user.name)}</span>${mine?'<b aria-hidden="true">×</b>':''}</button><canvas class="wf-life" data-life-seat="${esc(seat.seatId)}" aria-label="${esc(seat.user.name)} STR ${seat.fortressStr} / ${seat.user.maxFortressStr}、インシデント ${seat.user.incidents.join('・')}" data-str="${seat.fortressStr}"></canvas></div><button class="wf-avatar" data-runtime-profile="${esc(seat.seatId)}" aria-label="${mine?'自分':'相手'} ${esc(seat.user.name)} ユーザー詳細"></button></aside>`;
 }
@@ -157,7 +169,7 @@ export function wireframeBoardHtml(model, uniqueButton = '') {
         +(!card.faceDown?label(slot.x,slot.y+(face?captionY+24:12),card.definition.atk===null?card.definition.category:`${card.computed.currentAtk} / ${card.computed.currentStr}`,`card-caption${face?' on-art':''}`):''):'';
       const shield=card&&!card.faceDown?securityShield(card,slot.x,slot.y):'';
       return `<g class="board-slot wf-slot" data-wire-hit data-seat="${esc(slot.seatId)}" data-zone="${slot.zone}" data-slot="${slot.slot}" role="button" tabindex="0" aria-label="${slot.seatId===self.seatId?'自分':'相手'} ${slot.zone} ${slot.slot} ${card?esc(name(card)):'空き枠'}"${card?` data-card-ref="${esc(card.cardRef)}"${card.faceDown?'':` data-card-id="${esc(card.definition.id)}"`}`:''}>${poly(slot.x,slot.y,CARD.width,CARD.height,'class="slot"')}${art}${shield}</g>`;
-    }).join('')}
+    }).join('')}<g class="wf-pick-badges" pointer-events="none"></g>
     ${model.seats.map(seat=>{
       const mine=seat===self,x=mine?-20:1070,y=mine?700:200,side=mine?1070:-20;
       const zoneMarkup=(zone,content)=>`<g data-wire-hit data-runtime-zone="${zone}" data-seat="${esc(seat.seatId)}" role="button" tabindex="0" aria-label="${mine?'自分':'相手'}${zone==='trash'?'ゴミ箱':'レジストリ'}">${content}</g>`;
