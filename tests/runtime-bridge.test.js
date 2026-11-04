@@ -441,3 +441,16 @@ test('S02-BRIDGE-22: ordinary descriptors and dense arrays are required', () => 
   const malformedAlias = copy(state); malformedAlias.runtimeContext.uidAliases[0].extra = 1;
   rejects(malformedAlias, 'RUNTIME_ALIAS_MISMATCH');
 });
+
+test('S02-BRIDGE-23: an effect placement takes the picked empty slot and refuses a taken slot or a slot beside a host', () => {
+  const { state, first, second } = decodeFixture();
+  assert.equal(resolveAccessDragPlacement(state, 'player', 'front', null, 6), false);
+  assert.equal(resolveAccessDragPlacement(state, 'player', 'front', first.uid, 3), false);
+  assert.deepEqual(entry(state, first).location, { kind: 'inflight', storageKey: 'pending.decode-place.cards/0' });
+  assert.equal(resolveAccessDragPlacement(state, 'player', 'front', null, 3), true);
+  assert.equal(entry(state, first).location.position, 3);
+  assert.equal(resolveAccessDragPlacement(state, 'player', 'front', null, 3), false);
+  assert.equal(state.pending.type, 'decode-place');
+  assert.equal(resolveAccessDragPlacement(state, 'player', 'back', null, 2), true);
+  assert.deepEqual(entry(state, second).location, { kind: 'board', seatId: entry(state, second).location.seatId, zone: 'back', position: 2 });
+});

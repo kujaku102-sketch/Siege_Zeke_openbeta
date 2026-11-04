@@ -597,3 +597,62 @@ test('S05-LPORT-THREAD: simultaneous triggers reach the event feed as one ordere
   assert.ok(events.slice(resolved + 1).every(event => !event.threadItemId));
   assert.doesNotMatch(JSON.stringify(events), /"(?:uid|trigger|controllerId|playerId)"/);
 });
+
+// A placement choice (a drag, a decode, a rule draw that must be placed) is a pick of one empty slot; the placed card rides along with it.
+function placementAuthority(type, occupied) {
+  return authority(state => {
+    const player = state.players.player;
+    const placed = player.hand.shift();
+    for (const [zone, slot] of occupied) {
+      const filler = player.deck.shift();
+      assert.equal(placeCardInBoardSlot(player[zone], filler, { controllerId: 'player', zoneName: zone, limit: player.user[`${zone}Limit`], requestedSlot: slot }), true);
+    }
+    if (type === 'decode-place') state.pending = { type, playerId: 'player', sourceName: 'test', queue: [placed.uid], cards: [placed], sourceUid: placed.uid };
+    else { player.hand.unshift(placed); state.pending = { type, playerId: 'player', sourceName: 'test', queue: [placed.uid], sourceUid: placed.uid }; }
+  });
+}
+
+test('S05-LPORT-16: a placement choice lists every empty slot of both areas and names the card being placed', () => {
+  for (const type of ['access-drag-place', 'decode-place', 'std048-draw-place']) {
+    const built = placementAuthority(type, [['front', 1], ['front', 3], ['back', 5]]);
+    const input = ports(built).first.query().value.requiredInput;
+    assert.equal(input.presentationKey, type);
+    const slots = input.options.filter(option => option.zone !== undefined).map(option => [option.zone, option.slot]);
+    assert.deepEqual(slots, [['front', 2], ['front', 4], ['front', 5], ['back', 1], ['back', 2], ['back', 3], ['back', 4]]);
+    assert.ok(input.options.every(option => option.kind === 'destination'));
+    const pending = built.engineState.pending, placed = type === 'decode-place' ? pending.cards[0] : built.engineState.players.player.hand.find(card => card.uid === pending.queue[0]);
+    assert.equal(input.placing.preview.definitionId, placed.id);
+    assert.equal(input.placing.label, input.placing.preview.name);
+  }
+});
+
+test('S05-LPORT-17: answering a slot places the card in that slot', () => {
+  for (const type of ['access-drag-place', 'decode-place']) {
+    const { first } = ports(placementAuthority(type, [['front', 1]]));
+    const query = first.query().value;
+    const option = query.requiredInput.options.find(item => item.zone === 'front' && item.slot === 4);
+    const submitted = first.submit({ commandId: 'pick-slot', expectedRevision: query.status.revision,
+      action: { type: 'answerChoice', choiceId: query.requiredInput.choiceId, optionIds: [option.optionId], allocation: [] } });
+    assert.equal(submitted.ok, true, JSON.stringify(submitted));
+    assert.equal(submitted.value.kind, 'accepted');
+    const after = first.query().value;
+    assert.equal(after.requiredInput, null);
+    assert.deepEqual(after.observation.seats[0].front.cards.map(card => card.location.position).sort(), [1, 4]);
+  }
+});
+
+test('S05-LPORT-18: an area with no empty slot keeps one option without a slot, and choosing it is the failed forced placement', () => {
+  const full = [1, 2, 3, 4, 5].map(slot => ['front', slot]);
+  const { first } = ports(placementAuthority('access-drag-place', full));
+  const query = first.query().value;
+  const front = query.requiredInput.options.filter(option => option.zone === 'front');
+  assert.deepEqual(front.map(option => option.slot), [null]);
+  assert.equal(query.requiredInput.options.filter(option => option.zone === 'back').length, 5);
+  const submitted = first.submit({ commandId: 'pick-full', expectedRevision: query.status.revision,
+    action: { type: 'answerChoice', choiceId: query.requiredInput.choiceId, optionIds: [front[0].optionId], allocation: [] } });
+  assert.equal(submitted.ok, true, JSON.stringify(submitted));
+  const after = first.query().value;
+  assert.equal(after.requiredInput, null);
+  assert.equal(after.observation.seats[0].front.cards.length, 5);
+  assert.equal(after.observation.seats[0].back.cards.length, 0);
+});
