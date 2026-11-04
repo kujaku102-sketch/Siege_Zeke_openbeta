@@ -335,7 +335,7 @@ test('choice cards show art and name; the rules text only rides in the hidden pe
   assert.match(selectionCardHtml({ faceDown:true }), /裏向きカード/);
 });
 
-import { isSinglePick, requestTitle } from '../src/ui-refresh/choice-read-view.js';
+import { isBoardPick, isSinglePick, requestTitle } from '../src/ui-refresh/choice-read-view.js';
 test('an optional single pick decides on the pick and shows the effect prompt as its title', () => {
   const pick = (minimum, maximum) => ({ requestId:'r', presentationKey:'card', options:[], constraints:{ kind:'pick', minimum, maximum } });
   assert.equal(isSinglePick(pick(0, 1)), true);
@@ -347,7 +347,8 @@ test('an optional single pick decides on the pick and shows the effect prompt as
 });
 
 import { effectClauses, effectFocus, effectTextHtml, placeFlow } from '../src/ui-refresh/effect-flow.js';
-import { selectionStage, stageGroupIds, stagedInteraction } from '../src/adapters/selection-stage.js';
+import { modeInteraction, placementModes, selectionStage, stageGroupIds, stagedInteraction } from '../src/adapters/selection-stage.js';
+import { buildInteractionRequest, resolveInteractionTarget } from '../src/adapters/interaction-targets.js';
 import { createMatchLifecycleController } from '../src/adapters/match-lifecycle-controller.js';
 
 test('effect flow lights the clause each pick of a multi-step card resolves', () => {
@@ -482,4 +483,80 @@ test('opening protocol v2.4: the HUD shows keep and redraw (an intent has no emb
   const waiting = createMatchUiController({ session: created.value, viewerSeat: 'ai' }).value.read().value;
   assert.deepEqual(waiting.model.legalActions, []);
   assert.notEqual(waiting.model.match.activeSeat, 'ai');
+});
+
+// The placement of a card that can also be set as a Script, in the runtime's own shape (execution-planning.js
+// executionPlacements): slots as the card itself, a host to stack on, and back slots "as a Script" (slot, no zone).
+const HOST = `r:${'a'.repeat(32)}`;
+const twoWays = { requestId: 'r', presentationKey: 'execution-placement', constraints: { kind: 'pick', minimum: 1, maximum: 1, aggregate: null, groups: [] },
+  options: [{ optionId: 'f1', kind: 'slot', zone: 'front', slot: 1 }, { optionId: 'b1', kind: 'slot', zone: 'back', slot: 1 },
+    { optionId: 'h', kind: 'aboveCode', hostRef: HOST }, { optionId: 's1', kind: 'asScript', slot: 1 }, { optionId: 's2', kind: 'asScript', slot: 2 }] };
+const twoWaysModel = { match: { viewerSeat: 'seat-a' }, seats: [{ seatId: 'seat-a', user: { frontLimit: 3, backLimit: 3 },
+  front: { cards: [{ cardRef: HOST, location: { kind: 'board', seatId: 'seat-a', zone: 'front', position: 2 } }] }, back: { cards: [] } }] };
+
+test('a placement that can also be set as a Script lights one way at a time, each on the board only', () => {
+  const all = buildInteractionRequest(twoWays, twoWaysModel);
+  // A Script goes face down into the back: the option names its slot, the target is that back slot.
+  assert.deepEqual(all.options.find(option => option.optionId === 's1').targets, [{ kind: 'slot', seatId: 'seat-a', zone: 'back', slot: 1 }]);
+  assert.deepEqual(placementModes(twoWays), ['card', 'script']);
+  // Both ways at once: the same back slot means two things.
+  assert.deepEqual(resolveInteractionTarget(all, { kind: 'slot', seatId: 'seat-a', zone: 'back', slot: 1 }), { kind: 'ambiguous', optionIds: ['b1', 's1'] });
+  const card = modeInteraction(all, twoWays, 'card'), script = modeInteraction(all, twoWays, 'script');
+  assert.deepEqual(card.options.map(option => option.optionId), ['f1', 'b1', 'h']);
+  assert.deepEqual(script.options.map(option => option.optionId), ['s1', 's2']);
+  assert.deepEqual(resolveInteractionTarget(card, { kind: 'slot', seatId: 'seat-a', zone: 'back', slot: 1 }), { kind: 'one', optionId: 'b1' });
+  assert.deepEqual(resolveInteractionTarget(script, { kind: 'slot', seatId: 'seat-a', zone: 'back', slot: 1 }), { kind: 'one', optionId: 's1' });
+  assert.deepEqual(resolveInteractionTarget(script, { kind: 'slot', seatId: 'seat-a', zone: 'front', slot: 1 }), { kind: 'none' });
+  assert.equal(isBoardPick(twoWays, all), true);
+  assert.equal(isBoardPick(twoWays, card), true);
+  assert.equal(isBoardPick(twoWays, script), true);
+  // One way only (no "as a Script", or nothing but it): no toggle, the interaction stays whole.
+  const oneWay = { ...twoWays, options: twoWays.options.filter(option => option.kind !== 'asScript') };
+  const scriptOnly = { ...twoWays, options: twoWays.options.filter(option => option.kind === 'asScript') };
+  assert.equal(placementModes(oneWay), null);
+  assert.equal(placementModes(scriptOnly), null);
+  const whole = buildInteractionRequest(scriptOnly, twoWaysModel);
+  assert.equal(modeInteraction(whole, scriptOnly, 'card'), whole);
+});
+
+test('the bar toggles the way: no popup, the pressed way named, a pick of the other way let go', () => {
+  const current = session();
+  // No host here: this match's board has none to stack on.
+  const noHost = { ...twoWays, options: twoWays.options.filter(option => option.kind !== 'aboveCode') };
+  // The runtime's own plan for a hand card, with its first request replaced by the two-way placement above.
+  const wrapped = { ...current, port: seat => {
+    const bound = current.port(seat);
+    if (!bound.ok) return bound;
+    return { ok: true, value: { ...bound.value, queryAction: input => {
+      const planned = bound.value.queryAction(input);
+      if (!planned.ok) return planned;
+      const request = { ...noHost, requestId: planned.value.selectionRequests[0]?.requestId ?? 'r' };
+      return { ok: true, value: { ...planned.value, selectionRequests: input.selections.length ? [] : [request], completion: null } };
+    } } };
+  } };
+  const ui = createMatchUiController({ session: wrapped, viewerSeat: 'seat-a' }).value;
+  const action = ui.read().value.model.legalActions.find(item => item.actionType === 'executeCard');
+  const planned = ui.chooseAction(action.actionId).value;
+  assert.equal(planned.placementMode, 'card');
+  assert.deepEqual(planned.interactionRequest.options.map(option => option.optionId), ['f1', 'b1']);
+  const regions = runtimeGameRegions(planned.model, { ...planned, boardStyle: 'wireframe' });
+  assert.match(regions.selection, /board-pick-guide/);
+  assert.match(regions.selection, /配置先を選択/);
+  assert.match(regions.selection, /<button data-runtime-place-mode="card" aria-pressed="true">Obとして配置<\/button><button data-runtime-place-mode="script" aria-pressed="false">Scriptとして設置<\/button>/);
+  assert.doesNotMatch(regions.selection, /effect-modal|data-option-id/);
+  const back1 = { kind: 'slot', seatId: 'seat-a', zone: 'back', slot: 1 };
+  assert.deepEqual(ui.hitTarget(back1).value.selection.optionIds, ['b1']);
+  const script = ui.setPlacementMode('script').value;
+  assert.equal(script.placementMode, 'script');
+  assert.deepEqual(script.selection.optionIds, []);
+  assert.deepEqual(script.interactionRequest.options.map(option => option.optionId), ['s1', 's2']);
+  assert.match(runtimeGameRegions(script.model, { ...script, boardStyle: 'wireframe' }).selection,
+    /data-runtime-place-mode="card" aria-pressed="false">Obとして配置<\/button><button data-runtime-place-mode="script" aria-pressed="true">/);
+  assert.deepEqual(ui.hitTarget(back1).value.selection.optionIds, ['s1']);
+  assert.equal(ui.hitTarget({ kind: 'slot', seatId: 'seat-a', zone: 'front', slot: 1 }).error.code, 'INTERACTION_TARGET_NOT_AVAILABLE');
+  assert.equal(ui.setPlacementMode('elsewhere').error.code, 'INVALID_SELECTION');
+  // Leaving the draft drops the toggle; a one-way placement never has it.
+  assert.equal(ui.back().value.placementMode, null);
+  assert.equal(ui.setPlacementMode('script').error.code, 'INVALID_SELECTION');
+  ui.dispose(); current.dispose();
 });
