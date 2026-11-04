@@ -1,7 +1,7 @@
-// Title links (V092-08 Q10–Q12). The addresses are not decided yet: an empty value means
-// "not set", and the title shows the link as 準備中 that cannot be followed. Put the real
-// https address here when it is decided; never a placeholder.
-export const EXTERNAL_LINKS = Object.freeze({ download: '', discord: '' });
+// Title links (V092-08 Q10–Q12). An empty value means "not set", and the title shows the link
+// as 準備中 that cannot be followed: the download address is not decided yet. Put the real
+// https address here when it is decided; never a placeholder. Discord: 文豪's invite (2026-11-04).
+export const EXTERNAL_LINKS = Object.freeze({ download: '', discord: 'https://discord.gg/BFVAaxTmpg' });
 
 // Only an absolute https address is a link; anything else reads as not set.
 export function externalHref(value) {
