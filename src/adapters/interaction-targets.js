@@ -41,9 +41,11 @@ export function buildInteractionRequest(request, model) {
     if (seat(option?.seatId) && (option.kind === 'user' || option.targetKind === 'user')) {
       add({ kind: 'user', seatId: option.seatId });
     }
-    if (['front', 'back'].includes(option?.zone) && Number.isSafeInteger(option?.slot)
+    // A card set as a Script goes face down into the back (rulebook 4.5), so that option names only its slot.
+    const zone = option?.kind === 'asScript' ? 'back' : option?.zone;
+    if (['front', 'back'].includes(zone) && Number.isSafeInteger(option?.slot)
       && option.slot > 0 && seat(option?.seatId ?? viewerSeat)) {
-      add({ kind: 'slot', seatId: option.seatId ?? viewerSeat, zone: option.zone, slot: option.slot });
+      add({ kind: 'slot', seatId: option.seatId ?? viewerSeat, zone, slot: option.slot });
     }
     return { optionId: option?.optionId, targets };
   });

@@ -42,7 +42,7 @@ export const localRegionKeys = (value, tutorial) => {
     ['art', json([revision,value.artRef])],
     ['guide', json([value.sync?.modeEpoch ?? 0,tutorial])],
     ['popup', json([revision,value.model.ui.selectedCardRef,Boolean(value.plan || value.request)])],
-    ['selection', json([revision,value.request,value.selection,value.collapsed,value.plan?.completion])],
+    ['selection', json([revision,value.request,value.selection,value.collapsed,value.plan?.completion,value.placementMode])],
     ['menu', String(value.model.ui.menuOpen)],
     // Seen from the other seat (a manual sandbox), the same end reads the other way.
     ['result', json([revision,value.model.match.viewerSeat,tutorial?.ended ?? false])]

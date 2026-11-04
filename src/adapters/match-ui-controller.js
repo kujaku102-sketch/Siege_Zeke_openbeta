@@ -1,7 +1,7 @@
 import { createHtmlReadModelProjection } from './html-read-model.js';
 import { requiredSelectionRequest, validSelectionAnswer } from '../game/runtime/selection-contract.js';
 import { buildInteractionRequest, resolveInteractionTarget } from './interaction-targets.js';
-import { selectionStage, stageGroupIds, stagedInteraction } from './selection-stage.js';
+import { modeInteraction, modeOptionIds, PLACEMENT_MODES, placementModes, selectionStage, stageGroupIds, stagedInteraction } from './selection-stage.js';
 
 const failure = code => ({ ok: false, error: { code } });
 const copy = value => structuredClone(value);
@@ -24,6 +24,8 @@ export function createMatchUiController({ session, viewerSeat }) {
   let draft = null;
   let collapsed = false;
   let zoneView = null;
+  // The way chosen on the bar for a placement that has two (selection-stage.js); a new request starts as the card itself.
+  let placement = { requestId: null, mode: PLACEMENT_MODES[0] };
   let inspection = null, uniqueSeat = null, profileSeat = null, artRef = null, resultDismissed = false;
   const logs = new Map();
   const pendingEvents = new Map();
@@ -71,15 +73,21 @@ export function createMatchUiController({ session, viewerSeat }) {
     const log = ui.logOpen ? logs.get(viewerSeat) ?? [] : [];
     const request = currentRequest();
     const stage = selectionStage(request, draft?.answer);
+    const placementMode = placementModes(request) ? placementModeFor(request) : null;
     return { ok: true, value: {
       model: model.value, plan: copy(draft?.plan ?? null), request: copy(request), sync: copy(syncKey), stage: copy(stage),
-      interactionRequest: copy(stagedInteraction(buildInteractionRequest(request, model.value), stage)),
+      interactionRequest: copy(stagedInteraction(modeInteraction(buildInteractionRequest(request, model.value), request, placementMode), stage)),
+      placementMode,
       selection: copy(draft?.answer ?? null), preview: copy(buildPreview(request, model.value)),
       collapsed, events: copy([...pendingEvents.values()]), log: copy(log), zoneView: copy(zoneView),
       inspection: copy(inspection), uniqueSeat, profileSeat, artRef, resultDismissed, eventReadError
     } };
   };
   const refresh = () => synchronize();
+  const placementModeFor = request => {
+    if (placement.requestId !== request.requestId) placement = { requestId: request.requestId, mode: PLACEMENT_MODES[0] };
+    return placement.mode;
+  };
   const currentRequest = () => draft?.kind === 'action' ? draft.plan.selectionRequests[0] ?? null
     : query?.requiredInput?.canAnswer ? requiredSelectionRequest(query.requiredInput) : null;
   const selectedOptions = request => request?.options?.filter(option => draft?.answer?.optionIds.includes(option.optionId)) ?? [];
@@ -233,6 +241,19 @@ export function createMatchUiController({ session, viewerSeat }) {
         const group = stageGroupIds(request, optionId);
         if (group) answer.optionIds = answer.optionIds.filter(id => !group.includes(id));
         answer.optionIds.push(optionId);
+      }
+      return refresh();
+    },
+    // The bar's toggle for a placement with two ways: a pick of the other way is let go.
+    setPlacementMode(mode) {
+      const read = refresh();
+      if (!read.ok) return read;
+      const request = currentRequest();
+      if (!request || !placementModes(request) || !PLACEMENT_MODES.includes(mode)) return failure('INVALID_SELECTION');
+      placement = { requestId: request.requestId, mode };
+      if (draft?.answer?.requestId === request.requestId) {
+        const kept = modeOptionIds(request, mode);
+        draft.answer.optionIds = draft.answer.optionIds.filter(id => kept.has(id));
       }
       return refresh();
     },
