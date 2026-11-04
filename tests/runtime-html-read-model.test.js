@@ -335,7 +335,7 @@ test('choice cards show art and name; the rules text only rides in the hidden pe
   assert.match(selectionCardHtml({ faceDown:true }), /裏向きカード/);
 });
 
-import { isBarOption, isBoardPick, isSinglePick, requestTitle, stackTargets } from '../src/ui-refresh/choice-read-view.js';
+import { isBoardPick, isSinglePick, requestTitle, stackTargets } from '../src/ui-refresh/choice-read-view.js';
 test('an optional single pick decides on the pick and shows the effect prompt as its title', () => {
   const pick = (minimum, maximum) => ({ requestId:'r', presentationKey:'card', options:[], constraints:{ kind:'pick', minimum, maximum } });
   assert.equal(isSinglePick(pick(0, 1)), true);
@@ -565,25 +565,22 @@ test('the bar toggles the way: no popup, the pressed way named, a pick of the ot
 // empty slot as one option without a slot, and an own Ob to stack under (a destination naming a card).
 const OB = `r:${'b'.repeat(32)}`;
 const placement = { requestId: 'choice:7:placement', presentationKey: 'access-drag-place', constraints: { kind: 'pick', minimum: 1, maximum: 1, aggregate: null, groups: [] },
-  options: [{ optionId: 'f', kind: 'destination', label: 'フロント', zone: 'front', slot: null },
-    { optionId: 'b2', kind: 'destination', label: 'バック2', zone: 'back', slot: 2 }, { optionId: 'b3', kind: 'destination', label: 'バック3', zone: 'back', slot: 3 },
+  options: [{ optionId: 'b2', kind: 'destination', label: 'バック2', zone: 'back', slot: 2 }, { optionId: 'b3', kind: 'destination', label: 'バック3', zone: 'back', slot: 3 },
     { optionId: 'ob', kind: 'destination', label: 'レイヤー配置', cardRef: OB }] };
 const placementModel = { match: { viewerSeat: 'seat-a' }, seats: [{ seatId: 'seat-a', user: { frontLimit: 3, backLimit: 3 },
   front: { cards: [{ cardRef: OB, location: { kind: 'board', seatId: 'seat-a', zone: 'front', position: 1 } }] }, back: { cards: [] } }] };
 
-test('a card placed by an effect is picked on the board: each empty slot, the Obs to stack under, a full area on the bar', () => {
+test('a card placed by an effect is picked on the board: each empty slot, the Obs to stack under', () => {
   const interaction = buildInteractionRequest(placement, placementModel);
   assert.deepEqual(interaction.options.find(option => option.optionId === 'b2').targets, [{ kind: 'slot', seatId: 'seat-a', zone: 'back', slot: 2 }]);
-  assert.deepEqual(interaction.options.find(option => option.optionId === 'f').targets, []);
-  assert.deepEqual(placement.options.map(isBarOption), [true, false, false, false]);
   assert.equal(isBoardPick(placement, interaction), true);
   assert.deepEqual(stackTargets(placement, interaction), [{ kind: 'slot', seatId: 'seat-a', zone: 'front', slot: 1 }]);
-  // An option that neither hits the board nor is a full area still needs the list.
+  // An option that does not hit the board still needs the list.
   const odd = { ...placement, options: [...placement.options, { optionId: 'x', kind: 'value', label: '?' }] };
   assert.equal(isBoardPick(odd, buildInteractionRequest(odd, placementModel)), false);
 });
 
-test('the bar is one line, the title and the card being placed, and offers a full area as a button', () => {
+test('the bar is one line, the title and the card being placed, and has no button for a full area', () => {
   const current = session();
   const ui = createMatchUiController({ session: current, viewerSeat: 'seat-a' }).value;
   const read = ui.read().value;
@@ -593,14 +590,14 @@ test('the bar is one line, the title and the card being placed, and offers a ful
   const presentation = { ...read, model, plan: null, request, stage: null, interactionRequest: buildInteractionRequest(request, model), boardStyle: 'wireframe' };
   const selection = runtimeGameRegions(model, presentation).selection;
   assert.match(selection, /board-pick-guide/);
-  assert.match(selection, /<strong>配置先を選択：<b>変形合体レッパオー・G<\/b><\/strong><span class="board-pick-options"/);
+  assert.match(selection, /<strong>配置先を選択：<b>変形合体レッパオー・G<\/b><\/strong><\/aside>/);
   // One line only: no instruction under the title (文豪, 2026-11-05).
   assert.doesNotMatch(selection, /明るいマス|選択<\/span>/);
-  assert.match(selection, /<button data-option-id="f">フロント（空きなし→ゴミ箱）<\/button>/);
+  assert.doesNotMatch(selection, /data-option-id|空きなし|board-pick-options/);
   assert.doesNotMatch(selection, /effect-modal|data-runtime-back/);
   // With an Ob to mount under, still the one line.
   const withHost = { ...presentation, request: placement, interactionRequest: { ...buildInteractionRequest(placement, model),
     options: buildInteractionRequest(placement, placementModel).options } };
-  assert.match(runtimeGameRegions(model, withHost).selection, /<strong>配置先を選択：<b>変形合体レッパオー・G<\/b><\/strong><span class="board-pick-options"/);
+  assert.match(runtimeGameRegions(model, withHost).selection, /<strong>配置先を選択：<b>変形合体レッパオー・G<\/b><\/strong><\/aside>/);
   ui.dispose(); current.dispose();
 });
