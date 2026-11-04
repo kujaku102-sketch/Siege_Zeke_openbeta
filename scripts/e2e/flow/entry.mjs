@@ -1,5 +1,5 @@
 // Flow check: the title's own operations, on the public build with no test hook (real clicks and keys).
-// The title links read 準備中 (outside the stage, covering no title control); the tutorial list and the battle setup open and come back by [戻る] and Escape
+// The title links (the one with no address reads 準備中, the one with an address is a link; outside the stage, covering no title control); the tutorial list and the battle setup open and come back by [戻る] and Escape
 // (also right after the options window or the deck builder closes); the tutorial list is the one in the data, all unfinished in a cleared browser; the battle
 // setup offers deck and user for both sides; the online button is marked unavailable and does nothing.
 import { TUTORIAL_ITEMS } from "../../../src/ui-refresh/tutorial-items.js";
@@ -16,7 +16,8 @@ async function checkEntryFlow(page) {
   });
   const meets = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
   if (title.battle !== "対戦") throw new Error(`title battle button is not 対戦: ${title.battle}`);
-  if (title.links.length !== 2 || title.links.some(link => link.href !== null || !link.text.includes("準備中"))) throw new Error(`title links are not 準備中: ${JSON.stringify(title.links)}`);
+  const unset = title.links.filter(link => link.href === null), set = title.links.filter(link => link.href !== null);
+  if (title.links.length !== 2 || unset.length !== 1 || !unset[0].text.includes("準備中") || set.length !== 1 || !set[0].href.startsWith("https://") || set[0].text.includes("準備中")) throw new Error(`title links: one is 準備中 with no address, one has an https address: ${JSON.stringify(title.links)}`);
   if (title.links.some(({ box }) => title.controls.some(control => meets(box, control)) || box.left < 0 || box.top < 0 || box.right > title.width || box.bottom > title.height)) throw new Error(`title links cover a title control or leave the screen: ${JSON.stringify(title)}`);
   await page.locator('[data-mode="tutorial"]').click();
   await page.locator('[data-flow-screen="tutorial-select"]').waitFor({ state: "visible" });
