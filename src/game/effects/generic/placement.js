@@ -175,7 +175,7 @@ export function emitRegistryInstalled(state, playerId, card, source = "インス
   return event;
 }
 
-export function placeCardByEffect(state, { sourceOwnerId, controllerId, cardUid, sourceZone, targetZone, sourceName = "効果配置", placementMode = "forced-effect", placementCause = "effect", underUid = null, onPlaced = null } = {}) {
+export function placeCardByEffect(state, { sourceOwnerId, controllerId, cardUid, sourceZone, targetZone, sourceName = "効果配置", placementMode = "forced-effect", placementCause = "effect", underUid = null, onPlaced = null, requestedSlot = null } = {}) {
   const sourcePlayer = state.players[sourceOwnerId];
   const controller = state.players[controllerId];
   const sourceCards = sourcePlayer?.[sourceZone];
@@ -196,7 +196,7 @@ export function placeCardByEffect(state, { sourceOwnerId, controllerId, cardUid,
     emitEffectPlacement(state, controllerId, card, targetZone, sourceName);
     return { status: "placed", card, zoneName: targetZone };
   }
-  const placement = placeByMode(state, controllerId, card, { zone: targetZone, from: sourceZone, source: sourceName, mode: placementMode });
+  const placement = placeByMode(state, controllerId, card, { zone: targetZone, from: sourceZone, source: sourceName, mode: placementMode, requestedSlot });
   if (placement !== "placed") {
     if (placement === "normal-rejected") sourceCards.splice(sourceIndex, 0, removed);
     return { status: placement === "normal-rejected" ? "rejected" : "failed-placement", card };

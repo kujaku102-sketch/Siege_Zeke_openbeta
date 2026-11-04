@@ -46,7 +46,7 @@ export function applyRequiredInputAction(engineState, metadata, referenceState, 
   if (input.source === 'response-window') return activateResponse(engineState, input.playerId, selected);
   if (input.source === 'response-target') return activateResponse(engineState, input.playerId, engineState.pending.cardUid, selected);
   if (input.source === 'trigger-order') return resolveTriggerChoice(engineState, selected);
-  if (input.source === 'placement') return resolveAccessDragPlacement(engineState, input.playerId, selected.zone, selected.underUid ?? null);
+  if (input.source === 'placement') return resolveAccessDragPlacement(engineState, input.playerId, selected.zone, selected.underUid ?? null, selected.slot ?? null);
   if (input.source === 'security-rest') {
     if (!restSecurity(engineState, input.playerId, selected)) return false;
     // With nothing left to rest, the turn end carries on instead of asking again with no options.

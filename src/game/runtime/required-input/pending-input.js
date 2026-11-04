@@ -1,6 +1,7 @@
 import { cardHasKeyword } from '../../engine.js';
 import { isObCard } from '../../card-types.js';
-import { cardOptions, cardReference } from './card-options.js';
+import { vacantBoardSlots } from '../../board-slots.js';
+import { cardOptions, cardReference, placedCardView } from './card-options.js';
 import { selectionInput } from './selection-input.js';
 import { choiceId, fixedPick, optionId, seatForPlayer } from './shared.js';
 
@@ -72,21 +73,33 @@ function pendingInput(engineState, referenceState, metadata, revision, pending) 
   }
   if (['access-drag-place', 'decode-place', 'std048-draw-place'].includes(pending?.type)) {
     const actorSeat = seatForPlayer(metadata, pending.playerId);
-    const hosts = ['front', 'back'].flatMap(zone => engineState.players[pending.playerId][zone]
+    const player = engineState.players[pending.playerId];
+    const hosts = ['front', 'back'].flatMap(zone => player[zone]
       .filter(card => !card.faceDown && isObCard(card))
       .map(card => ({ zone, underUid: card.uid })));
-    const destinations = [{ zone: 'front' }, { zone: 'back' }, ...hosts];
+    // One option per empty slot, front first, lowest slot first. An area with no empty slot keeps one option with no slot:
+    // choosing it is the forced placement that fails (the card goes to the trash), as before.
+    const slots = ['front', 'back'].flatMap(zone => {
+      const empty = vacantBoardSlots(player[zone], { controllerId: pending.playerId, zoneName: zone, limit: player.user?.[`${zone}Limit`] });
+      return empty.length ? empty.map(slot => ({ zone, slot })) : [{ zone, slot: null }];
+    });
+    const destinations = [...slots, ...hosts];
+    const uid = pending.queue[0];
+    const placing = pending.type === 'decode-place' ? pending.cards.find(card => card.uid === uid) : player.hand.find(card => card.uid === uid);
     return {
       source: 'placement', playerId: pending.playerId, actorSeat,
       rawOptions: destinations,
       dto: {
         choiceId: choiceId(revision, 'placement'), kind: 'selection', presentationKey: pending.type, actorSeat,
+        // The card being placed, so the chooser can see what goes on the board.
+        ...(placing ? { placing: placedCardView(engineState, referenceState, metadata, actorSeat, placing) } : {}),
         optional: false, minimum: 1, maximum: 1,
         options: [
-          { optionId: optionId(0), kind: 'destination', label: 'フロント' },
-          { optionId: optionId(1), kind: 'destination', label: 'バック' },
+          ...slots.map(({ zone, slot }, index) => ({
+            optionId: optionId(index), kind: 'destination', label: `${zone === 'front' ? 'フロント' : 'バック'}${slot ?? ''}`, zone, slot
+          })),
           ...hosts.map((host, index) => ({
-            optionId: optionId(index + 2), kind: 'destination', label: 'レイヤー配置',
+            optionId: optionId(slots.length + index), kind: 'destination', label: 'レイヤー配置',
             cardRef: cardReference(engineState, referenceState, metadata, actorSeat, host.underUid)
           }))
         ],
