@@ -83,10 +83,10 @@ body[data-view="pc"] .r2-content .r2-guide.live-guide .live-guide-name { flex:0 
 body[data-view="pc"] .r2-content .r2-guide.live-guide nav { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:.2em .6em; margin:0 0 0 auto; }
 body[data-view="pc"] .r2-content .r2-guide.live-guide .live-guide-turn { flex-wrap:wrap; justify-content:flex-end; }
 body[data-view="pc"] .r2-content .r2-guide.live-guide button { min-height:1.5em; min-width:1.5em; }
-/* A frame that would hold less than GUIDE_MIN_LINE_EM a line beside the portrait runs over it (guide-band.js; 文豪,
-   2026-11-04: 4:3 and portrait screens): from the group's left edge, on top of the portrait, whose head stands above
-   the frame and whose rest shows faintly through its glass. */
-.r2-runtime-view[data-guide-over="on"] .r2-guide.live-guide .live-guide-speech { grid-column:1 / -1; z-index:3; }
+/* Where the frame beside the portrait would hold less than GUIDE_MIN_LINE_EM a line, the portrait's column narrows
+   (guide-band.js) and shows the art's upper half, its middle half across, twice as large: the face and the chest
+   (文豪, 2026-11-04, C). The box keeps the art's shape, so the cut fills it. */
+.r2-runtime-view[data-guide-bust="on"] .r2-guide.live-guide .live-guide-cast img { clip-path:inset(0 25% 50% 25%); transform:scale(2); transform-origin:50% 0; }
 /* Compat render mode: no blur (heavy on WebKit), a nearly opaque glass instead. */
 .live-low-gpu .r2-guide.live-guide { --gd-alpha:95%; }
 .live-low-gpu .r2-guide.live-guide .live-guide-speech { -webkit-backdrop-filter:none; backdrop-filter:none; }

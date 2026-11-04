@@ -19,10 +19,12 @@ export const GUIDE_PORTRAIT_SCALE = 1.6;
 // A page too long for the frame grows it, that page only (文豪, 2026-10-28), up to this share of the screen height:
 // two thirds, so the frame stays on the screen in every band and a third of the board stays in sight.
 export const GUIDE_FRAME_MAX_RATIO = 2 / 3;
-// The text column's least width, in em of the guide's type (about 15 characters a line). A frame narrower than that
-// beside the portrait (a 4:3 or a portrait screen) runs over the portrait instead, from the group's left edge; the
-// portrait stays, the frame on it (文豪, 2026-11-04). 16:9 and wider keep the frame beside it.
+// The text column's least width, in em of the guide's type (about 15 characters a line). Where the frame beside the
+// portrait would be narrower (a 4:3 screen), the portrait's column narrows to leave it that much and shows the
+// portrait from the chest up (文豪, 2026-11-04, C): never hidden, never over the frame. 16:9 and wider keep it whole.
 export const GUIDE_MIN_LINE_EM = 16;
+// The narrowed column never goes under this share of the portrait's own width.
+export const GUIDE_BUST_MIN_RATIO = 1 / 3;
 
 // A third of the screen, on a phone and on a PC alike.
 export function guideBandHeight(viewport) {
@@ -39,21 +41,24 @@ const rect = (left, top, width, height) => ({ left, top, right: left + width, bo
 // reserve: the share of the screen's width kept free at its right edge, the HUD column (TURN, the memory): the frame
 // ends an inset before it (文豪, 2026-11-04, 1b; this replaces 2026-10-27's edge to edge). fit: the frame's height cut
 // to its line (px, a step no band keeps clear of; 文豪, 2026-11-04, (i)), never taller than the band's own frame.
-// minFrame: the frame's least width (px, GUIDE_MIN_LINE_EM of text and the frame's own sides); a frame narrower
-// beside the portrait starts at the group's left edge over it (over: true).
+// minFrame: the frame's least width (px, GUIDE_MIN_LINE_EM of text and the frame's own sides); where the frame beside
+// the portrait would be narrower, the portrait's column is cut to what leaves it (bust: true; the art shown from the
+// chest up, live.css), never under GUIDE_BUST_MIN_RATIO of its own width.
 export function guideLayout(band, viewport, aspect = 1, grow = 0, { reserve = 0, fit = null, minFrame = 0 } = {}) {
   const inset = viewport.height * GUIDE_INSET_RATIO;
   const baseHeight = guideBandHeight(viewport) - 2 * inset;
   const fullHeight = Math.min(baseHeight + Math.max(0, grow), viewport.height * GUIDE_FRAME_MAX_RATIO);
   const frameHeight = fit > 0 ? Math.min(fullHeight, fit) : fullHeight;
   const right = viewport.width * (1 - Math.max(0, reserve)) - inset;
-  const portraitHeight = Math.min(baseHeight * GUIDE_PORTRAIT_SCALE, viewport.height - 2 * inset);
-  const portraitWidth = portraitHeight * aspect, groupHeight = Math.max(portraitHeight, frameHeight);
+  const wholeHeight = Math.min(baseHeight * GUIDE_PORTRAIT_SCALE, viewport.height - 2 * inset), wholeWidth = wholeHeight * aspect;
+  const bust = right - inset - wholeWidth < minFrame;
+  const portraitWidth = bust ? Math.max(right - inset - minFrame, wholeWidth * GUIDE_BUST_MIN_RATIO) : wholeWidth;
+  const portraitHeight = bust ? portraitWidth / aspect : wholeHeight, groupHeight = Math.max(portraitHeight, frameHeight);
   const groupTop = { top: inset, middle: (viewport.height - groupHeight) / 2, bottom: viewport.height - inset - groupHeight }[band] ?? inset;
   const groupBottom = groupTop + groupHeight;
-  const over = right - inset - portraitWidth < minFrame, frameLeft = over ? inset : inset + portraitWidth;
+  const frameLeft = inset + portraitWidth;
   return {
-    band, inset, over,
+    band, inset, bust,
     group: rect(inset, groupTop, right - inset, groupHeight),
     portrait: rect(inset, groupBottom - portraitHeight, portraitWidth, portraitHeight),
     frame: rect(frameLeft, groupBottom - frameHeight, Math.max(0, right - frameLeft), frameHeight),

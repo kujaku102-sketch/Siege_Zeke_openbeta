@@ -129,8 +129,8 @@ export function createSurfaceLayout({ root, session, scope, boardStyle, latest, 
       const reserve = Math.round(Math.max(0, viewport.width - hudLeft) / viewport.width * 1000) / 1000;
       // A step no band keeps clear of cuts the frame to its line, and is weighed again (文豪, 2026-11-04, (i)).
       const key = `${guideStep()}|${viewport.width}x${viewport.height}|${rects.length}|${Math.round(grow.step)}|${portrait}|${reserve}|${Math.round(grow.fit ?? 0)}`;
-      // Where the frame beside the portrait would hold less than GUIDE_MIN_LINE_EM a line, it runs over the portrait
-      // (文豪, 2026-11-04: 4:3 and portrait screens).
+      // Where the frame beside the portrait would hold less than GUIDE_MIN_LINE_EM a line, the portrait's column
+      // narrows to the chest up (文豪, 2026-11-04, C: 4:3 screens).
       const minFrame = guideMinFrame(guide);
       if (guideBand.key !== key) guideBand = { key, ...chooseGuidePlacement(viewport, rects, tutorial.ok ? tutorial.value.presentation.band : null, { aspect: GUIDE_PORTRAIT_ASPECT, grow: grow.step, keep, portrait, reserve, fit: grow.fit, minFrame }) };
       applyGuideBand(view, guideBand.band, viewport, grow.page, { reserve, fit: guideBand.fit ? grow.fit : null, minFrame });
