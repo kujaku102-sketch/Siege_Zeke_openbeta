@@ -105,6 +105,8 @@ function renderShell(replace = false) {
   host.fullscreen = isFullscreen(document);
   const bound = session?.port(host.actor), read = bound?.ok ? bound.value.query() : null;
   host.busy = Boolean(read?.ok && read.value.requiredInput);
+  const tutorial = host.mode === 'tutorial' ? session?.tutorial() : null;
+  host.tutorialSkip = Boolean(tutorial?.ok && !tutorial.value.flow.complete);
   host.errors = host.debug ? {entries:errorLog.entries(),total:errorLog.total(),copied:host.errorCopied ?? null} : null;
   host.activeSeat = read?.ok ? read.value.status.activeSeat : 'player';
   const html = runtimeShellHtml(host);
@@ -219,6 +221,12 @@ async function skipTutorial() {
   if (generation !== shellGeneration) return;
   const result = board.ok ? lifecycle.startFromCheckpoint({file:board.value,checkpointId:TUTORIAL_WIN_CHECKPOINT}) : board;
   if (result.ok) attachSession(result.value);else notice(result.error.code);}
+// The match options' [チュートリアルをスキップ] asks once, then closes the options and skips (文豪, 2026-11-04).
+function confirmTutorialSkip() {
+  if (!window.confirm('チュートリアルをスキップします。このチュートリアルはクリア済みになり、最後の台詞の場面から始まります。よろしいですか？')) return;
+  host.options = false;host.debug = false;
+  prepared(skipTutorial);
+}
 // The end screen's [対戦ログを保存]: this match's log as it stands, in the stored logs' own export form.
 function saveMatchLog() {
   const replay = session?.matchRecord?.(), feed = replay?.ok ? session.port(session.scope().seatIds[0]).value?.events({afterEventId:null}) : null;
@@ -277,6 +285,7 @@ root.addEventListener('click',event => {
   if (d.live === 'options') {host.options = true;host.debug = false;}
   else if (d.live === 'close-options') {host.options = false;host.debug = false;}
   else if (d.live === 'home') return leaveMatch();
+  else if (button.hasAttribute('data-runtime-tutorial-skip')) return confirmTutorialSkip();
   else if (d.live === 'fullscreen') {void toggleFullscreen(document).then(() => renderShell());return;}
   else if (d.live === 'close-catalog') host.catalogOpen = false;
   else if (button.hasAttribute('data-deck-open')) {deck.open = true;host.options = false;}
