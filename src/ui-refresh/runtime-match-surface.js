@@ -305,7 +305,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
       regionKeys = nextKeys;
       syncInteractionClasses(root, next);
       syncPickBadges(root.querySelector('.wire-board'), next.model,
-        next.request && isBoardPick(next.request, next.interactionRequest) ? stackTargets(next.request, next.interactionRequest) : [], '重ねる');
+        next.request && isBoardPick(next.request, next.interactionRequest) ? stackTargets(next.request, next.interactionRequest) : [], 'マウント');
       // With the guide put away on a step that wants a move, the move stays written on the board (文豪, 2026-10-29);
       // it goes when the step moves on or the guide comes back.
       // A pick on the board says what to pick itself; the move's line waits until it is answered (文豪, 2026-11-03, D5),
