@@ -7058,28 +7058,21 @@ test("normal movement and backup retain their pre-cap rejection contract", () =>
   assert.equal(player.back.some((card) => card.uid === source.uid), false);
 });
 
-test("STD048 second player's first mandatory draw failure serializes, rejects illegal input, and resumes once", () => {
+test("no empty slot in either area: the rule-draw drag fails at once and the turn start runs once", () => {
   const state = createGame({ mode: "sandbox" }); const player = state.players.ai;
   player.front = []; player.back = []; player.user.frontLimit = 0; player.user.backLimit = 0; player.turnsTaken = 0;
   const dawn = createCardInstance("STD-048", "ai", 974401); const ruleDraw = createCardInstance("STD-020", "ai", 974402);
   player.deck = [ruleDraw, dawn]; const fortress = player.fortressStr;
-  startTurn(state, "ai"); assert.equal(state.pending?.type, "std048-draw-place");
-  assert.deepEqual(JSON.parse(JSON.stringify(state)).mandatoryDrawContinuation, state.mandatoryDrawContinuation);
-  assert.deepEqual(cloneForHistory(state).mandatoryDrawContinuation, state.mandatoryDrawContinuation);
-  const protectedState = { hand: player.hand.map((card) => card.uid), deck: player.deck.map((card) => card.uid), fortress: player.fortressStr, trash: player.trash.length, ban: player.ban.length };
-  assert.equal(resolveAccessDragPlacement(state, "ai", "invalid-zone"), false);
-  assert.equal(resolveAccessDragPlacement(state, "ai", "front", "missing-host"), false);
-  assert.equal(resolveAccessDragPlacement(state, "player", "front"), false);
-  assert.equal(state.mandatoryDrawContinuation.placementOutcome, "pending");
-  assert.equal(state.pending?.type, "std048-draw-place"); assert.deepEqual(player.hand.map((card) => card.uid), protectedState.hand); assert.deepEqual(player.deck.map((card) => card.uid), protectedState.deck);
-  assert.equal(player.fortressStr, protectedState.fortress); assert.equal(player.trash.length, protectedState.trash); assert.equal(player.ban.length, protectedState.ban);
-  assert.equal(resolveAccessDragPlacement(state, "ai", "front"), true);
-  assert.equal(player.fortressStr, fortress); assert.ok(player.trash.some((card) => card.uid === dawn.uid));
-  assert.ok(player.hand.some((card) => card.uid === ruleDraw.uid));
+  startTurn(state, "ai");
+  assert.equal(state.pending, null);
   assert.equal(state.mandatoryDrawContinuation, null);
-  const handCount = player.hand.length;
+  assert.equal(player.fortressStr, fortress);
+  assert.ok(player.trash.some((card) => card.uid === dawn.uid));
+  assert.equal(player.hand.filter((card) => card.uid === ruleDraw.uid).length, 1);
+  assert.equal(state.events.filter((event) => event.cardUid === dawn.uid && event.ruleDestruction).length, 1);
+  assert.equal(state.events.filter((event) => event.type === "turn_started" && event.playerId === "ai").length, 1);
+  assert.equal(state.events.filter((event) => event.type === "card_drawn" && event.cardUid === ruleDraw.uid).length, 1);
   assert.equal(resolveAccessDragPlacement(state, "ai", "front"), false);
-  assert.equal(player.hand.length, handCount);
 });
 
 test("STD048 successful second-player mandatory draw resolves rule draw before effect draw", () => {
@@ -7099,27 +7092,23 @@ test("STD048 successful second-player mandatory draw resolves rule draw before e
   assert.equal(state.mandatoryDrawContinuation, null);
 });
 
-test("STD048 completes the remaining rule draw before placement and waits through STD003 finalization", () => {
+test("same, with a Script waiting on the finalization (STD-003 prompt)", () => {
   for (const decision of ["accept", "decline"]) {
     const state = createGame({ mode: "sandbox" }); const player = state.players.ai; const opponent = state.players.player;
     player.front = []; player.back = []; player.user.frontLimit = 0; player.user.backLimit = 0; player.turnsTaken = 0;
     const dawn = createCardInstance("STD-048", "ai", decision === "accept" ? 974421 : 974431); const ruleDraw = createCardInstance("STD-020", "ai", decision === "accept" ? 974422 : 974432);
     const script = createCardInstance("STD-003", "player", decision === "accept" ? 974423 : 974433); script.faceDown = true;
     player.deck = [ruleDraw, dawn]; opponent.back = [script]; opponent.memory = 10;
-    startTurn(state, "ai"); assert.equal(resolveAccessDragPlacement(state, "ai", "front"), true);
+    startTurn(state, "ai");
     assert.equal(state.prompt?.scriptUid, script.uid); assert.equal(state.mandatoryDrawContinuation.placementOutcome, "failed");
     assert.ok(player.hand.some((card) => card.uid === ruleDraw.uid)); assert.equal(player.fortressStr, player.user.maxStr);
     assert.ok(state.deferredTrashMoves.some((item) => item.card.uid === dawn.uid));
     assert.equal(decision === "accept" ? activateScript(state, "player", script.uid) : declinePrompt(state), true);
-    assert.ok(player.hand.some((card) => card.uid === ruleDraw.uid));
     assert.equal(state.mandatoryDrawContinuation, null);
-    assert.equal(player.fortressStr, player.user.maxStr);
     assert.equal(player.trash.filter((card) => card.uid === dawn.uid).length, 1);
-    assert.equal(player.ban.filter((card) => card.uid === dawn.uid).length, 0);
     assert.equal(state.events.filter((event) => event.cardUid === dawn.uid && event.ruleDestruction).length, 1);
     assert.equal(state.events.filter((event) => event.cardUid === ruleDraw.uid && event.type === "card_drawn").length, 1);
-    assert.equal(state.log.filter((entry) => entry.text.includes("ドラッグ成功。自分ユーザーを3回復し、1枚ドロー。")).length, 0);
-    const count = player.hand.length; assert.equal(declinePrompt(state), false); assert.equal(resolveAccessDragPlacement(state, "ai", "front"), false); assert.equal(player.hand.length, count);
+    assert.equal(state.events.filter((event) => event.type === "turn_started" && event.playerId === "ai").length, 1);
   }
 });
 
@@ -7142,11 +7131,12 @@ test("STD048 pauses a successful continuation through STD186 then STD179 selecti
   assert.equal(state.mandatoryDrawContinuation, null);
 });
 
-test("STD048 continuation clones and JSON roundtrips resume independently exactly once", () => {
+test("clones and JSON roundtrips of a pending rule-draw drag resume independently exactly once (one slot open)", () => {
   const state = createGame({ mode: "sandbox" }); const ai = state.players.ai;
-  ai.front = []; ai.back = []; ai.user.frontLimit = 0; ai.user.backLimit = 0; ai.turnsTaken = 0;
+  ai.front = []; ai.back = []; ai.user.frontLimit = 1; ai.user.backLimit = 0; ai.turnsTaken = 0;
   const dawn = createCardInstance("STD-048", "ai", 974451); const ruleDraw = createCardInstance("STD-020", "ai", 974452);
   ai.deck = [ruleDraw, dawn]; startTurn(state, "ai");
+  assert.equal(state.pending?.type, "std048-draw-place");
   const historyClone = cloneForHistory(state); const jsonClone = JSON.parse(JSON.stringify(state)); jsonClone.rng = state.rng;
   for (const copy of [historyClone, jsonClone]) {
     assert.equal(resolveAccessDragPlacement(copy, "ai", "front"), true);
@@ -7192,17 +7182,20 @@ test("common decode queue unit retains a single UID on overflow", () => {
   assert.equal(state.events.filter((event) => event.cardUid === decoded.uid && event.ruleDestruction).length, 1);
 });
 
-test("STD142 hand and trash overflow reach forced finalizer", () => {
+test("an optional placement (activation) is not offered when no slot is open: the card stays where it is and no memory is paid", () => {
   for (const origin of ["hand", "trash"]) {
     const state = createGame({ mode: "sandbox" }); const player = state.players.player;
     player.user.backLimit = 1;
     const script = createCardInstance("STD-142", "player", 975001); script.faceDown = true; player.back = [script]; player.memory = 20;
     const sacred = createCardInstance("STD-139", "player", origin === "hand" ? 975002 : 975003);
     player[origin] = [sacred]; player.registry = [createCardInstance("STD-142", "player", origin === "hand" ? 975004 : 975005)];
-    assert.equal(activateScript(state, "player", script.uid), true);
-    assert.equal(resolveCardSelection(state, state.pending.request.continuation, { selected: [sacred.uid] }), true);
-    assert.equal(player.trash.filter((card) => card.uid === sacred.uid).length, 1);
-    assert.equal(state.events.filter((event) => event.cardUid === sacred.uid && event.ruleDestruction).length, 1);
+    assert.equal(activateScript(state, "player", script.uid), false);
+    assert.equal(state.pending, null);
+    assert.equal(player.memory, 20);
+    assert.equal(player[origin].filter((card) => card.uid === sacred.uid).length, 1);
+    assert.equal(state.events.filter((event) => event.cardUid === sacred.uid && event.ruleDestruction).length, 0);
+    player.user.backLimit = 2;
+    assert.equal(activateScript(state, "player", script.uid), true);     // with a slot open it is offered as before
   }
 });
 

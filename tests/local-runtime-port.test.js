@@ -9,6 +9,7 @@ import { chooseSimpleAiIntent, runSimpleAiPortStep } from '../src/adapters/simpl
 import { createRuntimeClientController } from '../src/adapters/runtime-client-controller.js';
 import { normalizeBoardSlots, placeCardInBoardSlot } from '../src/game/board-slots.js';
 import { createRuntimeCard } from '../src/game/runtime/factory.js';
+import { CARD_LIBRARY } from '../src/data/cards.js';
 import { prepareRuntimeCommand } from '../src/game/runtime/command-bridge.js';
 import { validSelectionAnswer } from '../src/game/runtime/selection-contract.js';
 import { actionPlanHtml } from '../src/ui-refresh/choice-read-view.js';
@@ -641,18 +642,34 @@ test('S05-LPORT-17: answering a slot places the card in that slot', () => {
   }
 });
 
-test('S05-LPORT-18: an area with no empty slot keeps one option without a slot, and choosing it is the failed forced placement', () => {
+test('S05-LPORT-18: an area with no empty slot offers no option, and the other area still does', () => {
   const full = [1, 2, 3, 4, 5].map(slot => ['front', slot]);
   const { first } = ports(placementAuthority('access-drag-place', full));
   const query = first.query().value;
-  const front = query.requiredInput.options.filter(option => option.zone === 'front');
-  assert.deepEqual(front.map(option => option.slot), [null]);
-  assert.equal(query.requiredInput.options.filter(option => option.zone === 'back').length, 5);
-  const submitted = first.submit({ commandId: 'pick-full', expectedRevision: query.status.revision,
-    action: { type: 'answerChoice', choiceId: query.requiredInput.choiceId, optionIds: [front[0].optionId], allocation: [] } });
+  assert.deepEqual(query.requiredInput.options.map(option => [option.zone, option.slot]),
+    [1, 2, 3, 4, 5].map(slot => ['back', slot]));
+  const option = query.requiredInput.options.find(item => item.slot === 2);
+  const submitted = first.submit({ commandId: 'pick-back', expectedRevision: query.status.revision,
+    action: { type: 'answerChoice', choiceId: query.requiredInput.choiceId, optionIds: [option.optionId], allocation: [] } });
   assert.equal(submitted.ok, true, JSON.stringify(submitted));
   const after = first.query().value;
   assert.equal(after.requiredInput, null);
-  assert.equal(after.observation.seats[0].front.cards.length, 5);
-  assert.equal(after.observation.seats[0].back.cards.length, 0);
+  assert.deepEqual(after.observation.seats[0].back.cards.map(card => card.location.position), [2]);
+});
+
+test('S05-LPORT-19: a placement choice offers an Ob to stack under only when the placed card is a Code', () => {
+  for (const [category, expected] of [['Ob', 0], ['Code', 1]]) {
+    const built = authority(state => {
+      const player = state.players.player;
+      const host = player.hand.find(card => card.category === 'Ob');
+      player.hand.splice(player.hand.indexOf(host), 1);
+      assert.equal(placeCardInBoardSlot(player.front, host, { controllerId: 'player', zoneName: 'front', limit: player.user.frontLimit, requestedSlot: 1 }), true);
+      const definition = Object.values(CARD_LIBRARY).find(card => card.category === category);
+      const placed = createRuntimeCard(state.runtimeContext, definition.id, 'player');
+      player.hand.unshift(placed);
+      state.pending = { type: 'access-drag-place', playerId: 'player', sourceName: 'test', queue: [placed.uid], sourceUid: placed.uid };
+    });
+    const input = ports(built).first.query().value.requiredInput;
+    assert.equal(input.options.filter(option => option.label === 'レイヤー配置').length, expected, category);
+  }
 });
