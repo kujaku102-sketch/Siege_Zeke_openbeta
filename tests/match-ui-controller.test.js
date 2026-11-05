@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNewMatchSessionController } from '../src/adapters/match-session-controller.js';
-import { createMatchUiController } from '../src/adapters/match-ui-controller.js';
+import { createMatchUiController, flow, when, isThenable } from '../src/adapters/match-ui-controller.js';
 import { runtimeGameHtml } from '../src/ui-refresh/runtime-read-view.js';
 import { buildInteractionRequest, resolveInteractionTarget } from '../src/adapters/interaction-targets.js';
 
@@ -315,4 +315,114 @@ test('E01/IO-EVENT-02: the log history is copied only while it is open, and each
   assert.equal(new Set(ids).size, ids.length);
   assert.deepEqual(ui.toggleLog().value.log, []);
   assert.deepEqual(ui.toggleLog().value.log.map(event => event.eventId), ids);
+});
+
+// The controller waits for a port whose writes answer later (the online session's shape); a local session stays synchronous.
+function localSession() {
+  const made = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: {
+    matchId: 'gui-async', seatIds: ['a', 'b'], seed: 11, ruleVersion: '2.0', cardVersion: 'public',
+    gameOptions: { mode: 'ai', playerDeckId: 'start-red', aiDeckId: 'start-yellow' } } });
+  assert.equal(made.ok, true, JSON.stringify(made));
+  return made.value;
+}
+
+// The same session, but its writes and questions answer on a later turn of the event loop, as a remote one does.
+// `fail` makes the next one reject (a dropped connection).
+function laterSession(session) {
+  const state = { fail: false, asked: 0 };
+  const later = value => new Promise((resolve, reject) => setTimeout(() => {
+    if (state.fail) { state.fail = false; reject(Object.assign(new Error('gone'), { code: 'REMOTE_CLOSED' })); } else resolve(value);
+  }, 5));
+  const port = seat => {
+    const bound = session.port(seat);
+    if (!bound.ok) return bound;
+    const local = bound.value;
+    return { ok: true, value: { ...local,
+      submit: command => { state.asked++; return later(local.submit(command)); },
+      queryAction: input => { state.asked++; return later(local.queryAction(input)); },
+      query: input => input?.inspectRef ? later(local.query(input)) : local.query(input) } };
+  };
+  return { remote: { ...session, port }, state };
+}
+
+// A play that is planned before it is sent (not a fixed action such as ending the turn).
+const executeOf = read => read.value.model.legalActions.find(entry => entry.kind !== 'fixed');
+
+test('a local session answers at once: no input returns a Promise', () => {
+  const session = localSession();
+  const ui = createMatchUiController({ session, viewerSeat: 'a' }).value;
+  const planned = ui.chooseAction(executeOf(ui.read()).actionId);
+  assert.equal(isThenable(planned), false);
+  assert.equal(planned.ok, true, JSON.stringify(planned));
+  assert.equal(isThenable(ui.back()), false);
+  ui.dispose(); session.dispose();
+});
+
+test('a port that answers later: the input is awaited, a second tap meanwhile is refused, then one command commits', async () => {
+  const session = localSession();
+  const { remote, state } = laterSession(session);
+  const ui = createMatchUiController({ session: remote, viewerSeat: 'a' }).value;
+  const execute = executeOf(ui.read());
+  const asking = ui.chooseAction(execute.actionId);
+  assert.equal(isThenable(asking), true);
+  // While the plan is out, input is refused at once and asks the port nothing; reading still works.
+  const asked = state.asked;
+  assert.deepEqual(ui.chooseAction(execute.actionId), { ok: false, error: { code: 'MATCH_UI_BUSY' } });
+  assert.deepEqual(ui.confirm(), { ok: false, error: { code: 'MATCH_UI_BUSY' } });
+  assert.equal(state.asked, asked);
+  assert.equal(ui.read().ok, true);
+  assert.equal(ui.toggleLog().ok, true);
+  const planned = await asking;
+  assert.equal(planned.ok, true, JSON.stringify(planned));
+  assert.ok(planned.value.request);
+  // Picking an option asks the port nothing, so it answers at once.
+  const picked = ui.toggleOption(planned.value.request.options[0].optionId);
+  assert.equal(isThenable(picked), false);
+  const ready = await ui.confirm();
+  assert.ok(ready.value.plan.completion, JSON.stringify(ready));
+  assert.equal(session.port('a').value.query().value.status.revision, 0);
+  const sending = ui.confirm();
+  assert.equal(ui.confirm().error.code, 'MATCH_UI_BUSY');
+  const committed = await sending;
+  assert.equal(committed.ok, true, JSON.stringify(committed));
+  assert.equal(committed.value.model.match.revision, 1);
+  assert.equal(session.port('a').value.query().value.status.revision, 1);
+  ui.dispose(); session.dispose();
+});
+
+test('a port that fails reads as a failure, and the next input goes through', async () => {
+  const session = localSession();
+  const { remote, state } = laterSession(session);
+  const ui = createMatchUiController({ session: remote, viewerSeat: 'a' }).value;
+  const execute = executeOf(ui.read());
+  state.fail = true;
+  assert.deepEqual(await ui.chooseAction(execute.actionId), { ok: false, error: { code: 'REMOTE_CLOSED' } });
+  const again = await ui.chooseAction(execute.actionId);
+  assert.equal(again.ok, true, JSON.stringify(again));
+  ui.dispose(); session.dispose();
+});
+
+test('a plan that comes back after a new revision dropped its draft is stale', async () => {
+  const session = localSession();
+  const { remote } = laterSession(session);
+  const ui = createMatchUiController({ session: remote, viewerSeat: 'a' }).value;
+  const asking = ui.chooseAction(executeOf(ui.read()).actionId);
+  // The match moves on while the plan is out (here: the turn ends by another route), and the screen reads it.
+  assert.equal(session.port('a').value.submit({ commandId: 'external', expectedRevision: 0, action: { type: 'endTurn' } }).ok, true);
+  assert.equal(ui.read().value.plan, null);
+  assert.deepEqual(await asking, { ok: false, error: { code: 'MATCH_UI_PLAN_STALE' } });
+  assert.equal(ui.read().value.plan, null);
+  ui.dispose(); session.dispose();
+});
+
+test('flow runs straight through values that are here, and waits only for Promises', async () => {
+  const seen = [];
+  const now = flow(function* () { seen.push(yield 1); seen.push(yield 2); return 'done'; }());
+  assert.equal(now, 'done');
+  assert.deepEqual(seen, [1, 2]);
+  const later = flow(function* () { const a = yield Promise.resolve(3); const b = yield 4; return a + b; }());
+  assert.equal(isThenable(later), true);
+  assert.equal(await later, 7);
+  assert.equal(when(5, value => value + 1), 6);
+  assert.equal(await when(Promise.resolve(5), value => value + 1), 6);
 });
