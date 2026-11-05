@@ -95,7 +95,7 @@ export class Room {
     if (!this.env.MATCH_LOGS || !game || !record?.summary?.finished) return;
     try {
       const events = this.engine.history({ game, commands: record.commands }, game.seatIds[0]);
-      const log = { ...buildMatchLog(record, events), mode: 'online' };
+      const log = buildMatchLog(record, events);
       const key = `log/${log.endedAt.slice(0, 10)}/${log.matchId}`;
       if (await this.env.MATCH_LOGS.get(key) !== null) return;
       await this.env.MATCH_LOGS.put(key, JSON.stringify(log), { metadata: { mode: log.mode, result: log.result, turns: log.turns } });

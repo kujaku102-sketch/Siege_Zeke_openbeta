@@ -45,12 +45,13 @@ export default {
     if (socket) {
       if (request.method !== 'GET') return reply(405, allowed);
       if (!allowed) return reply(403, null);
-      if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return reply(426, allowed);
       if (!keyOk(env)) return reply(500, allowed);
       let typed;
       try { typed = decodeURIComponent(socket[1]); } catch { return reply(404, allowed); }
       const parsed = await parseRoomCode(typed, env.ROOM_CODE_KEY);
       if (!parsed.ok) return reply(404, allowed);
+      // A page that could not open the socket asks with a plain GET: 404 means the code is wrong, 426 means the code is fine.
+      if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return reply(426, allowed);
       return roomOf(env, parsed.body).fetch(request);
     }
 
