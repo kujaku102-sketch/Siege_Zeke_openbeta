@@ -1,8 +1,9 @@
 // Flow check: title -> battle setup -> a match against the CPU starts (real clicks, the public build, no test hook).
-// On a PC the board, console and hand are mounted as separate layers and the turn control ends the turn; the CPU plays; the control is the player's again
-// as the 2nd turn. On a phone-sized touch screen a tap on a hand card opens its detail (with the effect copy) and its operation popup, both inside the screen.
+// On a PC the board, console and hand are mounted as separate layers; the opening (rulebook 2.4) is kept; the turn control ends the
+// player's turn; the CPU plays; the control is the player's again as the next turn. On a phone-sized touch screen a tap on a hand card opens its detail (with the effect copy) and its operation popup, both inside the screen.
 import { openBrowser, assertNoErrors } from "../parts/browser.mjs";
 import { clickEntryControl } from "../parts/entry.mjs";
+import { keepOpening } from "../parts/opening.mjs";
 
 const { browser, errors, newPage } = await openBrowser();
 try {
@@ -11,14 +12,18 @@ try {
   await page.locator('[data-start="ai"]').click();
   // A real start draws 準備中… first and builds the match after that frame, so the layers are waited for.
   await Promise.all([".r2-board", ".r2-console", ".r2-hand"].map((selector) => page.locator(selector).first().waitFor({ state: "attached", timeout: 10000 }))).catch(() => { throw new Error("the match did not mount the separated board, console and hand layers"); });
+  // Dice decide the first player, so the player's turn may come after the CPU's first.
+  const turn = await keepOpening(page);
   await page.locator("[data-runtime-end-turn]").click();
-  // The turn control counts each side's own turns: once the CPU is done it is enabled again as the player's 2nd turn.
-  await page.waitForFunction(() => { const turn = document.querySelector("[data-runtime-end-turn]"); return turn?.dataset.turnSide === "mine" && turn.dataset.turn === "2" && !turn.disabled; }, null, { timeout: 15000 });
+  // The turn control counts each side's own turns: once the CPU is done it is enabled again as the player's next turn.
+  await page.waitForFunction((next) => { const turn = document.querySelector("[data-runtime-end-turn]"); return turn?.dataset.turnSide === "mine" && turn.dataset.turn === String(next) && !turn.disabled; }, turn + 1, { timeout: 30000 });
   await page.close();
 
   const phone = await newPage({ viewport: { width: 844, height: 390 }, touch: true, hook: false, path: "mobile/" });
   await clickEntryControl(phone, '[data-mode="ai"]');
   await phone.locator('[data-start="ai"]').click();
+  await phone.locator("[data-opening-decide]").waitFor({ timeout: 15000 });
+  await keepOpening(phone);
   await phone.locator(".r2-hand [data-card-ref]").first().waitFor({ state: "attached", timeout: 10000 });
   await phone.locator(".r2-hand [data-card-ref]").first().click();
   const detail = await phone.locator(".r2-detail").evaluate((node) => {

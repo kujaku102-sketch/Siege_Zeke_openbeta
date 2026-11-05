@@ -1,9 +1,10 @@
-// Exercise the visible curved title instead of clicking its hidden semantic controls.
+// Exercise the visible curved title, or a flow screen on the same curved glass (flow-crt-viewport.js), instead of clicking
+// their hidden semantic controls.
 export async function clickEntryControl(page, selector) {
   const control = page.locator(selector).first();
   await control.waitFor({ state: "visible" });
   await page.locator("#boot-splash").waitFor({ state: "detached", timeout: 15000 });
-  const viewport = page.locator(".r2-entry-crt-ready .r2-crt-viewport");
+  const viewport = page.locator(".r2-entry-crt-ready .r2-crt-viewport, .r2-flow-crt-viewport");
   if (!await viewport.count()) return control.click();
   const [source, canvas] = await Promise.all([control.boundingBox(), viewport.boundingBox()]);
   if (!source || !canvas) throw new Error(`CRT entry control has no bounds: ${selector}`);

@@ -328,7 +328,8 @@ test("the end screen (文豪, 2026-11-01): CONGRATULATION! / DEFEAT / NO CONTEST
   assert.ok(!/\d(px|rem)\b/.test(actions.replace("max(2.75rem,", "").replace("max(1rem,", "")), "sizes in --u ratios (a touch target's floor aside)");
   const clicks = await readSource("../src/ui-refresh/surface-clicks.js");
   assert.ok(clicks.includes("['data-runtime-tutorial-finish', c => c.endTutorial()],") && clicks.includes("['data-runtime-save-log', c => c.onSaveLog()],") && clicks.includes("['data-runtime-to-menu', c => c.onToMenu()],"));
-  assert.ok(!clicks.includes("data-runtime-result-close"));
+  // Only an online match has a result to close (the board stays behind it); a local match's end screen has the three buttons above.
+  assert.ok(clicks.includes("['data-runtime-result-close', c => c.act(c.ui.dismissResult())],"));
 });
 
 test("the end screen's effect: a win's confetti; a defeat's confetti with noise rising after the burst and running on; a draw none", async () => {
@@ -407,9 +408,9 @@ test("blue tutorial: the Hacking icon in step 7's line, the access pick pointed 
   assert.ok(surface.includes("if (latest.model.ui.detailCardRef !== card.cardRef) render(ui.showDetail(card.cardRef));"));
 });
 
-test("opening protocol v2.4 is opt-in by URL and only for the AI mode; the redraw pick has its own wording", async () => {
+test("opening protocol v2.4 is the CPU match's default; ?opening=legacy keeps the old start; the redraw pick has its own wording", async () => {
   const main = await readSource("../src/main.js");
-  assert.ok(main.includes("mode === 'ai' && new URLSearchParams(location.search).get('opening') === 'v2.4' ? {openingProtocol:'v2.4'} : {}"));
+  assert.ok(main.includes("mode === 'ai' && new URLSearchParams(location.search).get('opening') !== 'legacy' ? {openingProtocol:'v2.4'} : {}"));
   assert.ok(main.includes("gameOptions:{\n    ...opening,mode,tutorialId,"));
   const { presentationLabel } = await import("../src/ui-refresh/choice-read-view.js");
   assert.equal(presentationLabel("opening-mulligan"), "引き直すカードを選択");

@@ -462,7 +462,7 @@ test('a required choice names its source card and the selection lights the claus
   assert.match(html, /^<aside class="effect-flow"[^]*<mark>自分のObを好きな数破壊する<\/mark>[^]*<aside class="board-pick-guide"/);
 });
 
-test('opening protocol v2.4: the HUD shows keep and redraw (an intent has no embedded command) and redraw plans a card pick', () => {
+test('opening protocol v2.4: the opening screen takes keep and redraw (the HUD buttons give way to it) and redraw plans a card pick', () => {
   const created = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: { matchId: 'opening-hud', seatIds: ['player', 'ai'], seed: 5,
     ruleVersion: 'rules', cardVersion: 'cards', gameOptions: { mode: 'ai', openingProtocol: 'v2.4', playerDeckRecipe: [['STD-020', 40]], aiDeckRecipe: [['STD-020', 40]] } } });
   assert.equal(created.ok, true, JSON.stringify(created));
@@ -471,9 +471,9 @@ test('opening protocol v2.4: the HUD shows keep and redraw (an intent has no emb
   const types = read.model.legalActions.map(entry => entry.actionType ?? entry.action?.type);
   assert.deepEqual(types.sort(), ['keepOpeningHand', 'openingMulligan']);
   const html = runtimeGameHtml(read.model, { ...read, view: 'pc', boardStyle: 'wireframe', effectsEnabled: false });
-  const extra = html.split('wf-extra-actions')[1] ?? '';
-  assert.ok(extra.includes('>キープ</button>') && extra.includes('>引き直し</button>'), 'both opening controls are drawn');
-  assert.ok(!html.includes('>keepOpeningHand<') && !html.includes('>openingMulligan<'));
+  const extra = (html.split('wf-extra-actions')[1] ?? '').split('</div>')[0];
+  assert.ok(!extra.includes('キープ') && !extra.includes('引き直し'), 'the HUD gives the opening controls to the screen');
+  assert.ok(html.includes('<button data-opening-decide>キープ</button>') && !html.includes('>keepOpeningHand<') && !html.includes('>openingMulligan<'));
   const mulligan = read.model.legalActions.find(entry => entry.actionType === 'openingMulligan');
   const planned = ui.chooseAction(mulligan.actionId);
   assert.equal(planned.ok, true, JSON.stringify(planned));

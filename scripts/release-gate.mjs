@@ -97,9 +97,9 @@ try {
     ["08-flow-entry", "flow/entry.mjs"], ["09-flow-battle-start", "flow/battle-start.mjs"], ["10-flow-tutorial-start", "flow/tutorial-start.mjs"],
     ["11-flow-tutorial-full", "flow/tutorial-full.mjs"], ["12-flow-tutorial-full-keyboard", "flow/tutorial-full.mjs", "--keyboard"],
     ["13-flow-end-buttons", "flow/end-buttons.mjs"], ["14-flow-deck-keyboard", "flow/deck-keyboard.mjs"], ["15-flow-tutorial-done", "flow/tutorial-done.mjs"], ["16-screen-tall-window", "screen/tall-window.mjs"], ["17-screen-place-mode", "screen/place-mode.mjs"], ["18-screen-place-slot", "screen/place-slot.mjs"],
-    ["19-screen-debug-window", "screen/debug-window.mjs"]];
+    ["19-screen-debug-window", "screen/debug-window.mjs"], ["20-flow-opening", "flow/opening.mjs"]];
   for (const [name, file, ...extra] of e2e) runStep(name, process.execPath, [`scripts/e2e/${file}`, ...extra, ...browserArgs]);
-  runStep("20-diff-check", "git", ["diff", "--check"]);
+  runStep("21-diff-check", "git", ["diff", "--check"]);
 
   const manifest = JSON.parse(readFileSync(path.join(root, "dist", "release-manifest.json"), "utf8"));
   const changes = spawnSync("git", ["status", "--porcelain=v1"], { cwd: root, encoding: "utf8", windowsHide: true });

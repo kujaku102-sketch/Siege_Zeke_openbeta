@@ -116,15 +116,37 @@ test('a concession ends a match with an effect still open: the open choice goes,
   assert.equal(validateLiveAuthority(result.value.authority).ok, true);
 });
 
-test('a result an effect already locked stays when a concession ends the match', () => {
-  const start = match();
-  start.engineState.winner = 'player';
-  start.engineState.victory = { lockedOutcome: 'player', lockedAtEffectId: null, finished: false };
-  for (const seat of SEATS) {
-    const result = submit(start, concede(start, seat));
-    assert.equal(result.value.authority.engineState.winner, 'player');
-    assert.equal(result.value.authority.engineState.victory.finished, true);
+// 文豪「投了・切断は負けにする」: the forfeiting seat loses even when an effect had already locked a result, in its favour or as a draw.
+test('a concession or a forfeit loses for the one who declares it, whatever an effect had locked', () => {
+  const locks = [['player', 'ai'], ['ai', 'player'], ['draw', 'player'], ['draw', 'ai']]; // [what the effect locked, which user declares]
+  for (const [locked, loser] of locks) {
+    const loserSeat = loser === 'player' ? 'seat-a' : 'seat-b';
+    const winner = loser === 'player' ? 'ai' : 'player';
+    const lockAtEffect = () => {
+      const start = match();
+      start.engineState.winner = locked;
+      start.engineState.victory = { lockedOutcome: locked, lockedAtEffectId: null, finished: false };
+      return start;
+    };
+    const conceded = submit(lockAtEffect(), concede(lockAtEffect(), loserSeat));
+    const forfeited = submitRuntimeSystemForfeit(lockAtEffect(), { seat: loserSeat, reason: 'disconnect' });
+    for (const [result, reason] of [[conceded, 'concede'], [forfeited, 'disconnect']]) {
+      assert.equal(result.ok, true, JSON.stringify(result));
+      const engine = result.value.authority.engineState;
+      assert.equal(engine.winner, winner, `${locked} locked, ${loser} declares ${reason}`);
+      assert.deepEqual(engine.victory, { lockedOutcome: winner, lockedAtEffectId: null, finished: true, finishReason: reason });
+      assert.equal(validateLiveAuthority(result.value.authority).ok, true);
+    }
   }
+});
+
+test('once a forfeit has ended the match, a second concession or forfeit is refused and the result stays', () => {
+  const start = match();
+  const done = submit(start, concede(start, 'seat-a')).value.authority;
+  const again = submit(done, concede(done, 'seat-b', 'again'));
+  assert.equal(again.value.receipt.reasonCode, 'ACTION_NOT_ALLOWED');
+  assert.equal(submitRuntimeSystemForfeit(done, { seat: 'seat-b', reason: 'disconnect' }).error.code, 'ACTION_NOT_ALLOWED');
+  assert.equal(done.engineState.winner, 'ai');
 });
 
 test('the server forfeit is not a client command: the action and the system: command ids are refused and leave no trace', () => {

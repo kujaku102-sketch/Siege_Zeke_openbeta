@@ -101,7 +101,9 @@ try {
     results.push(r);
     await page.close();
   }
-  for (const [ctx, query] of [["pc", "?render=compat"], ["pc", "?render=full"], ["iphone", ""]]) { // The board.
+  // The board. A CPU match opens with the opening screen over it (rulebook 2.4); this check is about the debug window, so its
+  // matches start the old way (?opening=legacy).
+  for (const [ctx, query] of [["pc", "?render=compat&opening=legacy"], ["pc", "?render=full&opening=legacy"], ["iphone", "?opening=legacy"]]) {
     const page = await openPage(ctx, query);
     await clickEntryControl(page, '[data-mode="ai"]');
     await page.locator('[data-start="ai"]').click();
@@ -120,10 +122,11 @@ try {
     await page.close();
   }
   if (features.has("speed")) { // ×2 halves the turn banner's life and runs CSS / WAAPI animations at playbackRate 2; ×1 restores.
-    const page = await openPage("pc", "?render=full", () => localStorage.setItem("sz-ui-effects", "on"));
+    const page = await openPage("pc", "?render=full&opening=legacy", () => localStorage.setItem("sz-ui-effects", "on"));
     await page.evaluate(() => { window.__banners = []; new MutationObserver((list) => { for (const m of list) { for (const n of m.addedNodes) if (n.classList?.contains("fx-turn-banner")) window.__banners.push({ n, from: performance.now() }); for (const n of m.removedNodes) { const b = window.__banners.find((x) => x.n === n); if (b) b.life = performance.now() - b.from; } } }).observe(document.body, { childList: true, subtree: true }); });
     await clickEntryControl(page, '[data-mode="ai"]');
-    await page.locator('[data-start="ai"]').click();
+    // Effects on: the battle setup is on the curved glass, pressed through it like the title.
+    await clickEntryControl(page, '[data-start="ai"]');
     await page.locator(".wire-board .slot").first().waitFor({ state: "attached", timeout: 15000 });
     const endTurn = async (n) => { await page.locator("[data-runtime-end-turn]").click(); await page.waitForFunction((t) => { const b = document.querySelector("[data-runtime-end-turn]"); return b?.dataset.turnSide === "mine" && b.dataset.turn === String(t) && !b.disabled; }, n, { timeout: 30000 }); await page.waitForTimeout(3000); };
     const lives = async () => page.evaluate(() => { const l = window.__banners.filter((b) => b.life).map((b) => Math.round(b.life)); window.__banners = []; return l; });

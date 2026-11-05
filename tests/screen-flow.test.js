@@ -56,7 +56,7 @@ test('external links: on the title only, outside the stage, and the CRT title ke
 });
 
 test('screen flow: the title opens the tutorial list and the battle setup; each comes back or starts', () => {
-  assert.deepEqual([...SCREENS], ['entry', 'tutorial-select', 'battle-setup', 'game']);
+  assert.deepEqual([...SCREENS], ['entry', 'tutorial-select', 'battle-setup', 'online-entry', 'online-join', 'online-room', 'game']);
   assert.equal(nextScreen('entry', 'open-tutorials'), 'tutorial-select');
   assert.equal(nextScreen('entry', 'open-battle'), 'battle-setup');
   assert.equal(nextScreen('entry', 'start'), 'game', 'the sandbox still starts from the title');
@@ -67,11 +67,20 @@ test('screen flow: the title opens the tutorial list and the battle setup; each 
   assert.equal(nextScreen('game', 'leave'), 'entry');
   assert.equal(nextScreen('game', 'tutorial-complete'), 'tutorial-select');
   assert.equal(nextScreen('game', 'match-menu'), 'battle-setup');
+  // The online door opens from the battle setup, goes on to the code or the room, each comes back one step, and the room starts the match.
+  assert.equal(nextScreen('battle-setup', 'open-online'), 'online-entry');
+  assert.equal(nextScreen('online-entry', 'open-join'), 'online-join');
+  assert.equal(nextScreen('online-entry', 'room'), 'online-room');
+  assert.equal(nextScreen('online-join', 'room'), 'online-room');
+  assert.equal(nextScreen('online-join', 'back'), 'online-entry');
+  assert.equal(nextScreen('online-room', 'back'), 'online-entry');
+  assert.equal(nextScreen('online-room', 'start'), 'game');
+  assert.equal(nextScreen('online-entry', 'back'), 'battle-setup');
 });
 
 test('screen flow: an event a screen does not take, or an unknown screen, moves nowhere', () => {
   for (const [screen, event] of [['entry', 'back'], ['entry', 'leave'], ['tutorial-select', 'open-battle'], ['battle-setup', 'open-tutorials'],
-    ['game', 'back'], ['game', 'start'], ['tutorial-select', 'tutorial-complete'], ['online-room', 'back'], ['entry', 'constructor'], ['entry', 'toString'],
+    ['game', 'back'], ['game', 'start'], ['tutorial-select', 'tutorial-complete'], ['online-room', 'open-battle'], ['entry', 'constructor'], ['entry', 'toString'],
     ['__proto__', 'back'], [undefined, 'start'], ['entry', undefined]])
     assert.equal(nextScreen(screen, event), null, `${screen} / ${event}`);
 });
@@ -82,7 +91,8 @@ test('screen flow: Escape goes back from a flow screen only with nothing open ov
   assert.equal(escapeScreen('battle-setup', { overlayOpen: true }), null);
   assert.equal(escapeScreen('entry'), null);
   assert.equal(escapeScreen('game'), null);
-  assert.deepEqual(SCREENS.filter(isFlowScreen), ['tutorial-select', 'battle-setup']);
+  assert.equal(escapeScreen('online-room'), 'online-entry');
+  assert.deepEqual(SCREENS.filter(isFlowScreen), ['tutorial-select', 'battle-setup', 'online-entry', 'online-join', 'online-room']);
 });
 
 const memoryStorage = (initial = {}, { failWrite = false, failRead = false } = {}) => {
