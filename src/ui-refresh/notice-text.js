@@ -16,7 +16,13 @@ const MESSAGES = {
   // The guide says why (tutorial-mode-controller.js, TUTORIAL_STEP_GUARDS).
   TUTORIAL_CHOICE_NOT_EXPECTED: 'じぐさぽの案内に沿って選んでください',
   MATCH_SESSION_COMMAND_INFLIGHT: BLOCK_MESSAGES.RESOLVING,
-  RUNTIME_CLIENT_CONTROLLER_BUSY: BLOCK_MESSAGES.RESOLVING
+  RUNTIME_CLIENT_CONTROLLER_BUSY: BLOCK_MESSAGES.RESOLVING,
+  // Online play (remote-session.js): the room did not answer, the line is down, or the move crossed a newer state.
+  REMOTE_TIMEOUT: 'サーバーの応答がありません。もう一度試してください',
+  REMOTE_DISCONNECTED: '接続が切れています。再接続を待ってください',
+  STALE_REVISION: '盤面が更新されました。もう一度選んでください',
+  MATCH_UI_PLAN_STALE: '盤面が更新されました。もう一度選んでください',
+  COPY_FAILED: 'コピーできませんでした。コードを書き写してください'
 };
 
 // Returns the sentence to show, or null when nothing should be shown.

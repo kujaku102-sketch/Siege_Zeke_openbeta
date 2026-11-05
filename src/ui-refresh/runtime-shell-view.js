@@ -5,6 +5,7 @@ import { deckPresentation } from '../ui/deck-presentation.js';
 import { panelHeadHtml, controlsHelpHtml } from './cyber-panel.js';
 import { titleLinks } from '../config/external-links.js';
 import { battleSetupHtml, tutorialSelectHtml } from './flow-screens-view.js';
+import { onlineEntryHtml, onlineHudHtml, onlineJoinHtml, onlineRoomHtml } from './online-screens-view.js';
 import { TUTORIAL_ITEMS } from './tutorial-items.js';
 import { debugEntryHtml, pagedOptionsHtml } from './debug-view.js';
 const entryLogo = new URL("../assets/siege-zeke-logo-layers.svg", import.meta.url).href;
@@ -31,6 +32,13 @@ export function deckOptionsHtml(state, selectedId) {
   return [...fixed.map(([id, label]) => `<option value="${id}" ${selectedId === id ? "selected" : ""}>${label}</option>`),
     ...(state.savedDecks ?? []).map((deck) => `<option value="custom:${esc(deck.id)}" ${selectedId === `custom:${deck.id}` ? "selected" : ""} ${validateDeck(deck).valid ? "" : "disabled"}>保存: ${esc(deck.name)}${validateDeck(deck).valid ? "" : "（要修正）"}</option>`)].join("");
 }
+
+// The room screen names the deck and user chosen at the door, and the opponent's user once they are ready.
+const onlineSeatNames = (state, host) => {
+  const saved = (state.savedDecks ?? []).find(deck => `custom:${deck.id}` === host.playerDeckId);
+  return { deckName: saved ? saved.name : START_DECKS.find(deck => deck.id === host.playerDeckId)?.name ?? host.playerDeckId,
+    userName: USER_CARDS[saved?.userId ?? host.playerUserId]?.name ?? "", opponentUserName: USER_CARDS[host.online?.state?.opponent?.userId]?.name ?? "" };
+};
 
 export const userOptionsHtml = selected => Object.entries(USER_CARDS).map(([id, user]) => `<option value="${id}" ${selected === id ? "selected" : ""}>${esc(user.name)}</option>`).join("");
 
@@ -121,6 +129,10 @@ export function runtimeShellHtml(host) {
   const ui = {...host,screen:host.screen,options:host.options,entryCrtMenu:host.effectsEnabled && host.screen === 'entry'};
   const entry = host.screen === 'entry' ? entryHtml(host.view,host.effectsEnabled).replace('data-deck ', 'data-deck-open ') + titleLinksHtml() : '';
   const flow = host.screen === 'tutorial-select' ? tutorialSelectHtml(host)
-    : host.screen === 'battle-setup' ? battleSetupHtml(host,{deckOptions:selected => deckOptionsHtml(state,selected),userOptions:userOptionsHtml}) : '';
-  return `<div class="r2-content" data-effects="${host.effectsEnabled ? 'on' : 'off'}"><nav class="r2-utilities" aria-label="メニュー"><button data-live="options" aria-label="メニュー・オプション">メニュー</button></nav>${entry}${flow}<div data-match-root></div><div data-shell-overlays>${renderNoteHtml(host)}${host.options ? settingsHtml(state,ui) : ''}${deckBuilderHtml(state,{view:host.view})}${host.catalogOpen ? `<div class="live-catalog"><button data-live="close-catalog">閉じる</button>${sandboxCatalogHtml(state)}</div>` : ''}${host.notice ? `<aside class="r2-notice" role="status">${esc(host.notice)}</aside>` : ''}${host.preparing ? '<aside class="r2-preparing" role="status" aria-live="polite" data-preparing>準備中…</aside>' : ''}</div></div><section class="r2-rotate" hidden role="status"><div class="r2-rotate-device"><h1>端末を横向きにしてください</h1><p>横に戻すと、そのまま続きから操作できます。</p></div><div class="r2-rotate-window"><h1>窓を横長にしてください</h1><p>横長に戻すと、そのまま続きから操作できます。</p></div></section>`;
+    : host.screen === 'battle-setup' ? battleSetupHtml(host,{deckOptions:selected => deckOptionsHtml(state,selected),userOptions:userOptionsHtml})
+    : host.screen === 'online-entry' ? onlineEntryHtml(host,{deckOptions:selected => deckOptionsHtml(state,selected),userOptions:userOptionsHtml})
+    : host.screen === 'online-join' ? onlineJoinHtml(host)
+    : host.screen === 'online-room' ? onlineRoomHtml(host,{now:host.now ?? Date.now(),...onlineSeatNames(state,host),canShare:Boolean(host.canShare)}) : '';
+  const onlineHud = host.screen === 'game' && host.online?.state?.match ? onlineHudHtml(host,{now:host.now ?? Date.now()}) : '';
+  return `<div class="r2-content" data-effects="${host.effectsEnabled ? 'on' : 'off'}"><nav class="r2-utilities" aria-label="メニュー"><button data-live="options" aria-label="メニュー・オプション">メニュー</button></nav>${entry}${flow}<div data-match-root></div><div data-shell-overlays>${onlineHud}${renderNoteHtml(host)}${host.options ? settingsHtml(state,ui) : ''}${deckBuilderHtml(state,{view:host.view})}${host.catalogOpen ? `<div class="live-catalog"><button data-live="close-catalog">閉じる</button>${sandboxCatalogHtml(state)}</div>` : ''}${host.notice ? `<aside class="r2-notice" role="status">${esc(host.notice)}</aside>` : ''}${host.preparing ? '<aside class="r2-preparing" role="status" aria-live="polite" data-preparing>準備中…</aside>' : ''}</div></div><section class="r2-rotate" hidden role="status"><div class="r2-rotate-device"><h1>端末を横向きにしてください</h1><p>横に戻すと、そのまま続きから操作できます。</p></div><div class="r2-rotate-window"><h1>窓を横長にしてください</h1><p>横長に戻すと、そのまま続きから操作できます。</p></div></section>`;
 }

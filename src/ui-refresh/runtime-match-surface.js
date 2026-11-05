@@ -44,7 +44,7 @@ export function lockRegion(host, locked) {
 // It wires the parts together; each surface-*.js module owns one concern.
 export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSeat = null,
   onTitle = () => {}, onRematch = () => {}, onMenu = null, onError = () => {},
-  onTutorialSkip = () => {}, onToMenu = () => {}, onSaveLog = () => {}, onNoticeClear = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY, lowGpu = false, onContextLost = () => {} }) {
+  onTutorialSkip = () => {}, onToMenu = () => {}, onSaveLog = () => {}, onNoticeClear = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY, lowGpu = false, onContextLost = () => {}, online = null }) {
   const created = createMatchUiController({ session, viewerSeat });
   if (!created.ok) return created;
   const ui = created.value;
@@ -258,7 +258,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     if (!result.ok) { shakeRefused(result.error.code); if (!guideSaysWhy(result.error.code)) reportError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { guideAway = null; const read = ui.read(); if (read.ok) render(read); } return; }
     const next = result.value;
     const tutorial = tutorialView();
-    const presentation = { ...next, view, effectsEnabled, boardStyle, tutorial:tutorial.ok ? tutorial.value : null };
+    // online: null for a local match; for an online one, the room's end once it comes ({ result, reason }), else {}.
+    const presentation = { ...next, view, effectsEnabled, boardStyle, tutorial:tutorial.ok ? tutorial.value : null, online };
     const nextScope = `${next.model.match.matchId}:${next.sync?.sessionGeneration ?? scope.sessionGeneration}:${next.model.match.viewerSeat}:${next.model.match.revision}:${next.sync?.modeEpoch ?? 0}:${view}:${effectsEnabled ? 1 : 0}`;
     // Decorative work (anchors, scenes, effects) may fail without stopping the match,
     // and its failure must not keep the events from being handed over: they would be
@@ -272,7 +273,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     try {
       const shell = root.querySelector('.r2-runtime-view');
       const shellRebuilt = !shell || shell.dataset.layout !== (view === 'mobile' ? 'mobile' : 'desktop');
-      const nextKeys = localRegionKeys(next,tutorial.ok ? tutorial.value : null);
+      const nextKeys = localRegionKeys({ ...next, online },tutorial.ok ? tutorial.value : null);
       const changedLocal = [...nextKeys].filter(([name,key]) => regionKeys.get(name) !== key).map(([name]) => name);
       const runtimeChanged = renderScope !== nextScope;
       if (shellRebuilt) {
@@ -442,7 +443,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   opponents = sides.value;
   const surface = Object.freeze({
     refresh() { const read = ui.read(); render(read); opponents.startCpu(latest); opponents.startTutorial(); return read; },
-    configure(options) { if (options.renderQuality) scenes.setRenderQuality(options.renderQuality); if (typeof options.lowGpu === 'boolean') { lowGpu = options.lowGpu; scenes.setLowGpu(lowGpu); } if (options.view) view = options.view; if (typeof options.effectsEnabled === 'boolean') effectsEnabled = options.effectsEnabled; if (typeof options.tapDetails === 'boolean') tapDetails = options.tapDetails; return this.refresh(); },
+    configure(options) { if (options.renderQuality) scenes.setRenderQuality(options.renderQuality); if (typeof options.lowGpu === 'boolean') { lowGpu = options.lowGpu; scenes.setLowGpu(lowGpu); } if (options.view) view = options.view; if (typeof options.effectsEnabled === 'boolean') effectsEnabled = options.effectsEnabled; if (typeof options.tapDetails === 'boolean') tapDetails = options.tapDetails; if (options.online !== undefined) online = options.online; return this.refresh(); },
     startAi() { return opponents.startAi(); },
     switchViewer(seatId) { pointer.stopPress(); fx.clear(); const read = ui.switchViewer(seatId); render(read); return read; },
     dispose() {

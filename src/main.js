@@ -41,6 +41,10 @@ import { archiveRetiredMatch } from './adapters/match-archive.js';
 import { sendMatchLog } from './adapters/match-log-sender.js';
 import { buildMatchLog } from './adapters/match-log.js';
 import { TUTORIAL_WIN_CHECKPOINT, loadTutorialWinBoard } from './tutorial-boards/index.js';
+import { NAME_KEY, createOnlineClient } from './network/online-client.js';
+import { onlineEndpoint } from './network/endpoint.js';
+import { normalizeRoomCode } from './network/room-code.js';
+import { typedRoomCode } from './ui-refresh/online-screens-view.js';
 
 // Host preferences never hold an engine state. One lifecycle owns the single
 // Authority; all game actions go through the current bound seat ports.
@@ -59,7 +63,10 @@ const host = {screen:'entry',mode:'sandbox',tutorialId:'basics',
   options:false,notice:'',storedCounts:storedCounts(),sendMatchLogs:localStorage.getItem(SEND_LOGS_STORAGE_KEY) === 'on',tapDetails:true,effectsEnabled:localStorage.getItem(EFFECTS_STORAGE_KEY) === "on",
   masterVolume:Math.max(0,Math.min(10,Number.parseInt(localStorage.getItem('sz-master-volume') ?? '7',10) || 0)),
   logoNoiseProfile:localStorage.getItem('sz-logo-noise-profile') || 'random',logoVideoName:'',actor:'player',opponentControl:'manual',
-  catalogOpen:false,catalog:{query:'',expansion:'all',catalogOwner:'player'},tutorialDone:readTutorialDone(globalThis.localStorage)};
+  catalogOpen:false,catalog:{query:'',expansion:'all',catalogOwner:'player'},tutorialDone:readTutorialDone(globalThis.localStorage),
+  // Online play (design §14): open only where a server is set (endpoint.js); the guest name is kept in this browser.
+  online:{available:onlineEndpoint({hostname:location.hostname,search:location.search}) !== null,name:(() => {try {return localStorage.getItem(NAME_KEY) ?? '';} catch {return '';}})(),
+    code:'',state:null,error:null,copied:false,confirming:false},canShare:typeof navigator.share === 'function'};
 let surface = null, session = null, screenRendered = null, entryLogoVideoFile = null;
 let shellGeneration = 0, adminSerial = 0, press = null, suppressDeckClickUntil = 0;
 installAbilityHelp(root);registerLocalFonts();
@@ -186,7 +193,7 @@ async function clearAndReload() {
   if (!window.confirm('service worker の登録を外し、キャッシュを消してから読み直します。設定や対戦ログは消しません。よろしいですか？')) return;
   try {await clearSavedFiles();} finally {location.reload();}
 }
-function attachSession(next) {
+function attachSession(next,extra = {}) {
   host.preparing = false;
   surface?.dispose();surface = null;session = next;shellGeneration += 1;
   host.screen = 'game';host.options = false;host.debug = false;host.notice = '';host.actor = session.scope().seatIds[0];renderShell(true);
@@ -195,7 +202,7 @@ function attachSession(next) {
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
     effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;host.debug = false;renderShell();},onTitle:leaveMatch,
     onRematch:() => prepared(() => {const result = lifecycle.rematch();if (result.ok) attachSession(result.value);else notice(result.error.code);}),
-    onTutorialSkip:() => prepared(skipTutorial),onSaveLog:saveMatchLog,onToMenu:() => leaveMatch(nextScreen('game',host.mode === 'tutorial' ? 'tutorial-complete' : 'match-menu')),onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}}});
+    onTutorialSkip:() => prepared(skipTutorial),onSaveLog:saveMatchLog,onToMenu:() => leaveMatch(nextScreen('game',host.mode === 'tutorial' ? 'tutorial-complete' : 'match-menu')),onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}},...extra});
   if (mounted.ok) surface = mounted.value;else notice(mounted.error.code);
 }
 function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.getRandomValues(new Uint32Array(1))[0]) {
@@ -239,16 +246,70 @@ function downloadStored(name,place,items) {const link = document.createElement('
 const tutorialWon = () => host.mode === 'tutorial' && session?.tutorial?.().value?.flow?.complete === true;
 // A browser may refuse even the reading of localStorage; this runs first in pagehide and startMatch, so it must not throw.
 const markWonTutorial = () => {try {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);} catch {/* the tutorial stays unmarked */}};
-function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();surface = null;session = null;shellGeneration += 1;host.debug = false;host.screen = screen;host.options = false;host.catalogOpen = false;host.notice = '';renderShell(true);
+function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) host.tutorialDone = markTutorialDone(globalThis.localStorage,host.tutorialId);lifecycle.leave();if (host.mode === 'online') {leaveOnline();host.mode = 'ai';}surface = null;session = null;shellGeneration += 1;host.debug = false;host.screen = screen;host.options = false;host.catalogOpen = false;host.notice = '';renderShell(true);
   if (screen !== 'entry') root.querySelector('[data-flow-back]')?.focus({preventScroll:true});}
 // Entry flow screens move by their own buttons and Escape only, never by the browser history (Q14).
 // Focus follows the move (a re-render drops it to the body, out of reach of Escape): a flow screen
 // starts on its [戻る], the title on the button that opened the screen just left.
-function goTo(screen) {if (!screen) return;const from = host.screen;host.screen = screen;host.options = false;host.debug = false;host.catalogOpen = false;host.notice = '';renderShell();
+function goTo(screen) {if (!screen) return;const from = host.screen;if (from === 'online-room' && screen !== 'game') leaveOnline();host.online.error = null;host.screen = screen;host.options = false;host.debug = false;host.catalogOpen = false;host.notice = '';renderShell();
   const opener = {'tutorial-select':'[data-flow="open-tutorials"]','battle-setup':'[data-flow="open-battle"]'}[from];
   root.querySelector(screen === 'entry' ? opener ?? '[data-mode]' : '[data-flow-back]')?.focus({preventScroll:true});}
-// Online play (P02B) will connect here; until then its button is marked 準備中 and does nothing.
+// Online play (P02B) without a server: its button is marked 準備中 and does nothing.
 function onOnlineBattle() {}
+// Online play with a server (design §14.1): one client for the page, made at the first way in. What the room says redraws
+// the screen; once its match runs, the remote session is mounted like a local one, and a finished match shows the room's end.
+let online = null, onlineTicker = null, onlineUnwatch = null, copiedTimer = null;
+function onlineClient() {
+  if (online) return online;
+  const endpoint = onlineEndpoint({hostname:location.hostname,search:location.search});
+  if (!endpoint) return null;
+  online = createOnlineClient({endpoint,storage:localStorage});
+  online.subscribe(onlineChanged);
+  return online;
+}
+function onlineChanged(state) {
+  host.online.state = state;
+  const remote = online?.session();
+  if (state.status === 'playing' && remote && session !== remote) return attachOnline(remote);
+  if (session && session === remote) surface?.configure({online:state.outcome ?? {}});
+  syncOnlineTicker();renderShell();
+}
+function attachOnline(remote) {
+  lifecycle.leave();host.mode = 'online';host.online.confirming = false;
+  attachSession(remote,{online:host.online.state.outcome ?? {}});
+  onlineUnwatch?.();onlineUnwatch = remote.onChange(() => surface?.refresh());
+  syncOnlineTicker();
+}
+// The room's clock, the opponent's grace and the player's own reconnecting count down once a second while they show.
+function syncOnlineTicker() {
+  const state = host.online.state, counting = state && (host.screen === 'online-room' && state.expiresAt || host.screen === 'game' && (state.opponentAwayUntil || state.selfAwayUntil));
+  if (counting && !onlineTicker) onlineTicker = setInterval(() => {host.now = Date.now();renderShell();},1000);
+  else if (!counting && onlineTicker) {clearInterval(onlineTicker);onlineTicker = null;}
+}
+function leaveOnline() {
+  onlineUnwatch?.();onlineUnwatch = null;online?.leave();
+  Object.assign(host.online,{state:null,error:null,copied:false,confirming:false});syncOnlineTicker();
+}
+// The deck chosen at the door, as the room reads it: a start deck by id, or a saved deck's recipe with its user.
+function onlineDeck() {
+  const saved = host.savedDecks.find(deck => `custom:${deck.id}` === host.playerDeckId);
+  return saved ? {userId:saved.userId,deck:{kind:'custom',recipe:deckToRecipe(saved)}} : {userId:host.playerUserId,deck:{kind:'start',deckId:host.playerDeckId}};
+}
+async function enterRoom(join) {
+  const client = onlineClient();if (!client) return;
+  host.online.error = null;
+  const code = join ? normalizeRoomCode(host.online.code) : null;
+  if (join && !code) {host.online.error = {code:'ROOM_CODE_INVALID'};return renderShell();}
+  const name = host.online.name.trim() || undefined;
+  const result = join ? await client.joinRoom(code,{name}) : await client.createRoom({name});
+  if (result.ok) goTo(nextScreen(host.screen,'room'));else renderShell();
+}
+async function copyRoomCode() {
+  const display = host.online.state?.display ?? '';
+  try {await navigator.clipboard.writeText(display);} catch {return notice('COPY_FAILED');}
+  host.online.copied = true;renderShell();clearTimeout(copiedTimer);copiedTimer = setTimeout(() => {host.online.copied = false;renderShell();},2000);
+}
+function shareRoomCode() {void navigator.share?.({text:`Siege÷Zeke の部屋コード：${host.online.state?.display ?? ''}`}).catch(() => {});}
 function newDeckDraft() {host.deckBuilder.draft = normalizeSavedDeck({name:'新規デッキ',userId:'doors_zx',cards:{}},'');}
 function admin(action) {
   if (!session) return {ok:false,error:{code:'MATCH_UNAVAILABLE'}};
@@ -273,6 +334,17 @@ root.addEventListener('click',event => {
   if (button.hasAttribute('data-flow-back')) return goTo(nextScreen(host.screen,'back'));
   if (d.start) return prepared(() => startMatch(d.start,d.start === 'tutorial' ? d.tutorialId : host.tutorialId));
   if (button.hasAttribute('data-online-battle')) return onOnlineBattle();
+  if (button.matches('[data-online-create],[data-online-join],[data-flow="open-join"]') && button.getAttribute('aria-disabled') === 'true') return;
+  if (button.hasAttribute('data-online-create')) return void enterRoom(false);
+  if (button.hasAttribute('data-online-join')) return void enterRoom(true);
+  if (button.hasAttribute('data-online-ready')) return void online?.setReady(onlineDeck());
+  if (button.hasAttribute('data-online-unready')) return void online?.setUnready();
+  if (button.hasAttribute('data-online-copy')) return void copyRoomCode();
+  if (button.hasAttribute('data-online-share')) return shareRoomCode();
+  if (button.hasAttribute('data-online-concede')) {host.online.confirming = true;return renderShell();}
+  if (button.hasAttribute('data-online-concede-no')) {host.online.confirming = false;return renderShell();}
+  if (button.hasAttribute('data-online-concede-yes')) {host.online.confirming = false;online?.concede();return renderShell();}
+  if (button.hasAttribute('data-online-leave')) return leaveMatch();
   if (d.mode) return prepared(() => startMatch(d.mode));
   if (d.view) {host.view = d.view;saveView(localStorage,d.view);surface?.configure({view:d.view});return renderShell();}
   if (button.hasAttribute('data-debug-open')) return openDebug();
@@ -319,6 +391,9 @@ root.addEventListener('input',event => {
   if (event.target.closest('[data-match-root]')) return;
   const deck = host.deckBuilder;
   if (event.target.hasAttribute('data-deck-name')) {deck.draft.name = event.target.value;return;}
+  if (event.target.hasAttribute('data-online-name')) {host.online.name = event.target.value;return;}
+  // The code reads as the room's letters as it is typed or pasted, its hyphen after the fourth.
+  if (event.target.hasAttribute('data-online-code')) {const typed = typedRoomCode(event.target.value);if (event.target.value !== typed) event.target.value = typed;host.online.code = typed;return;}
   if (event.target.hasAttribute('data-deck-query')) deck.query = event.target.value;
   else if (event.target.hasAttribute('data-catalog-query')) host.catalog.query = event.target.value;else return;renderShell();
 });
@@ -354,11 +429,14 @@ for (const name of ['pointerup','pointercancel','pointerleave']) root.addEventLi
 // Escape is taken on the document: opening the options or closing the deck builder leaves the focus
 // on <body>, and the key must still close the window or go back from there (V092-08).
 document.addEventListener('keydown',event => {if (event.key === 'Escape' && !event.target.closest?.('[data-match-root]')) {
+  if (host.online.confirming) {host.online.confirming = false;return renderShell();}
   if (host.debug) return closeDebug();
   const back = escapeScreen(host.screen,{overlayOpen:host.options || host.deckBuilder.open || host.catalogOpen});
   if (back) return goTo(back);
   host.options = false;host.deckBuilder.detailId = null;renderShell();}});
-window.addEventListener('pagehide',() => {markWonTutorial();clearPress();mobileViewport.dispose();lifecycle.dispose();surface = null;session = null;});
+// Enter in the room code field joins, as its 入る does.
+document.addEventListener('keydown',event => {if (event.key === 'Enter' && event.target.matches?.('[data-online-code]')) void enterRoom(true);});
+window.addEventListener('pagehide',() => {markWonTutorial();clearPress();mobileViewport.dispose();online?.dispose();lifecycle.dispose();surface = null;session = null;});
 window.addEventListener('pageshow',event => {if (event.persisted) location.reload();});
 renderShell(true);registerPwa();
 // The running release, read once as the page starts (debug window).

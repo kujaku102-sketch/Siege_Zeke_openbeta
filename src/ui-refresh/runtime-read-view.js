@@ -302,9 +302,12 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
     popup: wants('popup') ? operationsHtml(model,presentation) : null,
     selection,
     log: wants('log') ? model.ui.logOpen ? runtimeLogHtml(presentation.log ?? [], model.match.viewerSeat) : '' : null,
-    menu: wants('menu') ? model.ui.menuOpen ? '<aside class="r2-modal" role="dialog" aria-label="メニュー"><section><button data-runtime-menu>閉じる</button><button data-runtime-rematch>再戦</button><button data-runtime-title>ホームに戻る</button></section></aside>' : '' : null,
+    // An online match has no rematch (design §14.1).
+    menu: wants('menu') ? model.ui.menuOpen ? `<aside class="r2-modal" role="dialog" aria-label="メニュー"><section><button data-runtime-menu>閉じる</button>${presentation.online ? '' : '<button data-runtime-rematch>再戦</button>'}<button data-runtime-title>ホームに戻る</button></section></aside>` : '' : null,
     // A tutorial reaches the end screen once its closing line is read (its [次へ]); a match as soon as it is finished.
-    result: wants('result') ? presentation.tutorial ? presentation.tutorial.ended ? runtimeResultHtml(model.match, { tutorial: true }) : '' : runtimeResultHtml(model.match) : null
+    // An online end screen closed with 閉じる leaves the board to look at.
+    result: wants('result') ? presentation.tutorial ? presentation.tutorial.ended ? runtimeResultHtml(model.match, { tutorial: true }) : ''
+      : presentation.online && presentation.resultDismissed ? '' : runtimeResultHtml(model.match, { online: presentation.online ?? null }) : null
   };
 }
 

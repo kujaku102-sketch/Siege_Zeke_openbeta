@@ -4,6 +4,7 @@ import { abilityBadgeDefinition } from '../data/ability-badges.js';
 // The log's words live in a module with no imports, so a server can build the match log from them.
 import { logEntry, seatOf } from './runtime-log-rows.js';
 export { runtimeLogRows } from './runtime-log-rows.js';
+import { onlineResultReason } from './online-screens-view.js';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;')
   .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
@@ -154,12 +155,20 @@ export function runtimeLogHtml(events, viewerSeat) {
 // with the dots and noise running through them, and the ways on. A draw reads NO CONTEST, with no effect (文豪, 2026-11-01).
 // A tutorial has no log to save and goes back to its own list. Read from the state, not from the event feed: a win
 // board started as a new match has no events.
+// An online match (`online`: the room's end, { result, reason }, or {} until it comes) also ends where the board does not:
+// a concession, a lost line or a stopped room. Its line under the title says why, and it offers 閉じる (the board stays)
+// and the title, no rematch (design §14.1).
 export const RESULT_TITLES = Object.freeze({ win: 'CONGRATULATION!', defeat: 'DEFEAT', draw: 'NO CONTEST' });
+const ONLINE_KINDS = Object.freeze({ win: 'win', lose: 'defeat', draw: 'draw', aborted: 'draw' });
 
-export function runtimeResultHtml(match, { tutorial = false } = {}) {
-  if (!match.finished) return '';
+export function runtimeResultHtml(match, { tutorial = false, online = null } = {}) {
+  if (!match.finished && !online?.result) return '';
   const outcome = match.lockedOutcome;
-  const kind = outcome?.kind === 'draw' ? 'draw' : outcome?.winnerSeat === match.viewerSeat ? 'win' : 'defeat';
+  const kind = online?.result ? ONLINE_KINDS[online.result] ?? 'draw'
+    : outcome?.kind === 'draw' ? 'draw' : outcome?.winnerSeat === match.viewerSeat ? 'win' : 'defeat';
   const title = RESULT_TITLES[kind];
-  return `<aside class="r2-result is-${kind}" role="dialog" aria-label="対局結果" data-outcome="${kind}"><canvas class="r2-result-fx" aria-hidden="true"></canvas><h2 data-text="${title}">${title}</h2><nav class="r2-result-actions">${tutorial ? '' : '<button data-runtime-save-log>対戦ログを保存</button>'}<button data-runtime-to-menu>${tutorial ? 'チュートリアル選択へ' : '対戦メニューに戻る'}</button><button data-runtime-title>ホームに戻る</button></nav></aside>`;
+  const reason = online ? onlineResultReason(online) : '';
+  const actions = online ? '<button data-runtime-result-close>閉じる</button><button data-runtime-title>タイトルに戻る</button>'
+    : `${tutorial ? '' : '<button data-runtime-save-log>対戦ログを保存</button>'}<button data-runtime-to-menu>${tutorial ? 'チュートリアル選択へ' : '対戦メニューに戻る'}</button><button data-runtime-title>ホームに戻る</button>`;
+  return `<aside class="r2-result is-${kind}" role="dialog" aria-label="対局結果" data-outcome="${kind}"><canvas class="r2-result-fx" aria-hidden="true"></canvas><h2 data-text="${title}">${title}</h2>${reason ? `<p class="r2-result-reason">${esc(reason)}</p>` : ''}<nav class="r2-result-actions">${actions}</nav></aside>`;
 }
