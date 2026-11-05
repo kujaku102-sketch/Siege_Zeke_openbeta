@@ -1,9 +1,11 @@
 // Where the online server is (design: サーバー設計-詳細.md §13). Pure.
 //
-// ONLINE_ENDPOINT is empty until the server is deployed: with no address the game keeps showing online play as "not ready".
+// ONLINE_ENDPOINT is the online server: the Worker `siege-zeke-online` (cloudflare/online) on play.siegezeke.online.
+// The Worker is deployed by hand (cloudflare/online/README.md); a page that points here before that cannot reach it
+// (online play then fails with SERVER_UNREACHABLE). With an empty string the game shows online play as "not ready".
 // A page served from this PC can point itself at a local server with ?online=http://127.0.0.1:8801 (wrangler dev);
 // the same query on any other page is ignored, so a shared link cannot send players to someone else's server.
-export const ONLINE_ENDPOINT = '';
+export const ONLINE_ENDPOINT = 'https://play.siegezeke.online';
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
