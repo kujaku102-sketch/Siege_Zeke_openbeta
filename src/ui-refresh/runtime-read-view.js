@@ -51,8 +51,9 @@ function runtimeCardHtml(card, zone) {
   return `<button class="card color-${colorClass(card.definition.color)}${card.status.sleep ? ' sleep' : ''}${card.status.residentActive ? ' resident-active' : ''}${attack}${card.interaction.securityGuard ? ' security-guard' : ''}${card.interaction.selected ? ' selected' : ''}${card.interaction.targetActionIds.length ? ' targetable' : ''}" data-card-ref="${esc(card.cardRef)}" data-card-id="${esc(card.definition.id)}" data-seat="${esc(card.controllerSeat)}" data-category="${esc(card.definition.category)}" data-zone="${esc(zone)}" title="${esc(card.definition.text)}"><div class="card-top"><span class="cost cost-${costTrend}" data-vfx-anchor="hand-cost" data-owner="${esc(card.controllerSeat)}">${currentCost}</span><span class="category">${esc(card.definition.category)}</span></div><div class="card-visual ${CARD_ART[card.definition.id] ? 'has-art' : 'no-art'}">${cardArt(card)}</div><strong class="card-name">${esc(card.definition.name)}</strong>${badges(card)}<p class="card-rules-preview">${esc(card.definition.text)}</p>${card.mounted.length ? `<div class="mounted">LAYER ${card.mounted.length + 1}</div>` : ''}${stats}${shield}</button>`;
 }
 
-// A hand card as a picture, for the opening screen (opening-view.js): the screen's own button carries the press.
-const cardPicture = card => runtimeCardHtml(card, 'hand').replace(/^<button /, '<span ').replace(/<\/button>$/, '</span>').replace(/ data-card-ref="[^"]*"/, '');
+// A hand card as a picture, for the opening screen (opening-view.js): the screen's own button carries the press; a card
+// to pick is lit as a board target, a picked one marked as on the board.
+const cardPicture = (card, { lit = false, picked = false } = {}) => runtimeCardHtml(card, 'hand').replace(/^<button class="card /, `<span class="card ${lit ? 'request-target ' : ''}${picked ? 'selected ' : ''}`).replace(/<\/button>$/, '</span>').replace(/ data-card-ref="[^"]*"/, '');
 
 function zoneHtml(seat, zone) {
   const limit = seat.user[`${zone}Limit`];

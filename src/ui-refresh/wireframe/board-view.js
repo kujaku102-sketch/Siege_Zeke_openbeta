@@ -140,13 +140,15 @@ export function syncTutorialHint(svg, text) {
 }
 // The own Obs a card placed by an effect can be mounted under wear 「マウント」 on their top-right corner (文豪, 2026-11-05, H2),
 // in board units so the tag follows the camera. Empty here; the surface fills it (syncPickBadges).
+// The tag's own shape, in its 116x36 box around (0,0): the board's 「マウント」 and the opening screen's 「戻す」 (opening-view.js).
+export const pickBadgeShape = text => `<rect x="-58" y="-18" width="116" height="36" rx="18"/><text y="8" font-size="22" text-anchor="middle">${esc(text)}</text>`;
 export function syncPickBadges(svg, model, targets, text) {
   const layer = svg?.querySelector('.wf-pick-badges');
   if (!layer) return;
   const {slots} = geometry(model);
   const html = targets.map(target => slots.find(s => s.seatId === target.seatId && s.zone === target.zone && s.slot === target.slot)).filter(Boolean).map(slot => {
     const at = project(slot.x + CARD.width * .3, slot.y - CARD.height * .42);
-    return `<g class="wf-pick-badge" transform="translate(${at.x} ${at.y})"><rect x="-58" y="-18" width="116" height="36" rx="18"/><text y="8" font-size="22" text-anchor="middle">${esc(text)}</text></g>`;
+    return `<g class="wf-pick-badge" transform="translate(${at.x} ${at.y})">${pickBadgeShape(text)}</g>`;
   }).join('');
   if (layer.innerHTML !== html) layer.innerHTML = html;
 }
