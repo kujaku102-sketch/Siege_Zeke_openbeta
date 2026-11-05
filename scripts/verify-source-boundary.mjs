@@ -6,7 +6,7 @@ const rootArgument = process.argv.indexOf("--root");
 const root = path.resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."));
 const rootRealpath = await realpath(root);
 const forbiddenDirectories = new Set(["inputs", "outputs", "artifacts", "audit", "tusk"]);
-const ignoredGeneratedDirectories = new Set(["node_modules", "dist"]);
+const ignoredGeneratedDirectories = new Set(["node_modules", "dist", ".wrangler"]);
 // The tool workspace at the repository root (.claude/worktrees holds other checkouts of this
 // repository). Only that one root-level directory is skipped; a .claude anywhere else is scanned.
 const isToolWorkspace = (directory, name) => directory === root && name === ".claude";

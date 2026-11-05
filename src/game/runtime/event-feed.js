@@ -212,11 +212,14 @@ export function projectRuntimeEventBatch(before, after, command, receipt, viewer
   }
   const outcome = () => after.engineState.victory.lockedOutcome === 'draw' ? { kind: 'draw' }
     : { kind: 'win', winnerSeat: seat(after.engineState.victory.lockedOutcome) };
-  if (!before.engineState.victory?.lockedOutcome && after.engineState.victory?.lockedOutcome) {
+  // Present only when the game ended by a forfeit: 'concede' (a user's) or 'disconnect' (the server's judgement). A result by the rules has none.
+  const reason = () => after.engineState.victory.finishReason ? { reason: after.engineState.victory.finishReason } : {};
+  // A forfeit locks and finishes at once: that is one event, result_finished, not a lock with declared effects left to resolve.
+  if (!before.engineState.victory?.lockedOutcome && after.engineState.victory?.lockedOutcome && !after.engineState.victory.finishReason) {
     emit('result_locked', { outcome: outcome() });
   }
   if (!before.engineState.victory?.finished && after.engineState.victory?.finished) {
-    emit('result_finished', { outcome: outcome() });
+    emit('result_finished', { outcome: outcome(), ...reason() });
   }
   return events;
 }

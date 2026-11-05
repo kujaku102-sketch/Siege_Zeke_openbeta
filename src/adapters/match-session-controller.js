@@ -1,11 +1,10 @@
 import { validateLiveAuthority } from '../game/runtime/live-authority.js';
-import { canonicalizeCommand, createCommandJournal } from '../game/runtime/command-record.js';
-import { buildRuntimeReferenceFrame } from '../game/runtime/reference-frame.js';
-import { createRuntimeReferenceState, planRuntimeReferenceCreation } from '../game/runtime/references.js';
-import { createRuntimeReferenceTokens } from '../game/runtime/reference-token.js';
-import { createRuntimeSession } from '../game/runtime/session.js';
+import { canonicalizeCommand } from '../game/runtime/command-record.js';
+import { createMatchAuthority } from '../game/runtime/authority.js';
 import { createLocalRuntimeCoordinator } from './local-runtime-port.js';
 import { createTutorialModeController, tutorialStateData } from './tutorial-mode-controller.js';
+
+export { createMatchAuthority };
 
 const failure = code => ({ ok: false, error: { code } });
 const nonempty = value => typeof value === 'string' && value.length > 0;
@@ -335,23 +334,4 @@ export function createNewMatchSessionController(input) {
   const authority = createMatchAuthority(runtime.value);
   if (!authority.ok) return authority;
   return createMatchSessionController({ authority: authority.value, sessionGeneration: generation.value });
-}
-
-// A fresh match's whole authority: engine, card references and an empty journal.
-export function createMatchAuthority(runtimeConfig) {
-  const session = createRuntimeSession(runtimeConfig);
-  if (!session.ok) return session;
-  const frame = buildRuntimeReferenceFrame(session.value.engineState);
-  if (!frame.ok) return frame;
-  const planned = planRuntimeReferenceCreation(frame.value);
-  if (!planned.ok) return planned;
-  const tokens = createRuntimeReferenceTokens({ count: planned.value.newRefCount, issuedRefs: [] });
-  if (!tokens.ok) return tokens;
-  const references = createRuntimeReferenceState({ frame: frame.value, newRefs: tokens.value });
-  if (!references.ok) return references;
-  const journal = createCommandJournal({
-    matchId: session.value.metadata.matchId, seatIds: session.value.metadata.seatIds
-  });
-  if (!journal.ok) return journal;
-  return { ok: true, value: { ...session.value, referenceState: references.value, journal: journal.value } };
 }

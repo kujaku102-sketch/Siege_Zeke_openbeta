@@ -1,6 +1,7 @@
 import { restoreRngState } from '../rng.js';
 import { buildRequiredInput } from '../required-input.js';
 import { FORMAT_ERROR, INVALID, MISSING, SnapshotError, STATE, UNSUPPORTED, copyJson, dense, exact, nonempty, ordinary, own, reject, seatIds } from './guards.js';
+import { MATCH_MODES, RUNTIME_MODES } from '../modes.js';
 
 const STATE_KEYS = [
   'runtimeContext', 'mode', 'tutorialId', 'playerDeckId', 'aiDeckId', 'playerUserId', 'aiUserId', 'players', 'active',
@@ -142,7 +143,7 @@ function validatePlayerMarkers(state) {
 
 function idleState(state) {
   const mode = own(state, 'mode', STATE);
-  if (typeof mode !== 'string' || !['ai', 'tutorial', 'lab', 'sandbox'].includes(mode)) reject(STATE);
+  if (typeof mode !== 'string' || !RUNTIME_MODES.includes(mode)) reject(STATE);
   if (['lab', 'sandbox'].includes(mode)) reject(UNSUPPORTED);
   const phase = own(state, 'phase', STATE);
   const interactive = own(state, 'interactive', STATE);
@@ -177,7 +178,7 @@ export function snapshotState(state, metadata, referenceState, revision) {
   const processing = own(state, 'processingTriggers', STATE);
   const resolving = own(state, 'resolvingResponse', STATE);
   const depth = own(state, 'effectDepth', STATE);
-  if (!['ai', 'tutorial'].includes(mode) || phase !== 'main'
+  if (![...MATCH_MODES, 'tutorial'].includes(mode) || phase !== 'main'
     || processing !== false || resolving !== false || depth !== 0) reject(UNSUPPORTED);
   validateDamageOutcome(state);
   validateDelayedEffects(state);

@@ -5,6 +5,7 @@ import { prepareAttackAction, attackPlanningView } from './command/attack-action
 import { authorityData, engineData, journalAfterAuthorization, journalSeatOrder, metadataData, publicAuthorityHeader } from './command/authority-data.js';
 import { physicalCardMap } from './command/card-target.js';
 import { CHOICE_ACTIONS, prepareChoiceAction } from './command/choice-action.js';
+import { prepareConcedeAction } from './command/concede-action.js';
 import { CommandBridgeError, exact, nonempty, own, reject, safeRevision } from './command/common.js';
 import { prepareExecuteCardAction } from './command/execute-card-action.js';
 import { executionCardView, executionPlanningView } from './command/execution-views.js';
@@ -44,6 +45,7 @@ const ACTION_REGISTRY = createActionRegistry([
   { type: 'activateAbility', requiresReferenceState: false, prepare: prepareActivateAbilityAction },
   { type: 'sandboxAddCard', requiresReferenceState: false, prepare: prepareSandboxAddAction },
   { type: 'sandboxSelectActiveSeat', requiresReferenceState: false, prepare: prepareSandboxSelectAction },
+  { type: 'concede', requiresReferenceState: false, prepare: prepareConcedeAction },
   { type: 'answerChoice', requiresReferenceState: true, prepare: prepareChoiceAction },
   { type: 'declineChoice', requiresReferenceState: true, prepare: prepareChoiceAction }
 ]);
@@ -59,6 +61,8 @@ export function prepareRuntimeCommand(authority, context, envelope, { tutorialAu
     const header = publicAuthorityHeader(authority);
     if (header.matchId !== trusted.matchId || !header.seatIds.includes(trusted.actorSeat)) reject('NOT_AUTHORIZED');
 
+    // The server's own commandIds start with 'system:'; a client cannot take one, and cannot send the server's forfeit.
+    if (canonical.value.command.commandId.startsWith('system:') || canonical.value.command.action.type === 'systemForfeit') reject('NOT_AUTHORIZED');
     const action = lookupActionHandler(ACTION_REGISTRY, canonical.value.command.action.type);
     if (!action) reject('ACTION_SCHEMA_UNAVAILABLE');
     const needsReferences = action.requiresReferenceState
@@ -87,6 +91,7 @@ export function prepareRuntimeCommand(authority, context, envelope, { tutorialAu
     const preparation = { authority, source, engine, metadata, trusted, canonical, readReferenceState };
     if (['sandboxAddCard', 'sandboxSelectActiveSeat'].includes(action.type)) return action.prepare(preparation);
     if (CHOICE_ACTIONS.has(action.type)) return action.prepare(preparation);
+    if (action.type === 'concede') return action.prepare({ ...preparation, engine, metadata });
 
     if (engine.mode === 'tutorial' && !tutorialAuthorized) reject('UNAVAILABLE_MODE');
     const playerId = engine.active;

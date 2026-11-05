@@ -9,7 +9,7 @@ export function archiveRetiredMatch(session, { storage, sendEnabled = false, sen
   const worth = replay?.ok && (replay.value.commands.length > 0 || Object.hasOwn(replay.value, 'startedFrom') && replay.value.summary.finished);
   if (!worth) return { kept: false, sent: false };
   saveStored(storage, REPLAYS, { ...replay.value, savedAt: now.toISOString() });
-  const viewer = replay.value.game.seatIds[0];
+  const viewer = replay.value.viewerSeat ?? replay.value.game.seatIds[0];
   const feed = session.port(viewer).value?.events({ afterEventId: null });
   if (!feed?.ok) return { kept: true, sent: false };
   const log = buildMatchLog(replay.value, feed.value.events, now);
