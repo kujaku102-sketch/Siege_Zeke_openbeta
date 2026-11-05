@@ -1,7 +1,7 @@
 // Flow check: the title's own operations, on the public build with no test hook (real clicks and keys).
 // The title links (the one with no address reads 準備中, the one with an address is a link; outside the stage, covering no title control); the tutorial list and the battle setup open and come back by [戻る] and Escape
 // (also right after the options window or the deck builder closes); the tutorial list is the one in the data, all unfinished in a cleared browser; the battle
-// setup offers deck and user for both sides; the online button is marked unavailable and does nothing.
+// setup offers deck and user for both sides; the online button opens the name screen, which goes back to the setup.
 import { TUTORIAL_ITEMS } from "../../../src/ui-refresh/tutorial-items.js";
 import { openBrowser, assertNoErrors } from "../parts/browser.mjs";
 
@@ -37,9 +37,12 @@ async function checkEntryFlow(page) {
   await page.locator('[data-mode="ai"]').click();
   await page.locator('[data-flow-screen="battle-setup"]').waitFor({ state: "visible" });
   if (await page.locator(".r2-flow select").count() !== 4) throw new Error("battle setup does not offer deck and user for both sides");
-  if (await page.locator("[data-online-battle]").getAttribute("aria-disabled") !== "true") throw new Error("online battle is not marked unavailable");
-  await page.locator("[data-online-battle]").click({ force: true });
-  if (!await page.locator('[data-flow-screen="battle-setup"]').count() || await page.locator(".r2-notice").count()) throw new Error("online battle did something");
+  // The server is set on the shipped page, so the button opens the online door; with no name kept, the name screen asks first, and its back goes to the setup.
+  if (await page.locator("[data-online-battle]").count() || await page.locator("[data-flow='open-online']").count() !== 1) throw new Error("online battle is not offered as an open button");
+  await page.locator("[data-flow='open-online']").click();
+  await page.locator('[data-flow-screen="online-name"]').waitFor({ state: "visible", timeout: 5000 });
+  await page.locator("[data-flow-back]").click();
+  await page.locator('[data-flow-screen="battle-setup"]').waitFor({ state: "visible", timeout: 5000 });
   // Right after the deck builder closes by its button, Escape goes back with no Tab in between.
   await page.locator(".r2-flow [data-deck-open]").click();
   await page.locator("[data-deck-close]").first().click();
