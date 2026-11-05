@@ -35,7 +35,7 @@
     ]
   },
   "publicFilePolicy": {
-    "rootFiles": ["index.html", "boot-splash.css", "boot-splash.js", "manifest.webmanifest", "release-manifest.json", "sw.js", "_headers", "_redirects", "THIRD_PARTY_NOTICES.txt"],
+    "rootFiles": ["index.html", "boot-splash.css", "boot-splash.js", "discord-callback.html", "discord-callback.js", "manifest.webmanifest", "release-manifest.json", "sw.js", "_headers", "_redirects", "THIRD_PARTY_NOTICES.txt"],
     "entryFiles": ["pc/index.html", "mobile/index.html"],
     "assetDirectory": "assets",
     "allowedExtensions": [".avif", ".css", ".html", ".jpeg", ".jpg", ".js", ".json", ".png", ".svg", ".txt", ".webmanifest", ".webp", ".woff2", ".otf"],

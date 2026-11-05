@@ -33,6 +33,8 @@ function mount(section) {
   const touch = () => { dirty = true; };
   const mutations = new MutationObserver(touch);
   const resize = new ResizeObserver(touch);
+  // While the boot splash plays the page is hidden (boot-splash.css), so a screen mounted then is measured again once it ends.
+  const boot = new MutationObserver(touch);
 
   // ---- what the page shows, measured from its layout ------------------------------------------
   const boxOf = (rect, origin) => ({ x: rect.left - origin.left, y: rect.top - origin.top, width: rect.width, height: rect.height });
@@ -295,6 +297,7 @@ function mount(section) {
   listen(canvas, "webglcontextlost", event => { event.preventDefault(); dispose(); });
   mutations.observe(sheet, { subtree: true, childList: true, characterData: true, attributes: true });
   resize.observe(sheet);
+  boot.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   document.fonts?.ready.then(touch);
   host.append(canvas);
   section.classList.add("r2-flow-crt-ready");
@@ -329,6 +332,7 @@ function mount(section) {
     cancelAnimationFrame(frameId);
     mutations.disconnect();
     resize.disconnect();
+    boot.disconnect();
     for (const [node, type, handler, options] of listeners) node.removeEventListener(type, handler, options);
     section.classList.remove("r2-flow-crt-ready");
     canvas.remove();

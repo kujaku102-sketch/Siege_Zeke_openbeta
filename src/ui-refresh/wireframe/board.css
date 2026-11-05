@@ -151,6 +151,8 @@ body[data-view] .r2-content .r2-wireframe-view .wf-unique .unique-effect-name { 
 .r2-wireframe-view .wf-life { display:block; width:100%; height:6.2cqh; }
 .r2-wireframe-view .wf-status .wf-avatar { position:absolute; z-index:3; left:0; top:0; width:15.4cqh; height:15.4cqh; border-radius:50%; background:#00ff00; padding:0; border:0; }
 .r2-wireframe-view .wf-enemy .wf-avatar { left:auto; right:0; background:#ff0000; }
+/* A player's picture (seat-avatars.js) fills the circle; the circle's colour stays under it. */
+.r2-wireframe-view .wf-avatar .wf-avatar-img { display:block; width:100%; height:100%; border-radius:50%; object-fit:cover; pointer-events:none; }
 .r2-wireframe-view .wf-turn-controls { right:2.7cqw; top:30cqh; width:32.5cqh; height:60cqh; display:block; }
 /* The gauge sits a little left of TURN so its arms are not hidden behind it. */
 .r2-wireframe-view .wf-hud .wf-meter { position:absolute; left:-4cqh; top:0; width:28cqh; height:30cqh; stroke:none; pointer-events:none; overflow:visible; }
