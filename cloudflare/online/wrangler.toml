@@ -20,6 +20,8 @@ binding = "MATCH_LOGS"
 id = "5f07a61c1c394d94806955c10dbf6bc6"
 
 # Room codes are checked against a secret ROOM_CODE_KEY (a Worker secret; a test value in .dev.vars on this PC only).
+# Discord login needs two more secrets, DISCORD_CLIENT_SECRET and AUTH_KEY, and two variables, DISCORD_CLIENT_ID and
+# DISCORD_REDIRECT_URI (see README.md). None is set here: without them /auth/discord/* answers SERVER_MISCONFIGURED and guests play as before.
 
 # The game connects here; the domain is already on this Cloudflare account.
 [[routes]]

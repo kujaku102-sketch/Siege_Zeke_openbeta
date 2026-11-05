@@ -3,6 +3,7 @@
 import { createRoomCore } from '../../../src/network/room-core.js';
 import { createRuntimeEngine } from '../../../src/network/runtime-engine.js';
 import { checkDeckChoice } from '../../../src/network/deck-check.js';
+import { AUTH_LIMITS, verifyTicket } from '../../../src/network/discord-auth.js';
 import { buildMatchLog } from '../../../src/adapters/match-log.js';
 import { createSqlStore } from './sql-store.js';
 
@@ -29,6 +30,9 @@ export class Room {
       },
       engine: this.engine,
       checkDeck: checkDeckChoice,
+      // A Discord ticket is checked with the Worker secret AUTH_KEY; without it every ticket is "unavailable" and guests play on.
+      verifyProfile: (ticket, tokenHash) => typeof env.AUTH_KEY === 'string' && env.AUTH_KEY.length >= AUTH_LIMITS.secretMinChars
+        ? verifyTicket(ticket, { secret: env.AUTH_KEY, tokenHash }) : { ok: false, error: { code: 'UNAVAILABLE' } },
       // The socket keeps who it belongs to, so a room that went to sleep knows it again.
       onAuthenticated: (connId, hash) => { this.sockets.get(connId)?.serializeAttachment({ id: connId, hash }); },
       onFinish: info => { ctx.waitUntil(this.writeLog(info)); }
