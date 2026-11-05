@@ -1,0 +1,39 @@
+/* The opening (opening-view.js): the hand large in the middle over a dimmed board, a marked card risen with 「戻す」, one
+   button, and the dice's answer after. Sizes in --u ratios; the card keeps the board's own face, scaled up. */
+.r2-opening { --opening-scale:1.6; position:fixed; inset:0; z-index:80; display:grid; align-content:center; justify-items:center; gap:calc(var(--u) * 1.25);
+  padding:calc(var(--u) * 1); background:rgba(4,8,17,.84); color:#f6f8fc; font-family:SZDotGothic,"Yu Gothic UI",sans-serif; font-synthesis:none; }
+body[data-view="mobile"] .r2-opening { --opening-scale:1.2; gap:calc(var(--u) * .5); }
+.r2-opening header { display:grid; justify-items:center; gap:calc(var(--u) * .25); text-align:center; }
+.r2-opening h2 { margin:0; font:400 max(1.25rem,calc(var(--u) * 2))/1.1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.08em; }
+.r2-opening header p { margin:0; font-size:max(.8125rem,calc(var(--u) * .95)); color:#c9d3df; }
+.r2-opening header .r2-opening-left { color:#ffd23f; }
+.r2-opening-hand { display:flex; align-items:flex-end; justify-content:center; gap:calc(var(--u) * 1); padding-top:calc(var(--u) * 2.75); }
+.r2-opening-card { --opening-drag:0px; position:relative; flex:0 0 auto; width:calc(var(--u) * 6.5 * var(--opening-scale)); height:calc(var(--u) * 9.125 * var(--opening-scale));
+  padding:0; border:0; background:none; cursor:pointer; touch-action:none; transform:translateY(var(--opening-drag)); transition:transform .18s ease-out; }
+.r2-opening-card .card { position:absolute; top:0; left:0; transform:scale(var(--opening-scale)); transform-origin:0 0; pointer-events:none; }
+.r2-opening-card.is-marked { transform:translateY(calc(var(--u) * -2.25 + var(--opening-drag))); }
+.r2-opening-card.is-marked .card { box-shadow:0 0 0 calc(var(--u) * .2) #ff4d6d, 0 calc(var(--u) * .5) calc(var(--u) * 1) rgba(0,0,0,.42); filter:brightness(.8); }
+.r2-opening-tag { position:absolute; top:calc(var(--u) * -1.75); left:50%; transform:translateX(-50%); padding:.1em .9em; border-radius:999em; background:#ff4d6d; color:#fff;
+  font:400 max(.8125rem,calc(var(--u) * 1))/1.25 SZDotGothic,"Yu Gothic UI",sans-serif; white-space:nowrap; pointer-events:none; }
+.r2-opening-card:focus-visible { outline:calc(var(--u) * .15) solid #f9df8a; outline-offset:calc(var(--u) * .2); }
+.r2-opening footer { display:flex; justify-content:center; }
+.r2-opening-decide { min-width:calc(var(--u) * 15); min-height:max(2.75rem,calc(var(--u) * 3)); padding:0 calc(var(--u) * 1.5); border:1px solid #3a9d5d; border-radius:calc(var(--u) * .375);
+  background:#0b1a18e6; color:#f3fff4; font:400 max(1rem,calc(var(--u) * 1.25))/1.2 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.06em; cursor:pointer; }
+.r2-opening-decide.is-redraw { border-color:#ff4d6d; color:#ffd9e0; }
+.r2-opening-decide:is(:hover,:focus-visible) { border-color:#00ff00; color:#00ff00; }
+.r2-opening.is-waiting h2 { font-size:max(1rem,calc(var(--u) * 1.5)); color:#c9d3df; }
+.r2-opening.is-waiting .r2-opening-card { cursor:default; opacity:.55; }
+/* Cards just drawn by a redraw come in from above, one after another (effects on, not compat: the screen marks them). */
+[data-effects="on"] .r2-opening-card.is-new { animation:r2-opening-new .45s ease-out both; animation-delay:calc(var(--i) * 60ms); }
+@keyframes r2-opening-new { from { transform:translateY(calc(var(--u) * -6)); opacity:0; } to { transform:none; opacity:1; } }
+[data-effects="off"] .r2-opening-card { transition:none; }
+/* The dice's answer, for a moment once the opening is over. */
+.r2-opening-first { position:fixed; z-index:81; top:50%; left:50%; transform:translate(-50%,-50%); display:grid; justify-items:center; gap:calc(var(--u) * .25);
+  padding:calc(var(--u) * 1.25) calc(var(--u) * 3); border:1px solid #f9df8a; background:rgba(4,8,17,.9); color:#f6f8fc; font-family:SZDotGothic,"Yu Gothic UI",sans-serif; pointer-events:none; }
+.r2-opening-first small { font-size:max(.75rem,calc(var(--u) * .9)); color:#c9d3df; letter-spacing:.2em; }
+.r2-opening-first b { font:400 max(2rem,calc(var(--u) * 4))/1 SZDotGothic,"Yu Gothic UI",sans-serif; color:#ffd23f; letter-spacing:.1em; }
+.r2-opening-first.is-opponent b { color:#69e8ff; }
+.r2-opening-first span { font-size:max(.875rem,calc(var(--u) * 1.1)); }
+[data-effects="on"] .r2-opening-first { animation:r2-opening-first .4s steps(5,end) both; }
+@keyframes r2-opening-first { from { opacity:0; transform:translate(-50%,-50%) scale(1.3); } to { opacity:1; transform:translate(-50%,-50%); } }
+@media (prefers-reduced-motion: reduce) { .r2-opening-card, .r2-opening-first { animation:none !important; transition:none !important; } }

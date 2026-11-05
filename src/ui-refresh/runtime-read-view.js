@@ -6,6 +6,7 @@ import { selectionRequestHtml, selectionEyeHtml, isBoardPick, isBoardSlotRequest
 import { requiredSelectionRequest } from '../game/runtime/selection-contract.js';
 import { validSelectionAnswer } from '../game/runtime/selection-contract.js';
 import { runtimeLogHtml, runtimeResultHtml } from './runtime-log-view.js';
+import { openingHtml, openingPhase } from './opening-view.js';
 import { cardEffectHtml } from '../ui/ability-help.js';
 import { abilityTextHtml } from '../ui/ability-help.js';
 import { cardArtProfile } from '../data/card-art-profiles.js';
@@ -49,6 +50,9 @@ function runtimeCardHtml(card, zone) {
   const shield = card.interaction.securityShield ? `<span class="card-security-shield is-${card.interaction.securityShield}" aria-hidden="true"><svg viewBox="0 0 80 96"><path d="M40 4 72 17v30c0 21-13 35-32 45C21 82 8 68 8 47V17Z"/><path d="M40 12 64 22v25c0 16-9 27-24 36C25 74 16 63 16 47V22Z"/><path d="M40 17v61M22 47h36"/></svg></span>` : '';
   return `<button class="card color-${colorClass(card.definition.color)}${card.status.sleep ? ' sleep' : ''}${card.status.residentActive ? ' resident-active' : ''}${attack}${card.interaction.securityGuard ? ' security-guard' : ''}${card.interaction.selected ? ' selected' : ''}${card.interaction.targetActionIds.length ? ' targetable' : ''}" data-card-ref="${esc(card.cardRef)}" data-card-id="${esc(card.definition.id)}" data-seat="${esc(card.controllerSeat)}" data-category="${esc(card.definition.category)}" data-zone="${esc(zone)}" title="${esc(card.definition.text)}"><div class="card-top"><span class="cost cost-${costTrend}" data-vfx-anchor="hand-cost" data-owner="${esc(card.controllerSeat)}">${currentCost}</span><span class="category">${esc(card.definition.category)}</span></div><div class="card-visual ${CARD_ART[card.definition.id] ? 'has-art' : 'no-art'}">${cardArt(card)}</div><strong class="card-name">${esc(card.definition.name)}</strong>${badges(card)}<p class="card-rules-preview">${esc(card.definition.text)}</p>${card.mounted.length ? `<div class="mounted">LAYER ${card.mounted.length + 1}</div>` : ''}${stats}${shield}</button>`;
 }
+
+// A hand card as a picture, for the opening screen (opening-view.js): the screen's own button carries the press.
+const cardPicture = card => runtimeCardHtml(card, 'hand').replace(/^<button /, '<span ').replace(/<\/button>$/, '</span>').replace(/ data-card-ref="[^"]*"/, '');
 
 function zoneHtml(seat, zone) {
   const limit = seat.user[`${zone}Limit`];
@@ -274,7 +278,9 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
   const stacks = boardPick && request.options.some(option => option.kind === 'destination' && option.cardRef);
   const prompt = placing ? '' : stacks ? '明るいマスか、「マウント」のカードを選択' : isBoardSlotRequest(request) ? '盤面の明るいマスを選択' : '盤面で光っている対象を選択';
   // On the board the flow floats clear of the targets; in a dialog it heads the options.
-  const selection = !wants('selection') ? null : (boardPick ? flow : '') + (boardPick
+  // The opening's own screen takes its redraw pick (opening-view.js); no popup over it.
+  const openingPick = request?.presentationKey === 'opening-mulligan' && openingPhase(model);
+  const selection = !wants('selection') ? null : openingPick ? '' : (boardPick ? flow : '') + (boardPick
     ? `<aside class="board-pick-guide" role="status" data-request-id="${esc(request.requestId)}"><strong>${esc(requestTitle(request))}${placingName ? `：<b>${esc(placingName)}</b>` : ''}</strong>${prompt ? `<span>${prompt}</span>` : ''}${modes}${presentation.plan ? '<button data-runtime-back>戻る</button>' : ''}${decline ? '<button data-runtime-decline>選ばない</button>' : ''}</aside>`
     : wants('selection') && (request || presentation.plan?.completion)
     ? presentation.collapsed ? `<button class="runtime-selection-reopen" data-selection-collapse aria-label="選択画面を開く">${selectionEyeHtml()}</button>`
@@ -298,6 +304,7 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
     unique: wants('unique') ? uniqueHtml(model,presentation) : null,
     profile: wants('profile') ? presentation.profileSeat ? userDetailHtml(model,presentation.profileSeat) : '' : null,
     art: wants('art') ? artHtml(model,presentation) : null,
+    opening: wants('opening') ? openingHtml(model, presentation.opening ?? {}, { cardHtml: cardPicture }) : null,
     guide: wants('guide') ? guideHtml(presentation.tutorial) : null,
     popup: wants('popup') ? operationsHtml(model,presentation) : null,
     selection,
@@ -316,5 +323,5 @@ const regionHost = (name, html, className = '') => `<div data-live-region="${nam
 export function runtimeGameHtml(model, presentation = {}) {
   const regions = runtimeGameRegions(model, presentation);
   if (!regions) return '';
-  return `<main class="r2-runtime-view r2-wireframe-view${presentation.boardStyle==='wireframe'?'':' r2-classic-board'}" data-layout="${regions.layout}" data-revision="${model.match.revision}">${regionHost('board', regions.board, 'r2-stage')}${regionHost('console', regions.console, 'r2-tools-host')}${regionHost('hand', regions.hand, 'r2-hand-host')}${regionHost('hand-toggle', regions.handToggle, 'r2-region-host')}${['drawer','detail','unique','profile','art','guide','popup','selection','log','menu','result'].map(name => regionHost(name, regions[name], `r2-region-host r2-region-${name}`)).join('')}</main>`;
+  return `<main class="r2-runtime-view r2-wireframe-view${presentation.boardStyle==='wireframe'?'':' r2-classic-board'}" data-layout="${regions.layout}" data-revision="${model.match.revision}">${regionHost('board', regions.board, 'r2-stage')}${regionHost('console', regions.console, 'r2-tools-host')}${regionHost('hand', regions.hand, 'r2-hand-host')}${regionHost('hand-toggle', regions.handToggle, 'r2-region-host')}${['drawer','detail','unique','profile','art','guide','popup','selection','opening','log','menu','result'].map(name => regionHost(name, regions[name], `r2-region-host r2-region-${name}`)).join('')}</main>`;
 }

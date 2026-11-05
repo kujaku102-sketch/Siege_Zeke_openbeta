@@ -6,6 +6,7 @@ import "./flow-screens.css";
 import "./detail.css";
 import "./result.css";
 import "./online.css";
+import "./opening.css";
 import "./status-effects.css";
 import "../ui/deck-design.css";
 import "../main.js";
