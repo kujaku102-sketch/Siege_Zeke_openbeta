@@ -213,8 +213,10 @@ function attachSession(next,extra = {}) {
 function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.getRandomValues(new Uint32Array(1))[0]) {
   markWonTutorial();
   const saved = id => host.savedDecks.find(deck => `custom:${deck.id}` === id), player = saved(host.playerDeckId), ai = saved(host.aiDeckId);
-  // Opening protocol v2.4 (keep / redraw before the first turn, dice for the first player) is opt-in by URL until it becomes the default.
-  const opening = mode === 'ai' && new URLSearchParams(location.search).get('opening') === 'v2.4' ? {openingProtocol:'v2.4'} : {};
+  // A CPU match opens by the rulebook's 2.4 (each user keeps or redraws once before the first turn, dice for the first player;
+  // 文豪, 2026-11-05: 「CPU戦でもマリガン経路は入れる」). ?opening=legacy keeps the old start (the player first) for comparing.
+  // Tutorials and the sandbox keep the old start.
+  const opening = mode === 'ai' && new URLSearchParams(location.search).get('opening') !== 'legacy' ? {openingProtocol:'v2.4'} : {};
   if (mode !== 'tutorial') {const invalid = [player,ai].find(deck => deck && !validateDeck(deck).valid);
     if (invalid) {host.deckBuilder.open = true;host.deckBuilder.draft = structuredClone(invalid);host.notice = `「${invalid.name}」は構築規定の修正が必要です。`;renderShell();return {ok:false,error:{code:'INVALID_DECK'}};}}
   const result = lifecycle.start({matchId:crypto.randomUUID(),seatIds:['player','ai'],seed,ruleVersion:RULE_VERSION,cardVersion:CARD_VERSION,gameOptions:{
