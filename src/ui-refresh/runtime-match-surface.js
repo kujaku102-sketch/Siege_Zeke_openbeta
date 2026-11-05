@@ -236,7 +236,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     if (focused) (root.querySelector(delta < 0 && index > 0 ? '.live-guide [data-runtime-guide-prev]' : forward) ?? root.querySelector(forward))?.focus();
   };
   const fx = createSurfaceFx({ root, boardStyle });
-  const timers = createSurfaceTimers({ root, disposed: () => disposed, motionRemaining: fx.remaining });
+  // The dice's answer counts as motion: the CPU's first step waits until it has been read (opening-view.js).
+  const timers = createSurfaceTimers({ root, disposed: () => disposed, motionRemaining: () => Math.max(fx.remaining(), opening?.holdRemaining() ?? 0) });
   const { schedule } = timers;
   const surfaceLayout = createSurfaceLayout({ root, session, scope, boardStyle, latest: () => latest,
     requestFrame: timers.requestFrame, disposed: () => disposed,
@@ -388,12 +389,14 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     act(ui.read());
     return true;
   };
-  const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule, onReject: onDropRefused });
+  const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule, onReject: onDropRefused, held: () => opening?.holdRemaining() > 0 });
   opening = createOpeningInput({ root, ui, act, latest: () => latest, schedule, motion: () => effectsEnabled && !lowGpu });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails, opening: () => opening,
     onTitle, onTutorialSkip, onToMenu, onSaveLog, endTutorial, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide, tapAnywhere };
   listener('click', event => {
     if (disposed || event.target.closest('[data-ability-help]')) return;
+    // While the dice's answer shows, the match takes no move yet; online, the other side waits the same way.
+    if (opening?.holdRemaining() > 0 && event.target.closest('[data-live-region="board"],[data-live-region="console"],[data-live-region="hand"]')) return;
     if (suppressedPointerId !== null) {
       if (event.pointerId === undefined || event.pointerId === suppressedPointerId) {
         suppressedPointerId = null;
