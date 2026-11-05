@@ -1,3 +1,5 @@
+import { panelHeadHtml } from "./cyber-panel.js";
+
 // Online play (design: サーバー設計-詳細.md §14.1): the door, the code to join, the room until both are ready, and what the
 // match adds over the board (the opponent's name and line, the player's own reconnecting, 投了). DOM-free: every screen is
 // drawn from `host.online` ({ available, name, code, state: online-client.js state, error, copied, confirming }) and a clock.
@@ -90,6 +92,8 @@ export function onlineRoomHtml(host, { now, deckName = "", userName = "", oppone
 
 // Over the board in an online match: who the opponent is and whether their line holds, the player's own reconnecting
 // (with the time the server keeps the seat), and 投了 with its question. A finished match offers the way out instead.
+// Drawn in the match's own parts (文豪, 2026-11-05: 「ゲーム内の部品はこっちを流用する」): the settings window's panel and its
+// buttons for the strip and the banner, and the window itself (backdrop, panel, head) for the question.
 export function onlineHudHtml(host, { now }) {
   const online = host.online ?? {}, state = online.state ?? {};
   if (!state.status || state.status === "idle") return "";
@@ -103,11 +107,11 @@ export function onlineHudHtml(host, { now }) {
   const self = !finished && state.connection === "reconnecting"
     ? `<span class="r2-online-self" role="status">再接続しています…（${state.attempt ?? 1}回目）${selfLeft !== null ? `あと${selfLeft}秒` : ""}</span>` : "";
   const action = finished ? '<button data-online-leave>タイトルに戻る</button>' : '<button data-online-concede>投了</button>';
-  const banner = away ? `<div class="r2-online-banner" role="status">相手の接続が切れました。${awayLeft !== null ? `あと${awayLeft}秒待ちます` : "待っています"}</div>` : "";
-  const confirm = online.confirming && !finished ? '<div class="r2-modal r2-online-confirm" role="alertdialog" aria-modal="true" aria-labelledby="r2-online-confirm-title"><section>'
-    + '<h2 id="r2-online-confirm-title">投了しますか？</h2><p>この対戦は負けになります。</p>'
-    + '<div class="r2-online-confirm-actions"><button class="is-danger" data-online-concede-yes>投了する</button><button data-online-concede-no>やめる</button></div></section></div>' : "";
-  return `<aside class="r2-online-hud" aria-label="オンライン対戦"><span class="r2-online-opponent">相手：<b>${esc(opponent?.name ?? "")}</b></span>${badge}${self}${action}</aside>${banner}${confirm}`;
+  const banner = away ? `<aside class="r2-online-banner cp-panel" role="status">相手の接続が切れました。${awayLeft !== null ? `あと${awayLeft}秒待ちます` : "待っています"}</aside>` : "";
+  const confirm = online.confirming && !finished ? '<div class="r2-modal" role="alertdialog" aria-modal="true" aria-label="投了の確認"><section class="cp-panel r2-online-confirm">'
+    + panelHeadHtml({ eyebrow: "MATCH", sub: "CONCEDE.SYS", title: "投了しますか？", close: "data-online-concede-no", closeLabel: "やめる" })
+    + '<p>この対戦は負けになります。</p><nav class="r2-online-confirm-actions"><button data-online-concede-yes>投了する</button><button data-online-concede-no>やめる</button></nav></section></div>' : "";
+  return `<aside class="r2-online-hud cp-panel" aria-label="オンライン対戦"><span class="r2-online-opponent">相手：<b>${esc(opponent?.name ?? "")}</b></span>${badge}${self}${action}</aside>${banner}${confirm}`;
 }
 
 // The end screen's line under its title: why the match ended, from the player's side.
