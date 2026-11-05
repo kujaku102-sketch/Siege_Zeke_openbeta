@@ -1,4 +1,5 @@
-# Online match rooms. Not deployed yet: run it on this PC with `npx wrangler@4 dev` (see README.md).
+# Online match rooms (Worker + Room Durable Object) for play.siegezeke.online.
+# Run it on this PC with `npx wrangler@4 dev`; putting it on Cloudflare (login, secrets, deploy) is done by 文豪, see README.md.
 name = "siege-zeke-online"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
@@ -14,14 +15,20 @@ tag = "v1"
 new_sqlite_classes = ["Room"]
 
 # The match-log Worker's KV: a finished online match is written there as one log.
-# Nothing reads or writes it until this Worker is deployed.
 [[kv_namespaces]]
 binding = "MATCH_LOGS"
 id = "5f07a61c1c394d94806955c10dbf6bc6"
 
-# Room codes are checked against a secret ROOM_CODE_KEY (a Worker secret; a test value in .dev.vars on this PC only).
-# Discord login needs two more secrets, DISCORD_CLIENT_SECRET and AUTH_KEY, and two variables, DISCORD_CLIENT_ID and
-# DISCORD_REDIRECT_URI (see README.md). None is set here: without them /auth/discord/* answers SERVER_MISCONFIGURED and guests play as before.
+# Secrets (set with `wrangler secret put`, never written here; a test value in .dev.vars on this PC only):
+#   ROOM_CODE_KEY (room codes), AUTH_KEY (Discord state and tickets), DISCORD_CLIENT_SECRET.
+# Variables (public values):
+#   DISCORD_REDIRECT_URI: the page Discord sends the player back to; it must equal the Redirect registered in the Discord app.
+#     It points at the staging page for the first real test. When the game moves to siegezeke.online, change it to
+#     "https://siegezeke.online/discord-callback.html", register that Redirect in the Discord app too, and deploy again.
+#   DISCORD_CLIENT_ID: the Discord app's Client ID (digits). Added here when 文豪 has made the app; until then
+#     /auth/discord/* answers SERVER_MISCONFIGURED and guests play as before.
+[vars]
+DISCORD_REDIRECT_URI = "https://staging.siege-zeke-simple-public.pages.dev/discord-callback.html"
 
 # The game connects here; the domain is already on this Cloudflare account.
 [[routes]]
