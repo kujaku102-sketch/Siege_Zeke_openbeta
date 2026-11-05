@@ -9,7 +9,6 @@
 //   send     (connId, text) => void             one text frame to a connection
 //   close    (connId, code, reason) => void
 //   schedule (atMs | null) => void              wake alarm(); called whenever the next deadline changes
-//   after    (ms, fn) => handle   cancel(handle)   optional: the wait for a first `hello`
 //   engine   the match, see runtime-engine.js for the real one
 //   checkDeck(readyMessage) => { ok, value | error }         see deck-check.js
 //   hashToken(token) => string | Promise<string>              default SHA-256 hex
@@ -49,8 +48,6 @@ export function createRoomCore(deps) {
   // ---- small helpers ------------------------------------------------------
   const emit = (connId, message) => { try { send(connId, encodeServerMessage(message)); } catch { /* the socket is already gone */ } };
   const hangUp = (connId, code, reason) => {
-    const conn = conns.get(connId);
-    if (conn?.timer !== undefined) deps.cancel?.(conn.timer);
     conns.delete(connId);
     try { close(connId, code, reason); } catch { /* already closed */ }
   };
@@ -94,13 +91,13 @@ export function createRoomCore(deps) {
   const deadline = () => {
     if (!room) return null;
     const times = [phaseDeadline()];
+    for (const conn of conns.values()) if (conn.helloBy !== null && conn.helloBy !== undefined) times.push(conn.helloBy);
     if (room.phase === 'playing') {
-      room.seats.forEach((seat, slot) => {
-        if (seat.disconnectedAt === null) return;
-        const at = seat.disconnectedAt + LIMITS.graceMs;
-        // An expired seat whose opponent is also away waits for the opponent's own deadline.
-        if (at > now() || room.seats[1 - slot].disconnectedAt === null) times.push(at);
-      });
+      // One guest away: that guest's 60 seconds. Both away: nobody loses, so the match ends when the later 60 seconds are up.
+      // Waking only for a moment that changes something keeps the alarm from having to set the next one from inside its own handler.
+      const away = room.seats.filter(seat => seat.disconnectedAt !== null).map(seat => seat.disconnectedAt + LIMITS.graceMs);
+      if (away.length === room.seats.length && away.length > 0) times.push(Math.max(...away));
+      else if (away.length === 1) times.push(away[0]);
     }
     return Math.min(...times);
   };
@@ -246,8 +243,8 @@ export function createRoomCore(deps) {
       room.seats[slot].disconnectedAt = null;
     }
     conn.hash = hash;
+    conn.helloBy = null;
     try { deps.onAuthenticated?.(connId, hash); } catch { /* the host keeps its own record */ }
-    if (conn.timer !== undefined) deps.cancel?.(conn.timer);
     saveRoom();
     emit(connId, { ...lobbyFor(slot), t: 'welcome' });
     if (room.phase === 'playing') {
@@ -401,18 +398,16 @@ export function createRoomCore(deps) {
     connect: connId => serial(() => {
       load();
       if (!room) { emit(connId, { t: 'error', code: 'ROOM_NOT_FOUND' }); try { close(connId, CLOSE.roomClosed, 'no room'); } catch { /* gone */ } return; }
-      const conn = { hash: null, tokens: LIMITS.rateBurst, at: now(), strikes: 0 };
-      if (deps.after) conn.timer = deps.after(LIMITS.helloMs, () => serial(() => {
-        if (conns.get(connId) === conn && !conn.hash) hangUp(connId, CLOSE.helloTimeout, 'hello timeout');
-      }));
-      conns.set(connId, conn);
+      // A connection must say hello within a few seconds; the alarm (not a timer) closes the ones that do not.
+      conns.set(connId, { hash: null, tokens: LIMITS.rateBurst, at: now(), strikes: 0, helloBy: now() + LIMITS.helloMs });
+      reschedule();
     }),
 
     // After the host's memory was cleared (hibernation) a socket that already said hello is registered again.
     restore: (connId, hash) => serial(() => {
       load();
       if (!room) return;
-      conns.set(connId, { hash, tokens: LIMITS.rateBurst, at: now(), strikes: 0 });
+      conns.set(connId, { hash, tokens: LIMITS.rateBurst, at: now(), strikes: 0, helloBy: null });
     }),
 
     receive: (connId, raw) => serial(async () => {
@@ -442,9 +437,9 @@ export function createRoomCore(deps) {
       load();
       const conn = conns.get(connId);
       if (!conn) return;
-      if (conn.timer !== undefined) deps.cancel?.(conn.timer);
       conns.delete(connId);
       if (room && conn.hash) dropped(conn, slotOfConn(conn));
+      else reschedule();
     }),
 
     // Called by the host when the time given to schedule() has come.
@@ -452,6 +447,7 @@ export function createRoomCore(deps) {
       load();
       if (!room) return;
       const at = now();
+      for (const [connId, conn] of [...conns]) if (!conn.hash && conn.helloBy !== null && at >= conn.helloBy) hangUp(connId, CLOSE.helloTimeout, 'hello timeout');
       if (room.phase === 'finished') { if (at >= room.finishedAt + LIMITS.finishedKeepMs) closeRoom('finished'); else reschedule(); return; }
       if (at >= room.createdAt + LIMITS.maxRoomAgeMs) {
         if (room.phase === 'playing') abort('max-age'); else closeRoom('expired');
