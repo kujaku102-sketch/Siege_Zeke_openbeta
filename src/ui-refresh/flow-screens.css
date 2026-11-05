@@ -51,3 +51,40 @@
 .r2-flow .r2-flow-online[aria-disabled="true"] { border-color:#9aa3ab; color:#7a838b; background:#f2f3f4; cursor:default; }
 .r2-flow-online small { margin-left:.6em; font-size:.8em; }
 @media (max-width:40rem) { .r2-flow-item { grid-template-columns:minmax(0,1fr) auto; } .r2-flow-item-text { grid-column:1 / -1; } }
+
+/* The flow screens as the title's CRT (文豪, 2026-11-05: 「チュートリアル選択画面と対戦待機画面もリファイン、タイトル画面と同じCRT画面UIで制作する」):
+   the dot font in black ink on a pale phosphor glass. With effects on, as the title's curved screen does, the glass bulges at its
+   corners, darkens toward its rim and carries scanlines; the page itself is not bent, so its fields stay plain to type in. */
+.r2-flow { font-family:SZDotGothic,"Yu Gothic UI",sans-serif; font-synthesis:none; }
+.r2-flow :is(button,select,input,legend,label) { font-family:SZDotGothic,"Yu Gothic UI",sans-serif; }
+.r2-flow button { background:transparent; }
+.r2-content[data-effects="on"] .r2-flow-sheet { position:relative; isolation:isolate; border-radius:clamp(1rem,7dvh,4.5rem) / clamp(1.25rem,9dvh,5.5rem);
+  background:radial-gradient(ellipse 75% 70% at 50% 45%,#f4f4f1 0%,#e9e9e5 52%,#cfd0cc 80%,#a9aaa6 100%);
+  box-shadow:inset 0 0 clamp(1.5rem,9dvh,6rem) #00000059, inset 0 0 clamp(.25rem,1.5dvh,1rem) #0000004d, 0 0 0 clamp(.25rem,1.2dvh,.75rem) #121212, 0 0 clamp(1rem,6dvh,4rem) #ffffff14; }
+.r2-content[data-effects="on"] .r2-flow-sheet::after { content:""; position:absolute; inset:0; z-index:2; pointer-events:none; border-radius:inherit;
+  background:repeating-linear-gradient(to bottom,transparent 0 .1rem,#0000001f .1rem .19rem); mix-blend-mode:multiply; }
+.r2-content[data-effects="on"] .r2-flow :is(.r2-flow-item,.r2-flow-side,.r2-online-seat) { background:#ffffff40; }
+.r2-content[data-effects="on"] .r2-flow-sheet :is(h1,h2,legend) { text-shadow:.04em 0 #ff3fa833,-.04em 0 #3ff4ff33; }
+
+/* Online play (design §14.1): the guest name beside the deck, the room code large, both seats and their state. */
+.r2-flow-side input { width:100%; min-height:2.75rem; box-sizing:border-box; padding:0 .5em; border:.0625rem solid #111820; border-radius:.125rem; background:#fff; color:#111820; font:inherit; }
+.r2-flow-side input:focus-visible, .r2-online-code-field input:focus-visible { outline:.125rem solid #111820; outline-offset:.125rem; }
+.r2-flow .r2-flow-actions [aria-disabled="true"] { border-color:#9aa3ab; color:#7a838b; cursor:default; }
+.r2-flow-error { margin:clamp(.5em,2dvh,1em) 0 0; color:#a3001b; font-size:.95em; }
+.r2-online-code-field { display:grid; justify-items:center; gap:.4em; margin:clamp(.5rem,3dvh,1.5rem) 0; color:#3d4955; font-size:.9em; text-align:center; }
+.r2-online-code-field input { width:min(100%,14em); min-height:2.75rem; box-sizing:border-box; padding:.15em .4em; border:.0625rem solid #111820; border-radius:.125rem; background:#fff; color:#111820;
+  font:400 clamp(1.5rem,7dvh,2.75rem)/1.1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.12em; text-transform:uppercase; }
+.r2-online-code { margin:clamp(.5rem,3dvh,1.5rem) 0; text-align:center; }
+.r2-online-code b { display:inline-block; padding:.1em .35em; border:.0625rem solid #111820; font:400 clamp(2.25rem,15dvh,6.5rem)/1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.1em; user-select:all; }
+.r2-online-code.is-small b { font-size:clamp(1.25rem,6dvh,2.25rem); }
+.r2-flow-online .r2-flow-actions { justify-content:center; }
+.r2-online-wait { margin:clamp(.5em,2dvh,1em) 0 0; text-align:center; color:#3d4955; }
+.r2-online-wait span { margin-left:1em; font-variant-numeric:tabular-nums; }
+.r2-online-seats { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr)); gap:clamp(.5rem,2vw,1.25rem); }
+.r2-online-seat { display:grid; gap:.3em; padding:clamp(.5rem,2dvh,1rem) clamp(.5rem,2vw,1.25rem); border:.0625rem solid #111820; }
+.r2-online-seat h2 { display:flex; align-items:baseline; gap:.5em; margin:0; font:400 1.25em/1.2 SZDotGothic,"Yu Gothic UI",sans-serif; overflow-wrap:anywhere; }
+.r2-online-seat h2 small { font-size:.7em; color:#56616c; }
+.r2-online-seat p { margin:0; font-size:.9em; color:#3d4955; }
+.r2-online-seat.is-empty { border-style:dashed; color:#6b747d; }
+.r2-online-state { justify-self:start; padding:.1em .5em; border:.0625rem solid currentColor; font-size:.85em; color:#6b747d; }
+.r2-online-seat[data-ready="true"] .r2-online-state { color:#0a7a3a; }

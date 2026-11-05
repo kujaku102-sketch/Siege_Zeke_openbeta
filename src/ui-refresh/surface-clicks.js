@@ -10,6 +10,7 @@ const BUTTONS = [
   ['data-runtime-tutorial-finish', c => c.endTutorial()],
   // The end screen (runtime-log-view.js, runtimeResultHtml): the match's log saved, back to the match menu or the tutorial list.
   ['data-runtime-save-log', c => c.onSaveLog()],
+  ['data-runtime-result-close', c => c.act(c.ui.dismissResult())],
   ['data-runtime-to-menu', c => c.onToMenu()],
   ['data-runtime-guide-next', c => c.turnGuidePage(1)],
   ['data-runtime-guide-prev', c => c.turnGuidePage(-1)],

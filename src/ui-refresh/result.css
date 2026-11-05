@@ -19,3 +19,5 @@
 @keyframes r2-result-bob { from { translate:0 0; } to { translate:0 -.04em; } }
 @keyframes r2-result-glitch { 0%,86%,100% { opacity:0; transform:none; } 88% { opacity:.7; transform:translate(-.04em,.02em); clip-path:inset(20% 0 55% 0); } 92% { opacity:.7; transform:translate(.05em,-.02em); clip-path:inset(60% 0 12% 0); } 95% { opacity:0; } }
 @media (prefers-reduced-motion: reduce) { .r2-result h2, .r2-result h2::after { animation:none !important; } }
+/* An online match's line under its title: why it ended (design §14.1). */
+.r2-result-reason { position:relative; margin:0; color:var(--result-ink,#f6f8fc); font:400 max(1rem,calc(var(--u) * 1.375))/1.3 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.06em; text-align:center; }
