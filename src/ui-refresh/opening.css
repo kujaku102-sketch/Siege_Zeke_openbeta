@@ -2,7 +2,12 @@
    button, and the dice's answer after. Sizes in --u ratios; the card keeps the board's own face, scaled up. */
 .r2-opening { --opening-scale:1.6; position:fixed; inset:0; z-index:80; display:grid; align-content:center; justify-items:center; gap:calc(var(--u) * 1.25);
   padding:calc(var(--u) * 1); background:rgba(4,8,17,.84); color:#f6f8fc; font-family:SZDotGothic,"Yu Gothic UI",sans-serif; font-synthesis:none; }
-body[data-view="mobile"] .r2-opening { --opening-scale:1.2; gap:calc(var(--u) * .5); }
+/* A landscape phone is short: the cards stay near their board size and everything sits closer. */
+body[data-view="mobile"] .r2-opening { --opening-scale:.95; gap:calc(var(--u) * .4); padding-block:calc(var(--u) * .5); }
+body[data-view="mobile"] .r2-opening h2 { font-size:max(1rem,calc(var(--u) * 1.4)); }
+body[data-view="mobile"] .r2-opening-hand { padding-top:calc(var(--u) * 2.25); }
+body[data-view="mobile"] .r2-opening-card.is-marked { transform:translateY(calc(var(--u) * -1.5 + var(--opening-drag))); }
+body[data-view="mobile"] .r2-opening-tag { top:calc(var(--u) * -1.4); }
 .r2-opening header { display:grid; justify-items:center; gap:calc(var(--u) * .25); text-align:center; }
 .r2-opening h2 { margin:0; font:400 max(1.25rem,calc(var(--u) * 2))/1.1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.08em; }
 .r2-opening header p { margin:0; font-size:max(.8125rem,calc(var(--u) * .95)); color:#c9d3df; }

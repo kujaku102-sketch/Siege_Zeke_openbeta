@@ -265,7 +265,7 @@ function goTo(screen) {if (!screen) return;const from = host.screen;if (from ===
 function onOnlineBattle() {}
 // Online play with a server (design §14.1): one client for the page, made at the first way in. What the room says redraws
 // the screen; once its match runs, the remote session is mounted like a local one, and a finished match shows the room's end.
-let online = null, onlineTicker = null, onlineUnwatch = null, copiedTimer = null;
+let online = null, onlineTicker = null, onlineUnwatch = null, copiedTimer = null, awaitedRemote = null;
 function onlineClient() {
   if (online) return online;
   const endpoint = onlineEndpoint({hostname:location.hostname,search:location.search});
@@ -277,7 +277,12 @@ function onlineClient() {
 function onlineChanged(state) {
   host.online.state = state;
   const remote = online?.session();
-  if (state.status === 'playing' && remote && session !== remote) return attachOnline(remote);
+  // The match is mounted once its first state can be read (the client names the match a moment before); until then it waits
+  // for the session's first change.
+  if (state.status === 'playing' && remote && session !== remote) {
+    if (remote.readStamp(remote.viewerSeat()).value?.available) return attachOnline(remote);
+    if (awaitedRemote !== remote) {awaitedRemote = remote;const off = remote.onChange(() => {off();if (online && session !== remote) onlineChanged(online.state());});}
+  }
   if (session && session === remote) surface?.configure({online:state.outcome ?? {}});
   syncOnlineTicker();renderShell();
 }
