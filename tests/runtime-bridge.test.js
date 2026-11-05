@@ -71,7 +71,7 @@ function freeze(input, seen = new Set()) {
   return input;
 }
 
-function decodeFixture() {
+function decodeFixture(beforeAnswer) {
   const state = fresh();
   const first = execute(state, add(state, 'STD-020'));
   const second = execute(state, add(state, 'STD-020'));
@@ -79,10 +79,9 @@ function decodeFixture() {
   assert.equal(destroyCard(state, 'player', second.uid, { suppressReplacement: true }), true);
   const source = execute(state, add(state, 'STD-041'));
   assert.equal(destroyCard(state, 'player', source.uid, { suppressReplacement: true }), true);
-  assert.equal(state.pending.request.continuation.type, 'runtime-decode');
+  beforeAnswer?.(state);
   answer(state, { selected: [first.uid, second.uid] });
-  assert.equal(state.pending.type, 'decode-place');
-  return { state, first, second, source };
+  return { state, first, second };
 }
 
 function responseFixture() {
@@ -453,4 +452,13 @@ test('S02-BRIDGE-23: an effect placement takes the picked empty slot and refuses
   assert.equal(state.pending.type, 'decode-place');
   assert.equal(resolveAccessDragPlacement(state, 'player', 'back', null, 2), true);
   assert.deepEqual(entry(state, second).location, { kind: 'board', seatId: entry(state, second).location.seatId, zone: 'back', position: 2 });
+});
+
+test('S02-BRIDGE-24: a forced decode with no empty slot in either area is not asked: both cards go to the trash by the rule', () => {
+  const { state, first, second } = decodeFixture(s => { s.players.player.user.frontLimit = 0; s.players.player.user.backLimit = 0; });
+  assert.equal(state.pending, null);
+  for (const card of [first, second]) {
+    assert.equal(findCard(state, card.uid).zoneName, 'trash');
+    assert.equal(state.events.some(event => event.cardUid === card.uid && event.ruleDestruction), true);
+  }
 });

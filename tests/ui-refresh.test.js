@@ -415,6 +415,24 @@ test("opening protocol v2.4 is opt-in by URL and only for the AI mode; the redra
   assert.equal(presentationLabel("opening-mulligan"), "引き直すカードを選択");
 });
 
+test('the bar is redrawn when its way is toggled', async () => {
+  const request = { requestId: 'r', presentationKey: 'execution-placement', constraints: { kind: 'pick', minimum: 1, maximum: 1, aggregate: null, groups: [] },
+    options: [{ optionId: 'b1', kind: 'slot', zone: 'back', slot: 1 }, { optionId: 's1', kind: 'asScript', slot: 1 }] };
+  const { localRegionKeys } = await import('../src/ui-refresh/surface-regions.js');
+  const value = mode => ({ model: { match: { revision: 3 }, ui: { selectedCardRef: null, detailCardRef: null, menuOpen: false } },
+    request, selection: null, collapsed: false, plan: null, placementMode: mode });
+  assert.notEqual(localRegionKeys(value('card'), null).get('selection'), localRegionKeys(value('script'), null).get('selection'));
+});
+
+test('a card placed by an effect asks for its destination by name, not as a bare 選択', async () => {
+  const { presentationLabel, requestTitle } = await import('../src/ui-refresh/choice-read-view.js');
+  for (const key of ['access-drag-place', 'decode-place', 'std048-draw-place']) {
+    assert.equal(presentationLabel(key), '配置先を選択');
+    assert.equal(requestTitle({ presentationKey: key }), '配置先を選択');
+  }
+  assert.equal(presentationLabel('unknown-key'), '選択');
+});
+
 test("render mode UI: the title note is outside the stage and only in compat; the HTML options window has the row, the CRT one does not", async () => {
   const { runtimeShellHtml } = await import("../src/ui-refresh/runtime-shell-view.js");
   const base = { screen: "entry", view: "pc", options: false, effectsEnabled: false, savedDecks: [], deckBuilder: { open: false }, catalog: { query: "", expansion: "all", catalogOwner: "player" },

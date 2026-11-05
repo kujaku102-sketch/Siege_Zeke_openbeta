@@ -85,7 +85,8 @@ export function executeRegistryCard(state, playerId, uid, options = {}) {
   if (!check.ok) return fail(state, check.reason, false);
   player.registry.splice(index, 1);
   player.hand.push(card);
-  const outcome = playCard(state, playerId, uid, { ...options, ignoreColor: options.ignoreColor ?? ["STD-215", "STD-220"].includes(card.id), registryExecution: true, registryOriginIndex: index });
+  // The symbol was checked just above, at the declaration, with the card still in the registry: the symbol it gives counts. It has left by now, so playCard does not check it again.
+  const outcome = playCard(state, playerId, uid, { ...options, ignoreColor: true, registryExecution: true, registryOriginIndex: index });
   const awaitingExecutionChoice = outcome === true
     && ["play-card-oc", "play-card-magazine-confirm", "play-card-magazine-layers"].includes(state.pending?.request?.continuation?.type)
     && state.pending.request.continuation.sourceUid === uid;

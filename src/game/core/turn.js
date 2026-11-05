@@ -13,6 +13,7 @@ import { addLog, fail, findCard, otherPlayer } from "./shared.js";
 import { cardHasKeyword } from "./stats.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { completeTurnAfterDelayedEffects, resolveTurnEndDelayedEffects, resolveTurnStartDelayedEffects } from "./turn-delayed.js";
+import { placementChoiceHasNoOption, resolveAccessDragPlacement } from "../effects/generic/access-drag.js";
 import { executeCardRuntimeSpec } from "../effects/generic/actions.js";
 import { getMaxMemory } from "../effects/generic/cost.js";
 import { distributeLayeredFollowers, revealMountedCode } from "../effects/generic/trash.js";
@@ -134,7 +135,11 @@ export function startTurn(state, playerId) {
     if (!first) continueMandatoryTurnDraw(state, playerId, 1);
     else if (first.id === "STD-048") {
       continueMandatoryTurnDraw(state, playerId, drawCount - 1);
-      if (!player.mandatoryDrawFailed) beginStd048MandatoryDraw(state, playerId, first, 0);
+      if (!player.mandatoryDrawFailed) {
+        beginStd048MandatoryDraw(state, playerId, first, 0);
+        // With no empty slot in either area the drag is not asked: it fails at once, through the same path as an answer. That path carries on with the turn start, so this one stops.
+        if (placementChoiceHasNoOption(state)) { resolveAccessDragPlacement(state, playerId, "front"); return; }
+      }
     }
     else continueMandatoryTurnDraw(state, playerId, drawCount - 1);
   }

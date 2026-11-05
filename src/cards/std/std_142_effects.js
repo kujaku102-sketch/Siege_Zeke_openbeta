@@ -3,7 +3,7 @@ import { activateScript } from "../../game/core/scripts.js";
 import { addLog, fail, findCard } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { destroyCard } from "../../game/effects/generic/destroy.js";
-import { placeByMode } from "../../game/effects/generic/placement.js";
+import { effectPlacementRoom, placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_142.js)
 export function scheduleStd142TurnEndResume(state, activeId) {
@@ -155,6 +155,8 @@ export function std142ActivateScriptCore2({ player, script, state, selectionUid,
   if (player.scriptUsage[`${script.uid}:effect1`]) return fail(state, "このターンは①を起動済み。", false);
   const candidates = [...player.hand, ...player.trash].filter((card) => card.category === "Script" && card.name.includes("聖樹"));
   if (!candidates.length) return fail(state, "手札またはゴミ箱に配置できる「聖樹」Scriptがない。", false);
+  // The activation is optional: with no empty back slot it is not offered.
+  if (!effectPlacementRoom(state, playerId, ["back"])) return fail(state, "配置できるバックの空きがない。", false);
   if (!selectionUid) {
     const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
       candidateLabels: Object.fromEntries(candidates.map((card) => [card.uid, card.name])), label: "配置する「聖樹」Scriptを選択", message: script.text,

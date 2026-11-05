@@ -19,6 +19,7 @@ import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_ACTIVATE_SCRIPT_CORE, CUSTOM_ACTIVATE_SCRIPT_CORE_2, PASS } from "../effects/custom/index.js";
 import { runtimeActionFeasible, triggerActionFeasible } from "../effects/generic/action-values.js";
 import { executeRuntimeActions } from "../effects/generic/actions.js";
+import { effectPlacementRoom } from "../effects/generic/placement.js";
 import { continuePlacementCostBatch } from "../effects/generic/cost.js";
 import { resumeDeferredDestruction } from "../effects/generic/destroy.js";
 import { moveCardToTrash, resumeDeferredTrashMove } from "../effects/generic/trash.js";
@@ -249,7 +250,7 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
     cardUid: script.uid, cardId: script.id, cardName: script.name, category: script.category
   });
   player.scriptActivatedTurn = state.turnNumber;
-  for (const candidate of player.hand.filter((card) => card.id === "STD-179")) {
+  for (const candidate of player.hand.filter((card) => card.id === "STD-179" && effectPlacementRoom(state, playerId))) {
     const request = createSelectionRequest({ mode: "scope", scopeField: "place", scopeOptions: ["ドラッグしない", "スリープしてドラッグする"],
       label: `${candidate.name}: 手札からスリープしてドラッグ`, message: candidate.text,
       continuation: { type: "std179-place", playerId, sourceUid: candidate.uid, sourceName: candidate.name } });

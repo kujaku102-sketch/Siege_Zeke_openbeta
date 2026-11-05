@@ -112,6 +112,13 @@ export function placementResult(player, zone, { addedSlots = 1, freedSlots = 0, 
   });
 }
 
+// The entrance check of an effect the user may choose to use and that places a card (「…できる」): is there an empty slot to place it in (one of `zones`)?
+// A forced effect is not asked this: with no room its card goes to the trash by the rule (failForcedPlacement). An optional one that cannot place is not offered.
+export function effectPlacementRoom(state, playerId, zones = ["front", "back"]) {
+  const player = state.players[playerId];
+  return zones.some((zone) => placementResult(player, zone).ok);
+}
+
 export function failForcedPlacement(state, ownerId, card, { from = "hand", zone, source = "効果による強制配置", suppressScriptWindow = false } = {}) {
   const owner = state.players[ownerId];
   if (from === "trash") {
