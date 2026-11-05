@@ -1,16 +1,17 @@
 /* Online play over the board (design §14.1): only where things sit and the line's colour. The look is the match's own
    parts (文豪, 2026-11-05): the settings window's panel and buttons (.cp-panel, hud-skin.css) for the strip and the banner,
-   and the window itself (.r2-modal with a .cp-panel and its head) for the 投了 question. Sizes in --u ratios. */
-.r2-content .r2-online-hud.cp-panel { position:fixed; z-index:26; top:calc(var(--u) * .5 + env(safe-area-inset-top,0rem)); left:50%; transform:translateX(-50%);
+   and the window itself (.r2-modal with a .cp-panel and its head) for the 投了 question. Sizes in --u ratios; the doubled
+   class outranks the skin's own position (hud-skin.css loads after this file). */
+.r2-content .r2-online-hud.cp-panel.cp-panel { position:fixed; z-index:26; top:calc(var(--u) * .5 + env(safe-area-inset-top,0rem)); left:50%; transform:translateX(-50%);
   display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:calc(var(--u) * .5) calc(var(--u) * .875); max-width:min(calc(var(--u) * 52),70vw);
   padding:calc(var(--u) * .375) calc(var(--u) * 1.25); font-size:max(.75rem,calc(var(--u) * .875)); }
 .r2-online-opponent b { font-weight:400; overflow-wrap:anywhere; }
 .r2-online-badge { padding:0 calc(var(--u) * .375); border:1px solid currentColor; color:var(--cp-a); }
 .r2-online-badge.is-away, .r2-online-self { color:var(--cp-b); font-variant-numeric:tabular-nums; }
 .r2-online-hud button { min-height:max(2.75rem,calc(var(--u) * 2.25)); padding:0 calc(var(--u) * .875); }
-.r2-content .r2-online-banner.cp-panel { position:fixed; z-index:26; top:calc(var(--u) * 4.5 + env(safe-area-inset-top,0rem)); left:50%; transform:translateX(-50%); max-width:80vw;
+.r2-content .r2-online-banner.cp-panel.cp-panel { position:fixed; z-index:26; top:calc(var(--u) * 4.5 + env(safe-area-inset-top,0rem)); left:50%; transform:translateX(-50%); max-width:80vw;
   padding:calc(var(--u) * .5) calc(var(--u) * 1.25); text-align:center; font-size:max(.8125rem,calc(var(--u) * 1)); font-variant-numeric:tabular-nums; }
-.r2-content .r2-online-confirm.cp-panel { width:min(calc(var(--u) * 26),100%); padding:calc(var(--u) * 1) calc(var(--u) * 1.125) calc(var(--u) * 1.125); }
+.r2-content .r2-online-confirm.cp-panel.cp-panel { width:min(calc(var(--u) * 26),100%); padding:calc(var(--u) * 1) calc(var(--u) * 1.125) calc(var(--u) * 1.125); }
 .r2-online-confirm p { margin:0 0 calc(var(--u) * .75); }
 .r2-online-confirm-actions { display:flex; flex-wrap:wrap; gap:calc(var(--u) * .75); justify-content:flex-end; }
 .r2-online-confirm-actions button { min-height:max(2.75rem,calc(var(--u) * 2.5)); padding:0 calc(var(--u) * 1.25); }
