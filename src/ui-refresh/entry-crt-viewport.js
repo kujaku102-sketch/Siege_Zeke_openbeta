@@ -327,6 +327,8 @@ function mount(entry, initialOptions = {}) {
           items.push({ kind: "record", label, count: counts[kind] ?? 0, selector: `[data-stored-export="${kind}"]`, y: cursor }); cursor += rowGap;
         }
         items.push({ kind: "toggle", label: "対戦後に対戦ログを送信", checked: Boolean(options.sendMatchLogs), selector: "[data-toggle-send-logs]", y: cursor }); cursor += rowGap;
+        // The privacy page (a new tab), wherever the Discord login is offered.
+        if (options.discordLogin) { items.push({ kind: "open", label: "プライバシーについて", selector: "[data-privacy-link]", y: cursor }); cursor += rowGap; }
         const maxScroll = Math.max(0, cursor + panel.height * .02 - (view.bottom - view.top));
         const focusedItem = live ? items.find(item => item.selector && focusedIn(item.selector)) : null;
         if (live) {

@@ -84,6 +84,8 @@
 .r2-online-login { display:grid; justify-items:center; gap:.5em; margin-top:clamp(.75rem,4dvh,2rem); padding-top:clamp(.5rem,2.5dvh,1.25rem); border-top:.0625rem dashed #9aa3ab; text-align:center; }
 .r2-online-login p { margin:0; max-width:36em; color:#3d4955; font-size:.85em; }
 .r2-online-login b { font-weight:400; color:#111820; }
+.r2-online-privacy { display:inline-flex; align-items:center; min-height:2.75rem; color:#111820; font-size:.85em; }
+.r2-online-privacy:focus-visible { outline:.125rem solid #111820; outline-offset:.125rem; }
 .r2-online-code { margin:clamp(.5rem,3dvh,1.5rem) 0; text-align:center; }
 .r2-online-code b { display:inline-block; padding:.1em .35em; border:.0625rem solid #111820; font:400 clamp(2.25rem,15dvh,6.5rem)/1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.1em; user-select:all; }
 .r2-online-code.is-small b { font-size:clamp(1.25rem,6dvh,2.25rem); }
