@@ -1,4 +1,4 @@
-import { createMatchUiController } from '../adapters/match-ui-controller.js';
+import { createMatchUiController, flow, isThenable } from '../adapters/match-ui-controller.js';
 import { runtimeGameHtml, runtimeGameRegions, tutorialTriesPlay, handCard, blockMessage } from './runtime-read-view.js';
 import { patchHtml } from './dom-patch.js';
 import { isBoardPick, isSinglePick, stackTargets } from './choice-read-view.js';
@@ -243,8 +243,16 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const scenes = createSurfaceScenes({ root, boardStyle, renderQuality, latest: () => latest, lowGpu,
     onContextLost: () => { if (!disposed) onContextLost(); } });
   const log = createLogSync(root);
+  // An answer still on its way (a remote port) is drawn when it comes; meanwhile the surface says it is waiting.
+  const later = (result, then) => {
+    root.classList.add('is-waiting');
+    return result.then(value => { root.classList.remove('is-waiting'); return then(value); });
+  };
   const render = result => {
     if (disposed) return;
+    if (isThenable(result)) return later(result, render);
+    // A second tap while one is out is refused by the controller; it is not a mistake to report.
+    if (!result.ok && result.error.code === 'MATCH_UI_BUSY') return;
     // A move the tutorial refused is redrawn as it stands, so the guide shows why. The guide comes back on every
     // refusal, also when the reason is the one it gave before, and the match waits again.
     if (!result.ok) { shakeRefused(result.error.code); if (!guideSaysWhy(result.error.code)) reportError(result.error.code); if (String(result.error.code).startsWith('TUTORIAL_') && result.error.code !== 'TUTORIAL_DISPOSED') { guideAway = null; const read = ui.read(); if (read.ok) render(read); } return; }
@@ -333,7 +341,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   };
   // A step that is already decided needs no confirm: a single pick (board or list,
   // draft or required choice) answers its request, and a finished plan is submitted.
-  const settle = result => {
+  const settle = first => flow(function* () {
+    let result = yield first;
     for (let step = 0; step < 8 && result.ok && (result.value.plan || result.value.request); step++) {
       const { plan, request, selection } = result.value;
       // An optional single pick is never decided by its empty starting answer.
@@ -343,15 +352,18 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
         && validSelectionAnswer(request, selection)
         : Boolean(plan.completion);
       if (!decided) break;
-      result = ui.confirm();
+      result = yield ui.confirm();
     }
     return result;
-  };
-  const act = result => {
-    result = settle(result);
+  }());
+  const acted = result => {
     render(result);
     if (!disposed && result.ok) opponents?.startCpu(latest);
     if (!disposed && result.ok) opponents?.startTutorial();
+  };
+  const act = result => {
+    const settled = settle(result);
+    return isThenable(settled) ? later(settled, acted) : acted(settled);
   };
   const listener = (type, handler) => root.addEventListener(type, handler, { signal: lifetime.signal });
   // Both boards raise the hand the same way; only the look differs.

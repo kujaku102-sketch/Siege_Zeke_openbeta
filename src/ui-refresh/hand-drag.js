@@ -1,4 +1,5 @@
 import { resolveInteractionTarget } from '../adapters/interaction-targets.js';
+import { flow, when } from '../adapters/match-ui-controller.js';
 import { actionBlock, blockMessage, actionTypeOf, handCard } from './runtime-read-view.js';
 import { fxMs } from './fx-speed.js';
 
@@ -23,8 +24,9 @@ export function createHandDrag({ root, ui, act, latest, schedule, onReject = () 
       slot && { kind: 'slot', seatId: slot.dataset.seat, zone: slot.dataset.zone, slot: Number(slot.dataset.slot) },
       fortress && { kind: 'user', seatId: fortress.dataset.fortress }].filter(Boolean);
   };
-  // Returns the runtime block (or a misplaced-drop block) when the drop cannot start anything.
-  const dropOn = (cardRef, node) => {
+  // Returns the runtime block (or a misplaced-drop block) when the drop cannot start anything: at once, or as a
+  // Promise when the plans come from a remote port. It waits for each act, so the card flies from where it was dropped.
+  const dropOn = (cardRef, node) => flow(function* () {
     const model = latest()?.model;
     const card = model && handCard(model, cardRef);
     if (!card || !node) return null;
@@ -34,27 +36,27 @@ export function createHandDrag({ root, ui, act, latest, schedule, onReject = () 
       if (registry.dataset.seat !== model.match.viewerSeat) return MISPLACED;
       const install = actions.filter(action => actionTypeOf(action) === 'install');
       if (!install.length) return actionBlock(model, cardRef, 'install') ?? {};
-      act(install.length === 1 ? ui.chooseAction(install[0].actionId) : ui.selectCard(cardRef));
+      yield act(install.length === 1 ? ui.chooseAction(install[0].actionId) : ui.selectCard(cardRef));
       return null;
     }
     if (!node.closest('.r2-board')) return null;
     const hits = dropHits(node), matches = [];
     for (const action of actions.filter(action => action.kind !== 'fixed')) {
-      const planned = ui.chooseAction(action.actionId);
+      const planned = yield ui.chooseAction(action.actionId);
       const hit = planned.ok && planned.value.interactionRequest
         && hits.find(item => resolveInteractionTarget(planned.value.interactionRequest, item).kind === 'one');
       if (hit) matches.push({ action, hit });
-      ui.back();
+      yield ui.back();
     }
     if (matches.length === 1) {
-      const chosen = ui.chooseAction(matches[0].action.actionId);
-      act(chosen.ok ? ui.hitTarget(matches[0].hit) : chosen);
+      const chosen = yield ui.chooseAction(matches[0].action.actionId);
+      yield act(chosen.ok ? ui.hitTarget(matches[0].hit) : chosen);
       return null;
     }
-    if (matches.length > 1) { act(ui.selectCard(cardRef)); return null; }
+    if (matches.length > 1) { yield act(ui.selectCard(cardRef)); return null; }
     // A spell has no board position; dropping it anywhere on the board casts it.
     const spell = actions.filter(action => actionTypeOf(action) === 'executeSpell');
-    if (spell.length === 1) { act(ui.chooseAction(spell[0].actionId)); return null; }
+    if (spell.length === 1) { yield act(ui.chooseAction(spell[0].actionId)); return null; }
     const playable = actions.some(action => action.kind !== 'fixed');
     const execute = card.definition.category === 'Sp' ? 'executeSpell' : 'executeCard';
     // A card whose play is blocked says why it cannot be played, not where it cannot go, in a tutorial step and a
@@ -62,7 +64,7 @@ export function createHandDrag({ root, ui, act, latest, schedule, onReject = () 
     const blocked = actionBlock(model, cardRef, execute);
     if (blocked?.code) return blocked;
     return playable ? MISPLACED : blocked ?? {};
-  };
+  }());
   const MISPLACED = { message: 'そこには置けません' };
   let rejectDialog = null;
   const reject = (ghost, block, cardRef) => {
@@ -97,8 +99,11 @@ export function createHandDrag({ root, ui, act, latest, schedule, onReject = () 
     root.classList.remove('hand-dragging');
     flyOrigin = drop && rect ? { cardRef, rect } : null;
     let reason;
-    try { reason = drop ? dropOn(cardRef, drop) : null; } finally { flyOrigin = null; }
-    if (reason) reject(ghost, reason, cardRef); else ghost.remove();
+    try { reason = drop ? dropOn(cardRef, drop) : null; } catch (error) { flyOrigin = null; throw error; }
+    return when(reason, value => {
+      flyOrigin = null;
+      if (value) reject(ghost, value, cardRef); else ghost.remove();
+    });
   };
   return Object.freeze({
     owns: pointerId => Boolean(drag) && pointerId === drag.pointerId,
