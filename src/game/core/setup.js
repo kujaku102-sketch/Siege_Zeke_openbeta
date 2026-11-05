@@ -9,6 +9,7 @@ import { hydrateCard } from "./prepare.js";
 import { arrangeBlackTutorial, arrangeBlueTutorial, arrangeLab, arrangeSandbox, arrangeTutorial, arrangeVengeanceTutorial, arrangeYellowTutorial } from "./setup-arrange.js";
 import { runtimeRng, shuffle } from "./shared.js";
 import { startTurn } from "./turn.js";
+import { MATCH_MODES } from "../runtime/modes.js";
 
 function buildPlayer(id, user, deck) {
   return {
@@ -157,7 +158,7 @@ export function createGame({ mode = "ai", tutorialId = "basics", playerDeckId = 
     state.sandboxUi = { query: "", expansion: "all", catalogOwner: "player", opponentControl: "manual", actor: "player" };
   }
   if (runtimeContext !== null) normalizeBoardSlots(state);
-  if (openingProtocol === "v2.4" && mode === "ai") {
+  if (openingProtocol === "v2.4" && MATCH_MODES.includes(mode)) {
     // 開始前フェーズ: 先攻はまだ決まっていない(最後の決定でダイス)。player から順に手札の確認を行う。
     state.opening = { status: "mulligan", order: [...OPENING_ORDER], index: 0 };
     state.phase = "opening";

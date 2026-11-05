@@ -1,6 +1,6 @@
 import {
   activateScript, activateTurbo, addSandboxCardToHand, attack, endTurn, installCard, keepOpeningHand, openingMulligan,
-  playCard, playLayeredCard, recoverRegistryCard, relogCard, restSecurity, executeRegistryCard, activateCardEffect
+  playCard, playLayeredCard, recoverRegistryCard, relogCard, restSecurity, executeRegistryCard, activateCardEffect, forfeitGame
 } from '../engine.js';
 import { applyRequiredInputAction } from './required-input.js';
 
@@ -143,6 +143,17 @@ const HANDLERS = Object.freeze({
     apply: state => endTurn(state),
     progress: normalProgress,
     falseCanAwait: true
+  },
+  concedeGame: {
+    keys: ['engineFunction', 'playerId'],
+    apply: (state, adapter) => forfeitGame(state, adapter.playerId, 'concede'),
+    progress: () => 'complete'
+  },
+  systemForfeitGame: {
+    keys: ['engineFunction', 'playerId', 'reason'],
+    validate: adapter => adapter.reason === 'disconnect',
+    apply: (state, adapter) => forfeitGame(state, adapter.playerId, adapter.reason),
+    progress: () => 'complete'
   },
   answerRequiredInput: {
     keys: ['engineFunction', 'playerId', 'revision', 'optionIndexes', 'allocation'],

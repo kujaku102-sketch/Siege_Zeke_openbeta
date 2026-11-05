@@ -1,5 +1,5 @@
-import { createMatchAuthority } from './match-session-controller.js';
-import { submitRuntimeCommand } from '../game/runtime/transaction.js';
+import { createMatchAuthority } from '../game/runtime/authority.js';
+import { submitRuntimeCommand, submitRuntimeSystemForfeit } from '../game/runtime/transaction.js';
 import { makeBoundCommand } from './port-contract.js';
 import { decodeRecordedAction, MATCH_RECORD_KIND, MATCH_RECORD_VERSION } from '../game/runtime/match-record.js';
 
@@ -19,6 +19,13 @@ export function replayMatchRecord(record) {
     const action = decodeRecordedAction(authority, command.seat, command.action);
     if (!action.ok) return failure(action.error.code, index);
     const { matchId, seatIds } = authority.metadata;
+    // The server's forfeit (a lost connection) is no client command: it is played back through its own entry.
+    if (action.value?.type === 'systemForfeit') {
+      const forfeited = submitRuntimeSystemForfeit(authority, { seat: command.seat, reason: action.value.reason });
+      if (!forfeited.ok) return failure(forfeited.error.code, index);
+      authority = forfeited.value.authority;
+      continue;
+    }
     const bound = makeBoundCommand({ contractVersion: 1, matchId, seatId: command.seat, seatIds: [...seatIds], sessionGeneration: 1 },
       { commandId: `replay:${index}`, expectedRevision: authority.revision, action: action.value });
     if (!bound.ok) return failure(bound.error.code, index);

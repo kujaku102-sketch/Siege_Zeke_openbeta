@@ -8,6 +8,7 @@ export { getEffectTargets, getActivatableEffects, activateCardEffect } from "./c
 export { getLayeredCandidates, getLayeredRequirement, getLayeredSelectionPlan, canPlayLayeredCard, playLayeredCard } from "./core/play-layered.js";
 export { coordinatorProjectionBlocked, buildProjectionSpec, commitProjection, clearProjection, replaceProjection, restoreProjection, cloneForHistory, remember, undo, enqueueLegacyProjection, promoteLegacyQueueHead } from "./core/projection.js";
 export { canAddSandboxCardToHand, addSandboxCardToHand } from "./core/setup-arrange.js";
+export { forfeitGame, FORFEIT_REASONS } from "./core/forfeit.js";
 export { canOpeningMulligan, canKeepOpeningHand, openingMulligan, keepOpeningHand } from "./core/opening.js";
 export { DECK_OPTIONS, createGame } from "./core/setup.js";
 export { resolveVariableExpression } from "./effects/generic/action-values.js";
