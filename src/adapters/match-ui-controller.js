@@ -5,6 +5,16 @@ import { modeInteraction, modeOptionIds, PLACEMENT_MODES, placementModes, select
 
 const failure = code => ({ ok: false, error: { code } });
 const copy = value => structuredClone(value);
+
+// A port's write or question may answer now (the local session) or later, as a Promise (a remote one).
+export const isThenable = value => typeof value?.then === 'function';
+// fn runs on the result: at once when it is already here, so a local match stays synchronous.
+export const when = (value, fn) => isThenable(value) ? Promise.resolve(value).then(fn) : fn(value);
+// Runs a generator whose yields may be Promises, step by step without waiting while each value is already here.
+export function flow(generator) {
+  const step = input => { const next = generator.next(input); return next.done ? next.value : when(next.value, step); };
+  return step(undefined);
+}
 const emptyUi = () => ({ selectedCardRef: null, detailCardRef: null,
   menuOpen: false, logOpen: false, handOpen: true, draft: null });
 
@@ -31,6 +41,8 @@ export function createMatchUiController({ session, viewerSeat }) {
   const pendingEvents = new Map();
   let eventCursor = null;
   let eventReadError = null;
+  // While a write or question is out (a remote port), the next input waits its turn: a second tap is refused.
+  let waiting = false;
   const sameSync = (a, b) => a && b && ['matchId', 'sessionGeneration', 'viewerSeat', 'currentRevision',
     'modeEpoch', 'adoptedRevision', 'adoptedModeEpoch', 'available'].every(key => a[key] === b[key]);
   const invalidateProjection = () => { projection = null; syncKey = null; query = null; revision = -1; };
@@ -88,7 +100,8 @@ export function createMatchUiController({ session, viewerSeat }) {
     if (placement.requestId !== request.requestId) placement = { requestId: request.requestId, mode: PLACEMENT_MODES[0] };
     return placement.mode;
   };
-  const currentRequest = () => draft?.kind === 'action' ? draft.plan.selectionRequests[0] ?? null
+  // A draft whose first plan is still out has nothing to pick yet.
+  const currentRequest = () => draft?.kind === 'action' ? draft.plan?.selectionRequests[0] ?? null
     : query?.requiredInput?.canAnswer ? requiredSelectionRequest(query.requiredInput) : null;
   const selectedOptions = request => request?.options?.filter(option => draft?.answer?.optionIds.includes(option.optionId)) ?? [];
   const buildPreview = (request, model) => {
@@ -120,11 +133,11 @@ export function createMatchUiController({ session, viewerSeat }) {
   };
   const acceptedReceipt = result => result?.receipt?.status === 'accepted'
     && result.receipt.reasonCode === 'ACCEPTED';
-  const submit = action => {
+  const submit = action => flow(function* () {
     const commandId = `gui:${++serial}`;
-    let result = port.submit({ commandId, expectedRevision: revision, action });
+    let result = yield port.submit({ commandId, expectedRevision: revision, action });
     if (!result.ok) {
-      const receipt = port.receipt(commandId);
+      const receipt = yield port.receipt(commandId);
       if (!receipt.ok) return result;
       result = { ok: true, value: { kind: 'recovered', receipt: receipt.value } };
     }
@@ -136,7 +149,7 @@ export function createMatchUiController({ session, viewerSeat }) {
     return read.ok ? { ok: true, value: { submitted: copy(result.value), ...read.value } }
       : { ok: false, error: { code: 'MATCH_UI_READ_AFTER_ACCEPT_FAILED', cause: read.error.code,
         commandId, receipt: copy(result.value.receipt) } };
-  };
+  }());
   const ensureAnswer = () => {
     const request = currentRequest();
     if (!request) return null;
@@ -145,8 +158,12 @@ export function createMatchUiController({ session, viewerSeat }) {
     }
     return request;
   };
-  const planFor = selections => port.queryAction({ expectedRevision: revision,
-    actionId: draft.actionId, selections });
+  // A plan that comes back after the draft it was asked for was dropped (a new revision came in meanwhile) is stale.
+  const planFor = selections => {
+    const asked = draft;
+    return when(port.queryAction({ expectedRevision: revision, actionId: draft.actionId, selections }),
+      plan => !plan.ok || draft === asked ? plan : failure('MATCH_UI_PLAN_STALE'));
+  };
   const adoptPlan = (plan, selections = draft.selections, history = draft.history) => {
     draft.plan = plan;
     draft.selections = selections;
@@ -154,8 +171,8 @@ export function createMatchUiController({ session, viewerSeat }) {
     const request = plan.selectionRequests[0] ?? null;
     draft.answer = { requestId: request?.requestId ?? '', optionIds: [], allocation: [] };
   };
-  // Opens one card's detail. Returns a failure result, or null once it is open.
-  const openDetail = (read, cardRef) => {
+  // Opens one card's detail. Returns a failure result, or null once it is open (or a Promise of either).
+  const openDetail = (read, cardRef) => flow(function* () {
     inspection = null;
     const find = cards => {for (const card of cards ?? []) {if (card.cardRef === cardRef) return card;
       if (!card.faceDown) {const child = find(card.mounted);if (child) return child;}}return null;};
@@ -164,59 +181,66 @@ export function createMatchUiController({ session, viewerSeat }) {
     if (!card) return failure('ACTION_NOT_ALLOWED');
     if (card.faceDown) {
       if (card.controllerSeat !== viewerSeat) return failure('ACTION_NOT_ALLOWED');
-      const detail = port.query({inspectRef:cardRef});
+      const detail = yield port.query({inspectRef:cardRef});
       if (!detail.ok) return detail;
       inspection = detail.value.inspection;
     }
     ui.detailCardRef = cardRef;
     return null;
-  };
-  const readPlan = () => {
-    const plan = planFor(draft.selections);
+  }());
+  const readPlan = () => when(planFor(draft.selections), plan => {
     if (!plan.ok) return plan;
     adoptPlan(plan.value);
     return plan;
+  });
+  // Every input but reading, handing events over and leaving goes through here: refused while one is out,
+  // and the next waits for a Promise to settle (a remote port that throws reads as a failure, not a crash).
+  const guarded = method => function (...args) {
+    if (waiting) return failure('MATCH_UI_BUSY');
+    const result = method.apply(this, args);
+    if (!isThenable(result)) return result;
+    waiting = true;
+    return Promise.resolve(result).catch(error => {
+      // A play whose first plan never came is not a draft.
+      if (draft?.kind === 'action' && !draft.plan) draft = null;
+      return failure(error?.code ?? 'MATCH_UI_REMOTE_FAILED');
+    }).finally(() => { waiting = false; });
   };
+  const inputs = methods => Object.fromEntries(Object.entries(methods).map(([name, method]) => [name, guarded(method)]));
   return { ok: true, value: Object.freeze({
     read: refresh,
+    ...inputs({
     selectCard(cardRef, inspect = false) {
       const read = refresh();
       if (!read.ok) return read;
       if (inspect) {
         ui.selectedCardRef = cardRef;
-        const opened = openDetail(read.value, cardRef);
-        if (opened) return opened;
+        return when(openDetail(read.value, cardRef), opened => opened ?? refresh());
       }
-      else { ui.selectedCardRef = cardRef; draft = null; }
+      ui.selectedCardRef = cardRef; draft = null;
       return refresh();
     },
     // Detail only (long press): the selection, the draft and its answer stay as they are.
     showDetail(cardRef) {
       const read = refresh();
       if (!read.ok) return read;
-      const opened = openDetail(read.value, cardRef);
-      return opened ?? refresh();
+      return when(openDetail(read.value, cardRef), opened => opened ?? refresh());
     },
     closeDetail() { ui.detailCardRef = null; inspection = null; artRef = null; return refresh(); },
-    openArt(cardRef) { artRef = cardRef; return refresh(); },
-    closeArt() { artRef = null; return refresh(); },
-    openUnique(seatId) { uniqueSeat = seatId; return refresh(); },
-    closeUnique() { uniqueSeat = null; return refresh(); },
-    openProfile(seatId) { profileSeat = seatId; return refresh(); },
-    closeProfile() { profileSeat = null; return refresh(); },
-    dismissResult() { resultDismissed = true; return refresh(); },
     chooseAction(actionId) {
       const read = refresh();
       if (!read.ok) return read;
       const entry = query.legalActions.find(action => action.actionId === actionId);
       if (!entry) return failure('ACTION_NOT_ALLOWED');
       if (entry.kind === 'fixed') return submit(entry.action);
-      draft = { kind: 'action', actionId, sourceRef: entry.base?.cardRef ?? entry.base?.attackerRef ?? null,
+      const asked = { kind: 'action', actionId, sourceRef: entry.base?.cardRef ?? entry.base?.attackerRef ?? null,
         selections: [], history: [], plan: null, answer: null };
-      const planned = readPlan();
-      if (!planned.ok) { draft = null; return planned; }
-      // A ready plan is still a draft. One explicit confirm submits once.
-      return refresh();
+      draft = asked;
+      return when(readPlan(), planned => {
+        if (!planned.ok) { if (draft === asked) draft = null; return planned; }
+        // A ready plan is still a draft. One explicit confirm submits once.
+        return refresh();
+      });
     },
     hitTarget(hit) {
       const read = refresh();
@@ -286,10 +310,11 @@ export function createMatchUiController({ session, viewerSeat }) {
         presentationKey: request.presentationKey, answer: copy(draft.answer), selectedOptions: selected,
         targets: copy(buildInteractionRequest(request, read.value.model)?.options
           .filter(option => draft.answer.optionIds.includes(option.optionId)).flatMap(option => option.targets) ?? []) }];
-      const planned = planFor(nextSelections);
-      if (!planned.ok) return planned;
-      adoptPlan(planned.value, nextSelections, nextHistory);
-      return refresh();
+      return when(planFor(nextSelections), planned => {
+        if (!planned.ok) return planned;
+        adoptPlan(planned.value, nextSelections, nextHistory);
+        return refresh();
+      });
     },
     decline() {
       const read = refresh();
@@ -311,15 +336,34 @@ export function createMatchUiController({ session, viewerSeat }) {
       if (draft?.kind === 'action' && draft.selections.length) {
         const nextSelections = draft.selections.slice(0, -1);
         const nextHistory = draft.history.slice(0, -1);
-        const planned = planFor(nextSelections);
-        if (!planned.ok) return planned;
-        adoptPlan(planned.value, nextSelections, nextHistory);
-      } else {
-        draft = null;
-        ui.selectedCardRef = null;
+        return when(planFor(nextSelections), planned => {
+          if (!planned.ok) return planned;
+          adoptPlan(planned.value, nextSelections, nextHistory);
+          return refresh();
+        });
       }
+      draft = null;
+      ui.selectedCardRef = null;
       return refresh();
     },
+    switchViewer(seatId) {
+      if (!active) return failure('MATCH_UI_DISPOSED');
+      const next = session.port(seatId);
+      if (!next.ok) return next;
+      viewerSeat = seatId;
+      port = next.value;
+      invalidateProjection(); ui = emptyUi(); draft = null; zoneView = null; inspection = null; uniqueSeat = null; profileSeat = null; artRef = null; resultDismissed = false; logs.clear(); pendingEvents.clear(); eventCursor = null; eventReadError = null;
+      return refresh();
+    }
+    }),
+    // Looking around (panels, the log, the hand) asks the port nothing, so it is never held up by a wait.
+    openArt(cardRef) { artRef = cardRef; return refresh(); },
+    closeArt() { artRef = null; return refresh(); },
+    openUnique(seatId) { uniqueSeat = seatId; return refresh(); },
+    closeUnique() { uniqueSeat = null; return refresh(); },
+    openProfile(seatId) { profileSeat = seatId; return refresh(); },
+    closeProfile() { profileSeat = null; return refresh(); },
+    dismissResult() { resultDismissed = true; return refresh(); },
     toggleCollapsed() { collapsed = !collapsed; return refresh(); },
     toggleMenu() { ui.menuOpen = !ui.menuOpen; return refresh(); },
     toggleLog() { ui.logOpen = !ui.logOpen; return refresh(); },
@@ -333,15 +377,6 @@ export function createMatchUiController({ session, viewerSeat }) {
       return refresh();
     },
     closeZone() { zoneView = null; return refresh(); },
-    switchViewer(seatId) {
-      if (!active) return failure('MATCH_UI_DISPOSED');
-      const next = session.port(seatId);
-      if (!next.ok) return next;
-      viewerSeat = seatId;
-      port = next.value;
-      invalidateProjection(); ui = emptyUi(); draft = null; zoneView = null; inspection = null; uniqueSeat = null; profileSeat = null; artRef = null; resultDismissed = false; logs.clear(); pendingEvents.clear(); eventCursor = null; eventReadError = null;
-      return refresh();
-    },
     ackEvents(eventIds) {
       if (!active || !Array.isArray(eventIds)) return failure('INVALID_EVENT_ACK');
       const pending = [...pendingEvents.values()];
