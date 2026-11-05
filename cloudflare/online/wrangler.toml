@@ -23,14 +23,15 @@ id = "5f07a61c1c394d94806955c10dbf6bc6"
 #   ROOM_CODE_KEY (room codes), AUTH_KEY (Discord state and tickets), DISCORD_CLIENT_SECRET.
 # Variables (public values):
 #   DISCORD_REDIRECT_URI: the page Discord sends the player back to; it must equal the Redirect registered in the Discord app.
-#     It points at the staging page for the first real test. When the game moves to siegezeke.online, change it to
-#     "https://siegezeke.online/discord-callback.html", register that Redirect in the Discord app too, and deploy again.
+#     It points at the production page (siegezeke.online), the only Redirect registered in the Discord app now. To test on
+#     the staging page instead, add "https://staging.siege-zeke-simple-public.pages.dev/discord-callback.html" as a Redirect
+#     in the Discord app, set this value to it, and deploy again (and set it back afterwards).
 #   DISCORD_CLIENT_ID: the Discord app's Client ID (public). It is 19 digits, so it MUST stay a quoted string: as a TOML
 #     integer it would be a number in the Worker, fail the string check (SERVER_MISCONFIGURED) and lose digits above 2^53.
 #   Without any one of these (or a secret) /auth/discord/* answers SERVER_MISCONFIGURED and guests play as before.
 [vars]
 DISCORD_CLIENT_ID = "1567789019201413130"
-DISCORD_REDIRECT_URI = "https://staging.siege-zeke-simple-public.pages.dev/discord-callback.html"
+DISCORD_REDIRECT_URI = "https://siegezeke.online/discord-callback.html"
 
 # The game connects here; the domain is already on this Cloudflare account.
 [[routes]]
