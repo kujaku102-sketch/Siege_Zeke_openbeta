@@ -88,3 +88,10 @@
 .r2-online-seat.is-empty { border-style:dashed; color:#6b747d; }
 .r2-online-state { justify-self:start; padding:.1em .5em; border:.0625rem solid currentColor; font-size:.85em; color:#6b747d; }
 .r2-online-seat[data-ready="true"] .r2-online-state { color:#0a7a3a; }
+
+/* The curved CRT over a flow screen (flow-crt-viewport.js, effects on, not compat): the screen's HTML takes the title's
+   7:5 stage, unseen and scrolling inside it, and the glass lies over the same stage. */
+.r2-flow.r2-flow-crt-ready { overflow:hidden; padding:0; background:#000; }
+.r2-flow.r2-flow-crt-ready .r2-flow-sheet { position:absolute; top:50%; left:50%; width:min(100%,140dvh); height:auto; aspect-ratio:7 / 5; min-height:0; max-height:100%;
+  padding:6% 9%; overflow:auto; transform:translate(-50%,-50%); opacity:0; border-radius:0; box-shadow:none; }
+.r2-flow-crt-viewport { position:fixed; z-index:6; top:50%; left:50%; display:block; width:min(100vw,140dvh); height:auto; aspect-ratio:7 / 5; max-height:100dvh; transform:translate(-50%,-50%); touch-action:none; }

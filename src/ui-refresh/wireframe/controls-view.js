@@ -32,7 +32,9 @@ export function activeTurnCount(model) {
 // Presentation only. Enabled actions and IDs always come from the read model.
 export function wireframeControlsHtml(model) {
   const mine = model.match.activeSeat === model.match.viewerSeat;
-  const globals = model.globalActionIds.map(id => model.legalActions.find(a=>a.actionId===id)).filter(Boolean);
+  // The opening's keep and redraw live on its own screen (opening-view.js) while the opening asks for them.
+  const opening = model.legalActions.some(a => actionTypeOf(a) === 'keepOpeningHand');
+  const globals = model.globalActionIds.map(id => model.legalActions.find(a=>a.actionId===id)).filter(a => a && !(opening && ['keepOpeningHand','openingMulligan'].includes(actionTypeOf(a))));
   const end = globals.find(a=>a.action?.type==='endTurn');
   const status = model.match.progress === 'resultLocked' ? '解決中' : model.requiredInput ? '選択待ち' : mine ? 'ターン終了' : '相手ターン';
   const memory = model.seats.find(s=>s.seatId===model.match.viewerSeat).memory;

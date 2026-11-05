@@ -1,0 +1,22 @@
+/* The opening (opening-view.js): only where things sit. The look is the match's own parts: the window's backdrop
+   (.r2-modal, an empty layer under the cards so its text rules stay off them), the board pick's bar (.board-pick-guide),
+   the lit target and the picked mark of a card (.request-target, .selected) and the board's tag (.wf-pick-badge). The hand
+   lies large in the middle; a marked card rises with its tag. Sizes in --u ratios. */
+.r2-opening { --opening-scale:1.6; position:fixed; inset:0; z-index:50; display:grid; place-items:center; }
+.r2-opening > .r2-modal { z-index:-1; }
+body[data-view="mobile"] .r2-opening { --opening-scale:.95; }
+.r2-opening-hand { display:flex; align-items:flex-end; justify-content:center; gap:calc(var(--u) * 1); padding-top:calc(var(--u) * 3); }
+body[data-view="mobile"] .r2-opening-hand { padding-top:calc(var(--u) * 4.5); }
+.r2-opening-card { --opening-drag:0px; position:relative; flex:0 0 auto; width:calc(var(--u) * 6.5 * var(--opening-scale)); height:calc(var(--u) * 9.125 * var(--opening-scale));
+  padding:0; border:0; background:none; cursor:pointer; touch-action:none; transform:translateY(var(--opening-drag)); transition:transform .18s ease-out; }
+.r2-opening-card .card { position:absolute; top:0; left:0; transform:scale(var(--opening-scale)); transform-origin:0 0; pointer-events:none; }
+.r2-opening-card.is-marked { transform:translateY(calc(var(--u) * -2.25 + var(--opening-drag))); }
+body[data-view="mobile"] .r2-opening-card.is-marked { transform:translateY(calc(var(--u) * -1.5 + var(--opening-drag))); }
+.r2-opening-badge { position:absolute; left:50%; top:calc(var(--u) * -1.25); width:calc(var(--u) * 4.5); height:auto; transform:translateX(-50%); overflow:visible; pointer-events:none; }
+.r2-opening-card:focus-visible { outline:calc(var(--u) * .15) solid #69e8ff; outline-offset:calc(var(--u) * .2); }
+.r2-opening.is-waiting .r2-opening-card { cursor:default; }
+/* Cards just drawn by a redraw come in from above, one after another (effects on, not compat: the screen marks them). */
+[data-effects="on"] .r2-opening-card.is-new { animation:r2-opening-new .45s ease-out both; animation-delay:calc(var(--i) * 60ms); }
+@keyframes r2-opening-new { from { transform:translateY(calc(var(--u) * -6)); opacity:0; } to { transform:none; opacity:1; } }
+[data-effects="off"] .r2-opening-card { transition:none; }
+@media (prefers-reduced-motion: reduce) { .r2-opening-card { animation:none !important; transition:none !important; } }

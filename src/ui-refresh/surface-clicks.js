@@ -6,6 +6,9 @@ import { blockMessage } from './runtime-read-view.js';
 // attribute the clicked button carries wins.
 const BUTTONS = [
   ['data-runtime-title', c => c.onTitle()],
+  // The opening screen (opening-view.js): a card marked or unmarked to return, and its one button.
+  ['data-opening-card', (c, target) => c.opening()?.toggle(target.dataset.openingCard)],
+  ['data-opening-decide', c => c.opening()?.decide()],
   ['data-runtime-tutorial-skip', c => c.onTutorialSkip()],
   ['data-runtime-tutorial-finish', c => c.endTutorial()],
   // The end screen (runtime-log-view.js, runtimeResultHtml): the match's log saved, back to the match menu or the tutorial list.

@@ -11,11 +11,12 @@ import { patchHtml } from './ui-refresh/dom-patch.js';
 import { isIosWebKit, readSavedView, resolveView, saveView } from './ui-refresh/model.js';
 import { RENDER_SCALE_STORAGE_KEY, RENDER_STORAGE_KEY, readRenderPreference, readRenderScale, resolveRenderMode, urlRenderPreference, urlRenderScale } from './ui-refresh/render-mode.js';
 import { renderQualityFor } from './ui-refresh/wireframe/render-resolution.js';
-import { escapeScreen, nextScreen } from './ui-refresh/screen-flow.js';
+import { escapeScreen, isFlowScreen, nextScreen } from './ui-refresh/screen-flow.js';
 import { markTutorialDone, readTutorialDone } from './ui-refresh/tutorial-items.js';
 import { isFullscreen, toggleFullscreen } from './ui-refresh/fullscreen.js';
 import { syncEntryLogoGlitch } from './ui-refresh/entry-logo-glitch.js';
 import { syncEntryCrtViewport } from './ui-refresh/entry-crt-viewport.js';
+import { syncFlowCrtViewport } from './ui-refresh/flow-crt-viewport.js';
 import { syncLiveInputLocks } from './ui-refresh/input-lock.js';
 import { noticeText } from './ui-refresh/notice-text.js';
 import { installMobileViewport } from './ui-refresh/mobile-viewport.js';
@@ -105,6 +106,8 @@ function setRenderScale(value) {
   surface?.configure(renderOptions());renderShell();
 }
 const entryEffects = () => host.screen === 'entry' && host.effectsEnabled && !lowGpu() && !host.deckBuilder.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// The flow screens take the title's curved CRT on the same terms (文豪, 2026-11-05).
+const flowEffects = () => isFlowScreen(host.screen) && host.effectsEnabled && !lowGpu() && !host.deckBuilder.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function renderShell(replace = false) {
   host.render = renderMode();host.renderUrl = urlRenderPreference(location.search);host.renderScaleUrl = urlRenderScale(location.search);
   document.body.dataset.view = host.view;
@@ -128,6 +131,8 @@ function renderShell(replace = false) {
     root.querySelector('.r2-content')?.setAttribute('data-effects',host.effectsEnabled ? 'on' : 'off');
   }
   restoreDeckViewport(root,viewport);
+  // The flow screen's glass goes first: a title coming back slides in over the page it leaves (crt-slide.js).
+  syncFlowCrtViewport(root,flowEffects());
   syncEntryLogoGlitch(root,entryEffects(),{profile:host.logoNoiseProfile,videoFile:entryLogoVideoFile});
   syncEntryCrtViewport(root,entryEffects(),{menuOpen:host.options,debugOpen:Boolean(host.options && host.debug),
     debug:{build:host.build,errors:host.errors,memory:host.memory,renderScale:host.renderScale ?? 1,renderScaleUrl:host.renderScaleUrl,compat:host.render?.mode === 'compat',fxSpeed:host.fxSpeed},view:host.view,fullscreen:host.fullscreen,tapDetails:host.tapDetails,effectsEnabled:host.effectsEnabled,masterVolume:host.masterVolume,storedCounts:host.storedCounts,sendMatchLogs:host.sendMatchLogs,
@@ -208,8 +213,10 @@ function attachSession(next,extra = {}) {
 function startMatch(mode = host.mode,tutorialId = host.tutorialId,seed = crypto.getRandomValues(new Uint32Array(1))[0]) {
   markWonTutorial();
   const saved = id => host.savedDecks.find(deck => `custom:${deck.id}` === id), player = saved(host.playerDeckId), ai = saved(host.aiDeckId);
-  // Opening protocol v2.4 (keep / redraw before the first turn, dice for the first player) is opt-in by URL until it becomes the default.
-  const opening = mode === 'ai' && new URLSearchParams(location.search).get('opening') === 'v2.4' ? {openingProtocol:'v2.4'} : {};
+  // A CPU match opens by the rulebook's 2.4 (each user keeps or redraws once before the first turn, dice for the first player;
+  // 文豪, 2026-11-05: 「CPU戦でもマリガン経路は入れる」). ?opening=legacy keeps the old start (the player first) for comparing.
+  // Tutorials and the sandbox keep the old start.
+  const opening = mode === 'ai' && new URLSearchParams(location.search).get('opening') !== 'legacy' ? {openingProtocol:'v2.4'} : {};
   if (mode !== 'tutorial') {const invalid = [player,ai].find(deck => deck && !validateDeck(deck).valid);
     if (invalid) {host.deckBuilder.open = true;host.deckBuilder.draft = structuredClone(invalid);host.notice = `「${invalid.name}」は構築規定の修正が必要です。`;renderShell();return {ok:false,error:{code:'INVALID_DECK'}};}}
   const result = lifecycle.start({matchId:crypto.randomUUID(),seatIds:['player','ai'],seed,ruleVersion:RULE_VERSION,cardVersion:CARD_VERSION,gameOptions:{
@@ -258,7 +265,7 @@ function goTo(screen) {if (!screen) return;const from = host.screen;if (from ===
 function onOnlineBattle() {}
 // Online play with a server (design §14.1): one client for the page, made at the first way in. What the room says redraws
 // the screen; once its match runs, the remote session is mounted like a local one, and a finished match shows the room's end.
-let online = null, onlineTicker = null, onlineUnwatch = null, copiedTimer = null;
+let online = null, onlineTicker = null, onlineUnwatch = null, copiedTimer = null, awaitedRemote = null;
 function onlineClient() {
   if (online) return online;
   const endpoint = onlineEndpoint({hostname:location.hostname,search:location.search});
@@ -270,7 +277,12 @@ function onlineClient() {
 function onlineChanged(state) {
   host.online.state = state;
   const remote = online?.session();
-  if (state.status === 'playing' && remote && session !== remote) return attachOnline(remote);
+  // The match is mounted once its first state can be read (the client names the match a moment before); until then it waits
+  // for the session's first change.
+  if (state.status === 'playing' && remote && session !== remote) {
+    if (remote.readStamp(remote.viewerSeat()).value?.available) return attachOnline(remote);
+    if (awaitedRemote !== remote) {awaitedRemote = remote;const off = remote.onChange(() => {off();if (online && session !== remote) onlineChanged(online.state());});}
+  }
   if (session && session === remote) surface?.configure({online:state.outcome ?? {}});
   syncOnlineTicker();renderShell();
 }
@@ -286,8 +298,17 @@ function syncOnlineTicker() {
   if (counting && !onlineTicker) onlineTicker = setInterval(() => {host.now = Date.now();renderShell();},1000);
   else if (!counting && onlineTicker) {clearInterval(onlineTicker);onlineTicker = null;}
 }
+// A finished online match is kept in this browser like a local one (its replay and log, from the room's record); its log
+// is not sent from here, the room writes it (design §10).
+let archivedOnline = null;
+function archiveOnline() {
+  const remote = online?.session();
+  if (!remote || remote === archivedOnline) return;
+  archivedOnline = remote;
+  try {if (archiveRetiredMatch(remote,{storage:localStorage}).kept) host.storedCounts = storedCounts();} catch {/* keeping a record never blocks leaving */}
+}
 function leaveOnline() {
-  onlineUnwatch?.();onlineUnwatch = null;online?.leave();
+  archiveOnline();onlineUnwatch?.();onlineUnwatch = null;online?.leave();
   Object.assign(host.online,{state:null,error:null,copied:false,confirming:false});syncOnlineTicker();
 }
 // The deck chosen at the door, as the room reads it: a start deck by id, or a saved deck's recipe with its user.
@@ -436,7 +457,7 @@ document.addEventListener('keydown',event => {if (event.key === 'Escape' && !eve
   host.options = false;host.deckBuilder.detailId = null;renderShell();}});
 // Enter in the room code field joins, as its 入る does.
 document.addEventListener('keydown',event => {if (event.key === 'Enter' && event.target.matches?.('[data-online-code]')) void enterRoom(true);});
-window.addEventListener('pagehide',() => {markWonTutorial();clearPress();mobileViewport.dispose();online?.dispose();lifecycle.dispose();surface = null;session = null;});
+window.addEventListener('pagehide',() => {markWonTutorial();clearPress();mobileViewport.dispose();archiveOnline();online?.dispose();lifecycle.dispose();surface = null;session = null;});
 window.addEventListener('pageshow',event => {if (event.persisted) location.reload();});
 renderShell(true);registerPwa();
 // The running release, read once as the page starts (debug window).

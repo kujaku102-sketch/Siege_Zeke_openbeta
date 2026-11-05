@@ -1,86 +1,13 @@
 import { fxMs } from "./fx-speed.js";
 import { drawCrtDebugPage } from "./crt-debug-page.js";
+import { CRT_CURVE, compile, fragmentSource, mesh, vertexSource } from "./crt-gl.js";
+import { composeCrtSlide, keepCrtPage, takeCrtSlide } from "./crt-slide.js";
 // Local opt-in prototype: draw the existing title layout onto a curved WebGL viewport.
 // The original HTML buttons remain in the document for keyboard and screen-reader use.
-const CRT_CURVE = 0.16;
 const BUTTON_GLITCH_MS = 220;
 const PAGE_SLIDE_MS = 320;
 const MENU_FONT = 'SZDotGothic, "Yu Gothic UI", sans-serif';
 const POINTER_ACTIVATION_SLOP = 12;
-const vertexSource = `
-attribute vec2 a_position;
-attribute vec2 a_uv;
-uniform float u_curve;
-varying vec2 v_uv;
-void main() {
-  float radius = dot(a_position, a_position);
-  float perspective = 1.0 / (1.0 + u_curve * radius);
-  gl_Position = vec4(a_position * perspective, 0.0, 1.0);
-  v_uv = a_uv;
-}`;
-
-const fragmentSource = `
-precision mediump float;
-uniform sampler2D u_title;
-uniform float u_time;
-varying vec2 v_uv;
-float tapeNoise(vec2 seed) {
-  return fract(sin(dot(seed, vec2(127.1, 311.7))) * 43758.5453);
-}
-void main() {
-  float frame = floor(u_time * 18.0);
-  float burstTick = floor(u_time * 0.625);
-  float burst = step(0.52, tapeNoise(vec2(burstTick, 9.0))) * (1.0 - step(0.195, fract(u_time * 0.625)));
-  float bandScale = 1.0 + floor(tapeNoise(vec2(burstTick, 17.0)) * 4.0);
-  float row = floor(v_uv.y * 76.0 / bandScale);
-  float tornRow = step(0.89, tapeNoise(vec2(row, frame))) * burst;
-  float trackingY = tapeNoise(vec2(burstTick, 21.0));
-  float trackingBand = burst * (1.0 - smoothstep(0.0, 0.012 * bandScale, abs(v_uv.y - trackingY)));
-  float tear = tornRow * (tapeNoise(vec2(row, burstTick + 3.0)) - 0.5) * 0.033;
-  vec2 sampleUv = clamp(v_uv + vec2(tear + trackingBand * 0.003, 0.0), 0.001, 0.999);
-  float chroma = abs(tear) * 0.45 + trackingBand * 0.0018;
-  vec4 center = texture2D(u_title, sampleUv);
-  vec3 ink = vec3(
-    texture2D(u_title, clamp(sampleUv + vec2(chroma, 0.0), 0.001, 0.999)).r,
-    center.g,
-    texture2D(u_title, clamp(sampleUv - vec2(chroma, 0.0), 0.001, 0.999)).b
-  );
-  float edge = length((v_uv - 0.5) * vec2(1.18, 1.0));
-  float vignette = 1.0 - 0.52 * smoothstep(0.31, 0.72, edge);
-  float scan = 0.89 + 0.11 * sin(gl_FragCoord.y * 3.14159265);
-  float grain = (tapeNoise(floor(gl_FragCoord.xy * 0.5) + frame) - 0.5) * 0.075;
-  float dropout = tornRow * step(0.55, tapeNoise(vec2(row, frame + 7.0))) * 0.3;
-  ink = clamp(ink + grain + trackingBand * 0.055 - dropout, 0.0, 1.0);
-  float colorIndex = floor(tapeNoise(vec2(row, burstTick + 29.0)) * 4.0);
-  vec3 bandColor = colorIndex < 1.0 ? vec3(1.0, 0.82, 0.04)
-    : colorIndex < 2.0 ? vec3(0.06, 0.36, 1.0)
-    : colorIndex < 3.0 ? vec3(0.02, 1.0, 0.16)
-    : vec3(1.0, 0.08, 0.12);
-  ink = mix(ink, bandColor, clamp(tornRow * 0.28 + trackingBand * 0.36, 0.0, 0.6));
-  gl_FragColor = vec4(ink * vignette * scan, 1.0);
-}`;
-
-function compile(gl, type, source) {
-  const shader = gl.createShader(type);
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    const message = gl.getShaderInfoLog(shader);
-    gl.deleteShader(shader);
-    throw new Error(message);
-  }
-  return shader;
-}
-
-function mesh(columns = 40, rows = 24) {
-  const data = [];
-  const point = (x, y) => [x / columns * 2 - 1, 1 - y / rows * 2, x / columns, y / rows];
-  for (let y = 0; y < rows; y += 1) for (let x = 0; x < columns; x += 1) {
-    data.push(...point(x, y), ...point(x + 1, y), ...point(x, y + 1));
-    data.push(...point(x + 1, y), ...point(x + 1, y + 1), ...point(x, y + 1));
-  }
-  return new Float32Array(data);
-}
 
 function localRect(node, frame) {
   const rect = node.getBoundingClientRect();
@@ -196,6 +123,8 @@ function mount(entry, initialOptions = {}) {
   let menuScrollMax = 0;
   let lastFocusedItem = null;
   const glitchStart = new Map();
+  // Coming back from a flow screen, the title slides in over its last page (crt-slide.js), from its first drawn frame.
+  let screenSlide;
   const listeners = [];
   const listen = (node, type, handler) => { node.addEventListener(type, handler); listeners.push([node, type, handler]); };
   const observer = new ResizeObserver(() => redraw());
@@ -207,8 +136,33 @@ function mount(entry, initialOptions = {}) {
     options.onReadyChange?.(next);
   }
 
+  // Bends a drawn page onto the glass.
+  function present(image, width, height) {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniform1f(gl.getUniformLocation(program, "u_time"), performance.now() / 1000);
+    gl.uniform1f(gl.getUniformLocation(program, "u_curve"), CRT_CURVE);
+    gl.drawArrays(gl.TRIANGLES, 0, Number(canvas.dataset.vertices));
+  }
+
+  // Until the logo has loaded, the glass keeps the screen just left (an empty glass would show black); the slide starts
+  // once the title can be drawn.
+  function holdLeftPage() {
+    if (screenSlide === undefined) screenSlide = takeCrtSlide("entry");
+    if (!screenSlide) return;
+    const { page } = screenSlide;
+    if (canvas.width !== page.width || canvas.height !== page.height) canvas.width = page.width, canvas.height = page.height;
+    present(page, page.width, page.height);
+    screenSlide.at = performance.now();
+  }
+
   function redraw() {
-    if (disposed || !entry.isConnected || !logo.complete || !logo.naturalWidth) return;
+    if (disposed || !entry.isConnected) return;
+    if (!logo.complete || !logo.naturalWidth) { holdLeftPage(); return; }
     const frame = entry.getBoundingClientRect();
     if (frame.width < 1 || frame.height < 1) return;
     const scale = Math.min(devicePixelRatio || 1, 1.5, 2048 / frame.width, 1536 / frame.height);
@@ -489,15 +443,9 @@ function mount(entry, initialOptions = {}) {
       } else pages[menuPage](0, true);
       ctx.restore();
     }
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
-    gl.viewport(0, 0, width, height);
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.uniform1f(gl.getUniformLocation(program, "u_time"), performance.now() / 1000);
-    gl.uniform1f(gl.getUniformLocation(program, "u_curve"), CRT_CURVE);
-    gl.drawArrays(gl.TRIANGLES, 0, Number(canvas.dataset.vertices));
+    if (screenSlide === undefined) screenSlide = takeCrtSlide("entry");
+    if (screenSlide && !composeCrtSlide(source, screenSlide)) screenSlide = null;
+    present(source, width, height);
     publishReady(true, !entry.classList.contains("r2-entry-crt-ready"));
   }
 
@@ -584,6 +532,7 @@ function mount(entry, initialOptions = {}) {
   function dispose() {
     if (disposed) return;
     disposed = true;
+    keepCrtPage(source, "entry");
     cancelAnimationFrame(frameId);
     observer.disconnect();
     for (const [node, type, handler] of listeners) node.removeEventListener(type, handler);

@@ -19,6 +19,7 @@ import { routeClick } from './surface-clicks.js';
 import { createSurfaceOpponents } from './surface-opponents.js';
 import { attachSurfacePointer } from './surface-pointer.js';
 import { createHandDrag } from './hand-drag.js';
+import { createOpeningInput } from './surface-opening.js';
 import { attachSelectionPeek } from './selection-peek.js';
 import { attachCountPeek } from './count-peek.js';
 import { attachDetailScroll } from './detail-scroll.js';
@@ -63,6 +64,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   let renderScope = null;
   let regionKeys = new Map();
   let opponents = null;
+  // The opening screen's marks and moments (surface-opening.js), made once the surface can act.
+  let opening = null;
   const scope = session.scope();
   const current = () => !disposed && session.scope().matchId === scope.matchId && session.scope().sessionGeneration === scope.sessionGeneration;
   // A notice raised by a press in a tutorial stays while the player is on that step and clears once the
@@ -259,7 +262,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     const next = result.value;
     const tutorial = tutorialView();
     // online: null for a local match; for an online one, the room's end once it comes ({ result, reason }), else {}.
-    const presentation = { ...next, view, effectsEnabled, boardStyle, tutorial:tutorial.ok ? tutorial.value : null, online };
+    const openingView = opening?.observe(next) ?? null;
+    const presentation = { ...next, view, effectsEnabled, boardStyle, tutorial:tutorial.ok ? tutorial.value : null, online, opening: openingView };
     const nextScope = `${next.model.match.matchId}:${next.sync?.sessionGeneration ?? scope.sessionGeneration}:${next.model.match.viewerSeat}:${next.model.match.revision}:${next.sync?.modeEpoch ?? 0}:${view}:${effectsEnabled ? 1 : 0}`;
     // Decorative work (anchors, scenes, effects) may fail without stopping the match,
     // and its failure must not keep the events from being handed over: they would be
@@ -273,7 +277,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     try {
       const shell = root.querySelector('.r2-runtime-view');
       const shellRebuilt = !shell || shell.dataset.layout !== (view === 'mobile' ? 'mobile' : 'desktop');
-      const nextKeys = localRegionKeys({ ...next, online },tutorial.ok ? tutorial.value : null);
+      const nextKeys = localRegionKeys({ ...next, online, opening: openingView },tutorial.ok ? tutorial.value : null);
       const changedLocal = [...nextKeys].filter(([name,key]) => regionKeys.get(name) !== key).map(([name]) => name);
       const runtimeChanged = renderScope !== nextScope;
       if (shellRebuilt) {
@@ -385,7 +389,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     return true;
   };
   const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule, onReject: onDropRefused });
-  const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails,
+  opening = createOpeningInput({ root, ui, act, latest: () => latest, schedule, motion: () => effectsEnabled && !lowGpu });
+  const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails, opening: () => opening,
     onTitle, onTutorialSkip, onToMenu, onSaveLog, endTutorial, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide, tapAnywhere };
   listener('click', event => {
     if (disposed || event.target.closest('[data-ability-help]')) return;
@@ -451,7 +456,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
         disposed = true; handDrag.dispose(); selectionPeek.hide(); lifetime.abort(); observer?.disconnect(); scenes.dispose();
         fx.dispose();
         handDock?.dispose();handDock=null;
-        timers.clear(); surfaceLayout.dispose(); opponents.dispose(); ui.dispose(); syncResultFx(root,false); latest = null; pointer.dispose();
+        timers.clear(); surfaceLayout.dispose(); opponents.dispose(); opening.dispose(); ui.dispose(); syncResultFx(root,false); latest = null; pointer.dispose();
         regionKeys.clear(); log.reset();
       }
       return { ok: true, value: null };
