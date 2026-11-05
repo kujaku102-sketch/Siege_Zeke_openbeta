@@ -37,6 +37,8 @@ export function createRemoteSession({ matchId, seat, opponentSeat, transport, no
   const byRuntimeId = new Map();
   const asks = new Map();       // rid -> { resolve, timer }
   const tracked = new Set();
+  const listeners = new Set();
+  const changed = () => { for (const listener of [...listeners]) { try { listener(); } catch { /* a screen's error is its own */ } } };
 
   // ---- waiting for the room's answer --------------------------------------------
   const settle = (operation, result) => {
@@ -92,6 +94,7 @@ export function createRemoteSession({ matchId, seat, opponentSeat, transport, no
           resendOnState = false;
           for (const operation of operations.values()) if (operation.result === null) sendCommand(operation);
         }
+        changed();
         return;
       }
       case 'ack': {
@@ -120,6 +123,7 @@ export function createRemoteSession({ matchId, seat, opponentSeat, transport, no
         return;
       case 'end':
         if (frame.record) record = frame.record;
+        changed();
         return;
       default:
     }
@@ -205,6 +209,8 @@ export function createRemoteSession({ matchId, seat, opponentSeat, transport, no
     kind: 'remote',
     receive, connectionLost, connectionRestored,
     revision: () => revision,
+    // Called after every state or end the room sends (readStamp has moved); the page then reads again.
+    onChange(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     viewerSeat: () => seat,
     scope: () => ({ matchId, sessionGeneration: 1, seatIds: [...seatIds] }),
     readStamp(viewerSeat) {
@@ -246,6 +252,7 @@ export function createRemoteSession({ matchId, seat, opponentSeat, transport, no
       if (disposed) return { ok: true, value: null };
       for (const disposable of [...tracked].reverse()) { try { disposable.dispose(); } catch { /* one must not block the rest */ } }
       tracked.clear();
+      listeners.clear();
       connectionLost();
       disposed = true;
       return { ok: true, value: null };
