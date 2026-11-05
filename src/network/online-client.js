@@ -3,7 +3,7 @@
 //
 //   const client = createOnlineClient({ endpoint, storage: localStorage });
 //   client.subscribe(state => draw(state));
-//   await client.createRoom({ name });      // or joinRoom(code, { name })
+//   await client.createRoom({ name, ticket }); // or joinRoom(code, { name, ticket }); ticket: a Discord ticket (discord-login.js) or nothing
 //   client.setReady({ userId, deck });      // deck: { kind: 'start', deckId } | { kind: 'custom', recipe }
 //   client.session()                        // the remote session (remote-session.js) while a match is running or over
 //
@@ -13,29 +13,23 @@ import { createReconnector } from './reconnect.js';
 import { encodeClientMessage, LIMITS, parseServerMessage } from './protocol.js';
 import { normalizeRoomCode, formatRoomCode } from './room-code.js';
 import { roomSocketUrl, roomsUrl } from './endpoint.js';
+import { TOKEN_KEY, guestToken } from './guest-token.js';
+import { isDiscordAvatarUrl } from './discord-auth.js';
 
-export const TOKEN_KEY = 'sz-online-token';
+export { TOKEN_KEY };
 export const NAME_KEY = 'sz-online-name';
 const HEARTBEAT_MS = 30_000;
 const DEAD_AFTER_MS = 70_000;
 
 // Close codes after which trying again is pointless (src/network/protocol.js CLOSE).
 const FINAL_CLOSE = new Map([[4003, 'ROOM_FULL'], [4004, 'ROOM_CLOSED'], [4009, 'REPLACED'], [4001, 'PROTOCOL'], [4002, 'PROTOCOL'], [1009, 'PROTOCOL']]);
-const hex = bytes => Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
 
-function guestToken(storage, randomBytes) {
-  try {
-    const saved = storage?.getItem(TOKEN_KEY);
-    if (typeof saved === 'string' && /^[0-9a-f]{32}$/.test(saved)) return saved;
-  } catch { /* storage may be blocked */ }
-  const made = hex(randomBytes(16));
-  try { storage?.setItem(TOKEN_KEY, made); } catch { /* the token then lasts for this page only */ }
-  return made;
-}
+// A seat as the room describes it, with the picture kept only if it is one of Discord's own addresses.
+const seatOf = seat => seat && typeof seat === 'object' ? { ...seat, avatar: isDiscordAvatarUrl(seat.avatar) ? seat.avatar : null } : seat;
 
 const blankState = () => ({
   status: 'idle', connection: 'none', attempt: 0, retryInMs: null,
-  code: null, display: null, you: null, opponent: null,
+  code: null, display: null, you: null, opponent: null, ticketStatus: null,
   opponentAwayUntil: null, selfAwayUntil: null, expiresAt: null,
   match: null, outcome: null, error: null
 });
@@ -49,6 +43,7 @@ export function createOnlineClient({ endpoint, storage = null, createSocket = ur
   let socket = null;
   let session = null;
   let guestName = 'ゲスト';
+  let guestTicket = null;      // a Discord ticket (discord-login.js), shown to the room at hello when there is one
   let lastFrameAt = 0;
   let heartbeat = null;
   let intentional = false;     // leave() or dispose(): a close is then expected
@@ -78,8 +73,8 @@ export function createOnlineClient({ endpoint, storage = null, createSocket = ur
 
   // ---- what the room says ---------------------------------------------------------------------
   const lobbyPatch = frame => ({
-    you: frame.you ?? state.you,
-    opponent: frame.opponent ?? null,
+    you: seatOf(frame.you) ?? state.you,
+    opponent: seatOf(frame.opponent) ?? null,
     opponentAwayUntil: frame.opponent?.graceMs != null && frame.opponent.connected === false ? now() + frame.opponent.graceMs : null,
     expiresAt: Number.isFinite(frame.expiresInMs) ? now() + frame.expiresInMs : state.expiresAt
   });
@@ -98,7 +93,7 @@ export function createOnlineClient({ endpoint, storage = null, createSocket = ur
   function onFrame(frame) {
     switch (frame.t) {
       case 'welcome':
-        publish({ ...lobbyPatch(frame), status: statusOf(frame.phase), connection: 'open', selfAwayUntil: null, error: null });
+        publish({ ...lobbyPatch(frame), status: statusOf(frame.phase), connection: 'open', selfAwayUntil: null, error: null, ticketStatus: frame.profile ?? null });
         welcomed?.(true);
         welcomed = null;
         return;
@@ -106,7 +101,7 @@ export function createOnlineClient({ endpoint, storage = null, createSocket = ur
         publish({ ...lobbyPatch(frame), status: state.status === 'playing' || state.status === 'finished' ? state.status : statusOf(frame.phase) });
         return;
       case 'start':
-        publish({ status: 'playing', you: frame.you ?? state.you, opponent: frame.opponent ?? state.opponent, match: { matchId: frame.matchId } });
+        publish({ status: 'playing', you: seatOf(frame.you) ?? state.you, opponent: seatOf(frame.opponent) ?? state.opponent, match: { matchId: frame.matchId } });
         return;
       case 'state':
         ensureSession(frame);
@@ -159,7 +154,7 @@ export function createOnlineClient({ endpoint, storage = null, createSocket = ur
       welcomed = done;
       mine.addEventListener('open', () => {
         lastFrameAt = now();
-        send({ t: 'hello', token, name: guestName, ...(session && session.revision() >= 0 ? { haveRevision: session.revision() } : {}) });
+        send({ t: 'hello', token, name: guestName, ...(guestTicket ? { ticket: guestTicket } : {}), ...(session && session.revision() >= 0 ? { haveRevision: session.revision() } : {}) });
         stopBeat();
         heartbeat = after(HEARTBEAT_MS, beat);
       });
@@ -206,7 +201,8 @@ export function createOnlineClient({ endpoint, storage = null, createSocket = ur
     } catch { return 'SERVER_UNREACHABLE'; }
   }
 
-  async function enter(code, { name } = {}) {
+  async function enter(code, { name, ticket } = {}) {
+    guestTicket = typeof ticket === 'string' && ticket !== '' ? ticket : null;
     if (name) { guestName = name; try { storage?.setItem(NAME_KEY, name); } catch { /* kept for this page */ } }
     publish({ code, display: formatRoomCode(code), connection: 'connecting', error: null });
     const ok = await open(code);

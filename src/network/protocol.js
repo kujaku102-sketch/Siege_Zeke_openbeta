@@ -5,6 +5,7 @@ export const PROTOCOL_VERSION = 1;
 export const LIMITS = Object.freeze({
   maxMessageBytes: 8192,
   maxNameLength: 16,
+  maxTicketChars: 1024,
   ratePerSecond: 20,
   rateBurst: 40,
   helloMs: 5000,
@@ -50,7 +51,8 @@ const selectionsShape = value => Array.isArray(value) && value.length <= 16
 
 // Every key a client may send, per message type. Anything else is refused.
 const CLIENT_SPEC = Object.freeze({
-  hello: { token: required(value => TOKEN.test(value)), name: required(text(64, 0)), haveRevision: optional(REVISION) },
+  hello: { token: required(value => TOKEN.test(value)), name: required(text(64, 0)), haveRevision: optional(REVISION),
+    ticket: optional(text(LIMITS.maxTicketChars)) },
   ready: { userId: required(text(40)), deck: required(deckShape) },
   unready: {},
   cmd: { commandId: required(value => COMMAND_ID.test(value)), expectedRevision: required(REVISION),

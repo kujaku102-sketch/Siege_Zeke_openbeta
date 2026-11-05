@@ -12,6 +12,7 @@
 //   engine   the match, see runtime-engine.js for the real one
 //   checkDeck(readyMessage) => { ok, value | error }         see deck-check.js
 //   hashToken(token) => string | Promise<string>              default SHA-256 hex
+//   verifyProfile (ticket, tokenHash) => { ok, value: { avatarUrl } } | { ok: false, error: { code } }   optional: checks a Discord ticket (discord-auth.js verifyTicket)
 //   onFinish ({ outcome, record, ... }) => void               optional: the match is over
 //   onAuthenticated (connId, tokenHash) => void               optional: a socket said hello (a Durable Object keeps the hash in the socket)
 //
@@ -21,6 +22,7 @@
 // Every public method is queued, so two messages never interleave between awaits.
 import { CLOSE, LIMITS, encodeServerMessage, parseClientMessage, sanitizeGuestName } from './protocol.js';
 import { sha256Hex } from './room-code.js';
+import { isDiscordAvatarUrl } from './discord-auth.js';
 
 const ROOM = 'room';
 const AUTHORITY = 'authority';
@@ -76,10 +78,10 @@ export function createRoomCore(deps) {
   const graceLeft = seat => seat.disconnectedAt === null ? null : Math.max(0, seat.disconnectedAt + LIMITS.graceMs - now());
   const opponentOf = slot => {
     const other = room.seats[1 - slot];
-    return other ? { name: other.name, connected: connOf(1 - slot) !== null, ready: other.ready,
+    return other ? { name: other.name, avatar: other.avatar ?? null, connected: connOf(1 - slot) !== null, ready: other.ready,
       userId: other.ready ? other.userId : null, graceMs: room.phase === 'playing' ? graceLeft(other) : null } : null;
   };
-  const youOf = slot => ({ slot, name: room.seats[slot].name, ready: room.seats[slot].ready, seat: seatIdOf(slot) });
+  const youOf = slot => ({ slot, name: room.seats[slot].name, avatar: room.seats[slot].avatar ?? null, ready: room.seats[slot].ready, seat: seatIdOf(slot) });
   const phaseDeadline = () => {
     if (!room) return null;
     const limit = room.createdAt + LIMITS.maxRoomAgeMs;
@@ -222,9 +224,22 @@ export function createRoomCore(deps) {
   }
 
   // ---- messages ------------------------------------------------------------
+  // A Discord ticket is never a reason to refuse a guest: whatever is wrong with it, the guest comes in without a picture.
+  // status: ok | invalid | expired | unavailable (this server cannot check tickets)
+  async function checkTicket(ticket, hash) {
+    if (!deps.verifyProfile) return { status: 'unavailable', avatar: null };
+    try {
+      const checked = await deps.verifyProfile(ticket, hash);
+      if (checked?.ok && isDiscordAvatarUrl(checked.value?.avatarUrl)) return { status: 'ok', avatar: checked.value.avatarUrl };
+      const code = checked?.error?.code;
+      return { status: code === 'TICKET_EXPIRED' ? 'expired' : code === 'UNAVAILABLE' ? 'unavailable' : 'invalid', avatar: null };
+    } catch { return { status: 'unavailable', avatar: null }; }
+  }
+
   async function hello(connId, conn, message) {
     if (conn.hash) { emit(connId, { t: 'error', code: 'ALREADY_HELLO' }); return; }
     const hash = await hashToken(message.token);
+    const profile = message.ticket === undefined ? { status: 'none', avatar: null } : await checkTicket(message.ticket, hash);
     let slot = room.seats.findIndex(seat => seat.hash === hash);
     if (slot < 0) {
       if ((room.phase !== 'waiting' && room.phase !== 'lobby') || room.seats.length >= 2) {
@@ -232,7 +247,7 @@ export function createRoomCore(deps) {
         hangUp(connId, CLOSE.roomFull, 'room full');
         return;
       }
-      room.seats.push({ hash, name: sanitizeGuestName(message.name), ready: false, userId: null, deck: null, disconnectedAt: null });
+      room.seats.push({ hash, name: sanitizeGuestName(message.name), avatar: profile.avatar, ready: false, userId: null, deck: null, disconnectedAt: null });
       slot = room.seats.length - 1;
       if (room.seats.length === 2) room.phase = 'lobby';
       room.activityAt = now();
@@ -241,12 +256,14 @@ export function createRoomCore(deps) {
         if (otherId !== connId && other.hash === hash) hangUp(otherId, CLOSE.replaced, 'replaced');
       }
       room.seats[slot].disconnectedAt = null;
+      // A returning browser that shows a good ticket takes its picture along; one that shows none keeps the one it had.
+      if (profile.status === 'ok') room.seats[slot].avatar = profile.avatar;
     }
     conn.hash = hash;
     conn.helloBy = null;
     try { deps.onAuthenticated?.(connId, hash); } catch { /* the host keeps its own record */ }
     saveRoom();
-    emit(connId, { ...lobbyFor(slot), t: 'welcome' });
+    emit(connId, { ...lobbyFor(slot), t: 'welcome', profile: profile.status });
     if (room.phase === 'playing') {
       const events = message.haveRevision === undefined && engine.history
         ? engine.history({ game: room.game, commands: commandRows() }, seatIdOf(slot)) : [];
