@@ -11,7 +11,8 @@ const ghostAt = (ghost, event) => {
 // this module owns the ghost, the hover mark, the drop and its rejection.
 // onReject(block, cardRef): a drop was refused with block, true when it was answered elsewhere (the tutorial guide
 // says why), and then no dialog says it again.
-export function createHandDrag({ root, ui, act, latest, schedule, onReject = () => false }) {
+// held(): no drop is played just now (the dice's answer still shows); the card goes back to the hand.
+export function createHandDrag({ root, ui, act, latest, schedule, onReject = () => false, held = () => false }) {
   let drag = null;
   let flyOrigin = null;
   // Hand drag: the drop point picks the action. Each candidate is planned (a query,
@@ -99,7 +100,7 @@ export function createHandDrag({ root, ui, act, latest, schedule, onReject = () 
     root.classList.remove('hand-dragging');
     flyOrigin = drop && rect ? { cardRef, rect } : null;
     let reason;
-    try { reason = drop ? dropOn(cardRef, drop) : null; } catch (error) { flyOrigin = null; throw error; }
+    try { reason = drop && !held() ? dropOn(cardRef, drop) : null; } catch (error) { flyOrigin = null; throw error; }
     return when(reason, value => {
       flyOrigin = null;
       if (value) reject(ghost, value, cardRef); else ghost.remove();

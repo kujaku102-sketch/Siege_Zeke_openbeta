@@ -53,7 +53,11 @@ function runtimeCardHtml(card, zone) {
 
 // A hand card as a picture, for the opening screen (opening-view.js): the screen's own button carries the press; a card
 // to pick is lit as a board target, a picked one marked as on the board.
-const cardPicture = (card, { lit = false, picked = false } = {}) => runtimeCardHtml(card, 'hand').replace(/^<button class="card /, `<span class="card ${lit ? 'request-target ' : ''}${picked ? 'selected ' : ''}`).replace(/<\/button>$/, '</span>').replace(/ data-card-ref="[^"]*"/, '');
+// A long name is set smaller so it keeps to the name band's two lines: the band holds about 16 full-width characters
+// (half-width ones count half) at the card's own name size.
+const nameFit = name => { const width = [...String(name ?? '')].reduce((sum, ch) => sum + (/[ -~]/.test(ch) ? .55 : 1), 0); return Math.min(1, 16 / Math.max(1, width)); };
+const cardPicture = (card, { lit = false, picked = false } = {}) => runtimeCardHtml(card, 'hand')
+  .replace('<strong class="card-name">', card.faceDown || nameFit(card.definition?.name) === 1 ? '<strong class="card-name">' : `<strong class="card-name" style="font-size:calc(var(--u) * ${(.5625 * nameFit(card.definition.name)).toFixed(3)})">`).replace(/^<button class="card /, `<span class="card ${lit ? 'request-target ' : ''}${picked ? 'selected ' : ''}`).replace(/<\/button>$/, '</span>').replace(/ data-card-ref="[^"]*"/, '');
 
 function zoneHtml(seat, zone) {
   const limit = seat.user[`${zone}Limit`];

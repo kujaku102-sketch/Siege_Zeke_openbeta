@@ -20,3 +20,5 @@ body[data-view="mobile"] .r2-opening-card.is-marked { transform:translateY(calc(
 @keyframes r2-opening-new { from { transform:translateY(calc(var(--u) * -6)); opacity:0; } to { transform:none; opacity:1; } }
 [data-effects="off"] .r2-opening-card { transition:none; }
 @media (prefers-reduced-motion: reduce) { .r2-opening-card { animation:none !important; transition:none !important; } }
+/* The card buttons are only a place to press: no button face of their own, on hover either (preview.css paints one). */
+.r2-opening .r2-opening-card:is(:hover,:active):not(:disabled) { background:none; border:0; }

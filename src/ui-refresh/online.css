@@ -15,3 +15,8 @@
 .r2-online-confirm p { margin:0 0 calc(var(--u) * .75); }
 .r2-online-confirm-actions { display:flex; flex-wrap:wrap; gap:calc(var(--u) * .75); justify-content:flex-end; }
 .r2-online-confirm-actions button { min-height:max(2.75rem,calc(var(--u) * 2.5)); padding:0 calc(var(--u) * 1.25); }
+/* A landscape phone has no room above the board: the strip stands in the free column under the menu, on the left, and the
+   banner is left out (the strip's own badge already counts the opponent's seconds). */
+body[data-view="mobile"] .r2-content .r2-online-hud.cp-panel.cp-panel { top:calc(var(--u) * 3.5 + env(safe-area-inset-top,0rem)); left:calc(var(--u) * .5 + env(safe-area-inset-left,0rem));
+  transform:none; flex-direction:column; align-items:stretch; max-width:22vw; padding:calc(var(--u) * .3) calc(var(--u) * .5); gap:calc(var(--u) * .3); font-size:max(.6875rem,calc(var(--u) * .7)); }
+body[data-view="mobile"] .r2-content .r2-online-banner.cp-panel.cp-panel { display:none; }

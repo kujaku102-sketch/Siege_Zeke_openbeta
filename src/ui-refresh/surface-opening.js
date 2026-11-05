@@ -4,7 +4,8 @@ import { openingPhase } from './opening-view.js';
 
 // The opening screen's side of a mounted match (opening-view.js draws it): the cards marked to return, the cards just
 // drawn by a redraw (they come in with a short drop, effects on and not compat), the redraws made, and the dice's answer
-// shown for a moment once the opening is over. A card is marked by a tap or by dragging it up past a quarter of its height.
+// shown for a moment once the opening is over (the first move, the CPU's or the player's, waits until it is gone). A card is
+// marked by a tap or by dragging it up past a quarter of its height.
 const FIRST_MS = 2400;
 const FRESH_MS = 900;
 const LIFT = .25;
@@ -12,7 +13,7 @@ const LIFT = .25;
 const handRefs = model => model.seats.find(seat => seat.seatId === model.match.viewerSeat)?.hand.cards.map(card => card.cardRef) ?? [];
 
 export function createOpeningInput({ root, ui, act, latest, schedule, motion }) {
-  let marks = new Set(), fresh = new Set(), used = 0, first = null, opening = false, lifted = null, press = null;
+  let marks = new Set(), fresh = new Set(), used = 0, first = null, firstUntil = 0, opening = false, lifted = null, press = null;
   const redraw = () => act(ui.read());
 
   // Each read, before it is drawn: the marks still in hand, and the dice's answer as the opening ends.
@@ -24,7 +25,8 @@ export function createOpeningInput({ root, ui, act, latest, schedule, motion }) 
       marks.clear();
       // The first turn's start names who won the dice; the active seat says the same if its event was handed over already.
       first = next.events.find(event => event.type === 'turn_started')?.actorSeat ?? next.model.match.activeSeat;
-      schedule(() => { first = null; redraw(); }, fxMs(FIRST_MS));
+      firstUntil = performance.now() + fxMs(FIRST_MS);
+      schedule(() => { first = null; firstUntil = 0; redraw(); }, fxMs(FIRST_MS));
     }
     const hand = new Set(handRefs(next.model));
     for (const ref of marks) if (!hand.has(ref)) marks.delete(ref);
@@ -89,6 +91,8 @@ export function createOpeningInput({ root, ui, act, latest, schedule, motion }) 
   listen('pointermove', onMove);
   listen('pointerup', onUp);
   listen('pointercancel', onCancel);
-  return Object.freeze({ observe, toggle, decide,
+  // How long the dice's answer still shows: nothing is played before it is gone.
+  const holdRemaining = () => first ? Math.max(0, firstUntil - performance.now()) : 0;
+  return Object.freeze({ observe, toggle, decide, holdRemaining,
     dispose() { for (const [type, handler] of [['pointerdown', onDown], ['pointermove', onMove], ['pointerup', onUp], ['pointercancel', onCancel]]) root.removeEventListener(type, handler); } });
 }
