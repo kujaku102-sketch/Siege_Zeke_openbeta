@@ -1,8 +1,10 @@
 import { panelHeadHtml } from "./cyber-panel.js";
+import { onlineNameProblemText } from "./online-profile.js";
 
 // Online play (design: サーバー設計-詳細.md §14.1): the door, the code to join, the room until both are ready, and what the
 // match adds over the board (the opponent's name and line, the player's own reconnecting, 投了). DOM-free: every screen is
-// drawn from `host.online` ({ available, name, code, state: online-client.js state, error, copied, confirming }) and a clock.
+// drawn from `host.online` ({ available, profile, nameDraft, nameProblem, code, state: online-client.js state, error, copied, confirming })
+// and a clock.
 const esc = value => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 const head = (id, title, back = "戻る") => `<header class="r2-flow-head"><button class="r2-flow-back" data-flow-back>${back}</button><h1 id="${id}">${title}</h1></header>`;
 
@@ -43,13 +45,25 @@ const errorLine = online => {
 const section = (screen, title, body) => `<section class="r2-flow r2-flow-online" data-flow-screen="${screen}" aria-labelledby="r2-flow-${screen}-title"><div class="r2-flow-sheet">${body}</div></section>`;
 const busyAttr = busy => busy ? ' aria-disabled="true" data-busy' : "";
 
-// The door: a guest name, the deck and user to play, and the two ways in. Without a server the ways are shut.
+// The name the opponent sees (online-profile.js), asked the first time [オンライン対戦] opens and again from the door's
+// [変更] (文豪, 2026-11-05). 1–16 characters; kept in this browser.
+export function onlineNameHtml(host) {
+  const online = host.online ?? {}, value = online.nameDraft ?? online.profile?.name ?? "";
+  const problem = onlineNameProblemText(online.nameProblem);
+  return section("online-name", "名前", `${head("r2-flow-online-name-title", online.profile ? "名前の変更" : "名前の登録")}`
+    + `<p class="r2-flow-lead">オンライン対戦で相手に見える名前です（1〜16文字）。このブラウザに保存します。</p>`
+    + `<label class="r2-online-code-field r2-online-name-field">名前<input data-online-name maxlength="16" autocomplete="nickname" enterkeyhint="done" spellcheck="false" value="${esc(value)}" placeholder="ゲスト"${problem ? ' aria-invalid="true"' : ""}></label>`
+    + `<div class="r2-flow-actions"><button class="r2-flow-primary" data-online-name-save>決定</button></div>`
+    + (problem ? `<p class="r2-flow-error" role="alert">${esc(problem)}</p>` : ""));
+}
+
+// The door: the kept name with its [変更], the deck and user to play, and the two ways in. Without a server the ways are shut.
 export function onlineEntryHtml(host, { deckOptions, userOptions }) {
   const online = host.online ?? {}, busy = ["creating", "joining"].includes(online.state?.status) || !online.available;
   return section("online-entry", "オンライン対戦", `${head("r2-flow-online-entry-title", "オンライン対戦")}`
     + `<p class="r2-flow-lead">${online.available ? "部屋コードで友だちと対戦します。" : "オンライン対戦のサーバーは準備中です。"}</p>`
     + `<div class="r2-flow-sides"><fieldset class="r2-flow-side" data-side="online"><legend>自分</legend>`
-    + `<label>名前<input data-online-name maxlength="16" autocomplete="nickname" enterkeyhint="done" value="${esc(online.name ?? "")}" placeholder="ゲスト"></label>`
+    + `<p class="r2-online-name"><span>名前</span><b>${esc(online.profile?.name ?? "ゲスト")}</b><button data-flow="change-name">変更</button></p>`
     + `<label>デッキ<select data-player-deck>${deckOptions(host.playerDeckId)}</select></label>`
     + `<label>ユーザー<select data-player-user>${userOptions(host.playerUserId)}</select></label></fieldset></div>`
     + `<div class="r2-flow-actions"><button class="r2-flow-primary" data-online-create${busyAttr(busy)}>${online.state?.status === "creating" ? "部屋を作っています…" : "部屋を作る"}</button>`
