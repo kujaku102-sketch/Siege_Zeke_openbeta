@@ -51,13 +51,13 @@ function runtimeCardHtml(card, zone) {
   return `<button class="card color-${colorClass(card.definition.color)}${card.status.sleep ? ' sleep' : ''}${card.status.residentActive ? ' resident-active' : ''}${attack}${card.interaction.securityGuard ? ' security-guard' : ''}${card.interaction.selected ? ' selected' : ''}${card.interaction.targetActionIds.length ? ' targetable' : ''}" data-card-ref="${esc(card.cardRef)}" data-card-id="${esc(card.definition.id)}" data-seat="${esc(card.controllerSeat)}" data-category="${esc(card.definition.category)}" data-zone="${esc(zone)}" title="${esc(card.definition.text)}"><div class="card-top"><span class="cost cost-${costTrend}" data-vfx-anchor="hand-cost" data-owner="${esc(card.controllerSeat)}">${currentCost}</span><span class="category">${esc(card.definition.category)}</span></div><div class="card-visual ${CARD_ART[card.definition.id] ? 'has-art' : 'no-art'}">${cardArt(card)}</div><strong class="card-name">${esc(card.definition.name)}</strong>${badges(card)}<p class="card-rules-preview">${esc(card.definition.text)}</p>${card.mounted.length ? `<div class="mounted">LAYER ${card.mounted.length + 1}</div>` : ''}${stats}${shield}</button>`;
 }
 
+// A name that wraps is set so its two lines fit the name band (two lines need a little more than two font sizes, so at
+// most .49u), and a longer one smaller still: the band holds about 16 full-width characters (half-width ones count half).
+const nameSize = name => { const width = [...String(name ?? '')].reduce((sum, ch) => sum + (/[\x20-\x7e]/.test(ch) ? .55 : 1), 0); return width <= 8.5 ? null : Math.min(.49, .5625 * 16 / width); };
 // A hand card as a picture, for the opening screen (opening-view.js): the screen's own button carries the press; a card
 // to pick is lit as a board target, a picked one marked as on the board.
-// A long name is set smaller so it keeps to the name band's two lines: the band holds about 16 full-width characters
-// (half-width ones count half) at the card's own name size.
-const nameFit = name => { const width = [...String(name ?? '')].reduce((sum, ch) => sum + (/[ -~]/.test(ch) ? .55 : 1), 0); return Math.min(1, 16 / Math.max(1, width)); };
 const cardPicture = (card, { lit = false, picked = false } = {}) => runtimeCardHtml(card, 'hand')
-  .replace('<strong class="card-name">', card.faceDown || nameFit(card.definition?.name) === 1 ? '<strong class="card-name">' : `<strong class="card-name" style="font-size:calc(var(--u) * ${(.5625 * nameFit(card.definition.name)).toFixed(3)})">`).replace(/^<button class="card /, `<span class="card ${lit ? 'request-target ' : ''}${picked ? 'selected ' : ''}`).replace(/<\/button>$/, '</span>').replace(/ data-card-ref="[^"]*"/, '');
+  .replace('<strong class="card-name">', card.faceDown || nameSize(card.definition?.name) === null ? '<strong class="card-name">' : `<strong class="card-name" style="font-size:calc(var(--u) * ${nameSize(card.definition.name).toFixed(3)})">`).replace(/^<button class="card /, `<span class="card ${lit ? 'request-target ' : ''}${picked ? 'selected ' : ''}`).replace(/<\/button>$/, '</span>').replace(/ data-card-ref="[^"]*"/, '');
 
 function zoneHtml(seat, zone) {
   const limit = seat.user[`${zone}Limit`];
