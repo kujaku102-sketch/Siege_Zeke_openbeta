@@ -50,11 +50,10 @@ export const START_DECK = { kind: 'start', deckId: 'start-red' };
 
 const randomHex = bytes => Array.from(crypto.getRandomValues(new Uint8Array(bytes)), byte => byte.toString(16).padStart(2, '0')).join('');
 
-export function createHarness({ engine = fakeEngine(), checkDeck = acceptAnyDeck, store = memoryStore(), at = Date.UTC(2026, 10, 5, 12), withHelloTimer = false, extra = {} } = {}) {
+export function createHarness({ engine = fakeEngine(), checkDeck = acceptAnyDeck, store = memoryStore(), at = Date.UTC(2026, 10, 5, 12), extra = {} } = {}) {
   let time = at;
   let alarmAt = null;
   let nextConn = 0;
-  const timers = new Map();
   const frames = new Map();
   const closed = new Map();
   const finished = [];
@@ -65,7 +64,6 @@ export function createHarness({ engine = fakeEngine(), checkDeck = acceptAnyDeck
     close: (connId, code, reason) => { closed.set(connId, { code, reason }); },
     schedule: next => { alarmAt = next; },
     onFinish: info => finished.push(info),
-    ...(withHelloTimer ? { after: (ms, fn) => { const id = ++nextConn + 100000; timers.set(id, { at: time + ms, fn }); return id; }, cancel: id => { timers.delete(id); } } : {}),
     ...extra
   });
   const harness = {
@@ -78,7 +76,6 @@ export function createHarness({ engine = fakeEngine(), checkDeck = acceptAnyDeck
       time += ms;
       for (let round = 0; round < 20; round += 1) {
         let progressed = false;
-        for (const [id, timer] of [...timers]) if (timer.at <= time) { timers.delete(id); timer.fn(); progressed = true; }
         await new Promise(resolve => setImmediate(resolve));
         if (alarmAt !== null && alarmAt <= time) {
           const before = alarmAt;

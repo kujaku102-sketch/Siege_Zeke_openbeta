@@ -150,6 +150,31 @@ test('conceding ends a real match, and the record it sends replays', async () =>
   assert.equal(replayed.ok, true, JSON.stringify(replayed));
   assert.equal(replayed.value.revision, a.all('state').at(-1).revision, 'the record plays back to the state the guests saw');
   assert.equal(JSON.stringify(record).includes(a.token), false);
+  assert.deepEqual(record.commands.at(-1).action, { type: 'concede' }, 'a concession is an ordinary command in the record');
+  assert.equal(replayed.value.engineState.victory.finished, true, 'and it plays back to a finished match');
+  assert.ok(a.all('state').at(-1).events.some(event => event.type === 'result_finished'), 'the runtime itself ended the match');
+});
+
+test('a lost connection ends a real match through the server-only entry, and its record replays', async () => {
+  const { harness, a, b } = await openRoom();
+  await playThrough(harness, a, b, 12);
+  await a.drop();
+  await harness.advance(60000);
+  assert.equal(harness.room().phase, 'finished');
+  assert.equal(b.last('end').outcome, 'win');
+  assert.equal(b.last('end').reason, 'disconnect');
+  const record = b.last('end').record;
+  assert.equal(record.commands.at(-1).seat, a.seat);
+  assert.deepEqual(record.commands.at(-1).action, { type: 'systemForfeit', reason: 'disconnect' });
+  assert.ok(b.all('state').at(-1).events.some(event => event.type === 'result_finished'));
+  const replayed = replayMatchRecord(JSON.parse(JSON.stringify(record)));
+  assert.equal(replayed.ok, true, JSON.stringify(replayed));
+  assert.equal(replayed.value.engineState.victory.finished, true);
+  // The client cannot send the server's entry.
+  const other = await openRoom();
+  await other.a.send({ t: 'cmd', commandId: 'x1', expectedRevision: 0, action: { type: 'systemForfeit', reason: 'disconnect' } });
+  assert.notEqual(other.a.last('ack')?.kind, 'accepted');
+  assert.equal(other.harness.room().phase, 'playing');
 });
 
 test('a match played to its natural end gives each guest their own result and a record that replays', async () => {

@@ -29,7 +29,7 @@ test('a room is made once; guests join in order; the second guest turns it into 
 });
 
 test('nothing but hello is accepted from a connection that has not said hello', async () => {
-  const harness = createHarness({ withHelloTimer: true });
+  const harness = createHarness();
   await harness.core.init({ code: 'ABCD2345' });
   const early = harness.client();
   await early.open();
@@ -260,10 +260,9 @@ test('when both are away nobody loses at the first deadline; if neither returns 
   await a.drop();
   await harness.advance(30000);
   await b.drop();
-  assert.equal(harness.alarmAt(), harness.now() - 30000 + LIMITS.graceMs, 'the first deadline');
+  assert.equal(harness.alarmAt(), harness.now() + LIMITS.graceMs, 'with both away the only moment that matters is when the later 60 seconds are up');
   await harness.advance(30000);
   assert.equal(harness.room().phase, 'playing', 'the first guest is out of time but the second still has theirs');
-  assert.equal(harness.alarmAt(), harness.now() + 30000, 'the next wake is the second deadline');
   await harness.advance(30000);
   assert.equal(harness.room().phase, 'finished');
   assert.equal(harness.room().outcome.kind, 'aborted');
@@ -406,13 +405,13 @@ test('a storage failure ends the match without moving the state on', async () =>
   assert.equal(JSON.parse(harness.store.get('authority')).revision, 0, 'the saved state did not move');
 });
 
-test('after a process restart every seat of a running match gets its 60 seconds again', async () => {
+test('after a Node process restart (renew) every seat without a socket gets its 60 seconds again', async () => {
   const store = memoryStore();
   const first = await startedRoom({ store });
   await first.a.drop();
   await first.harness.advance(50000); // A had 10 seconds left when the process stopped
   const second = createHarness({ store, at: first.harness.now() + 120000 }); // and the process was down for two minutes
-  await second.core.startup();
+  await second.core.startup({ renew: true });
   const room = second.room();
   assert.equal(room.phase, 'playing');
   assert.ok(room.seats.every(seat => seat.disconnectedAt === second.now()), 'both seats start over from the restart');
@@ -426,6 +425,21 @@ test('after a process restart every seat of a running match gets its 60 seconds 
   // A room that is not running is left alone.
   const lobby = createHarness();
   await lobby.core.init({ code: 'ABCD2345' });
-  await lobby.core.startup();
+  await lobby.core.startup({ renew: true });
   assert.equal(lobby.room().seats.length, 0);
+});
+
+test('after a Durable Object restart only a seat that lost its socket starts counting; an earlier deadline stays', async () => {
+  const store = memoryStore();
+  const first = await startedRoom({ store });
+  await first.a.drop();
+  await first.harness.advance(40000);
+  const countingSince = first.harness.room().seats.find(seat => seat.disconnectedAt !== null).disconnectedAt;
+  const second = createHarness({ store, at: first.harness.now() + 5000 });
+  await second.core.startup();
+  const seats = second.room().seats;
+  assert.ok(seats.some(seat => seat.disconnectedAt === countingSince), 'A keeps the time it was already counting from');
+  assert.ok(seats.some(seat => seat.disconnectedAt === second.now()), 'B had no socket after the restart, so B starts now');
+  await second.advance(20000 - 5000);
+  assert.equal(second.room().phase, 'playing', 'A is out of time but B is away too, so the match waits for B');
 });
