@@ -15,6 +15,9 @@
 //   hashToken(token) => string | Promise<string>              default SHA-256 hex
 //   onFinish ({ outcome, record, ... }) => void               optional: the match is over
 //
+// Host calls: init (a new room), connect / receive / disconnect (per socket), restore (a socket the host still holds
+// after its memory was cleared), alarm (the time given to schedule has come), startup (the whole process restarted).
+//
 // Every public method is queued, so two messages never interleave between awaits.
 import { CLOSE, LIMITS, encodeServerMessage, parseClientMessage, sanitizeGuestName } from './protocol.js';
 import { sha256Hex } from './room-code.js';
@@ -459,6 +462,16 @@ export function createRoomCore(deps) {
         if (gone.length === 2) abort('both-disconnected');
         else if (gone.length === 1 && room.seats[1 - gone[0]].disconnectedAt === null) forfeit(gone[0], 'disconnect');
       }
+      reschedule();
+    }),
+
+    // For a host whose process just started: no socket survived, so every seat of a running match starts its 60 seconds again.
+    // (A Durable Object that merely woke does not need this: its sockets are still open.)
+    startup: () => serial(() => {
+      load();
+      if (!room || room.phase !== 'playing') return;
+      room.seats.forEach((seat, slot) => { if (connOf(slot) === null) seat.disconnectedAt = now(); });
+      try { saveRoom(); } catch { /* the deadline still holds in memory */ }
       reschedule();
     }),
 
