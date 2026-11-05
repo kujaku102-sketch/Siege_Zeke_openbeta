@@ -291,8 +291,17 @@ function syncOnlineTicker() {
   if (counting && !onlineTicker) onlineTicker = setInterval(() => {host.now = Date.now();renderShell();},1000);
   else if (!counting && onlineTicker) {clearInterval(onlineTicker);onlineTicker = null;}
 }
+// A finished online match is kept in this browser like a local one (its replay and log, from the room's record); its log
+// is not sent from here, the room writes it (design §10).
+let archivedOnline = null;
+function archiveOnline() {
+  const remote = online?.session();
+  if (!remote || remote === archivedOnline) return;
+  archivedOnline = remote;
+  try {if (archiveRetiredMatch(remote,{storage:localStorage}).kept) host.storedCounts = storedCounts();} catch {/* keeping a record never blocks leaving */}
+}
 function leaveOnline() {
-  onlineUnwatch?.();onlineUnwatch = null;online?.leave();
+  archiveOnline();onlineUnwatch?.();onlineUnwatch = null;online?.leave();
   Object.assign(host.online,{state:null,error:null,copied:false,confirming:false});syncOnlineTicker();
 }
 // The deck chosen at the door, as the room reads it: a start deck by id, or a saved deck's recipe with its user.
@@ -441,7 +450,7 @@ document.addEventListener('keydown',event => {if (event.key === 'Escape' && !eve
   host.options = false;host.deckBuilder.detailId = null;renderShell();}});
 // Enter in the room code field joins, as its 入る does.
 document.addEventListener('keydown',event => {if (event.key === 'Enter' && event.target.matches?.('[data-online-code]')) void enterRoom(true);});
-window.addEventListener('pagehide',() => {markWonTutorial();clearPress();mobileViewport.dispose();online?.dispose();lifecycle.dispose();surface = null;session = null;});
+window.addEventListener('pagehide',() => {markWonTutorial();clearPress();mobileViewport.dispose();archiveOnline();online?.dispose();lifecycle.dispose();surface = null;session = null;});
 window.addEventListener('pageshow',event => {if (event.persisted) location.reload();});
 renderShell(true);registerPwa();
 // The running release, read once as the page starts (debug window).
