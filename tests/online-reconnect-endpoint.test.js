@@ -106,9 +106,9 @@ test('the server address comes from one place; only a page on this PC may point 
   assert.equal(onlineEndpoint({ hostname: 'localhost', search: '?online=http://127.0.0.1:8801' }), 'http://127.0.0.1:8801');
   assert.equal(onlineEndpoint({ hostname: '127.0.0.1', search: '?online=https://play.example.test/some/path' }), 'https://play.example.test');
   assert.equal(onlineEndpoint({ hostname: 'siegezeke.online', search: '?online=https://evil.example', configured: 'https://play.siegezeke.online' }), 'https://play.siegezeke.online', 'a shared link cannot redirect players');
-  assert.equal(onlineEndpoint({ hostname: 'localhost', search: '?online=ftp://x' }), null);
-  assert.equal(onlineEndpoint({ hostname: 'localhost', search: '?online=http://evil.example' }), null, 'plain http only for this PC');
-  assert.equal(onlineEndpoint({ hostname: 'localhost', search: '?online=nonsense' }), null);
+  assert.equal(onlineEndpoint({ hostname: 'localhost', search: '?online=ftp://x', configured: '' }), null);
+  assert.equal(onlineEndpoint({ hostname: 'localhost', search: '?online=http://evil.example', configured: '' }), null, 'plain http only for this PC');
+  assert.equal(onlineEndpoint({ hostname: 'localhost', search: '?online=nonsense', configured: '' }), null);
   assert.equal(onlineEndpoint({ hostname: 'siegezeke.online', configured: 'https://play.siegezeke.online/' }), 'https://play.siegezeke.online');
   assert.equal(onlineEndpoint({ hostname: 'siegezeke.online', configured: 'http://play.siegezeke.online' }), null);
   assert.equal(isOnlineAvailable({ hostname: 'localhost', search: '?online=http://localhost:8801' }), true);
