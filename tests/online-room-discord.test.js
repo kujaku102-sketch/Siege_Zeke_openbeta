@@ -84,7 +84,7 @@ test('a guest comes in whatever is wrong with the ticket, with no picture and th
     assert.equal(welcome.you.avatar, null, label);
     assert.equal(guest.closed, null, 'the guest is not turned away');
   }
-  const altered = await welcomeFor('altered', async guest => (await ticketFor(guest)).replace(/.$/, ch => ch === 'A' ? 'B' : 'A'));
+  const altered = await welcomeFor('altered', async guest => (await ticketFor(guest)).replace(/(.)(.)$/, (all, ch, last) => (ch === 'A' ? 'B' : 'A') + last));
   assert.equal(altered.welcome.profile, 'invalid');
   const otherBrowser = await welcomeFor('other', () => ticketFor({ token: 'f'.repeat(32) }));
   assert.equal(otherBrowser.welcome.profile, 'invalid', 'a ticket made for another browser is not accepted');

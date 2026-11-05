@@ -60,10 +60,10 @@ test("the profile is kept in this browser under the client's name key, read back
   const storage = memoryStorage();
   assert.equal(readOnlineProfile(storage), null, 'nothing kept yet: ask');
   const kept = saveOnlineProfile(storage, '  あ　かね ');
-  assert.deepEqual({ ...kept }, { source: 'guest', name: 'あ かね', icon: null });
+  assert.deepEqual({ ...kept }, { source: 'guest', name: 'あ かね', icon: null, discordName: null, typedName: 'あ かね' });
   assert.ok(Object.isFrozen(kept));
   assert.equal(storage.map.get(NAME_KEY), 'あ かね');
-  assert.deepEqual({ ...readOnlineProfile(storage) }, { source: 'guest', name: 'あ かね', icon: null });
+  assert.deepEqual({ ...readOnlineProfile(storage) }, { source: 'guest', name: 'あ かね', icon: null, discordName: null, typedName: 'あ かね' });
   assert.equal(readOnlineProfile(memoryStorage({ [NAME_KEY]: '' })), null, 'an empty kept name asks again');
   assert.equal(readOnlineProfile(memoryStorage({ [NAME_KEY]: 'x'.repeat(40) })), null, 'a kept name that is too long asks again');
   // A private window: nothing is read or kept, and the page still has the name it was given.
