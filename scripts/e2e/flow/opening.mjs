@@ -1,7 +1,8 @@
 // Flow check: a CPU match opens by the rulebook's 2.4 (2026-11-05; real clicks and a real drag, the public build, no hook).
 // The opening hand lies on its own screen with キープ; a tap marks a card (it rises with 「戻す」) and a second tap lets it go;
 // a drag up marks another; the button reads 「N枚引き直す」 and redraws them (as many new cards come in); the CPU decides
-// (「相手が手札を決めています」 may flash by); the dice's answer shows; the turn control works. ?opening=legacy starts the
+// (「相手が手札を決めています」 may flash by); the dice's answer shows and nothing is played until it is gone; the turn
+// control works. ?opening=legacy starts the
 // old way with no opening screen.
 import { openBrowser, assertNoErrors, until } from "../parts/browser.mjs";
 import { clickEntryControl } from "../parts/entry.mjs";
@@ -40,6 +41,17 @@ try {
   await page.locator("[data-opening-first]").waitFor({ timeout: 20000 });
   const first = (await page.locator("[data-opening-first] b").innerText()).trim();
   if (!["先攻", "後攻"].includes(first)) throw new Error(`the dice say ${first}`);
+  // Nothing is played while the dice's answer shows: the CPU's hand count stays as it is until the line is gone.
+  const moved = await page.evaluate(() => new Promise(resolve => {
+    const count = () => document.querySelector(".wf-opp-hand output")?.textContent;
+    const start = count(), seen = new Set([start]);
+    const watch = new MutationObserver(() => {
+      if (!document.querySelector("[data-opening-first]")) { watch.disconnect(); resolve([...seen]); return; }
+      seen.add(count());
+    });
+    watch.observe(document.body, { subtree: true, childList: true, characterData: true });
+  }));
+  if (moved.length > 1) throw new Error(`the CPU played while the dice's answer showed: ${moved}`);
   await page.locator("[data-opening-first]").waitFor({ state: "detached", timeout: 10000 });
   const hand = await page.locator(".r2-hand [data-card-ref]").evaluateAll(list => list.map(node => node.dataset.cardRef));
   if (marked.some(ref => hand.includes(ref)) || hand.length !== dealt.length) throw new Error("the two returned are gone and as many drawn");

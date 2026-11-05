@@ -97,3 +97,32 @@ test('the one button: nothing marked keeps the hand; marked cards are returned a
   assert.equal(redrawn.after.filter(ref => !redrawn.before.includes(ref)).length, 2, 'two returned, two drawn');
   assert.equal(redrawn.active, 'ai', 'one redraw ends the decision');
 });
+
+test("the dice's answer holds the first move: the match counts it as motion until it is gone", () => {
+  const quiet = { addEventListener() {}, removeEventListener() {} }, cleared = [];
+  const session = match(), ui = reader(session, 'player');
+  const opening = createOpeningInput({ root: quiet, ui, act: result => result, latest: () => null, schedule: (task, ms) => cleared.push(ms), motion: () => false });
+  const during = ui.read().value;
+  assert.equal(opening.observe(during).first, null);
+  assert.equal(opening.holdRemaining(), 0, 'no hold during the opening itself');
+  const after = reader(match({ opening: null }), 'player').read().value;
+  const view = opening.observe({ ...after, events: [{ type: 'turn_started', actorSeat: 'ai' }] });
+  assert.equal(view.first, 'ai', "the first turn's start names who won the dice");
+  const left = opening.holdRemaining();
+  assert.ok(left > 0 && left <= 2400, String(left));
+  assert.deepEqual(cleared, [2400], 'the line goes after 2.4 s at the effect speed ×1');
+  opening.dispose();
+});
+
+test("a name that wraps is set to fit the name band's two lines on the opening screen; a short one keeps its own size", () => {
+  const read = reader(match(), 'player').read().value;
+  const card = read.model.seats.find(seat => seat.seatId === 'player').hand.cards[0];
+  const region = name => runtimeGameHtml({ ...read.model, seats: read.model.seats.map(seat => seat.seatId !== 'player' ? seat
+    : { ...seat, hand: { ...seat.hand, cards: [{ ...card, definition: { ...card.definition, name } }] } }) }, { ...read, view: 'pc', boardStyle: 'wireframe', effectsEnabled: false, opening: {} })
+    .split('r2-region-opening')[1];
+  assert.match(region('短い名前'), /<strong class="card-name">短い名前<\/strong>/);
+  const size = name => Number(region(name).match(/<strong class="card-name" style="font-size:calc\(var\(--u\) \* ([\d.]+)\)">/)?.[1]);
+  assert.equal(size('ちょうど二行になるくらいの名前'), .49, 'two lines: at most .49 of the unit');
+  const long = size('とてもとても長い名前（ながいなまえ）・ふたつめの名前');
+  assert.ok(long < .49 && long > .3, String(long));
+});
