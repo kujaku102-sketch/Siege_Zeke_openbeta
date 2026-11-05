@@ -1,6 +1,6 @@
 import { DECK_OPTIONS } from '../game/engine.js';
 import { CARD_LIBRARY, USER_CARDS } from '../data/cards.js';
-import { runtimeLogRows } from '../ui-refresh/runtime-log-view.js';
+import { runtimeLogRows } from '../ui-refresh/runtime-log-rows.js';
 
 // A finished match as people read it: the battle log as the player saw it, plus who
 // played which deck. It is what gets sent when sending is switched on.

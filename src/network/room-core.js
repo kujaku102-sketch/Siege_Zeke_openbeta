@@ -14,6 +14,7 @@
 //   checkDeck(readyMessage) => { ok, value | error }         see deck-check.js
 //   hashToken(token) => string | Promise<string>              default SHA-256 hex
 //   onFinish ({ outcome, record, ... }) => void               optional: the match is over
+//   onAuthenticated (connId, tokenHash) => void               optional: a socket said hello (a Durable Object keeps the hash in the socket)
 //
 // Host calls: init (a new room), connect / receive / disconnect (per socket), restore (a socket the host still holds
 // after its memory was cleared), alarm (the time given to schedule has come), startup (the whole process restarted).
@@ -166,7 +167,7 @@ export function createRoomCore(deps) {
     const result = auth ? engine.forfeit?.(auth, seatId, { reason, commandId }) : null;
     if (result?.ok) {
       try {
-        const row = { seat: seatId, system: 'forfeit', reason };
+        const row = result.row ?? { seat: seatId, system: 'forfeit', reason };
         store.put(AUTHORITY, engine.serialize(result.authority));
         store.put(commandKey(result.revision), row);
         authority = result.authority;
@@ -245,6 +246,7 @@ export function createRoomCore(deps) {
       room.seats[slot].disconnectedAt = null;
     }
     conn.hash = hash;
+    try { deps.onAuthenticated?.(connId, hash); } catch { /* the host keeps its own record */ }
     if (conn.timer !== undefined) deps.cancel?.(conn.timer);
     saveRoom();
     emit(connId, { ...lobbyFor(slot), t: 'welcome' });
@@ -465,12 +467,13 @@ export function createRoomCore(deps) {
       reschedule();
     }),
 
-    // For a host whose process just started: no socket survived, so every seat of a running match starts its 60 seconds again.
-    // (A Durable Object that merely woke does not need this: its sockets are still open.)
-    startup: () => serial(() => {
+    // For a host whose process (re)started, after it has registered the sockets it still holds (restore).
+    // A seat that was thought connected but has no socket now starts its 60 seconds; a seat already counting keeps its deadline.
+    // renew: true is for a host that lost every socket, such as a Node server: every seat without a socket starts over.
+    startup: ({ renew = false } = {}) => serial(() => {
       load();
       if (!room || room.phase !== 'playing') return;
-      room.seats.forEach((seat, slot) => { if (connOf(slot) === null) seat.disconnectedAt = now(); });
+      room.seats.forEach((seat, slot) => { if (connOf(slot) === null && (renew || seat.disconnectedAt === null)) seat.disconnectedAt = now(); });
       try { saveRoom(); } catch { /* the deadline still holds in memory */ }
       reschedule();
     }),

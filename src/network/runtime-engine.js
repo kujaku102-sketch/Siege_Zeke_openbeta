@@ -1,13 +1,13 @@
 // The match behind a room: this repo's headless runtime, seen through the small interface room-core uses.
 // Everything here is synchronous and returns { ok, ... }; no clock, no storage, no socket.
 //
-// Not yet usable inside a Worker: the runtime's own imports reach UI modules (design §2.2). In Node it runs as is.
-// `forfeit` is left out on purpose until the runtime has a concede / system-forfeit entry (design §6);
-// room-core then records the other side as the winner itself.
-import { createMatchAuthority } from '../adapters/match-session-controller.js';
+// Runs in Node and in a Worker: it reaches only src/game, src/data and the two port modules in src/adapters.
+// A concession is an ordinary command ({type:'concede'}); a lost connection is the server-only submitRuntimeSystemForfeit.
+import { createMatchAuthority } from '../game/runtime/authority.js';
+import { RULE_VERSION, CARD_VERSION } from '../game/runtime/versions.js';
 import { createLocalRuntimeCoordinator } from '../adapters/local-runtime-port.js';
 import { makeBoundCommand } from '../adapters/port-contract.js';
-import { submitRuntimeCommand } from '../game/runtime/transaction.js';
+import { submitRuntimeCommand, submitRuntimeSystemForfeit } from '../game/runtime/transaction.js';
 import { validateLiveAuthority } from '../game/runtime/live-authority.js';
 import { projectRuntimeEventBatch } from '../game/runtime/event-feed.js';
 import { decodeRecordedAction, encodeRecordedAction, MATCH_RECORD_KIND, MATCH_RECORD_VERSION, recordedCardDefinition,
@@ -15,7 +15,7 @@ import { decodeRecordedAction, encodeRecordedAction, MATCH_RECORD_KIND, MATCH_RE
 
 const failure = (code, detail) => ({ ok: false, error: { code, ...(detail ? { detail } : {}) } });
 
-export function createRuntimeEngine({ ruleVersion = '2.0-public-staging.11', cardVersion = 'beta0.9.1', openingProtocol = 'v2.4' } = {}) {
+export function createRuntimeEngine({ ruleVersion = RULE_VERSION, cardVersion = CARD_VERSION, openingProtocol = 'v2.4' } = {}) {
   // One coordinator per authority object; its ports (one per seat) answer every read for that authority.
   const readers = new WeakMap();
   const portOf = (authority, seatId) => {
@@ -45,12 +45,12 @@ export function createRuntimeEngine({ ruleVersion = '2.0-public-staging.11', car
     return index < 0 ? null : { kind: 'win', winnerSeat: authority.metadata.seatIds[index] };
   };
 
-  return Object.freeze({
+  const engine = {
     // players[i] plays seatIds[i]: { userId, deckId | null, recipe | null }
     start({ matchId, seatIds, seed, players }) {
       const [first, second] = players;
       const game = { matchId, seatIds: [...seatIds], seed, ruleVersion, cardVersion, gameOptions: {
-        ...(openingProtocol === 'v2.4' ? { openingProtocol } : {}), mode: 'ai',
+        ...(openingProtocol === 'v2.4' ? { openingProtocol } : {}), mode: 'versus',
         playerDeckId: first.deckId ?? 'red', aiDeckId: second.deckId ?? 'yellow',
         playerDeckRecipe: first.recipe ?? null, aiDeckRecipe: second.recipe ?? null,
         playerUserId: first.userId, aiUserId: second.userId, sandboxDeckSetup: false } };
@@ -67,6 +67,24 @@ export function createRuntimeEngine({ ruleVersion = '2.0-public-staging.11', car
       const next = result.value.authority ?? authority;
       return { ok: true, kind: result.value.kind, receipt: result.value.receipt, authority: next,
         eventsFor: viewer => projectRuntimeEventBatch(authority, next, command.value, result.value.receipt, viewer) };
+    },
+
+    // A concession (a seat's own command) or a lost connection (the server's). The runtime ends the match for the seat that
+    // loses, unless an effect already locked a result (that one stays). -> { ok, authority, revision, row, eventsFor(seatId) }
+    forfeit(authority, seatId, { reason, commandId }) {
+      if (reason === 'concede') {
+        const result = engine.submit(authority, seatId, { commandId: commandId ?? `concede:${authority.revision + 1}`,
+          expectedRevision: authority.revision, action: { type: 'concede' } });
+        if (!result.ok) return result;
+        if (result.kind !== 'accepted') return failure(result.receipt?.reasonCode ?? 'ACTION_NOT_ALLOWED');
+        return { ok: true, authority: result.authority, revision: result.receipt.revision,
+          row: { seat: seatId, action: { type: 'concede' } }, eventsFor: result.eventsFor };
+      }
+      const result = submitRuntimeSystemForfeit(authority, { seat: seatId, reason });
+      if (!result.ok) return result;
+      const { authority: next, receipt, command } = result.value;
+      return { ok: true, authority: next, revision: receipt.revision, row: { seat: seatId, action: { type: 'systemForfeit', reason } },
+        eventsFor: viewer => projectRuntimeEventBatch(authority, next, command, receipt, viewer) };
     },
 
     // What one seat may see: { status, observation, requiredInput, legalActions, actionBlocks }.
@@ -127,6 +145,14 @@ export function createRuntimeEngine({ ruleVersion = '2.0-public-staging.11', car
         if (!row.action) continue;
         const action = decodeRecordedAction(authority, row.seat, row.action);
         if (!action.ok) break;
+        if (action.value?.type === 'systemForfeit') {
+          const forfeited = submitRuntimeSystemForfeit(authority, { seat: row.seat, reason: action.value.reason });
+          if (!forfeited.ok) break;
+          const { authority: next, receipt, command } = forfeited.value;
+          events.push(...projectRuntimeEventBatch(authority, next, command, receipt, seatId));
+          authority = next;
+          continue;
+        }
         const command = bind(authority, row.seat, { commandId: `history:${events.length}:${authority.revision}`,
           expectedRevision: authority.revision, action: action.value });
         if (!command.ok) break;
@@ -137,5 +163,6 @@ export function createRuntimeEngine({ ruleVersion = '2.0-public-staging.11', car
       }
       return events;
     }
-  });
+  };
+  return Object.freeze(engine);
 }
