@@ -15,7 +15,7 @@
 - `POST /auth/discord/exchange` … Discord から戻った `code` と `state` を受け取り、Discord でトークン交換 → `users/@me` → トークンの取り消し、を行って、署名つきの ticket と `{ name, avatarUrl, expiresAt }` を返す。**Worker は何も保存しない**(`state` は署名つき、PKCE の verifier は `state` から計算し直す)。
 - 部屋は `hello` の `ticket` を `AUTH_KEY` で確かめ、席に `avatar`(Discord の CDN の決まった形のアドレス)を載せる。ticket が無い・壊れている・期限切れ・鍵が無いときも、ゲストとして入れる(`welcome.profile` に `none` / `invalid` / `expired` / `unavailable`)。
 - 設定(どれかが無いと `SERVER_MISCONFIGURED` を返し、Discord は呼ばない。対戦はゲストのまま遊べる):
-  - 変数(公開してよい。`wrangler.toml` の `[vars]`): `DISCORD_CLIENT_ID`(アプリを作ったあとに入れる)、`DISCORD_REDIRECT_URI`(Discord に登録したものと完全一致。いまは staging のページ)
+  - 変数(公開してよい。`wrangler.toml` の `[vars]`): `DISCORD_CLIENT_ID`(入れてある。19桁なので必ず引用符つきの文字列にする)、`DISCORD_REDIRECT_URI`(Discord に登録したものと完全一致。いまは staging のページ)
   - **secret**: `DISCORD_CLIENT_SECRET`、`AUTH_KEY`(16文字以上の乱数。`ROOM_CODE_KEY` とは別の値)
   - `DISCORD_BASE` は手元の試験専用(本物の Discord 以外は、localhost の http だけ受け付ける)。本番では設定しない。
   - secret の値はこのリポジトリにも文書にも書かない。登録は文豪が行う。
@@ -44,7 +44,7 @@
 
 1. https://discord.com/developers/applications → New Application(名前は「Siege÷Zeke」など。ログインの許可画面に出る)。
 2. OAuth2 の **Redirects** に `https://staging.siege-zeke-simple-public.pages.dev/discord-callback.html` を追加(`wrangler.toml` の `DISCORD_REDIRECT_URI` と1文字も違わないこと)。本番(`siegezeke.online`)へ移すときは、そのアドレスの Redirect も足す。
-3. **Client ID**(数字、公開してよい)をメモして、開発側(sz-network)に伝える → `wrangler.toml` の `[vars]` に `DISCORD_CLIENT_ID` として入れる。**Client Secret** は手順 4 で貼るまで、どこにも書かない(チャットにも貼らない)。画面で一度しか出ないので、出たまま 4 に進む。
+3. **Client ID**(公開してよい)は `wrangler.toml` の `[vars]` の `DISCORD_CLIENT_ID` に入れてある(アプリを作り直したら替える。19桁なので引用符つきの文字列のまま)。**Client Secret** は手順 4 で貼るまで、どこにも書かない(チャットにも貼らない)。画面で一度しか出ないので、出たまま 4 に進む。
 
 ### 2. ログインと反映
 
