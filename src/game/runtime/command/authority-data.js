@@ -1,5 +1,6 @@
 import { isTutorialId, tutorialAiDeckId, tutorialPlayerDeckId } from '../tutorial-setup.js';
 import { MISSING, dense, exact, nonempty, ordinary, own, reject } from './common.js';
+import { MATCH_MODES, RUNTIME_MODES } from '../modes.js';
 
 const AUTHORITY_KEYS = ['metadata', 'revision', 'engineState', 'journal'];
 const REFERENCE_AUTHORITY_KEYS = [...AUTHORITY_KEYS, 'referenceState'];
@@ -8,6 +9,8 @@ const START_OPTION_KEYS = ['mode', 'tutorialId', 'playerDeckId', 'aiDeckId', 'pl
 const CONTEXT_KEYS = ['matchId', 'seatIds', 'identityState', 'rngState', 'uidAliases'];
 const IDENTITY_KEYS = ['matchId', 'seatIds', 'nextSerial', 'retiredIds'];
 const VICTORY_KEYS = ['lockedOutcome', 'lockedAtEffectId', 'finished'];
+// Stored only when the game ended by a forfeit (a concession, or the server judging a lost connection).
+const FINISH_REASONS = ['concede', 'disconnect'];
 const REQUIRED_NULL = ['pending', 'prompt', 'effectResolution', 'mandatoryDrawContinuation', 'resolvingDeclaredEffect',
   'deferredDeclaredResponseCleanup', 'deferredDeclaredScriptCleanup', 'placementCostBatch'];
 const REQUIRED_EMPTY = ['selectionQueue', 'triggerQueue', 'scriptActivationQueue', 'declaredEffects', 'responseEventQueue', 'victoryFacts'];
@@ -46,8 +49,8 @@ export function metadataData(value) {
   ordinary(metadata.startOptions, 'INVALID_AUTHORITY');
   const hasProtocol = Object.hasOwn(metadata.startOptions, 'openingProtocol');
   const options = exact(metadata.startOptions, hasProtocol ? [...START_OPTION_KEYS, 'openingProtocol'] : START_OPTION_KEYS, 'INVALID_AUTHORITY');
-  if (hasProtocol && (options.openingProtocol !== 'v2.4' || options.mode !== 'ai')) reject('INVALID_AUTHORITY');
-  if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(options.mode) || !isTutorialId(options.tutorialId)
+  if (hasProtocol && (options.openingProtocol !== 'v2.4' || !MATCH_MODES.includes(options.mode))) reject('INVALID_AUTHORITY');
+  if (!RUNTIME_MODES.includes(options.mode) || !isTutorialId(options.tutorialId)
     || !nonempty(options.playerDeckId) || !nonempty(options.aiDeckId) || !nonempty(options.playerUserId) || !nonempty(options.aiUserId)
     || typeof options.sandboxDeckSetup !== 'boolean') reject('INVALID_AUTHORITY');
   options.playerDeckRecipe = recipe(options.playerDeckRecipe);
@@ -164,7 +167,7 @@ export function engineData(value, metadata, restSecurity = false) {
   const tutorial = options.mode === 'tutorial';
   const expectedPlayerDeck = tutorial ? tutorialPlayerDeckId(options.tutorialId, options.playerDeckId) : options.playerDeckId;
   const expectedAiDeck = tutorial ? tutorialAiDeckId(options.tutorialId, options.aiDeckId) : options.aiDeckId;
-  if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(state.mode) || state.mode !== options.mode
+  if (!RUNTIME_MODES.includes(state.mode) || state.mode !== options.mode
     || !isTutorialId(state.tutorialId) || state.tutorialId !== options.tutorialId
     || !nonempty(state.playerDeckId) || state.playerDeckId !== expectedPlayerDeck || !nonempty(state.aiDeckId) || state.aiDeckId !== expectedAiDeck
     || !nonempty(state.playerUserId) || state.playerUserId !== options.playerUserId
@@ -173,7 +176,10 @@ export function engineData(value, metadata, restSecurity = false) {
   if (state.winner !== null && !['player', 'ai', 'draw'].includes(state.winner)) reject('INVALID_AUTHORITY');
   if (!nonempty(state.phase) || typeof state.interactive !== 'boolean') reject('INVALID_AUTHORITY');
 
-  const victory = exact(own(value, 'victory', 'INVALID_AUTHORITY'), VICTORY_KEYS, 'INVALID_AUTHORITY');
+  const victoryValue = own(value, 'victory', 'INVALID_AUTHORITY');
+  ordinary(victoryValue, 'INVALID_AUTHORITY');
+  const victory = exact(victoryValue, Object.hasOwn(victoryValue, 'finishReason') ? [...VICTORY_KEYS, 'finishReason'] : VICTORY_KEYS, 'INVALID_AUTHORITY');
+  if (Object.hasOwn(victory, 'finishReason') && (!FINISH_REASONS.includes(victory.finishReason) || victory.finished !== true)) reject('INVALID_AUTHORITY');
   if (victory.lockedOutcome !== null && !['player', 'ai', 'draw'].includes(victory.lockedOutcome)) reject('INVALID_AUTHORITY');
   if (victory.lockedAtEffectId !== null && !nonempty(victory.lockedAtEffectId)) reject('INVALID_AUTHORITY');
   if (typeof victory.finished !== 'boolean') reject('INVALID_AUTHORITY');
@@ -181,6 +187,7 @@ export function engineData(value, metadata, restSecurity = false) {
     || (victory.lockedAtEffectId !== null && victory.lockedOutcome === null)
     || (victory.finished && victory.lockedOutcome === null)) reject('INVALID_AUTHORITY');
   state.hasResult = state.winner !== null || victory.lockedOutcome !== null || victory.finished;
+  state.finished = victory.finished;
 
   for (const key of REQUIRED_NULL) {
     const field = own(value, key, 'INVALID_AUTHORITY');

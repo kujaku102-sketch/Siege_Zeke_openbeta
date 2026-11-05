@@ -3,6 +3,7 @@ import { currentReferencedCard } from './card-target.js';
 import { finiteNumberField, nonempty, ordinary, own, prepared, reject, safeRevision, selectedArray, selectedField, selectedObject } from './common.js';
 import { executionCardView } from './execution-views.js';
 import { securityEligibilityView } from './security-view.js';
+import { RUNTIME_MODES } from '../modes.js';
 
 function layeredCardView(card, controllerId, zone) {
   const code = 'INVALID_AUTHORITY';
@@ -67,7 +68,7 @@ export function layeredPlanningView(engineState) {
   const active = own(engineState, 'active', 'INVALID_AUTHORITY');
   const mode = own(engineState, 'mode', 'INVALID_AUTHORITY');
   const turnNumber = own(engineState, 'turnNumber', 'INVALID_AUTHORITY');
-  if (!['player', 'ai'].includes(active) || !['ai', 'tutorial', 'lab', 'sandbox'].includes(mode)
+  if (!['player', 'ai'].includes(active) || !RUNTIME_MODES.includes(mode)
     || !safeRevision(turnNumber)) reject('INVALID_AUTHORITY');
   return {
     active, mode, turnNumber,

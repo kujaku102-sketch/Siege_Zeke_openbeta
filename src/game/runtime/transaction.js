@@ -1,6 +1,10 @@
 import { cloneForHistory } from '../engine.js';
 import { prepareRuntimeCommand } from './command-bridge.js';
-import { recordTerminal } from './command-record.js';
+import { canonicalizeCommand, classifyCommand, recordTerminal } from './command-record.js';
+import { runtimePlanningReads } from './command-bridge.js';
+import { CommandBridgeError } from './command/common.js';
+import { SafeReadError } from './safe-read.js';
+import { MATCH_MODES } from './modes.js';
 import { buildRuntimeReferenceFrame } from './reference-frame.js';
 import { advanceRuntimeReferenceTransition, planRuntimeReferenceTransition } from './references.js';
 import { applyPreparedRuntimeAction, classifyPreparedRuntimeAction } from './transaction-actions.js';
@@ -122,6 +126,40 @@ function baseline(root) {
   return { ok: true, value: frame.value };
 }
 
+// The accepted end of a command: the references follow the changed engine, the revision advances, the receipt is
+// recorded in the journal. `before` is the reference frame of the engine the command started from.
+function acceptApplied(root, context, command, beforeFrame, workingEngine) {
+  const after = buildRuntimeReferenceFrame(workingEngine);
+  if (!after.ok) return after;
+  const planned = planRuntimeReferenceTransition(root.referenceState, {
+    beforeFrame, afterFrame: after.value
+  });
+  if (!planned.ok) return planned;
+  const advanced = advanceRuntimeReferenceTransition(root.referenceState, {
+    beforeFrame, afterFrame: after.value,
+    newRefs: opaqueReferences(planned.value.newRefCount, root.referenceState)
+  });
+  if (!advanced.ok) return advanced;
+
+  const revision = root.revision + 1;
+  const receipt = terminalReceipt(command, 'accepted', revision, 'ACCEPTED');
+  const nextAuthority = {
+    metadata: structuredClone(root.metadata), revision, engineState: workingEngine,
+    referenceState: advanced.value, journal: root.journal
+  };
+  const publicResult = buildRuntimePublicResult(nextAuthority, command, receipt);
+  if (!publicResult.ok) return publicResult;
+  const recorded = recordTerminal(root.journal, context, command, {
+    status: receipt.status, revision: receipt.revision, reasonCode: receipt.reasonCode
+  });
+  if (!recorded.ok) return recorded;
+  nextAuthority.journal = recorded.value;
+  return { ok: true, value: {
+    kind: 'accepted', receipt, publicResult: publicResult.value,
+    authority: nextAuthority
+  } };
+}
+
 export function submitRuntimeCommand(authority, context, command, policy = {}) {
   try {
     const root = authorityRoot(authority);
@@ -157,37 +195,45 @@ export function submitRuntimeCommand(authority, context, command, policy = {}) {
       return failure('INVALID_PREPARED_ACTION_RESULT');
     }
 
-    const after = buildRuntimeReferenceFrame(workingEngine);
-    if (!after.ok) return after;
-    const planned = planRuntimeReferenceTransition(root.referenceState, {
-      beforeFrame: before.value, afterFrame: after.value
-    });
-    if (!planned.ok) return planned;
-    const advanced = advanceRuntimeReferenceTransition(root.referenceState, {
-      beforeFrame: before.value, afterFrame: after.value,
-      newRefs: opaqueReferences(planned.value.newRefCount, root.referenceState)
-    });
-    if (!advanced.ok) return advanced;
-
-    const revision = root.revision + 1;
-    const receipt = terminalReceipt(prepared.value.command, 'accepted', revision, 'ACCEPTED');
-    const nextAuthority = {
-      metadata: structuredClone(root.metadata), revision, engineState: workingEngine,
-      referenceState: advanced.value, journal: root.journal
-    };
-    const publicResult = buildRuntimePublicResult(nextAuthority, prepared.value.command, receipt);
-    if (!publicResult.ok) return publicResult;
-    const recorded = recordTerminal(root.journal, context, prepared.value.command, {
-      status: receipt.status, revision: receipt.revision, reasonCode: receipt.reasonCode
-    });
-    if (!recorded.ok) return recorded;
-    nextAuthority.journal = recorded.value;
-    return { ok: true, value: {
-      kind: 'accepted', receipt, publicResult: publicResult.value,
-      authority: nextAuthority
-    } };
+    return acceptApplied(root, context, prepared.value.command, before.value, workingEngine);
   } catch (error) {
     if (error instanceof TransactionError) return failure(error.code);
+    throw error;
+  }
+}
+
+// 続行不能 (rulebook 1.2): the server, and only the server, ends a match against one seat. It is not a client command: no
+// envelope comes in, and submitRuntimeCommand refuses the action and the 'system:' commandIds. `seat` loses; the opponent wins,
+// unless an effect already locked a result (that one stays). It works at any time of a match, with effects or choices still open.
+// The result is the same kind as an accepted command's, plus the command that was journaled (the event feed needs it).
+export function submitRuntimeSystemForfeit(authority, { seat, reason }) {
+  try {
+    const root = authorityRoot(authority);
+    const metadata = runtimePlanningReads.metadataData(root.metadata);
+    if (!metadata.seatIds.includes(seat) || reason !== 'disconnect') return failure('INVALID_COMMAND');
+    const engine = runtimePlanningReads.engineData(root.engineState, metadata);
+    if (!MATCH_MODES.includes(engine.mode) || engine.finished) return failure('ACTION_NOT_ALLOWED');
+    if (!Number.isSafeInteger(root.revision) || root.revision === Number.MAX_SAFE_INTEGER) return failure('REVISION_EXHAUSTED');
+    const context = { matchId: metadata.matchId, actorSeat: seat };
+    const command = { contractVersion: 1, matchId: metadata.matchId, commandId: `system:forfeit:${root.revision + 1}`,
+      actorSeat: seat, expectedRevision: root.revision, action: { type: 'systemForfeit', reason } };
+    const canonical = canonicalizeCommand(command);
+    if (!canonical.ok) return canonical;
+    const classified = classifyCommand(root.journal, context, command);
+    if (!classified.ok) return classified;
+    if (classified.value.kind !== 'new') return failure('COMMAND_ALREADY_RECORDED');
+    const before = baseline(root);
+    if (!before.ok) return before;
+    const workingEngine = cloneForHistory(root.engineState);
+    const applied = applyPreparedRuntimeAction(workingEngine,
+      { engineFunction: 'systemForfeitGame', playerId: metadata.seatIds[0] === seat ? 'player' : 'ai', reason }, {});
+    if (!applied.ok) return applied;
+    if (applied.value.kind !== 'applied-complete') return failure('ACTION_NOT_ALLOWED');
+    const accepted = acceptApplied(root, context, canonical.value.command, before.value, workingEngine);
+    return accepted.ok ? { ok: true, value: { ...accepted.value, command: canonical.value.command } } : accepted;
+  } catch (error) {
+    if (error instanceof TransactionError) return failure(error.code);
+    if (error instanceof CommandBridgeError || error instanceof SafeReadError) return failure(error.code);
     throw error;
   }
 }

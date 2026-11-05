@@ -1,7 +1,7 @@
 import { getMaxMemory, enabledSymbols, executionCost, cardAtk, cardMaxStr, cardCurrentStr, cardHasKeyword } from '../engine.js';
 import { buildRuntimeIdentityIndex } from './bridge.js';
 import { runtimeReadIdentityIndex } from './read-context.js';
-import { runtimeComponents } from '../../ui/runtime-components.js';
+import { runtimeComponentRows } from '../../data/component-rows.js';
 import { cardState, componentView, definition } from './query/card-view.js';
 import { computationView } from './query/computation-view.js';
 import { INPUT, QueryError, STATE, ZONES, dense, exact, nonempty, number, own, playerId, ref, reject, strings } from './query/guards.js';
@@ -64,7 +64,7 @@ function runtimeCardBatch(engineState, identities, names, shared = null) {
       location: entry.location, definition: definition(own(original, 'id')), state: cardState(original), computed: {
         executionCost: cost, atk: number(cardAtk(view.state, controller, card)), maxStr: number(cardMaxStr(view.state, controller, card)),
         currentStr: number(cardCurrentStr(view.state, controller, card)), keywords,
-        components: runtimeComponents(componentView(original),view.state.turnNumber).map(({label,value,note,abilityName,tone}) => ({label,value,note,abilityName,tone}))
+        components: runtimeComponentRows(componentView(original),view.state.turnNumber).map(({label,value,note,abilityName,tone}) => ({label,value,note,abilityName,tone}))
       } };
   });
   return { ok: true, value: values };

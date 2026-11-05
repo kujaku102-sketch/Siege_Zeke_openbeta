@@ -5,6 +5,7 @@ import { createRngState } from './rng.js';
 import { RuntimeError } from './factory.js';
 import { buildRuntimeIdentityIndex } from './bridge.js';
 import { isTutorialId, tutorialSetupValid } from './tutorial-setup.js';
+import { MATCH_MODES, RUNTIME_MODES } from './modes.js';
 
 const failure = code => ({ ok: false, error: { code } });
 const nonempty = value => typeof value === 'string' && value.length > 0;
@@ -64,9 +65,9 @@ function options(input) {
   // 'legacy' is the absence of the key, so existing matches and records keep their exact start options.
   if (Object.hasOwn(normalized, 'openingProtocol')) {
     if (normalized.openingProtocol === 'legacy') delete normalized.openingProtocol;
-    else if (normalized.openingProtocol !== 'v2.4' || normalized.mode !== 'ai') return null;
+    else if (normalized.openingProtocol !== 'v2.4' || !MATCH_MODES.includes(normalized.mode)) return null;
   }
-  if (!['ai', 'tutorial', 'lab', 'sandbox'].includes(normalized.mode) || !isTutorialId(normalized.tutorialId)) return null;
+  if (!RUNTIME_MODES.includes(normalized.mode) || !isTutorialId(normalized.tutorialId)) return null;
   for (const key of ['playerDeckId', 'aiDeckId']) if (typeof normalized[key] !== 'string' || !Object.hasOwn(DECK_OPTIONS, normalized[key])) return null;
   for (const key of ['playerUserId', 'aiUserId']) if (typeof normalized[key] !== 'string' || !Object.hasOwn(USER_CARDS, normalized[key])) return null;
   if (typeof normalized.sandboxDeckSetup !== 'boolean') return null;

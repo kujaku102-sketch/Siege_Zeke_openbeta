@@ -55,7 +55,7 @@ export function canonicalCommand(input) {
   const type = own(action, 'type', 'INVALID_COMMAND');
   if (!nonempty(type)) reject('INVALID_COMMAND');
   let canonicalAction;
-  if (type === 'endTurn' || type === 'keepOpeningHand' || type === 'openingMulligan' && !Object.hasOwn(action, 'cardRefs')) canonicalAction = exact(action, ['type'], 'INVALID_COMMAND');
+  if (type === 'endTurn' || type === 'keepOpeningHand' || type === 'concede' || type === 'openingMulligan' && !Object.hasOwn(action, 'cardRefs')) canonicalAction = exact(action, ['type'], 'INVALID_COMMAND');
   else if (type === 'openingMulligan') {
     // Opening protocol v2.4 names the cards to return; whether this form is valid for the match is the bridge's call.
     canonicalAction = exact(action, ['type', 'cardRefs'], 'INVALID_COMMAND');
@@ -107,6 +107,11 @@ export function canonicalCommand(input) {
     canonicalAction.ability = exact(canonicalAction.ability, ['kind', 'key'], 'INVALID_COMMAND');
     if (!nonempty(canonicalAction.ability.kind) || !nonempty(canonicalAction.ability.key)) reject('INVALID_COMMAND');
     if (canonicalAction.ability.kind !== 'user' || canonicalAction.ability.key !== 'turbo') reject('ACTION_SCHEMA_UNAVAILABLE');
+  }
+  else if (type === 'systemForfeit') {
+    // Only the server's own forfeit path makes this one (and journals it); the client command path refuses it.
+    canonicalAction = exact(action, ['type', 'reason'], 'INVALID_COMMAND');
+    if (canonicalAction.reason !== 'disconnect') reject('INVALID_COMMAND');
   }
   else if (type === 'sandboxAddCard') {
     canonicalAction = exact(action, ['type', 'definitionId', 'targetSeat'], 'INVALID_COMMAND');

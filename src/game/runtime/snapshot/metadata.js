@@ -2,6 +2,7 @@ import { DECK_OPTIONS } from '../../engine.js';
 import { CARD_LIBRARY, USER_CARDS } from '../../../data/cards.js';
 import { isTutorialId, tutorialSetupValid } from '../tutorial-setup.js';
 import { UNSUPPORTED, dense, exact, nonempty, ordinary, reject, seatIds } from './guards.js';
+import { MATCH_MODES, RUNTIME_MODES } from '../modes.js';
 
 const META_KEYS = ['matchId', 'seatIds', 'ruleVersion', 'cardVersion', 'startOptions'];
 const OPTION_KEYS = ['mode', 'tutorialId', 'playerDeckId', 'aiDeckId', 'playerDeckRecipe', 'aiDeckRecipe', 'playerUserId', 'aiUserId', 'sandboxDeckSetup'];
@@ -30,13 +31,13 @@ function optionsData(input, code) {
   ordinary(input, code);
   const supplied = exact(input, Object.hasOwn(input, 'openingProtocol') ? [...OPTION_KEYS, 'openingProtocol'] : OPTION_KEYS, code);
   const result = { ...defaults, ...supplied };
-  if (typeof result.mode !== 'string' || !['ai', 'tutorial', 'lab', 'sandbox'].includes(result.mode)) reject(code);
+  if (typeof result.mode !== 'string' || !RUNTIME_MODES.includes(result.mode)) reject(code);
   if (['lab', 'sandbox'].includes(result.mode)) reject(UNSUPPORTED);
   if (!isTutorialId(result.tutorialId)) reject(code);
   for (const key of ['playerDeckId', 'aiDeckId']) if (typeof result[key] !== 'string' || !Object.hasOwn(DECK_OPTIONS, result[key])) reject(code);
   for (const key of ['playerUserId', 'aiUserId']) if (typeof result[key] !== 'string' || !Object.hasOwn(USER_CARDS, result[key])) reject(code);
   if (typeof result.sandboxDeckSetup !== 'boolean') reject(code);
-  if (Object.hasOwn(result, 'openingProtocol') && (result.openingProtocol !== 'v2.4' || result.mode !== 'ai')) reject(code);
+  if (Object.hasOwn(result, 'openingProtocol') && (result.openingProtocol !== 'v2.4' || !MATCH_MODES.includes(result.mode))) reject(code);
   for (const key of ['playerDeckRecipe', 'aiDeckRecipe']) result[key] = recipeData(result[key], code);
   if (result.mode === 'tutorial' && !tutorialSetupValid(result)) reject(code);
   return result;

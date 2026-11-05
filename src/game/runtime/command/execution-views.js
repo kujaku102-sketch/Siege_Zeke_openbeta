@@ -1,4 +1,5 @@
 import { MISSING, finiteNumberField, nonempty, ordinary, own, reject, safeRevision, selectedArray, selectedField, selectedObject } from './common.js';
+import { RUNTIME_MODES } from '../modes.js';
 
 export function executionCardView(card) {
   const code = 'INVALID_AUTHORITY';
@@ -105,7 +106,7 @@ export function executionPlanningView(engineState) {
   const active = own(engineState, 'active', 'INVALID_AUTHORITY');
   const mode = own(engineState, 'mode', 'INVALID_AUTHORITY');
   const turnNumber = own(engineState, 'turnNumber', 'INVALID_AUTHORITY');
-  if (!['player', 'ai'].includes(active) || !['ai', 'tutorial', 'lab', 'sandbox'].includes(mode)
+  if (!['player', 'ai'].includes(active) || !RUNTIME_MODES.includes(mode)
     || !safeRevision(turnNumber)) reject('INVALID_AUTHORITY');
   return {
     active, mode, turnNumber,
