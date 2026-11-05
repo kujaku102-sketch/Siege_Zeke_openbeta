@@ -1,10 +1,14 @@
 // the online screens and what an online match adds (design §14.1), DOM-free.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { typedRoomCode, onlineEntryHtml, onlineJoinHtml, onlineRoomHtml, onlineHudHtml, onlineResultReason, onlineErrorText, secondsLeft } from '../src/ui-refresh/online-screens-view.js';
+import { typedRoomCode, onlineEntryHtml, onlineNameHtml, onlineJoinHtml, onlineRoomHtml, onlineHudHtml, onlineResultReason, onlineErrorText, secondsLeft } from '../src/ui-refresh/online-screens-view.js';
 import { runtimeResultHtml } from '../src/ui-refresh/runtime-log-view.js';
 import { battleSetupHtml } from '../src/ui-refresh/flow-screens-view.js';
-import { SCREENS, nextScreen, isFlowScreen, escapeScreen } from '../src/ui-refresh/screen-flow.js';
+import { SCREENS, nextScreen, isFlowScreen, escapeScreen, backScreen, onlineDoor } from '../src/ui-refresh/screen-flow.js';
+import { onlineNameProblem, onlineNameProblemText, readOnlineProfile, saveOnlineProfile } from '../src/ui-refresh/online-profile.js';
+import { NAME_KEY } from '../src/network/online-client.js';
+const memoryStorage = (entries = {}) => { const map = new Map(Object.entries(entries)); return { getItem: key => map.has(key) ? map.get(key) : null, setItem: (key, value) => map.set(key, String(value)), map }; };
+const refusing = { getItem() { throw new Error('SecurityError'); }, setItem() { throw new Error('QuotaExceededError'); } };
 
 const options = { deckOptions: id => `<option value="${id}" selected>${id}</option>`, userOptions: id => `<option value="${id}" selected>${id}</option>` };
 const NOW = 1_000_000;
@@ -19,7 +23,7 @@ test('a typed room code reads as the room\'s letters: wide or lower case, spaces
 });
 
 test('the online flow: setup opens the door, the door the code or the room, the room starts the match; each comes back', () => {
-  for (const name of ['online-entry', 'online-join', 'online-room']) { assert.ok(SCREENS.includes(name)); assert.equal(isFlowScreen(name), true); }
+  for (const name of ['online-name', 'online-entry', 'online-join', 'online-room']) { assert.ok(SCREENS.includes(name)); assert.equal(isFlowScreen(name), true); }
   assert.equal(nextScreen('battle-setup', 'open-online'), 'online-entry');
   assert.equal(nextScreen('online-entry', 'open-join'), 'online-join');
   assert.equal(nextScreen('online-entry', 'room'), 'online-room');
@@ -30,6 +34,59 @@ test('the online flow: setup opens the door, the door the code or the room, the 
   assert.equal(escapeScreen('online-entry'), 'battle-setup');
 });
 
+test("the name screen: asked first while no name is kept, again from the door's 変更; its 戻る goes where it was asked from", () => {
+  assert.equal(onlineDoor(false), 'online-name');
+  assert.equal(onlineDoor(true), 'online-entry');
+  assert.equal(nextScreen('online-entry', 'change-name'), 'online-name');
+  assert.equal(nextScreen('online-name', 'done'), 'online-entry');
+  assert.equal(backScreen('online-name', { named: false }), 'battle-setup', 'never registered: back to the battle setup');
+  assert.equal(backScreen('online-name', { named: true }), 'online-entry', 'changing: back to the door');
+  assert.equal(escapeScreen('online-name', { named: false }), 'battle-setup');
+  assert.equal(escapeScreen('online-name'), 'online-entry');
+  assert.equal(escapeScreen('online-name', { overlayOpen: true, named: false }), null);
+  assert.equal(backScreen('online-entry', { named: false }), 'battle-setup', 'only the name screen depends on it');
+});
+
+test('a name is 1 to 16 characters (not UTF-16 units), spaces and control characters collapsed', () => {
+  for (const name of ['あ', 'あかね', 'a'.repeat(16), '🐉'.repeat(16), '  あ  か  ', 'ゲスト']) assert.equal(onlineNameProblem(name), null, name);
+  for (const name of ['', '   ', '　', '\n\t', null, undefined]) assert.equal(onlineNameProblem(name), 'empty', JSON.stringify(name));
+  for (const name of ['a'.repeat(17), '🐉'.repeat(17)]) assert.equal(onlineNameProblem(name), 'long', name);
+  assert.equal(onlineNameProblemText('empty'), '名前を入れてください。');
+  assert.equal(onlineNameProblemText('long'), '名前は16文字までです。');
+  assert.equal(onlineNameProblemText(null), '');
+});
+
+test("the profile is kept in this browser under the client's name key, read back the next time, and a refusing storage never throws", () => {
+  const storage = memoryStorage();
+  assert.equal(readOnlineProfile(storage), null, 'nothing kept yet: ask');
+  const kept = saveOnlineProfile(storage, '  あ　かね ');
+  assert.deepEqual({ ...kept }, { source: 'guest', name: 'あ かね', icon: null });
+  assert.ok(Object.isFrozen(kept));
+  assert.equal(storage.map.get(NAME_KEY), 'あ かね');
+  assert.deepEqual({ ...readOnlineProfile(storage) }, { source: 'guest', name: 'あ かね', icon: null });
+  assert.equal(readOnlineProfile(memoryStorage({ [NAME_KEY]: '' })), null, 'an empty kept name asks again');
+  assert.equal(readOnlineProfile(memoryStorage({ [NAME_KEY]: 'x'.repeat(40) })), null, 'a kept name that is too long asks again');
+  // A private window: nothing is read or kept, and the page still has the name it was given.
+  assert.equal(readOnlineProfile(refusing), null);
+  assert.equal(readOnlineProfile(undefined), null);
+  assert.equal(saveOnlineProfile(refusing, 'みどり').name, 'みどり');
+});
+
+test('the name screen: the field, 決定, and why a name cannot be kept; 登録 the first time, 変更 after', () => {
+  const first = onlineNameHtml({ online: { profile: null, nameDraft: null, nameProblem: null } });
+  assert.match(first, /data-flow-screen="online-name"/);
+  assert.match(first, /<h1 id="r2-flow-online-name-title">名前の登録<\/h1>/);
+  assert.match(first, /<input data-online-name maxlength="16"[^>]*value=""[^>]*placeholder="ゲスト">/);
+  assert.match(first, /<button class="r2-flow-primary" data-online-name-save>決定<\/button>/);
+  assert.doesNotMatch(first, /role="alert"/);
+  const change = onlineNameHtml({ online: { profile: { source: 'guest', name: '<あ>', icon: null }, nameDraft: null } });
+  assert.match(change, /名前の変更/);
+  assert.match(change, /value="&lt;あ&gt;"/, 'the kept name, escaped');
+  const wrong = onlineNameHtml({ online: { profile: null, nameDraft: 'x'.repeat(17), nameProblem: 'long' } });
+  assert.match(wrong, /value="x{17}" placeholder="ゲスト" aria-invalid="true">/, 'the draft stays as typed');
+  assert.match(wrong, /role="alert">名前は16文字までです。</);
+});
+
 test('battle setup offers online play only where a server is set', () => {
   const host = { playerDeckId: 'a', aiDeckId: 'b', playerUserId: 'u', aiUserId: 'u' };
   assert.ok(battleSetupHtml(host, options).includes('<button class="r2-flow-online" data-online-battle aria-disabled="true">オンライン対戦<small>準備中</small></button>'));
@@ -38,19 +95,20 @@ test('battle setup offers online play only where a server is set', () => {
   assert.doesNotMatch(open, /準備中/);
 });
 
-test('the door: a guest name, the deck and user, two ways in; without a server both are shut', () => {
+test('the door: the kept name with 変更, the deck and user, two ways in; without a server both are shut', () => {
   const host = { playerDeckId: 'start-red', playerUserId: 'doors_zx' };
-  const shut = onlineEntryHtml({ ...host, online: { available: false, name: '' } }, options);
+  const shut = onlineEntryHtml({ ...host, online: { available: false, profile: null } }, options);
   assert.match(shut, /サーバーは準備中です/);
   assert.match(shut, /<button class="r2-flow-primary" data-online-create aria-disabled="true" data-busy>部屋を作る<\/button>/);
   assert.match(shut, /<button data-flow="open-join" aria-disabled="true" data-busy>コードで入る<\/button>/);
-  const open = onlineEntryHtml({ ...host, online: { available: true, name: '<あ>' } }, options);
-  assert.match(open, /<input data-online-name maxlength="16"[^>]*value="&lt;あ&gt;"/);
+  const open = onlineEntryHtml({ ...host, online: { available: true, profile: { source: 'guest', name: '<あ>', icon: null } } }, options);
+  assert.match(open, /<p class="r2-online-name"><span>名前<\/span><b>&lt;あ&gt;<\/b><button data-flow="change-name">変更<\/button><\/p>/);
+  assert.doesNotMatch(open, /<input data-online-name/, 'the door only shows the name');
   assert.match(open, /<select data-player-deck>/);
   assert.match(open, /<button class="r2-flow-primary" data-online-create>部屋を作る<\/button><button data-flow="open-join">コードで入る<\/button>/);
-  const making = onlineEntryHtml({ ...host, online: { available: true, name: '', state: { status: 'creating' } } }, options);
+  const making = onlineEntryHtml({ ...host, online: { available: true, profile: null, state: { status: 'creating' } } }, options);
   assert.match(making, /data-online-create aria-disabled="true" data-busy>部屋を作っています…</);
-  assert.match(onlineEntryHtml({ ...host, online: { available: true, name: '', state: { status: 'idle', error: { code: 'SERVER_BUSY' } } } }, options), /role="alert">サーバーが混み合っています/);
+  assert.match(onlineEntryHtml({ ...host, online: { available: true, profile: null, state: { status: 'idle', error: { code: 'SERVER_BUSY' } } } }, options), /role="alert">サーバーが混み合っています/);
 });
 
 test('joining: the code field and 入る; a wrong code says so', () => {

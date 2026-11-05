@@ -56,7 +56,7 @@ test('external links: on the title only, outside the stage, and the CRT title ke
 });
 
 test('screen flow: the title opens the tutorial list and the battle setup; each comes back or starts', () => {
-  assert.deepEqual([...SCREENS], ['entry', 'tutorial-select', 'battle-setup', 'online-entry', 'online-join', 'online-room', 'game']);
+  assert.deepEqual([...SCREENS], ['entry', 'tutorial-select', 'battle-setup', 'online-name', 'online-entry', 'online-join', 'online-room', 'game']);
   assert.equal(nextScreen('entry', 'open-tutorials'), 'tutorial-select');
   assert.equal(nextScreen('entry', 'open-battle'), 'battle-setup');
   assert.equal(nextScreen('entry', 'start'), 'game', 'the sandbox still starts from the title');
@@ -92,7 +92,7 @@ test('screen flow: Escape goes back from a flow screen only with nothing open ov
   assert.equal(escapeScreen('entry'), null);
   assert.equal(escapeScreen('game'), null);
   assert.equal(escapeScreen('online-room'), 'online-entry');
-  assert.deepEqual(SCREENS.filter(isFlowScreen), ['tutorial-select', 'battle-setup', 'online-entry', 'online-join', 'online-room']);
+  assert.deepEqual(SCREENS.filter(isFlowScreen), ['tutorial-select', 'battle-setup', 'online-name', 'online-entry', 'online-join', 'online-room']);
 });
 
 const memoryStorage = (initial = {}, { failWrite = false, failRead = false } = {}) => {
@@ -195,11 +195,11 @@ test('main wiring: flow buttons before title modes, Escape and [戻る] through 
   const main = await readSource('../src/main.js');
   const click = main.slice(main.indexOf("root.addEventListener('click'"));
   assert.ok(click.indexOf('if (d.flow) return goTo(nextScreen(host.screen,d.flow));') < click.indexOf('if (d.mode) return prepared(() => startMatch(d.mode));'), 'data-flow wins over data-mode');
-  assert.ok(click.includes("if (button.hasAttribute('data-flow-back')) return goTo(nextScreen(host.screen,'back'));"));
+  assert.ok(click.includes("if (button.hasAttribute('data-flow-back')) return goTo(backScreen(host.screen,{named:Boolean(host.online.profile)}));"));
   assert.ok(click.includes("if (d.start) return prepared(() => startMatch(d.start,d.start === 'tutorial' ? d.tutorialId : host.tutorialId));"));
   assert.ok(click.includes("if (button.hasAttribute('data-online-battle')) return onOnlineBattle();"));
   assert.ok(main.includes('function onOnlineBattle() {}'), 'online play is not connected');
-  assert.ok(main.includes('const back = escapeScreen(host.screen,{overlayOpen:host.options || host.deckBuilder.open || host.catalogOpen});'));
+  assert.ok(main.includes('const back = escapeScreen(host.screen,{overlayOpen:host.options || host.deckBuilder.open || host.catalogOpen,named:Boolean(host.online.profile)});'));
   for (const source of [main, await readSource('../src/ui-refresh/screen-flow.js'), await readSource('../src/ui-refresh/runtime-shell-view.js')])
     assert.ok(!/pushState|replaceState|popstate|location\.hash/.test(source), 'no history API (Q14)');
 });
