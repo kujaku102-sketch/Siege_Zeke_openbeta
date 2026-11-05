@@ -100,12 +100,15 @@ function renderNoteHtml(host) {
   return `<aside class="r2-render-note" role="status"><span>軽量表示（WebGLなし）</span>${back}</aside>`;
 }
 
+// The privacy page, reachable from inside the game wherever the Discord login is offered (Discord's terms; design Q8).
+const PRIVACY_LINK = '<a class="r2-title-setting" data-privacy-link href="./privacy.html" target="_blank" rel="noopener noreferrer">プライバシーについて<span aria-hidden="true">↗</span></a>';
+
 function settingsHtml(state, ui) {
   // The title and the flow screens share the title options; the match has its own.
   if (ui.screen !== "game") {
     const volume = Math.max(0, Math.min(10, Number(ui.masterVolume ?? 7)));
     const toggle = (label, selector, checked) => `<button class="r2-title-setting" ${selector} role="checkbox" aria-checked="${checked}">${label}<span aria-hidden="true">${checked ? "☑" : "□"}</span></button>`;
-    const contents = `<header><h2>オプション</h2><button data-live="close-options">閉じる</button></header><div class="r2-title-settings-list">${debugEntryHtml()}${toggle("全画面", 'data-live="fullscreen"', Boolean(ui.fullscreen))}${toggle("PC版", 'data-view="pc"', ui.view === "pc")}${toggle("モバイル版", 'data-view="mobile"', ui.view === "mobile")}${toggle("通常タップで詳細", 'data-title-tap-details', Boolean(ui.tapDetails))}${toggle("演出", 'data-toggle-effects', Boolean(ui.effectsEnabled))}${ui.discordLogin ? toggle("アイコンを相手に見せる", 'data-toggle-show-avatar', ui.showAvatar !== false) : ""}${ui.entryCrtMenu ? "" : renderModeHtml(ui)}<div class="r2-title-volume"><span>音量</span><div role="group" aria-label="音量 0～10">${Array.from({ length: 10 }, (_, index) => `<button data-volume="${index + 1}" aria-label="音量 ${index + 1}" aria-pressed="${index < volume}"></button>`).join("")}</div><output>${volume}/10</output></div><p>音量設定は今後のサウンド向けに保存されます。</p>${matchArchiveHtml(ui, toggle)}</div>`;
+    const contents = `<header><h2>オプション</h2><button data-live="close-options">閉じる</button></header><div class="r2-title-settings-list">${debugEntryHtml()}${toggle("全画面", 'data-live="fullscreen"', Boolean(ui.fullscreen))}${toggle("PC版", 'data-view="pc"', ui.view === "pc")}${toggle("モバイル版", 'data-view="mobile"', ui.view === "mobile")}${toggle("通常タップで詳細", 'data-title-tap-details', Boolean(ui.tapDetails))}${toggle("演出", 'data-toggle-effects', Boolean(ui.effectsEnabled))}${ui.discordLogin ? toggle("アイコンを相手に見せる", 'data-toggle-show-avatar', ui.showAvatar !== false) : ""}${ui.entryCrtMenu ? "" : renderModeHtml(ui)}<div class="r2-title-volume"><span>音量</span><div role="group" aria-label="音量 0～10">${Array.from({ length: 10 }, (_, index) => `<button data-volume="${index + 1}" aria-label="音量 ${index + 1}" aria-pressed="${index < volume}"></button>`).join("")}</div><output>${volume}/10</output></div><p>音量設定は今後のサウンド向けに保存されます。</p>${matchArchiveHtml(ui, toggle)}${ui.discordLogin ? PRIVACY_LINK : ""}</div>`;
     return `<div class="r2-modal r2-title-options${ui.entryCrtMenu ? " r2-title-options-crt" : ""}" role="dialog" aria-modal="true" aria-label="オプション"><section>${pagedOptionsHtml(ui, contents)}</section></div>`;
   }
   const users = userOptionsHtml;

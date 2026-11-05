@@ -70,7 +70,9 @@ function discordLoginHtml(online) {
     ? `<p>Discord：<b>${esc(name)}</b> でログイン中</p><button data-online-logout>ログアウト</button>`
     : `<p>Discordでログインすると、Discordの名前とアイコンを使えます。アイコンは対戦相手の画面に出ます（Discordのアカウントが分かる形です）。</p>`
       + `<button data-online-login${busyAttr(login.busy)}>${login.busy ? "Discordへ移動しています…" : "Discordでログイン"}</button>`;
-  return `<div class="r2-online-login" data-logged-in="${Boolean(name)}">${body}</div>${error ? `<p class="r2-flow-error" role="alert">${esc(error)}</p>` : ""}`;
+  // What is done with the login, from inside the game (Discord's terms; design Q8).
+  const privacy = '<a class="r2-online-privacy" href="./privacy.html" target="_blank" rel="noopener noreferrer">プライバシーについて</a>';
+  return `<div class="r2-online-login" data-logged-in="${Boolean(name)}">${body}${privacy}</div>${error ? `<p class="r2-flow-error" role="alert">${esc(error)}</p>` : ""}`;
 }
 
 // The door: the kept name with its [変更], the deck and user to play, and the two ways in. Without a server the ways are shut.
