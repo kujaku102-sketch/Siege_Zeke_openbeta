@@ -74,10 +74,17 @@
 .r2-online-code-field { display:grid; justify-items:center; gap:.4em; margin:clamp(.5rem,3dvh,1.5rem) 0; color:#3d4955; font-size:.9em; text-align:center; }
 .r2-online-code-field input { width:min(100%,14em); min-height:2.75rem; box-sizing:border-box; padding:.15em .4em; border:.0625rem solid #111820; border-radius:.125rem; background:#fff; color:#111820;
   font:400 clamp(1.5rem,7dvh,2.75rem)/1.1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.12em; text-transform:uppercase; }
+/* The name screen's field: the code field's place, in the page's own letters. The door shows the kept name with its [変更]. */
+.r2-online-name-field input { width:min(100%,16em); font-size:clamp(1.125rem,4.5dvh,1.75rem); letter-spacing:normal; text-transform:none; text-align:center; }
+.r2-online-name-field input[aria-invalid="true"] { border-color:#a3001b; }
+.r2-online-name { display:grid; grid-template-columns:4.5em minmax(0,1fr) auto; align-items:center; gap:.5em; margin:0; font-size:.9em; color:#3d4955; }
+.r2-online-name b { min-width:0; overflow-wrap:anywhere; font-weight:400; font-size:1.15em; color:#111820; }
+.r2-flow .r2-online-name button { min-height:2.75rem; padding:0 .75em; font-size:.85em; }
 .r2-online-code { margin:clamp(.5rem,3dvh,1.5rem) 0; text-align:center; }
 .r2-online-code b { display:inline-block; padding:.1em .35em; border:.0625rem solid #111820; font:400 clamp(2.25rem,15dvh,6.5rem)/1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.1em; user-select:all; }
 .r2-online-code.is-small b { font-size:clamp(1.25rem,6dvh,2.25rem); }
 .r2-flow-online .r2-flow-actions { justify-content:center; }
+.r2-flow-online .r2-flow-error { text-align:center; }
 .r2-online-wait { margin:clamp(.5em,2dvh,1em) 0 0; text-align:center; color:#3d4955; }
 .r2-online-wait span { margin-left:1em; font-variant-numeric:tabular-nums; }
 .r2-online-seats { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr)); gap:clamp(.5rem,2vw,1.25rem); }
@@ -93,5 +100,8 @@
    7:5 stage, unseen and scrolling inside it, and the glass lies over the same stage. */
 .r2-flow.r2-flow-crt-ready { overflow:hidden; padding:0; background:#000; }
 .r2-flow.r2-flow-crt-ready .r2-flow-sheet { position:absolute; top:50%; left:50%; width:min(100%,140dvh); height:auto; aspect-ratio:7 / 5; min-height:0; max-height:100%;
-  padding:6% 9%; overflow:auto; transform:translate(-50%,-50%); opacity:0; border-radius:0; box-shadow:none; }
+  padding:6% 9%; overflow:auto; transform:translate(-50%,-50%); opacity:0; border-radius:0; box-shadow:none;
+  /* The page's content stands in the middle of the glass, top to bottom (文豪, 2026-11-05: 「中心に寄せよう」); a page
+     longer than the glass starts at its top and scrolls, as before (safe). */
+  display:flex; flex-direction:column; justify-content:safe center; }
 .r2-flow-crt-viewport { position:fixed; z-index:6; top:50%; left:50%; display:block; width:min(100vw,140dvh); height:auto; aspect-ratio:7 / 5; max-height:100dvh; transform:translate(-50%,-50%); touch-action:none; }

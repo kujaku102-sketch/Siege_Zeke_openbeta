@@ -1,13 +1,15 @@
 // Entry flow (V092-08): which screen follows which, DOM-free. The screens are not in the URL or
 // the browser history (Q14): they move only by their own buttons and Escape.
-export const SCREENS = Object.freeze(['entry', 'tutorial-select', 'battle-setup', 'online-entry', 'online-join', 'online-room', 'game']);
+export const SCREENS = Object.freeze(['entry', 'tutorial-select', 'battle-setup', 'online-name', 'online-entry', 'online-join', 'online-room', 'game']);
 
 const MOVES = Object.freeze({
   entry: Object.freeze({ 'open-tutorials': 'tutorial-select', 'open-battle': 'battle-setup', start: 'game' }),
   'tutorial-select': Object.freeze({ back: 'entry', start: 'game' }),
   'battle-setup': Object.freeze({ back: 'entry', start: 'game', 'open-online': 'online-entry' }),
   // Online play (design §14.1): the door (name, deck, make a room), the code to join one, and the room until both are ready.
-  'online-entry': Object.freeze({ back: 'battle-setup', 'open-join': 'online-join', room: 'online-room' }),
+  // The name screen comes first while no name is kept (onlineDoor), and again from the door's [変更].
+  'online-name': Object.freeze({ back: 'online-entry', done: 'online-entry' }),
+  'online-entry': Object.freeze({ back: 'battle-setup', 'change-name': 'online-name', 'open-join': 'online-join', room: 'online-room' }),
   'online-join': Object.freeze({ back: 'online-entry', room: 'online-room' }),
   'online-room': Object.freeze({ back: 'online-entry', start: 'game' }),
   // A finished tutorial comes back to the list to show its mark (Q4); a finished match's end screen goes back to the
@@ -21,8 +23,14 @@ export function nextScreen(screen, event) {
   return moves && Object.hasOwn(moves, event) ? moves[event] : null;
 }
 
+// Where [オンライン対戦] leads: the door, or first the name screen while no name is kept (文豪, 2026-11-05).
+export const onlineDoor = named => named ? 'online-entry' : 'online-name';
+
+// Where [戻る] leads. The name screen asked before the door was ever opened goes back to where it was asked from.
+export const backScreen = (screen, { named = true } = {}) => screen === 'online-name' && !named ? 'battle-setup' : nextScreen(screen, 'back');
+
 // Escape goes back only from a screen that has a way back and only with nothing open over it.
-export const escapeScreen = (screen, { overlayOpen = false } = {}) => overlayOpen ? null : nextScreen(screen, 'back');
+export const escapeScreen = (screen, { overlayOpen = false, named = true } = {}) => overlayOpen ? null : backScreen(screen, { named });
 
 // Screens drawn by the shell between the title and a match.
-export const isFlowScreen = screen => ['tutorial-select', 'battle-setup', 'online-entry', 'online-join', 'online-room'].includes(screen);
+export const isFlowScreen = screen => ['tutorial-select', 'battle-setup', 'online-name', 'online-entry', 'online-join', 'online-room'].includes(screen);

@@ -5,7 +5,7 @@ import { deckPresentation } from '../ui/deck-presentation.js';
 import { panelHeadHtml, controlsHelpHtml } from './cyber-panel.js';
 import { titleLinks } from '../config/external-links.js';
 import { battleSetupHtml, tutorialSelectHtml } from './flow-screens-view.js';
-import { onlineEntryHtml, onlineHudHtml, onlineJoinHtml, onlineRoomHtml } from './online-screens-view.js';
+import { onlineEntryHtml, onlineHudHtml, onlineJoinHtml, onlineNameHtml, onlineRoomHtml } from './online-screens-view.js';
 import { TUTORIAL_ITEMS } from './tutorial-items.js';
 import { debugEntryHtml, pagedOptionsHtml } from './debug-view.js';
 const entryLogo = new URL("../assets/siege-zeke-logo-layers.svg", import.meta.url).href;
@@ -131,6 +131,7 @@ export function runtimeShellHtml(host) {
   const flow = host.screen === 'tutorial-select' ? tutorialSelectHtml(host)
     : host.screen === 'battle-setup' ? battleSetupHtml(host,{deckOptions:selected => deckOptionsHtml(state,selected),userOptions:userOptionsHtml})
     : host.screen === 'online-entry' ? onlineEntryHtml(host,{deckOptions:selected => deckOptionsHtml(state,selected),userOptions:userOptionsHtml})
+    : host.screen === 'online-name' ? onlineNameHtml(host)
     : host.screen === 'online-join' ? onlineJoinHtml(host)
     : host.screen === 'online-room' ? onlineRoomHtml(host,{now:host.now ?? Date.now(),...onlineSeatNames(state,host),canShare:Boolean(host.canShare)}) : '';
   const onlineHud = host.screen === 'game' && host.online?.state?.match ? onlineHudHtml(host,{now:host.now ?? Date.now()}) : '';

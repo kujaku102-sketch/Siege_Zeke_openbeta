@@ -11,7 +11,7 @@ import { patchHtml } from './ui-refresh/dom-patch.js';
 import { isIosWebKit, readSavedView, resolveView, saveView } from './ui-refresh/model.js';
 import { RENDER_SCALE_STORAGE_KEY, RENDER_STORAGE_KEY, readRenderPreference, readRenderScale, resolveRenderMode, urlRenderPreference, urlRenderScale } from './ui-refresh/render-mode.js';
 import { renderQualityFor } from './ui-refresh/wireframe/render-resolution.js';
-import { escapeScreen, isFlowScreen, nextScreen } from './ui-refresh/screen-flow.js';
+import { backScreen, escapeScreen, isFlowScreen, nextScreen, onlineDoor } from './ui-refresh/screen-flow.js';
 import { markTutorialDone, readTutorialDone } from './ui-refresh/tutorial-items.js';
 import { isFullscreen, toggleFullscreen } from './ui-refresh/fullscreen.js';
 import { syncEntryLogoGlitch } from './ui-refresh/entry-logo-glitch.js';
@@ -42,7 +42,8 @@ import { archiveRetiredMatch } from './adapters/match-archive.js';
 import { sendMatchLog } from './adapters/match-log-sender.js';
 import { buildMatchLog } from './adapters/match-log.js';
 import { TUTORIAL_WIN_CHECKPOINT, loadTutorialWinBoard } from './tutorial-boards/index.js';
-import { NAME_KEY, createOnlineClient } from './network/online-client.js';
+import { createOnlineClient } from './network/online-client.js';
+import { onlineNameProblem, readOnlineProfile, saveOnlineProfile } from './ui-refresh/online-profile.js';
 import { onlineEndpoint } from './network/endpoint.js';
 import { normalizeRoomCode } from './network/room-code.js';
 import { typedRoomCode } from './ui-refresh/online-screens-view.js';
@@ -65,8 +66,9 @@ const host = {screen:'entry',mode:'sandbox',tutorialId:'basics',
   masterVolume:Math.max(0,Math.min(10,Number.parseInt(localStorage.getItem('sz-master-volume') ?? '7',10) || 0)),
   logoNoiseProfile:localStorage.getItem('sz-logo-noise-profile') || 'random',logoVideoName:'',actor:'player',opponentControl:'manual',
   catalogOpen:false,catalog:{query:'',expansion:'all',catalogOwner:'player'},tutorialDone:readTutorialDone(globalThis.localStorage),
-  // Online play (design §14): open only where a server is set (endpoint.js); the guest name is kept in this browser.
-  online:{available:onlineEndpoint({hostname:location.hostname,search:location.search}) !== null,name:(() => {try {return localStorage.getItem(NAME_KEY) ?? '';} catch {return '';}})(),
+  // Online play (design §14): open only where a server is set (endpoint.js); the player's profile (online-profile.js) is
+  // kept in this browser, and the name screen's draft and its problem live here until it is kept.
+  online:{available:onlineEndpoint({hostname:location.hostname,search:location.search}) !== null,profile:readOnlineProfile(globalThis.localStorage),nameDraft:null,nameProblem:null,
     code:'',state:null,error:null,copied:false,confirming:false},canShare:typeof navigator.share === 'function'};
 let surface = null, session = null, screenRendered = null, entryLogoVideoFile = null;
 let shellGeneration = 0, adminSerial = 0, press = null, suppressDeckClickUntil = 0;
@@ -258,7 +260,7 @@ function leaveMatch(screen = nextScreen('game','leave')) {if (tutorialWon()) hos
 // Entry flow screens move by their own buttons and Escape only, never by the browser history (Q14).
 // Focus follows the move (a re-render drops it to the body, out of reach of Escape): a flow screen
 // starts on its [戻る], the title on the button that opened the screen just left.
-function goTo(screen) {if (!screen) return;const from = host.screen;if (from === 'online-room' && screen !== 'game') leaveOnline();host.online.error = null;host.screen = screen;host.options = false;host.debug = false;host.catalogOpen = false;host.notice = '';renderShell();
+function goTo(screen) {if (!screen) return;const from = host.screen;if (from === 'online-room' && screen !== 'game') leaveOnline();host.online.error = null;host.online.nameProblem = null;host.screen = screen;host.options = false;host.debug = false;host.catalogOpen = false;host.notice = '';renderShell();
   const opener = {'tutorial-select':'[data-flow="open-tutorials"]','battle-setup':'[data-flow="open-battle"]'}[from];
   root.querySelector(screen === 'entry' ? opener ?? '[data-mode]' : '[data-flow-back]')?.focus({preventScroll:true});}
 // Online play (P02B) without a server: its button is marked 準備中 and does nothing.
@@ -321,7 +323,7 @@ async function enterRoom(join) {
   host.online.error = null;
   const code = join ? normalizeRoomCode(host.online.code) : null;
   if (join && !code) {host.online.error = {code:'ROOM_CODE_INVALID'};return renderShell();}
-  const name = host.online.name.trim() || undefined;
+  const name = host.online.profile?.name || undefined;
   const result = join ? await client.joinRoom(code,{name}) : await client.createRoom({name});
   if (result.ok) goTo(nextScreen(host.screen,'room'));else renderShell();
 }
@@ -329,6 +331,13 @@ async function copyRoomCode() {
   const display = host.online.state?.display ?? '';
   try {await navigator.clipboard.writeText(display);} catch {return notice('COPY_FAILED');}
   host.online.copied = true;renderShell();clearTimeout(copiedTimer);copiedTimer = setTimeout(() => {host.online.copied = false;renderShell();},2000);
+}
+// The name screen's 決定: a name of 1–16 characters is kept (in this browser where it may) and the door opens.
+function keepOnlineName() {
+  const draft = host.online.nameDraft ?? host.online.profile?.name ?? '', problem = onlineNameProblem(draft);
+  if (problem) {host.online.nameProblem = problem;return renderShell();}
+  Object.assign(host.online,{profile:saveOnlineProfile(globalThis.localStorage,draft),nameDraft:null,nameProblem:null});
+  goTo(nextScreen('online-name','done'));
 }
 function shareRoomCode() {void navigator.share?.({text:`Siege÷Zeke の部屋コード：${host.online.state?.display ?? ''}`}).catch(() => {});}
 function newDeckDraft() {host.deckBuilder.draft = normalizeSavedDeck({name:'新規デッキ',userId:'doors_zx',cards:{}},'');}
@@ -351,8 +360,11 @@ root.addEventListener('click',event => {
   const button = event.target.closest('button');if (!button) return;
   const d = button.dataset, deck = host.deckBuilder;
   // The title's tutorial and battle buttons keep data-mode for the CRT and old links but open their screens.
+  if (d.flow === 'open-online') return goTo(onlineDoor(Boolean(host.online.profile)));
+  if (d.flow === 'change-name') host.online.nameDraft = null;
   if (d.flow) return goTo(nextScreen(host.screen,d.flow));
-  if (button.hasAttribute('data-flow-back')) return goTo(nextScreen(host.screen,'back'));
+  if (button.hasAttribute('data-flow-back')) return goTo(backScreen(host.screen,{named:Boolean(host.online.profile)}));
+  if (button.hasAttribute('data-online-name-save')) return keepOnlineName();
   if (d.start) return prepared(() => startMatch(d.start,d.start === 'tutorial' ? d.tutorialId : host.tutorialId));
   if (button.hasAttribute('data-online-battle')) return onOnlineBattle();
   if (button.matches('[data-online-create],[data-online-join],[data-flow="open-join"]') && button.getAttribute('aria-disabled') === 'true') return;
@@ -412,7 +424,9 @@ root.addEventListener('input',event => {
   if (event.target.closest('[data-match-root]')) return;
   const deck = host.deckBuilder;
   if (event.target.hasAttribute('data-deck-name')) {deck.draft.name = event.target.value;return;}
-  if (event.target.hasAttribute('data-online-name')) {host.online.name = event.target.value;return;}
+  // Typing again takes back the line saying why the last name could not be kept (in place: a redraw would lose the caret).
+  if (event.target.hasAttribute('data-online-name')) {host.online.nameDraft = event.target.value;
+    if (host.online.nameProblem) {host.online.nameProblem = null;event.target.removeAttribute('aria-invalid');root.querySelector('[data-flow-screen="online-name"] .r2-flow-error')?.remove();}return;}
   // The code reads as the room's letters as it is typed or pasted, its hyphen after the fourth.
   if (event.target.hasAttribute('data-online-code')) {const typed = typedRoomCode(event.target.value);if (event.target.value !== typed) event.target.value = typed;host.online.code = typed;return;}
   if (event.target.hasAttribute('data-deck-query')) deck.query = event.target.value;
@@ -452,11 +466,13 @@ for (const name of ['pointerup','pointercancel','pointerleave']) root.addEventLi
 document.addEventListener('keydown',event => {if (event.key === 'Escape' && !event.target.closest?.('[data-match-root]')) {
   if (host.online.confirming) {host.online.confirming = false;return renderShell();}
   if (host.debug) return closeDebug();
-  const back = escapeScreen(host.screen,{overlayOpen:host.options || host.deckBuilder.open || host.catalogOpen});
+  const back = escapeScreen(host.screen,{overlayOpen:host.options || host.deckBuilder.open || host.catalogOpen,named:Boolean(host.online.profile)});
   if (back) return goTo(back);
   host.options = false;host.deckBuilder.detailId = null;renderShell();}});
 // Enter in the room code field joins, as its 入る does.
 document.addEventListener('keydown',event => {if (event.key === 'Enter' && event.target.matches?.('[data-online-code]')) void enterRoom(true);});
+// Enter in the name field keeps the name, as its 決定 does.
+document.addEventListener('keydown',event => {if (event.key === 'Enter' && event.target.matches?.('[data-online-name]')) keepOnlineName();});
 window.addEventListener('pagehide',() => {markWonTutorial();clearPress();mobileViewport.dispose();archiveOnline();online?.dispose();lifecycle.dispose();surface = null;session = null;});
 window.addEventListener('pageshow',event => {if (event.persisted) location.reload();});
 renderShell(true);registerPwa();

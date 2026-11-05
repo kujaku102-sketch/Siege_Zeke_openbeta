@@ -5,7 +5,7 @@ import { fxMs } from "./fx-speed.js";
 // over it, going deeper, or from the left, going back. At the effect speed; nothing slides without the CRT (effects off,
 // compat), where the screens change at once.
 export const SCREEN_SLIDE_MS = 320;
-const DEPTH = Object.freeze({ entry: 0, "tutorial-select": 1, "battle-setup": 1, "online-entry": 2, "online-join": 3, "online-room": 3 });
+const DEPTH = Object.freeze({ entry: 0, "tutorial-select": 1, "battle-setup": 1, "online-name": 2, "online-entry": 2, "online-join": 3, "online-room": 3 });
 // A page kept longer ago than this belongs to an earlier visit (the match came between): it is not slid from.
 const FRESH_MS = 1000;
 
