@@ -11,11 +11,12 @@ import { patchHtml } from './ui-refresh/dom-patch.js';
 import { isIosWebKit, readSavedView, resolveView, saveView } from './ui-refresh/model.js';
 import { RENDER_SCALE_STORAGE_KEY, RENDER_STORAGE_KEY, readRenderPreference, readRenderScale, resolveRenderMode, urlRenderPreference, urlRenderScale } from './ui-refresh/render-mode.js';
 import { renderQualityFor } from './ui-refresh/wireframe/render-resolution.js';
-import { escapeScreen, nextScreen } from './ui-refresh/screen-flow.js';
+import { escapeScreen, isFlowScreen, nextScreen } from './ui-refresh/screen-flow.js';
 import { markTutorialDone, readTutorialDone } from './ui-refresh/tutorial-items.js';
 import { isFullscreen, toggleFullscreen } from './ui-refresh/fullscreen.js';
 import { syncEntryLogoGlitch } from './ui-refresh/entry-logo-glitch.js';
 import { syncEntryCrtViewport } from './ui-refresh/entry-crt-viewport.js';
+import { syncFlowCrtViewport } from './ui-refresh/flow-crt-viewport.js';
 import { syncLiveInputLocks } from './ui-refresh/input-lock.js';
 import { noticeText } from './ui-refresh/notice-text.js';
 import { installMobileViewport } from './ui-refresh/mobile-viewport.js';
@@ -105,6 +106,8 @@ function setRenderScale(value) {
   surface?.configure(renderOptions());renderShell();
 }
 const entryEffects = () => host.screen === 'entry' && host.effectsEnabled && !lowGpu() && !host.deckBuilder.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// The flow screens take the title's curved CRT on the same terms (文豪, 2026-11-05).
+const flowEffects = () => isFlowScreen(host.screen) && host.effectsEnabled && !lowGpu() && !host.deckBuilder.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function renderShell(replace = false) {
   host.render = renderMode();host.renderUrl = urlRenderPreference(location.search);host.renderScaleUrl = urlRenderScale(location.search);
   document.body.dataset.view = host.view;
@@ -128,6 +131,8 @@ function renderShell(replace = false) {
     root.querySelector('.r2-content')?.setAttribute('data-effects',host.effectsEnabled ? 'on' : 'off');
   }
   restoreDeckViewport(root,viewport);
+  // The flow screen's glass goes first: a title coming back slides in over the page it leaves (crt-slide.js).
+  syncFlowCrtViewport(root,flowEffects());
   syncEntryLogoGlitch(root,entryEffects(),{profile:host.logoNoiseProfile,videoFile:entryLogoVideoFile});
   syncEntryCrtViewport(root,entryEffects(),{menuOpen:host.options,debugOpen:Boolean(host.options && host.debug),
     debug:{build:host.build,errors:host.errors,memory:host.memory,renderScale:host.renderScale ?? 1,renderScaleUrl:host.renderScaleUrl,compat:host.render?.mode === 'compat',fxSpeed:host.fxSpeed},view:host.view,fullscreen:host.fullscreen,tapDetails:host.tapDetails,effectsEnabled:host.effectsEnabled,masterVolume:host.masterVolume,storedCounts:host.storedCounts,sendMatchLogs:host.sendMatchLogs,
