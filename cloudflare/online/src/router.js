@@ -1,6 +1,7 @@
 // The online door: hands out room codes and passes a WebSocket to the room it names.
 // It does no game work. A code whose check characters are wrong is refused here, before any room is woken.
 import { createRoomCode, formatRoomCode, parseRoomCode, randomRoomBody } from '../../../src/network/room-code.js';
+import { authExchange, authStart } from './auth.js';
 
 
 // The site, its Pages address and preview deployments, and local dev (the same pages the log Worker accepts).
@@ -28,11 +29,54 @@ async function createRoom(env, origin) {
   return json(503, origin, { code: 'ROOM_UNAVAILABLE' });
 }
 
+const MAX_AUTH_BODY = 4096;
+const AUTH_ROUTES = { '/auth/discord/start': authStart, '/auth/discord/exchange': authExchange };
+
+// A small JSON body: the size is checked while reading, so a long one is never held whole.
+async function readJson(request) {
+  const declared = Number(request.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_AUTH_BODY) return null;
+  try {
+    const reader = request.body?.getReader();
+    if (!reader) return null;
+    const chunks = [];
+    let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > MAX_AUTH_BODY) { reader.cancel().catch(() => {}); return null; }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+    const parsed = JSON.parse(new TextDecoder().decode(bytes));
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch { return null; }
+}
+
+async function auth(handler, request, env, ctx, origin) {
+  const body = await readJson(request);
+  if (body === null) return json(400, origin, { code: 'BAD_REQUEST' });
+  const done = await handler(body, env, { defer: ctx?.waitUntil ? promise => ctx.waitUntil(promise) : null });
+  return new Response(JSON.stringify(done.body), { status: done.status,
+    headers: { ...cors(origin), 'content-type': 'application/json', 'cache-control': 'no-store' } });
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const origin = request.headers.get('origin');
     const allowed = origin && ALLOWED_ORIGINS.some(pattern => pattern.test(origin)) ? origin : null;
+
+    const handler = Object.hasOwn(AUTH_ROUTES, url.pathname) ? AUTH_ROUTES[url.pathname] : null;
+    if (handler) {
+      if (request.method === 'OPTIONS') return reply(allowed ? 204 : 403, allowed);
+      if (request.method !== 'POST') return reply(405, allowed);
+      if (!allowed) return reply(403, null);
+      return auth(handler, request, env, ctx, allowed);
+    }
 
     if (url.pathname === '/rooms') {
       if (request.method === 'OPTIONS') return reply(allowed ? 204 : 403, allowed);

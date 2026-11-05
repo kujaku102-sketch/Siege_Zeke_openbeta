@@ -35,3 +35,6 @@ export function roomSocketUrl(endpoint, code) {
 }
 
 export const roomsUrl = endpoint => new URL('/rooms', endpoint).toString();
+
+// step: 'start' | 'exchange'
+export const discordAuthUrl = (endpoint, step) => new URL(`/auth/discord/${step}`, endpoint).toString();
