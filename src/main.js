@@ -43,7 +43,10 @@ import { sendMatchLog } from './adapters/match-log-sender.js';
 import { buildMatchLog } from './adapters/match-log.js';
 import { TUTORIAL_WIN_CHECKPOINT, loadTutorialWinBoard } from './tutorial-boards/index.js';
 import { createOnlineClient } from './network/online-client.js';
-import { onlineNameProblem, readOnlineProfile, saveOnlineProfile } from './ui-refresh/online-profile.js';
+import { onlineNameProblem, preferDiscordName, readOnlineProfile, saveOnlineProfile } from './ui-refresh/online-profile.js';
+import { createDiscordLogin } from './network/discord-login.js';
+import { discordLoginShown } from './config/discord-login.js';
+import { finishDiscordLogin, startDiscordLogin } from './ui-refresh/online-login.js';
 import { onlineEndpoint } from './network/endpoint.js';
 import { normalizeRoomCode } from './network/room-code.js';
 import { typedRoomCode } from './ui-refresh/online-screens-view.js';
@@ -55,6 +58,13 @@ const EFFECTS_STORAGE_KEY = 'sz-ui-effects';
 const SEND_LOGS_STORAGE_KEY = 'sz-send-match-logs';
 // As a match is replaced, left or the page closes, its replay and log are kept in this
 // browser, and a finished match's log is sent when the player switched sending on.
+// The Discord login (design サーバー設計-Discordログイン.md), only where it is offered (config/discord-login.js). A storage the
+// browser refuses to open reads as none.
+const storageNamed = name => {try {return globalThis[name] ?? null;} catch {return null;}};
+const discordLogin = discordLoginShown({hostname:location.hostname,search:location.search})
+  ? createDiscordLogin({endpoint:onlineEndpoint({hostname:location.hostname,search:location.search}),storage:storageNamed('localStorage'),session:storageNamed('sessionStorage')}) : null;
+const discordProfile = () => discordLogin?.profile() ?? null;
+const SHOW_AVATAR_KEY = 'sz-online-show-avatar';
 const storedCounts = () => ({replays:loadStored(localStorage,REPLAYS).length,logs:loadStored(localStorage,MATCH_LOGS).length});
 const lifecycle = createMatchLifecycleController({onRetire:retired => {
   if (archiveRetiredMatch(retired,{storage:localStorage,sendEnabled:host.sendMatchLogs,send:sendMatchLog}).kept) host.storedCounts = storedCounts();}});
@@ -68,8 +78,11 @@ const host = {screen:'entry',mode:'sandbox',tutorialId:'basics',
   catalogOpen:false,catalog:{query:'',expansion:'all',catalogOwner:'player'},tutorialDone:readTutorialDone(globalThis.localStorage),
   // Online play (design §14): open only where a server is set (endpoint.js); the player's profile (online-profile.js) is
   // kept in this browser, and the name screen's draft and its problem live here until it is kept.
-  online:{available:onlineEndpoint({hostname:location.hostname,search:location.search}) !== null,profile:readOnlineProfile(globalThis.localStorage),nameDraft:null,nameProblem:null,
-    code:'',state:null,error:null,copied:false,confirming:false},canShare:typeof navigator.share === 'function'};
+  online:{available:onlineEndpoint({hostname:location.hostname,search:location.search}) !== null,profile:readOnlineProfile(storageNamed('localStorage'),discordProfile()),nameDraft:null,nameProblem:null,
+    login:discordLogin ? {busy:false,error:null} : null,
+    code:'',state:null,error:null,copied:false,confirming:false},canShare:typeof navigator.share === 'function',
+  // 「アイコンを相手に見せる」 (design Q2): on until turned off; off, the room is not shown the login's ticket.
+  discordLogin:Boolean(discordLogin),showAvatar:(() => {try {return localStorage.getItem(SHOW_AVATAR_KEY) !== 'off';} catch {return true;}})()};
 let surface = null, session = null, screenRendered = null, entryLogoVideoFile = null;
 let shellGeneration = 0, adminSerial = 0, press = null, suppressDeckClickUntil = 0;
 installAbilityHelp(root);registerLocalFonts();
@@ -137,7 +150,7 @@ function renderShell(replace = false) {
   syncFlowCrtViewport(root,flowEffects());
   syncEntryLogoGlitch(root,entryEffects(),{profile:host.logoNoiseProfile,videoFile:entryLogoVideoFile});
   syncEntryCrtViewport(root,entryEffects(),{menuOpen:host.options,debugOpen:Boolean(host.options && host.debug),
-    debug:{build:host.build,errors:host.errors,memory:host.memory,renderScale:host.renderScale ?? 1,renderScaleUrl:host.renderScaleUrl,compat:host.render?.mode === 'compat',fxSpeed:host.fxSpeed},view:host.view,fullscreen:host.fullscreen,tapDetails:host.tapDetails,effectsEnabled:host.effectsEnabled,masterVolume:host.masterVolume,storedCounts:host.storedCounts,sendMatchLogs:host.sendMatchLogs,
+    debug:{build:host.build,errors:host.errors,memory:host.memory,renderScale:host.renderScale ?? 1,renderScaleUrl:host.renderScaleUrl,compat:host.render?.mode === 'compat',fxSpeed:host.fxSpeed},view:host.view,fullscreen:host.fullscreen,tapDetails:host.tapDetails,effectsEnabled:host.effectsEnabled,masterVolume:host.masterVolume,storedCounts:host.storedCounts,sendMatchLogs:host.sendMatchLogs,discordLogin:host.discordLogin,showAvatar:host.showAvatar,
     onReadyChange:() => syncLiveInputLocks(root,{optionsOpen:host.options || Boolean(host.debug),entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))})});
   syncLiveInputLocks(root,{optionsOpen:host.options || Boolean(host.debug),entryCrtReady:Boolean(root.querySelector('.r2-entry-crt-ready'))});
   mobileViewport.sync(host.view,host.screen);
@@ -285,12 +298,20 @@ function onlineChanged(state) {
     if (remote.readStamp(remote.viewerSeat()).value?.available) return attachOnline(remote);
     if (awaitedRemote !== remote) {awaitedRemote = remote;const off = remote.onChange(() => {off();if (online && session !== remote) onlineChanged(online.state());});}
   }
-  if (session && session === remote) surface?.configure({online:state.outcome ?? {}});
+  // A login the room did not take: forgotten here, and the player is told how to log in again (design §14.2).
+  if (['invalid','expired'].includes(state.ticketStatus) && discordProfile()) {discordLogin.logout();refreshOnlineProfile();host.online.login.error = 'LOGIN_EXPIRED';}
+  if (session && session === remote) surface?.configure({online:state.outcome ?? {},...avatarsChange(state)});
   syncOnlineTicker();renderShell();
 }
+// The two circles' pictures, given to the match only when they change.
+let shownAvatars = null;
+const avatarsOf = state => ({self:state?.you?.avatar ?? null,opponent:state?.opponent?.avatar ?? null});
+function avatarsChange(state) {const next = avatarsOf(state), key = JSON.stringify(next);if (key === shownAvatars) return {};shownAvatars = key;return {avatars:next};}
+const refreshOnlineProfile = () => {host.online.profile = readOnlineProfile(storageNamed('localStorage'),discordProfile());};
 function attachOnline(remote) {
   lifecycle.leave();host.mode = 'online';host.online.confirming = false;
-  attachSession(remote,{online:host.online.state.outcome ?? {}});
+  shownAvatars = JSON.stringify(avatarsOf(host.online.state));
+  attachSession(remote,{online:host.online.state.outcome ?? {},avatars:avatarsOf(host.online.state)});
   onlineUnwatch?.();onlineUnwatch = remote.onChange(() => surface?.refresh());
   syncOnlineTicker();
 }
@@ -324,7 +345,10 @@ async function enterRoom(join) {
   const code = join ? normalizeRoomCode(host.online.code) : null;
   if (join && !code) {host.online.error = {code:'ROOM_CODE_INVALID'};return renderShell();}
   const name = host.online.profile?.name || undefined;
-  const result = join ? await client.joinRoom(code,{name}) : await client.createRoom({name});
+  // The login's ticket goes with the name only while 「アイコンを相手に見せる」 is on.
+  const ticket = host.showAvatar ? discordLogin?.ticket() ?? undefined : undefined;
+  if (host.online.login?.error === 'LOGIN_EXPIRED') host.online.login.error = null;
+  const result = join ? await client.joinRoom(code,{name,ticket}) : await client.createRoom({name,ticket});
   if (result.ok) goTo(nextScreen(host.screen,'room'));else renderShell();
 }
 async function copyRoomCode() {
@@ -336,8 +360,32 @@ async function copyRoomCode() {
 function keepOnlineName() {
   const draft = host.online.nameDraft ?? host.online.profile?.name ?? '', problem = onlineNameProblem(draft);
   if (problem) {host.online.nameProblem = problem;return renderShell();}
-  Object.assign(host.online,{profile:saveOnlineProfile(globalThis.localStorage,draft),nameDraft:null,nameProblem:null});
+  Object.assign(host.online,{profile:saveOnlineProfile(storageNamed('localStorage'),draft,discordProfile()),nameDraft:null,nameProblem:null});
   goTo(nextScreen('online-name','done'));
+}
+// [Discordでログイン]: the page goes to Discord; it stays only when the way out failed, saying why.
+async function loginWithDiscord() {
+  const login = host.online.login;if (!discordLogin || !login || login.busy) return;
+  Object.assign(login,{busy:true,error:null});renderShell();
+  const result = await startDiscordLogin(discordLogin,{session:storageNamed('sessionStorage')});
+  if (!result.ok) {Object.assign(login,{busy:false,error:result.error?.code ?? 'DISCORD_ERROR'});renderShell();}
+}
+// Back from Discord: in, the Discord name becomes the first choice (Q2) and the door opens; out, the name screen says why
+// and the player can still type a name.
+// The screen opens once the boot splash has played (the page is hidden until then), so the title slides to it as usual.
+const bootDone = () => new Promise(resolve => {
+  if (document.body.classList.contains('boot-done') || !document.querySelector('#boot-splash')) return resolve();
+  const watch = new MutationObserver(() => {if (document.body.classList.contains('boot-done')) {watch.disconnect();resolve();}});
+  watch.observe(document.body,{attributes:true,attributeFilter:['class']});
+});
+async function finishLoginOnReturn() {
+  if (!discordLogin) return;
+  const result = await finishDiscordLogin(discordLogin);
+  if (!result) return;
+  await bootDone();
+  if (result.ok) {preferDiscordName(storageNamed('localStorage'));refreshOnlineProfile();host.online.login.error = null;host.online.nameDraft = null;return goTo('online-entry');}
+  host.online.login.error = result.error?.code ?? 'DISCORD_ERROR';
+  goTo('online-name');
 }
 function shareRoomCode() {void navigator.share?.({text:`Siege÷Zeke の部屋コード：${host.online.state?.display ?? ''}`}).catch(() => {});}
 function newDeckDraft() {host.deckBuilder.draft = normalizeSavedDeck({name:'新規デッキ',userId:'doors_zx',cards:{}},'');}
@@ -365,6 +413,9 @@ root.addEventListener('click',event => {
   if (d.flow) return goTo(nextScreen(host.screen,d.flow));
   if (button.hasAttribute('data-flow-back')) return goTo(backScreen(host.screen,{named:Boolean(host.online.profile)}));
   if (button.hasAttribute('data-online-name-save')) return keepOnlineName();
+  if (button.hasAttribute('data-online-login')) return void loginWithDiscord();
+  if (button.hasAttribute('data-online-logout')) {discordLogin?.logout();refreshOnlineProfile();Object.assign(host.online,{nameDraft:null,nameProblem:null});host.online.login.error = null;return renderShell();}
+  if (d.onlineNamePick) {const profile = host.online.profile;host.online.nameDraft = d.onlineNamePick === 'discord' ? profile?.discordName ?? '' : profile?.typedName ?? '';host.online.nameProblem = null;return renderShell();}
   if (d.start) return prepared(() => startMatch(d.start,d.start === 'tutorial' ? d.tutorialId : host.tutorialId));
   if (button.hasAttribute('data-online-battle')) return onOnlineBattle();
   if (button.matches('[data-online-create],[data-online-join],[data-flow="open-join"]') && button.getAttribute('aria-disabled') === 'true') return;
@@ -411,6 +462,7 @@ root.addEventListener('click',event => {
   else if (d.storedExport) {const place = d.storedExport === 'logs' ? MATCH_LOGS : REPLAYS;downloadStored(d.storedExport,place,loadStored(localStorage,place));return;}
   else if (button.hasAttribute('data-toggle-send-logs')) {host.sendMatchLogs = !host.sendMatchLogs;localStorage.setItem(SEND_LOGS_STORAGE_KEY,host.sendMatchLogs ? 'on' : 'off');}
   else if (button.hasAttribute('data-title-tap-details')) {host.tapDetails = !host.tapDetails;surface?.configure({tapDetails:host.tapDetails});}
+  else if (button.hasAttribute('data-toggle-show-avatar')) {host.showAvatar = !host.showAvatar;try {localStorage.setItem(SHOW_AVATAR_KEY,host.showAvatar ? 'on' : 'off');} catch {/* this page only */}}
   else if (button.hasAttribute('data-toggle-effects')) {host.effectsEnabled = !host.effectsEnabled;localStorage.setItem('sz-ui-effects',host.effectsEnabled ? 'on' : 'off');surface?.configure({effectsEnabled:host.effectsEnabled});}
   else if (d.renderMode) return setRenderPreference(d.renderMode);
   else if (d.volume) {host.masterVolume = Number(d.volume);localStorage.setItem('sz-master-volume',String(host.masterVolume));}
@@ -473,6 +525,7 @@ document.addEventListener('keydown',event => {if (event.key === 'Escape' && !eve
 document.addEventListener('keydown',event => {if (event.key === 'Enter' && event.target.matches?.('[data-online-code]')) void enterRoom(true);});
 // Enter in the name field keeps the name, as its 決定 does.
 document.addEventListener('keydown',event => {if (event.key === 'Enter' && event.target.matches?.('[data-online-name]')) keepOnlineName();});
+void finishLoginOnReturn();
 window.addEventListener('pagehide',() => {markWonTutorial();clearPress();mobileViewport.dispose();archiveOnline();online?.dispose();lifecycle.dispose();surface = null;session = null;});
 window.addEventListener('pageshow',event => {if (event.persisted) location.reload();});
 renderShell(true);registerPwa();

@@ -314,7 +314,9 @@ function mount(entry, initialOptions = {}) {
           ["PC版", options.view === "pc", '[data-view="pc"]'],
           ["モバイル版", options.view === "mobile", '[data-view="mobile"]'],
           ["通常タップで詳細", Boolean(options.tapDetails), '[data-title-tap-details]'],
-          ["演出", Boolean(options.effectsEnabled), '[data-toggle-effects]']
+          ["演出", Boolean(options.effectsEnabled), '[data-toggle-effects]'],
+          // Only where the Discord login is offered (config/discord-login.js); on until the player turns it off.
+          ...(options.discordLogin ? [["アイコンを相手に見せる", options.showAvatar !== false, '[data-toggle-show-avatar]']] : [])
         ];
         const items = [];
         let cursor = panel.height * .04;

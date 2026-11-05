@@ -1,10 +1,11 @@
 import { panelHeadHtml } from "./cyber-panel.js";
 import { onlineNameProblemText } from "./online-profile.js";
+import { loginErrorText } from "./online-login.js";
 
 // Online play (design: サーバー設計-詳細.md §14.1): the door, the code to join, the room until both are ready, and what the
 // match adds over the board (the opponent's name and line, the player's own reconnecting, 投了). DOM-free: every screen is
-// drawn from `host.online` ({ available, profile, nameDraft, nameProblem, code, state: online-client.js state, error, copied, confirming })
-// and a clock.
+// drawn from `host.online` ({ available, profile, nameDraft, nameProblem, login, code, state: online-client.js state, error, copied,
+// confirming }) and a clock. login, only where the Discord login is offered (config/discord-login.js): { busy, error }.
 const esc = value => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 const head = (id, title, back = "戻る") => `<header class="r2-flow-head"><button class="r2-flow-back" data-flow-back>${back}</button><h1 id="${id}">${title}</h1></header>`;
 
@@ -46,15 +47,30 @@ const section = (screen, title, body) => `<section class="r2-flow r2-flow-online
 const busyAttr = busy => busy ? ' aria-disabled="true" data-busy' : "";
 
 // The name the opponent sees (online-profile.js), asked the first time [オンライン対戦] opens and again from the door's
-// [変更] (文豪, 2026-11-05). 1–16 characters; kept in this browser.
+// [変更] (文豪, 2026-11-05). 1–16 characters; kept in this browser. Where the Discord login is offered, the screen also logs
+// in and out (design Q1: before a room only; Q7: words only, no Discord logo), and offers the Discord name or the typed one.
 export function onlineNameHtml(host) {
   const online = host.online ?? {}, value = online.nameDraft ?? online.profile?.name ?? "";
   const problem = onlineNameProblemText(online.nameProblem);
+  const profile = online.profile;
+  const choices = profile?.discordName ? [profile.discordName !== value && `<button data-online-name-pick="discord">Discordの名前にする</button>`,
+    profile.typedName && profile.typedName !== value && profile.typedName !== profile.discordName && `<button data-online-name-pick="typed">登録した名前に戻す</button>`].filter(Boolean).join("") : "";
   return section("online-name", "名前", `${head("r2-flow-online-name-title", online.profile ? "名前の変更" : "名前の登録")}`
     + `<p class="r2-flow-lead">オンライン対戦で相手に見える名前です（1〜16文字）。このブラウザに保存します。</p>`
     + `<label class="r2-online-code-field r2-online-name-field">名前<input data-online-name maxlength="16" autocomplete="nickname" enterkeyhint="done" spellcheck="false" value="${esc(value)}" placeholder="ゲスト"${problem ? ' aria-invalid="true"' : ""}></label>`
-    + `<div class="r2-flow-actions"><button class="r2-flow-primary" data-online-name-save>決定</button></div>`
-    + (problem ? `<p class="r2-flow-error" role="alert">${esc(problem)}</p>` : ""));
+    + `<div class="r2-flow-actions"><button class="r2-flow-primary" data-online-name-save>決定</button>${choices}</div>`
+    + (problem ? `<p class="r2-flow-error" role="alert">${esc(problem)}</p>` : "") + (online.login ? discordLoginHtml(online) : ""));
+}
+
+// The Discord part of the name screen: out, the button and what the opponent will see; in, who is logged in and ログアウト.
+function discordLoginHtml(online) {
+  const login = online.login, name = online.profile?.discordName;
+  const error = loginErrorText(login.error);
+  const body = name
+    ? `<p>Discord：<b>${esc(name)}</b> でログイン中</p><button data-online-logout>ログアウト</button>`
+    : `<p>Discordでログインすると、Discordの名前とアイコンを使えます。アイコンは対戦相手の画面に出ます（Discordのアカウントが分かる形です）。</p>`
+      + `<button data-online-login${busyAttr(login.busy)}>${login.busy ? "Discordへ移動しています…" : "Discordでログイン"}</button>`;
+  return `<div class="r2-online-login" data-logged-in="${Boolean(name)}">${body}</div>${error ? `<p class="r2-flow-error" role="alert">${esc(error)}</p>` : ""}`;
 }
 
 // The door: the kept name with its [変更], the deck and user to play, and the two ways in. Without a server the ways are shut.
@@ -92,6 +108,8 @@ export function onlineRoomHtml(host, { now, deckName = "", userName = "", oppone
   const online = host.online ?? {}, state = online.state ?? {}, you = state.you, opponent = state.opponent;
   const left = secondsLeft(state.expiresAt, now);
   const connection = state.connection === "reconnecting" ? `<p class="r2-online-wait" role="status">再接続しています…（${state.attempt ?? 1}回目）</p>` : "";
+  // A Discord login the room did not take (expired, or no longer valid): the player is in as a guest, without the picture.
+  const relogin = online.login?.error === "LOGIN_EXPIRED" ? `<p class="r2-online-wait" role="status">Discordのログインの期限が切れたため、アイコンは出ません。入口の［変更］からもう一度ログインできます。</p>` : "";
   const waiting = !opponent;
   const code = `<div class="r2-online-code${waiting ? "" : " is-small"}" aria-label="部屋コード"><b>${esc(state.display ?? "")}</b></div>`;
   const share = `<div class="r2-flow-actions"><button data-online-copy>${online.copied ? "コピーしました" : "コピー"}</button>${canShare ? "<button data-online-share>共有</button>" : ""}</div>`;
@@ -101,7 +119,7 @@ export function onlineRoomHtml(host, { now, deckName = "", userName = "", oppone
     : `${code}<div class="r2-online-seats">${seatHtml(you, "you", { deckName, userName })}${seatHtml(opponent, "opponent", { userName: opponentUserName })}</div>`
       + `<div class="r2-flow-actions">${you?.ready ? '<button data-online-unready>準備をやめる</button>' : '<button class="r2-flow-primary" data-online-ready>準備完了</button>'}</div>`
       + `<p class="r2-online-wait" role="status">${you?.ready ? "相手の準備を待っています…" : "準備完了を押すと、両者そろったところで対戦が始まります。"}${left !== null ? `<span>あと ${clock(left)}</span>` : ""}</p>`;
-  return section("online-room", "部屋", `${head("r2-flow-online-room-title", "部屋", "部屋を閉じる")}${body}${connection}${errorLine(online)}`);
+  return section("online-room", "部屋", `${head("r2-flow-online-room-title", "部屋", "部屋を閉じる")}${body}${connection}${relogin}${errorLine(online)}`);
 }
 
 // Over the board in an online match: who the opponent is and whether their line holds, the player's own reconnecting
