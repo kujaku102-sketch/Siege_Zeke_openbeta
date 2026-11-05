@@ -18,11 +18,12 @@ const memory = (entries = {}) => { const map = new Map(Object.entries(entries));
 const AVATAR = 'https://cdn.discordapp.com/avatars/80351110224678912/a1b2c3d4e5f60718293a4b5c6d7e8f90.png?size=128';
 const discord = { name: 'ゆうき', avatarUrl: AVATAR, expiresAt: 2_000_000_000_000 };
 
-test('the login is off until it is switched on in one place; a page on this PC may turn it on with ?discord=1', () => {
-  assert.equal(DISCORD_LOGIN_ENABLED, false, 'off: no public page shows it yet');
-  assert.equal(discordLoginShown({ hostname: 'siegezeke.online', search: '?discord=1' }), false, 'the query is ignored on the site');
+test('the login is shown by one switch; while it is off, only a page on this PC may turn it on with ?discord=1', () => {
+  assert.equal(typeof DISCORD_LOGIN_ENABLED, 'boolean');
+  assert.equal(discordLoginShown({ hostname: 'siegezeke.online', search: '?discord=1', enabled: false }), false, 'the query is ignored on the site');
+  assert.equal(discordLoginShown({ hostname: 'siegezeke.online', search: '', enabled: false }), false, 'off: nothing shown on the site');
   for (const hostname of ['127.0.0.1', 'localhost', '[::1]']) assert.equal(discordLoginShown({ hostname, search: '?online=x&discord=1' }), true, hostname);
-  for (const search of ['', '?discord=0', '?discord=true', '?discord']) assert.equal(discordLoginShown({ hostname: '127.0.0.1', search }), false, search);
+  for (const search of ['', '?discord=0', '?discord=true', '?discord']) assert.equal(discordLoginShown({ hostname: '127.0.0.1', search, enabled: false }), false, search);
   assert.equal(discordLoginShown({ hostname: 'siegezeke.online', search: '', enabled: true }), true, 'switched on, everywhere');
 });
 
