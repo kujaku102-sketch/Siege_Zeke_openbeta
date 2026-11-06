@@ -12,7 +12,7 @@ export const START_DECKS = Object.freeze([
   Object.freeze({ id: "start-black", name: "黒・破壊誘発", color: "黒", userId: "doors_zx", tactic: "自分のObを壊してログアウトとドローを稼ぎ、デコードで戻す",
     cards: Object.freeze({ "STD-150": 3, "STD-151": 3, "STD-154": 3, "STD-155": 3, "STD-152": 2, "STD-153": 3, "STD-156": 3, "STD-157": 2, "STD-158": 2, "STD-162": 2, "STD-163": 3, "STD-168": 1, "STD-167": 2, "STD-036": 3, "STD-046": 3, "STD-033": 2 }) }),
   Object.freeze({ id: "start-green", name: "緑・インセクト・Script", color: "緑", userId: "doors_zx", tactic: "裏向きの罠を並べ、起動のたびにObが強くなる",
-    cards: Object.freeze({ "STD-173": 3, "STD-174": 3, "STD-175": 3, "STD-176": 3, "STD-179": 3, "STD-180": 3, "STD-181": 2, "STD-182": 2, "STD-183": 2, "STD-184": 3, "STD-185": 1, "STD-186": 3, "STD-036": 3, "STD-001": 3, "STD-018": 3 }) }),
+    cards: Object.freeze({ "STD-173": 3, "STD-174": 3, "STD-175": 3, "STD-176": 3, "STD-177": 3, "STD-178": 2, "STD-179": 3, "STD-180": 3, "STD-181": 2, "STD-182": 3, "STD-183": 2, "STD-184": 3, "STD-185": 1, "STD-186": 3, "STD-239": 3 }) }),
   Object.freeze({ id: "start-orange", name: "橙・微橙院", color: "橙", userId: "doors_zx", tactic: "レジストリへの出し入れでダメージとメモリを稼ぐ",
     cards: Object.freeze({ "STD-213": 3, "STD-215": 3, "STD-216": 3, "STD-217": 3, "STD-220": 3, "STD-221": 3, "STD-214": 2, "STD-218": 2, "STD-222": 2, "STD-223": 3, "STD-225": 1, "STD-219": 1, "STD-236": 1, "STD-230": 1, "STD-021": 3, "STD-014": 3, "STD-004": 3 }) }),
 ]);
