@@ -12,6 +12,7 @@ import { abilityTextHtml } from '../ui/ability-help.js';
 import { cardArtProfile } from '../data/card-art-profiles.js';
 import { runtimeComponentRowsHtml } from '../ui/runtime-components.js';
 import { tutorialNavigator } from '../data/navigator-assets.js';
+import { guideQuoteHtml } from './guide.js';
 import { effectFocus, effectTextHtml } from './effect-flow.js';
 import { panelHeadHtml } from './cyber-panel.js';
 import { userDetailHtml } from './user-detail-view.js';
@@ -231,7 +232,7 @@ function guideHtml(tutorial) {
   }, html);
   // A step whose line says to press 『開始』 names its [次へ] so, from its focus's label (文豪, 2026-11-03, 案の1).
   const advance = presentation.focus?.find(focus => focus.kind === 'action' && focus.action === 'tutorial-advance')?.label ?? '次へ';
-  const text = (presentation.parts ?? [page.text]).map(part => typeof part === 'string' ? iconed(esc(part)) : `<ruby>${esc(part.ruby)}<rt>${esc(part.rt)}</rt></ruby>`).join('');
+  const text = (presentation.parts ?? [page.text]).map(part => typeof part === 'string' ? guideQuoteHtml(iconed(esc(part))) :`<ruby>${esc(part.ruby)}<rt>${esc(part.rt)}</rt></ruby>`).join('');
   return `<aside class="r2-guide live-guide" aria-label="チュートリアル"${page.pending ? ' data-paging="pending"' : ''} data-guide-page="${page.index + 1}/${page.count}" data-tutorial-step="${flow.introComplete ? `${flow.tutorialId}:${flow.index}` : `intro:${flow.introIndex}`}"><div class="live-guide-cast">${portrait}</div><div class="live-guide-speech"><div class="live-guide-head"><strong class="live-guide-name">${esc(presentation.speaker)}</strong><nav>${page.count > 1 ? `<small class="live-guide-page" aria-label="${page.index + 1}ページ目／全${page.count}ページ">${page.index + 1}/${page.count}</small>` : ''}<span class="live-guide-turn">${page.index > 0 ? '<button class="live-guide-prev" data-runtime-guide-prev>◂ 戻る</button>' : ''}${page.pending ? '' : !page.last ? '<button class="live-guide-next" data-runtime-guide-next>次へ ▸</button>' : complete ? '<button class="live-guide-next" data-runtime-tutorial-finish>次へ ▸</button>' : presentation.intro || presentation.expect?.type === 'advance' && !presentation.expect.press ? `<button class="live-guide-next" data-runtime-tutorial-next>${esc(advance)} ▸</button>` : ''}</span></nav></div><div class="live-guide-text" tabindex="0" role="region" aria-label="チュートリアルのセリフ" aria-live="polite"><p>${text}</p>${(flow.error || tutorial.note) && !complete ? `<p class="live-guide-error" role="alert">${esc(flow.error || tutorial.note)}</p>` : ''}</div></div></aside>`;
 }
 function artHtml(model,presentation) {

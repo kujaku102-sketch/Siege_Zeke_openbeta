@@ -60,6 +60,14 @@ function headHeight(head) {
   return Math.max(height, head.getBoundingClientRect().height);
 }
 
+// A name in 『』 goes to the next line whole when it fits on one (live.css: keep-all, a longer one still wraps), so
+// the line and its counter both wrap each name in a span (文豪, 2026-11-06). html: the line, escaped; a keyword icon
+// inside the brackets stays in the span.
+export function guideQuoteHtml(html) {
+  return html.replace(/『[^『』]*』/g, quote => `<span class="live-guide-quote">${quote}</span>`);
+}
+const escapeText = value => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
 // Lines a text takes in the speech frame as laid out on this screen: a hidden twin of the dialogue line set to
 // the text column's width, so the count follows the real font, letter spacing and wrapping (kinsoku included).
 // frameHeight(text): the frame a page needs, its text plus one free line for a refused move's reason under it,
@@ -76,7 +84,7 @@ export function createGuideLineCounter(guide) {
   const lineHeight = parseFloat(getComputedStyle(probe).lineHeight) || 1;
   const head = guide.querySelector(".live-guide-head"), headNow = head?.getBoundingClientRect().height ?? 0;
   const chrome = speech.getBoundingClientRect().height - text.clientHeight + Math.max(0, headHeight(head) - headNow);
-  const count = value => { probe.textContent = value; return Math.max(1, Math.round(probe.getBoundingClientRect().height / lineHeight)); };
+  const count = value => { probe.innerHTML = guideQuoteHtml(escapeText(value)); return Math.max(1, Math.round(probe.getBoundingClientRect().height / lineHeight)); };
   return {
     width,
     lineHeight,
