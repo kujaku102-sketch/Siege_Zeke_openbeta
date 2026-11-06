@@ -1,6 +1,7 @@
 /* Full artwork behind a compact, readable inspector. No changes to game actions. */
+/* The width (--detail-width) is set where the match view lays the detail out: wireframe/board.css on a PC, live.css on
+   a phone; the art's clear top and the scrolling over it are in hud-skin.css. */
 .r2-content .r2-detail {
-  --detail-width:calc(var(--u) * 17.25);
   --detail-base:#18181b;
   /* 1920 CSS px reference: info 10pt, body 11pt, title 16px.
      Below 8pt, readability takes priority over a fixed viewport ratio. */
@@ -11,7 +12,6 @@
   border-radius:calc(var(--u) * .5); background:var(--detail-base); isolation:isolate;
   box-shadow:0 8px 28px #0006; overflow:hidden; scrollbar-width:thin;
 }
-body[data-view="mobile"] .r2-content .r2-detail { --detail-width:calc(var(--u) * 11.5); }
 body[data-view="mobile"] .r2-content .r2-detail { padding:0; }
 .r2-content .r2-detail>header {
   position:relative; z-index:3; flex:none; min-height:calc(var(--u) * 2.625); margin:0; padding:calc(var(--u) * .375) calc(var(--u) * .5);
