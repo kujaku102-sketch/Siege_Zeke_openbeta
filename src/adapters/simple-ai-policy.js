@@ -164,6 +164,10 @@ function requiredInputAction(input, query) {
   if (input.constraints?.kind === 'random') return {
     type: 'answerChoice', choiceId: input.choiceId, optionIds: [], allocation: []
   };
+  // The cost of an attack that was declared: it is paid when it can be (taking nothing fails the declaration), whatever else is optional.
+  if (input.purpose === 'attack-declaration-cost' && input.options?.length) return {
+    type: 'answerChoice', choiceId: input.choiceId, optionIds: [rotated(input.options, answerAttempt(query, input))[0].optionId], allocation: []
+  };
   if (input.optional) return { type: 'declineChoice', choiceId: input.choiceId };
   const options = rotated(input.options, answerAttempt(query, input));
   if (input.constraints?.kind === 'allocation') {
