@@ -6,6 +6,9 @@ body { overflow:hidden; }
 .r2-content .r2-popup { z-index:22; }
 .r2-hand-host,.r2-hand,.r2-hand-scroll { pointer-events:none; }
 .r2-hand .hand-card,.r2-hand .card { pointer-events:auto; }
+/* A card's name strip grows to the lines its name takes (two for a long one), never shorter than its one-line height:
+   a fixed height cut a two-line name's foot (文豪, 2026-11-07: 「直す」). */
+.r2-content .card .card-name { height:auto; min-height:calc(var(--card-name-base,calc(var(--u) * 1.5)) * .75); line-height:1.3; padding-block:.12em; }
 .r2-console { max-height:calc(100svh - calc(var(--u) * 7.5)); overflow-y:auto; overflow-x:hidden; }
 .r2-console>.controls { display:flex; flex-direction:column; }
 .r2-console>span { font:max(.625rem, calc(var(--u) * .625)) monospace; }
@@ -68,7 +71,7 @@ body { overflow:hidden; }
    still breaks after a /); a longer one wraps inside its box, as wide as the line at most (the p's overflow-wrap).
    The line and the counter's twin both wrap it in this span (guide.js, guideQuoteHtml). */
 .live-guide-text .live-guide-quote { display:inline-block; max-width:100%; word-break:keep-all; }
-.live-guide nav { position:relative; z-index:1; grid-area:nav; display:grid; grid-template-columns:auto; grid-template-rows:auto minmax(0,1fr) auto; grid-template-areas:"page" "." "turn";
+.live-guide nav { position:relative; z-index:1; grid-area:nav; display:grid; grid-template-columns:auto; grid-template-rows:auto auto minmax(0,1fr) auto; grid-template-areas:"tuck" "page" "." "turn";
   align-items:center; justify-items:end; gap:0 .4em; margin:0 0 0 .6em; min-height:0; }
 /* 2.75rem: the 44px touch target, kept relative to the reader's text size. */
 .r2-content .r2-guide.live-guide button { min-height:2.75rem; min-width:2.75rem; margin:0; padding:0 .7em; border:.0625em solid #3a9d5d; border-radius:.35em; background:#122a28; color:#f3fff4;
@@ -76,6 +79,21 @@ body { overflow:hidden; }
 .r2-content .r2-guide.live-guide button:focus-visible { outline:.125em solid #f9df8a; outline-offset:.125em; }
 .r2-content .r2-guide.live-guide .live-guide-error { margin:.15em 0 0; color:#ffe066; }
 .r2-content .r2-guide.live-guide .live-guide-next { min-width:5em; border-color:var(--gd-a); background:#0f3a24; color:var(--gd-a); text-shadow:0 0 .4em #00ff0088; }
+/* セリフ退避 (文豪, 2026-11-07): [▾ 隠す] heads the buttons of a line only to read. */
+.r2-content .r2-guide.live-guide .live-guide-tuck { grid-area:tuck; min-width:0; padding:0 .5em; font-size:.75em; color:var(--gd-dim); border-color:color-mix(in srgb,var(--gd-a) 45%,transparent); background:transparent; }
+/* A phone's button column has no room for it ([戻る] over [次へ] fill the frame): it sits at the right end of the
+   speaker's line instead, a line high, its tap area reaching past it to the 44px floor, so the frame is no taller. */
+body[data-view="mobile"] .r2-content .r2-guide.live-guide .live-guide-tuck { position:absolute; top:0; right:calc(100% + .6em); min-height:0; height:1.6em; font-size:.7em; line-height:1; z-index:2; }
+body[data-view="mobile"] .r2-content .r2-guide.live-guide .live-guide-tuck::after { content:""; position:absolute; inset:calc((2.75rem - 1.6em) / -2) -.4em; }
+/* The speaker's tab while the line is put away or tucked: the speaker's name only, pressed (or Enter) to bring the line
+   back. Sizes from the match view's own (--wf-hit, --wf-font). Under the gear at the top left while the guide's band is
+   the top one; above the hand's left end in the others (文豪 to decide from the pictures). Over any open panel, as the
+   guide itself is, so it can always be pressed (under a choice it could not). */
+.r2-content .r2-wireframe-view .live-guide-tab { position:absolute; z-index:calc(var(--z-modal) + 1); left:var(--wf-left); top:calc(var(--wf-top) + max(calc(var(--wf-hit) * .87),7.8cqh) + 1.5cqh);
+  min-height:var(--wf-hit); margin:0; padding:0 .75em; border:.125em solid #00ff00; border-radius:.6em; background:color-mix(in srgb,#071015 88%,transparent);
+  color:#00ff00; font:400 var(--wf-font)/1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.08em; text-shadow:0 0 .4em #00ff0088; box-shadow:0 0 .6em #00ff0055; cursor:pointer; pointer-events:auto; }
+.r2-content .r2-wireframe-view:is([data-guide-band="middle"],[data-guide-band="bottom"]) .live-guide-tab { top:auto; left:22.5%; bottom:calc(max(var(--wf-hit),12cqh) + 1.5cqh); }
+.r2-content .r2-wireframe-view .live-guide-tab:focus-visible { outline:.125em solid #f9df8a; outline-offset:.125em; }
 /* Guide pages: the number above the buttons, [戻る] over [次へ] (on a PC beside it). Until the screen's pages are cut (one frame, longer
    on a busy device) the whole line shows, clipped to the frame, so the guide is never empty. */
 .live-guide-turn { grid-area:turn; display:flex; flex-direction:column; align-items:stretch; gap:.25em; }

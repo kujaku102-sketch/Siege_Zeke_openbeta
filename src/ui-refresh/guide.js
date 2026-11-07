@@ -45,14 +45,14 @@ export function guideNavHeight(guide) {
   return Math.ceil(items.reduce((sum, height) => sum + height, 0) + sides);
 }
 
-// The head's height with every button a page shows ([n/m], [戻る], [次へ]): on a PC the buttons drop under the name
-// where its line is too short, as a later page's [戻る] may make them on a narrow frame (a 4:3 screen), so the frame
-// is sized for that from the first page (文豪, 2026-11-04). A phone's head is no box (its buttons a column): as it is.
+// The head's height with every button a page may show ([▾ 隠す], [n/m], [戻る], [次へ]): on a PC the buttons drop under the name where its line is too short, as a later page's [戻る] may
+// make them on a narrow frame (a 4:3 screen), so the frame is sized for that from the first page (文豪, 2026-11-04).
+// A phone's head is no box (its buttons a column): as it is.
 function headHeight(head) {
   if (!head || head.ownerDocument.defaultView.getComputedStyle(head).display === "contents") return head?.getBoundingClientRect().height ?? 0;
   const twin = head.cloneNode(true);
   twin.setAttribute("aria-hidden", "true");
-  twin.querySelector("nav").innerHTML = '<small class="live-guide-page">9/9</small><span class="live-guide-turn"><button class="live-guide-prev" tabindex="-1">◂ 戻る</button><button class="live-guide-next" tabindex="-1">次へ ▸</button></span>';
+  twin.querySelector("nav").innerHTML = '<button class="live-guide-tuck" tabindex="-1">▾ 隠す</button><small class="live-guide-page">9/9</small><span class="live-guide-turn"><button class="live-guide-prev" tabindex="-1">◂ 戻る</button><button class="live-guide-next" tabindex="-1">次へ ▸</button></span>';
   twin.style.cssText = `position:absolute;left:0;top:0;width:${head.clientWidth}px;visibility:hidden;pointer-events:none`;
   head.parentElement.append(twin);
   const height = twin.getBoundingClientRect().height;
