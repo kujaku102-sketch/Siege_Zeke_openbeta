@@ -109,13 +109,11 @@ function endDeclaredAttack(state, playerId, attacker) {
   return true;
 }
 
-// A declared attack fails when its declaration cost is not paid (rulebook 5.0, 5.2). The declaration itself failed: no attack-declared event, no ambush window,
-// no battle, no damage. (Whether the attacker sleeps is still to be decided: today it sleeps and "attacked this turn" stays true; 5.0 says that fact alone does
-// not forbid a later attack, the sleeping does.)
-function failAttack(state, playerId, attacker, targetUid) {
+// A declaration whose cost is not paid fails (rulebook 5.0, 5.2; 文豪: the declaration itself failed, and the attacker sleeps). No attack-declared event, no ambush
+// window, no battle, no damage. The attack was not made, so the marks of an attack that was made (attackedThisTurn, attackedObThisTurn) are not set; the sleeping
+// is what stops a second attempt.
+function failAttack(state, playerId, attacker) {
   setCardSleeping(state, playerId, attacker);
-  attacker.attackedThisTurn = true;
-  if (targetUid !== `${otherPlayer(playerId)}-fortress`) attacker.attackedObThisTurn = true;
   return true;
 }
 
@@ -129,7 +127,7 @@ function declarationCost(state, playerId, attacker, targetUid) {
   const candidates = state.players[playerId][spec.source].filter((card) => !spec.faceUp || card.faceDown !== true);
   if (candidates.length === 0) {
     addLog(state, `${attacker.name}: ${SOURCE_LABEL[spec.source]}から手札に加えられず攻撃宣言に失敗。`, "effect");
-    return failAttack(state, playerId, attacker, targetUid);
+    return failAttack(state, playerId, attacker);
   }
   const request = createSelectionRequest({ mode: "up_to", candidates: candidates.map((card) => card.uid), minimum: 0, maximum: spec.count,
     candidateLabels: Object.fromEntries(candidates.map((card) => [card.uid, card.name])), label: `${attacker.name}: 攻撃宣言時に${SOURCE_LABEL[spec.source]}から手札に加える`,
@@ -147,7 +145,7 @@ export function attackDeclarationCostSelection(state, continuation, result, play
   const cards = selected.map((uid) => player[spec.source].find((card) => card.uid === uid && (!spec.faceUp || card.faceDown !== true)));
   if (cards.some((card) => !card)) return false;
   state.pending = null;
-  if (cards.length === 0) return failAttack(state, playerId, attacker, continuation.targetUid);
+  if (cards.length === 0) return failAttack(state, playerId, attacker);
   for (const card of cards) {
     player[spec.source].splice(player[spec.source].indexOf(card), 1);
     player.hand.push(card);
