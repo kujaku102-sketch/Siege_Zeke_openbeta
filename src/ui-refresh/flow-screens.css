@@ -5,12 +5,15 @@
    wide as the black margin beside the stage (min(100vw,140dvh) wide), wrapping its text to fit;
    only a near-4:3 screen with no margin lets it reach over the stage's corner. */
 .r2-title-links { position:fixed; z-index:24; right:calc(.5rem + env(safe-area-inset-right,0rem)); bottom:calc(.5rem + env(safe-area-inset-bottom,0rem));
-  display:flex; flex-direction:column; align-items:stretch; gap:.25rem; width:max(7rem,min(16rem,calc((100vw - min(100vw,140dvh)) / 2 - 1rem))); }
+  display:flex; flex-direction:column; align-items:stretch; gap:.25rem; width:max(8rem,min(16rem,calc((100vw - min(100vw,140dvh)) / 2 - 1rem))); }
+/* 8rem holds クライアントを on one line at its largest type (7rem split it as クライアント/を at 1024x768 and 1280x720). */
 .r2-title-link { display:flex; flex-wrap:wrap; align-items:center; column-gap:.5em; min-height:2.75rem; box-sizing:border-box; padding:.2em .6em; border:.0625rem solid #00ff0080; background:#000000d9;
   color:#00ff00; font:400 clamp(.7rem,2.2dvh,.95rem)/1.2 SZDotGothic,"Yu Gothic UI",sans-serif; text-decoration:none; overflow-wrap:anywhere; }
 .r2-title-link:focus-visible { outline:.125rem solid #00ff00; outline-offset:.125rem; }
 .r2-title-link.is-pending { border-color:#4a4a4a; color:#8a8a8a; cursor:default; }
 .r2-title-link small { font-size:max(.8em,.6875rem); color:#6f6f6f; }
+/* The label breaks between its phrases only (runtime-shell-view.js); a phrase wider than the link still wraps inside. */
+.r2-title-label>span { display:inline-block; max-width:100%; word-break:keep-all; }
 
 /* Flow screens: a white sheet on black like the title stage, scrolling inside itself when the
    viewport is short, never shrinking the text below its floor. */
@@ -86,6 +89,13 @@
 .r2-online-login b { font-weight:400; color:#111820; }
 .r2-online-privacy { display:inline-flex; align-items:center; min-height:2.75rem; color:#111820; font-size:.85em; }
 .r2-online-privacy:focus-visible { outline:.125rem solid #111820; outline-offset:.125rem; }
+/* A short landscape screen (852x393) fits the whole name screen without a scroll bar: its space between parts follows
+   the screen's height down to a smaller floor (it ran 5.3% past the screen there); the 44 CSS px tap floors stay. */
+@media (max-height:30rem) {
+  .r2-flow-online .r2-online-code-field { margin-block:clamp(.25rem,1.5dvh,1.5rem); }
+  .r2-flow-online .r2-flow-actions { margin-top:clamp(.25rem,1.5dvh,1.5rem); }
+  .r2-flow-online .r2-online-login { margin-top:clamp(.375rem,2dvh,2rem); padding-top:clamp(.25rem,1.5dvh,1.25rem); }
+}
 .r2-online-code { margin:clamp(.5rem,3dvh,1.5rem) 0; text-align:center; }
 .r2-online-code b { display:inline-block; padding:.1em .35em; border:.0625rem solid #111820; font:400 clamp(2.25rem,15dvh,6.5rem)/1 SZDotGothic,"Yu Gothic UI",sans-serif; letter-spacing:.1em; user-select:all; }
 .r2-online-code.is-small b { font-size:clamp(1.25rem,6dvh,2.25rem); }
