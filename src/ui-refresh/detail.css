@@ -1,6 +1,6 @@
 /* Full artwork behind a compact, readable inspector. No changes to game actions. */
 /* The width (--detail-width) is set where the match view lays the detail out: wireframe/board.css on a PC, live.css on
-   a phone; the art's clear top and the scrolling over it are in hud-skin.css. */
+   a phone; the fixed head and name, the art's clear top and the body scrolling over it are in hud-skin.css. */
 .r2-content .r2-detail {
   --detail-base:#18181b;
   /* 1920 CSS px reference: info 10pt, body 11pt, title 16px.
@@ -17,7 +17,7 @@ body[data-view="mobile"] .r2-content .r2-detail { padding:0; }
   position:relative; z-index:3; flex:none; min-height:calc(var(--u) * 2.625); margin:0; padding:calc(var(--u) * .375) calc(var(--u) * .5);
   border-bottom:1px solid #ffffff18; background:linear-gradient(#18181be8,#18181b80);
 }
-.r2-content .r2-detail>.card-inspector {
+.r2-content .r2-detail .card-inspector {
   position:relative; top:auto; z-index:1; flex:0 1 auto; min-height:0; width:100%; max-height:none;
   margin:0; padding:calc(var(--detail-width) * .58) calc(var(--u) * .625) calc(var(--u) * .75); overflow-y:auto;
   border:0; background:transparent; box-shadow:none; scrollbar-width:thin;
@@ -71,6 +71,8 @@ body[data-view="mobile"] .r2-content .r2-detail { padding:0; }
   position:absolute; width:calc(var(--u) * .0625); height:calc(var(--u) * .0625); overflow:hidden; clip-path:inset(50%);
 }
 .r2-content .r2-detail dl.detail-grid>.detail-class { flex-basis:100%; align-items:baseline; padding:0; background:none; color:#fff; text-shadow:none; }
+/* 「クラス」 keeps its one line; the tags beside it wrap instead (it broke as クラ/ス). */
+.r2-content .r2-detail .detail-class dt { flex:none; white-space:nowrap; }
 .r2-content .r2-detail .detail-class dt,.r2-content .r2-detail .detail-class dd { color:#fff; }
 .r2-content .r2-detail .detail-class dd { display:flex; flex-wrap:wrap; gap:calc(var(--u) * .1875); min-width:0; }
 .detail-class-tag { display:inline-block; padding:calc(var(--u) * .125) calc(var(--u) * .25); border-radius:calc(var(--u) * .1875); background:#27272a; color:#fff; overflow-wrap:anywhere; }

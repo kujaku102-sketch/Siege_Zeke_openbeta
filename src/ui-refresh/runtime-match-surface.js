@@ -24,6 +24,7 @@ import { createOpeningInput } from './surface-opening.js';
 import { attachSelectionPeek } from './selection-peek.js';
 import { attachCountPeek } from './count-peek.js';
 import { attachDetailScroll } from './detail-scroll.js';
+import { attachRowScroll } from '../ui/row-scroll.js';
 import { centerIncidentStrip } from './user-detail-view.js';
 import { syncPickBadges, syncTutorialHint } from './wireframe/board-view.js';
 import { currentTutorialHint } from '../data/tutorial-hint.js';
@@ -418,6 +419,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   // An ability badge opens its help outside the match's own clicks (ability-help.js): looked at after every click.
   root.ownerDocument?.addEventListener?.('click', () => schedule(watchPress, 0), { capture: true, signal: lifetime.signal });
   attachDetailScroll({ root, signal: lifetime.signal });
+  // The hand and the profile's strip move sideways under a plain wheel; a mouse drag on the hand stays the card's pull.
+  attachRowScroll(root, { selector: '.r2-hand-scroll,.ud-strip', signal: lifetime.signal });
   const pointer = attachSurfacePointer({ root, listener, ui, act, render, latest: () => latest,
     schedule, cancel: timers.cancel, handDrag, handDock: () => handDock, selectionPeek, scenes, queueLayout,
     suppress: pointerId => { suppressedPointerId = pointerId; } });

@@ -21,6 +21,7 @@ import { syncLiveInputLocks } from './ui-refresh/input-lock.js';
 import { noticeText } from './ui-refresh/notice-text.js';
 import { installMobileViewport } from './ui-refresh/mobile-viewport.js';
 import { captureDeckViewport, restoreDeckViewport } from './ui/deck-viewport.js';
+import { attachRowScroll } from './ui/row-scroll.js';
 import { installAbilityHelp } from './ui/ability-help.js';
 import { registerLocalFonts } from './ui/local-fonts.js';
 import { memoryEstimate, sampleMemory } from './ui-refresh/memory-estimate.js';
@@ -513,6 +514,9 @@ root.addEventListener('pointerdown',event => {const tile = event.target.closest(
     suppressDeckClickUntil = performance.now()+800;host.deckBuilder.detailId = tile.dataset.deckCardId ?? tile.dataset.deckSummaryId;renderShell();clearPress();},480)};});
 root.addEventListener('pointermove',event => {if (press && Math.hypot(event.clientX-press.x,event.clientY-press.y)>8) clearPress();});
 for (const name of ['pointerup','pointercancel','pointerleave']) root.addEventListener(name,clearPress);
+// The deck builder's sideways rows (its cards, and a phone's catalog) move under a plain wheel and a mouse drag.
+const DECK_ROWS = '.deck-design .deck-selected,.deck-design[data-deck-view="mobile"] .deck-card-list';
+attachRowScroll(root,{selector:DECK_ROWS,drag:DECK_ROWS});
 // Escape is taken on the document: opening the options or closing the deck builder leaves the focus
 // on <body>, and the key must still close the window or go back from there (V092-08).
 document.addEventListener('keydown',event => {if (event.key === 'Escape' && !event.target.closest?.('[data-match-root]')) {

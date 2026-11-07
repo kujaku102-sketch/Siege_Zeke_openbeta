@@ -62,30 +62,42 @@
 
 /* Card detail: card-colored frame, shared inside. */
 .r2-content .r2-detail.cp-card { --detail-base:#08111a; padding:0; }
-.r2-content .r2-detail.cp-card > .cp-head { position:sticky; top:0; z-index:5; margin:0; padding:calc(var(--u) * .5) calc(var(--u) * .625) calc(var(--u) * .5625); background:linear-gradient(#061019f0,#06101999); }
+.r2-content .r2-detail.cp-card > .cp-head { position:relative; z-index:5; margin:0; padding:calc(var(--u) * .5) calc(var(--u) * .625) calc(var(--u) * .5625); background:#061019; }
+/* CARD INSPECTOR // its ID on one line across the head's whole width, the title and the close button under it (it
+   broke in two beside the button), spaced .08em (was .24em): 1024x768 needs it narrower than the phone's .12em. */
+.r2-content .r2-detail.cp-card > .cp-head { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; column-gap:calc(var(--u) * .5); }
+.r2-content .r2-detail.cp-card > .cp-head > div { display:contents; }
+.r2-content .r2-detail.cp-card > .cp-head small { grid-column:1 / -1; letter-spacing:.08em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.r2-content .r2-detail.cp-card > .cp-head h2 { grid-column:1; min-width:0; }
+.r2-content .r2-detail.cp-card > .cp-head .cp-close { grid-column:2; grid-row:2; }
 .r2-content .r2-detail.cp-card > .cp-head h2 { font-size:max(.625rem, calc(var(--u) * 1.125)); }
+/* The card's name stays under the head while the body scrolls, on its own ground: nothing shows through either. */
+.r2-content .r2-detail.cp-card > .detail-heading { position:relative; z-index:4; flex:none; margin:0; padding:calc(var(--u) * .375) calc(var(--u) * .625) calc(var(--u) * .4375);
+  border-bottom:1px solid color-mix(in srgb,var(--cp-frame) 30%,transparent); background:var(--detail-base); text-shadow:none; }
 .r2-content .r2-detail.cp-card .detail-art::before { background:linear-gradient(to bottom,transparent 40%,#08111a99 65%,var(--detail-base) 100%); }
 .r2-content .r2-detail.cp-card .detail-heading span { border-radius:0; background:color-mix(in srgb,var(--cp-frame) 22%,#0a1822); color:var(--cp-ink); }
 .r2-content .r2-detail.cp-card .detail-section { background:transparent; }
-/* The art holds still at the top and the text scrolls up over it. It opens with the top
-   of the art clear, --detail-clear of the panel's width (.625 on a PC, .35 on a phone,
-   so the text shows as it opens: 文豪, 2026-11-07, 案C), the art fading to dark where the
-   text begins, and darkens as the text rises (--detail-dim, set by detail-scroll.js).
-   The bottom room lets short text still scroll up over the art. */
-body[data-view] .r2-content .r2-detail.cp-card { --detail-dim:0; --detail-clear:.625; display:block; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; }
+/* Under the fixed head and name, the body scrolls (.detail-body): the art holds still at its top and the text
+   scrolls up over it. It opens with the top of the art clear, --detail-clear of the panel's width (.625 on a PC,
+   .35 on a phone, so the text shows as it opens: 文豪, 2026-11-07, 案C), the art fading to dark where the text
+   begins, and darkens as the text rises (--detail-dim, set by detail-scroll.js). The bottom room lets short text
+   still scroll up over the art. */
+body[data-view] .r2-content .r2-detail.cp-card { --detail-dim:0; --detail-clear:.625; display:flex; flex-direction:column; overflow:hidden; }
 body[data-view="mobile"] .r2-content .r2-detail.cp-card { --detail-clear:.35; }
-body[data-view] .r2-content .r2-detail.cp-card > .detail-art { position:sticky; top:0; z-index:0; display:block; height:0; overflow:visible; }
-body[data-view] .r2-content .r2-detail.cp-card > .detail-art img { position:absolute; top:0; left:0; width:100%; height:auto; filter:brightness(calc(1 - .72 * var(--detail-dim))); }
-body[data-view] .r2-content .r2-detail.cp-card > .detail-art::before { display:block; inset:0 0 auto; aspect-ratio:5/8; z-index:1;
+body[data-view] .r2-content .r2-detail.cp-card > .detail-body { position:relative; z-index:1; flex:1 1 auto; min-height:0; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+body[data-view] .r2-content .r2-detail.cp-card .detail-body > .detail-art { position:sticky; top:0; z-index:0; display:block; height:0; overflow:visible; }
+body[data-view] .r2-content .r2-detail.cp-card .detail-body > .detail-art img { position:absolute; top:0; left:0; width:100%; height:auto; filter:brightness(calc(1 - .72 * var(--detail-dim))); }
+body[data-view] .r2-content .r2-detail.cp-card .detail-body > .detail-art::before { display:block; inset:0 0 auto; aspect-ratio:5/8; z-index:1;
   /* The box is 1.6 widths tall: the text begins at --detail-clear / 1.6 of it. */
   background:linear-gradient(to bottom,transparent calc(var(--detail-clear) / 1.6 * 100% - 10%),#08111aaa calc(var(--detail-clear) / 1.6 * 100%),var(--detail-base) calc(var(--detail-clear) / 1.6 * 100% + 10%)); opacity:calc(1 - var(--detail-dim)); }
-body[data-view] .r2-content .r2-detail.cp-card > .card-inspector { position:relative; z-index:1; overflow:visible; max-height:none; padding-top:calc(var(--detail-clear) * 100%); padding-bottom:100%;
+body[data-view] .r2-content .r2-detail.cp-card .detail-body > .card-inspector { position:relative; z-index:1; overflow:visible; max-height:none; padding-top:calc(var(--detail-clear) * 100%); padding-bottom:100%;
   background:linear-gradient(to bottom,transparent,color-mix(in srgb,var(--detail-base) calc(var(--detail-dim) * 70%),transparent) 3rem); }
 
-/* No artwork yet: a provisional square marked NO IMAGE fills the art space above the text. */
-body[data-view] .r2-content .r2-detail.cp-card > .detail-art:not(.has-art)::before { display:none; }
-body[data-view] .r2-content .r2-detail.cp-card > .detail-art:not(.has-art)::after { content:"NO IMAGE"; display:grid; place-items:center;
-  position:absolute; top:0; right:auto; bottom:auto; left:0; width:100%; aspect-ratio:1/1; box-sizing:border-box; clip-path:none;
+/* No artwork yet: a provisional box marked NO IMAGE fills the clear room above the text, no taller, so its mark sits
+   above the text, not beside it. */
+body[data-view] .r2-content .r2-detail.cp-card .detail-body > .detail-art:not(.has-art)::before { display:none; }
+body[data-view] .r2-content .r2-detail.cp-card .detail-body > .detail-art:not(.has-art)::after { content:"NO IMAGE"; display:grid; place-items:center;
+  position:absolute; top:0; right:auto; bottom:auto; left:0; width:100%; aspect-ratio:1 / var(--detail-clear); box-sizing:border-box; clip-path:none;
   border:1px solid color-mix(in srgb,var(--cp-frame) 55%,transparent); outline:1px solid color-mix(in srgb,var(--cp-frame) 18%,transparent); outline-offset:calc(var(--u) * -.625);
   background:repeating-linear-gradient(135deg,#0d1b26 0 6px,#08111a 6px 12px);
   color:color-mix(in srgb,var(--cp-frame) 65%,var(--cp-dim)); font:700 max(.625rem, calc(var(--u) * 1.125))/1 SZMakinas,monospace; letter-spacing:.28em; text-indent:.28em;
