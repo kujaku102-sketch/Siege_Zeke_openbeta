@@ -469,10 +469,12 @@ body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view {
   --m-sel: clamp(3.5rem, min(17cqw, 22cqh), 6.5rem);
 }
 /* Card detail on a phone: its width (this rule sets it; the PC's is in wireframe/board.css) follows the shorter side of
-   the stage, 1.15 times the old min(32cqw, 56cqh) (文豪, 2026-11-07, 案C), its art with it. */
+   the stage, 1.15 times the old min(32cqw, 56cqh) (文豪, 2026-11-07, 案C), its art with it. Like the PC's it covers
+   the user's display whole while open, down to the display's foot (案2; it ended at 90cqh, the display's life bar
+   showing under it), and never narrower than the display. */
 body[data-view="mobile"] .r2-content .r2-runtime-view.r2-wireframe-view .r2-detail {
-  --detail-width: min(36.8cqw, 64.4cqh); --detail-text: var(--wf-font); width: var(--detail-width);
-  max-height: min(90cqh, calc(100% - var(--wf-top) - var(--wf-bottom)));
+  --detail-width: max(min(36.8cqw, 64.4cqh), 9rem, 33cqh); --detail-text: var(--wf-font); width: var(--detail-width);
+  height: calc(100% - var(--wf-top) - var(--wf-bottom)); max-height: calc(100% - var(--wf-top) - var(--wf-bottom));
 }
 /* Pick prompt (PC and mobile): compact, at the top of the stage between the detail and the user window, so the lit slots stay visible. */
 body[data-view] .r2-content .r2-runtime-view.r2-wireframe-view .board-pick-guide {

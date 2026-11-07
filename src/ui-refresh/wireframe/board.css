@@ -279,8 +279,11 @@ body[data-view] .r2-content .r2-wireframe-view .wf-unique .unique-effect-name { 
 body[data-view] .r2-content .r2-wireframe-view .r2-detail {
   /* PC: the card detail's width (this rule sets it; the phone's is in live.css), a ratio of the stage: 1.15 times the
      1920x1080 look of 352px (文豪, 2026-11-07, 案C: the area 1.15 times, the height already the most the stage allows);
-     18px text there, never below its floor. */
-  --detail-width:min(21.08cqw,37.49cqh); --detail-text:clamp(.875rem,1.667cqh,1.5rem);
+     18px text there, never below its floor. While it is open it covers the user's display under it whole, never
+     half (文豪, 2026-11-07, 案2): never narrower than that display (.wf-status, max(9rem,33cqh)), and as tall as
+     the stage allows, so its foot meets the display's at --wf-bottom whatever the text. */
+  --detail-width:max(min(21.08cqw,37.49cqh),9rem,33cqh); --detail-text:clamp(.875rem,1.667cqh,1.5rem);
+  height:calc(100% - var(--wf-top) - var(--wf-bottom));
   --detail-info-font:var(--detail-text); --detail-body-font:var(--detail-text); --detail-title-font:calc(var(--detail-text) * 1.15);
   --component-name-font:var(--detail-text); --component-note-font:var(--detail-text); z-index:26;
   position:absolute; top:var(--wf-top); left:var(--wf-left); width:var(--detail-width); max-width:calc(100% - var(--wf-left) - var(--wf-right));
