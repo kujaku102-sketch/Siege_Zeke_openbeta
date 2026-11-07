@@ -4,7 +4,7 @@ import { op, spec } from "../kit.js";
 export const definition = {
   "id": "STD-178",
   "name": "ムカデの隊列",
-  "category": "Sc",
+  "category": "Script",
   "printedCategory": "Sc",
   "color": "緑",
   "cost": 1,
