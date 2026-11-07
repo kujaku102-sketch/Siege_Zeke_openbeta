@@ -1,5 +1,5 @@
 import { normalizeBoardSlots } from "../board-slots.js";
-import { cardRuntimeSpec } from "../card-runtime-specs.js";
+import { cardAttackDeclarationCostSpec, cardRuntimeSpec } from "../card-runtime-specs.js";
 import { isObCard } from "../card-types.js";
 import { attackPermissionSpecsFor } from "../continuous-effect-specs.js";
 import { flattenedLayerCount } from "../layered-specs.js";
@@ -12,7 +12,7 @@ import { hasKeyword } from "./keywords.js";
 import { addLog, fail, findCard, otherPlayer } from "./shared.js";
 import { battleAuraAtkBonus, battleStatModifierValue, cardAtk, cardCurrentStr, cardHasKeyword, cardHasRuntimeKeyword } from "./stats.js";
 import { emitGameEvent } from "./triggers.js";
-import { CUSTOM_ATTACK_CORE, CUSTOM_ATTACK_CORE_2, CUSTOM_ATTACK_CORE_3, CUSTOM_ATTACK_CORE_4, CUSTOM_ATTACK_CORE_5, CUSTOM_ATTACK_CORE_6, CUSTOM_QUEUE_POST_ATTACK_SELECTION, PASS, ATTACK_FAILS } from "../effects/custom/index.js";
+import { CUSTOM_ATTACK_CORE, CUSTOM_ATTACK_CORE_2, CUSTOM_ATTACK_CORE_4, CUSTOM_ATTACK_CORE_5, CUSTOM_ATTACK_CORE_6, CUSTOM_QUEUE_POST_ATTACK_SELECTION, PASS } from "../effects/custom/index.js";
 import { executeRuntimeActions } from "../effects/generic/actions.js";
 import { applyDamageModifiers, clearDamageModifiers } from "../effects/generic/damage.js";
 import { destroyCard } from "../effects/generic/destroy.js";
@@ -85,13 +85,33 @@ export function attack(state, playerId, attackerUid, targetUid) {
   if (state.winner || state.pending || state.prompt) return false;
   const player = state.players[playerId];
   const attacker = player.front.find((card) => card.uid === attackerUid);
-  if (!attacker || !canAttack(state, playerId, attacker)) return fail(state, "そのObは攻撃できない。", false);
+  if (!attacker || !canAttack(state, playerId, attacker)) {
+    // An attack that was declared (its declaration cost was paid) and then cannot go on, because the attacker was destroyed, moved, put to sleep, ...
+    // by an effect of the declaration step (an ambush, a Script window), still has its declaration: the declaration-time triggers happen (rulebook 5.2),
+    // then the attack ends: no battle, no damage, no end-of-declaration trigger.
+    const declared = attacker ?? findCard(state, attackerUid)?.card;
+    if (declared?.declaringAttack !== undefined) return endDeclaredAttack(state, playerId, declared);
+    return fail(state, "そのObは攻撃できない。", false);
+  }
   return runEffectEntry(state, "attack", playerId, () => attackCore(state, playerId, attackerUid, targetUid));
 }
 
-// An attack that the card's own declaration-time text makes fail (rulebook 5.0: declaring the attack puts the attacker to sleep; 5.2: the declaration-time
-// effect is handled after the declaration). The declaration stands: the attacker sleeps and "attacked this turn" stays true (5.0 says that fact alone does not
-// forbid a later attack: the sleeping does). No battle, no damage, no attack-declared event and no end-of-declaration trigger follow.
+function emitAttackDeclared(state, playerId, attacker, targetUid) {
+  emitGameEvent(state, { type: "attack_declared", playerId, ownerId: attacker.owner ?? playerId,
+    cardUid: attacker.uid, cardId: attacker.id, cardName: attacker.name, category: attacker.category,
+    attackerUid: attacker.uid, targetUid, attackerKeywords: hasKeyword(attacker, "HACKING") ? ["HACKING"] : [] });
+}
+
+function endDeclaredAttack(state, playerId, attacker) {
+  const targetUid = attacker.declaringAttack;
+  delete attacker.declaringAttack;
+  emitAttackDeclared(state, playerId, attacker, targetUid);
+  return true;
+}
+
+// A declared attack fails when its declaration cost is not paid (rulebook 5.0, 5.2). The declaration itself failed: no attack-declared event, no ambush window,
+// no battle, no damage. (Whether the attacker sleeps is still to be decided: today it sleeps and "attacked this turn" stays true; 5.0 says that fact alone does
+// not forbid a later attack, the sleeping does.)
 function failAttack(state, playerId, attacker, targetUid) {
   setCardSleeping(state, playerId, attacker);
   attacker.attackedThisTurn = true;
@@ -99,16 +119,52 @@ function failAttack(state, playerId, attacker, targetUid) {
   return true;
 }
 
+const SOURCE_LABEL = Object.freeze({ registry: "レジストリ", trash: "ゴミ箱" });
+
+// The declaration cost of a card that has one (card-runtime-specs: attackDeclarationCostSpec): the attacker's user may take cards from `source` to hand;
+// taking them lets the attack go on, taking none fails the declaration. With nothing to take there is no window: the declaration fails at once.
+function declarationCost(state, playerId, attacker, targetUid) {
+  const spec = cardAttackDeclarationCostSpec(attacker.id);
+  if (!spec || attacker.attackCostPaid) return PASS;
+  const candidates = state.players[playerId][spec.source].filter((card) => !spec.faceUp || card.faceDown !== true);
+  if (candidates.length === 0) {
+    addLog(state, `${attacker.name}: ${SOURCE_LABEL[spec.source]}から手札に加えられず攻撃宣言に失敗。`, "effect");
+    return failAttack(state, playerId, attacker, targetUid);
+  }
+  const request = createSelectionRequest({ mode: "up_to", candidates: candidates.map((card) => card.uid), minimum: 0, maximum: spec.count,
+    candidateLabels: Object.fromEntries(candidates.map((card) => [card.uid, card.name])), label: `${attacker.name}: 攻撃宣言時に${SOURCE_LABEL[spec.source]}から手札に加える`,
+    message: attacker.text, continuation: { type: "attack-declaration-cost", playerId, attackerUid: attacker.uid, targetUid } });
+  state.pending = { type: "selection", validTargets: request.candidates, request };
+  return true;
+}
+
+// The answer to the declaration cost window (a handler of resolveCardSelection, continuation type "attack-declaration-cost").
+export function attackDeclarationCostSelection(state, continuation, result, playerId, player) {
+  const attacker = player.front.find((card) => card.uid === continuation.attackerUid);
+  const spec = attacker && cardAttackDeclarationCostSpec(attacker.id);
+  const selected = result.selected ?? [];
+  if (!attacker || !spec || selected.length > spec.count || new Set(selected).size !== selected.length) return false;
+  const cards = selected.map((uid) => player[spec.source].find((card) => card.uid === uid && (!spec.faceUp || card.faceDown !== true)));
+  if (cards.some((card) => !card)) return false;
+  state.pending = null;
+  if (cards.length === 0) return failAttack(state, playerId, attacker, continuation.targetUid);
+  for (const card of cards) {
+    player[spec.source].splice(player[spec.source].indexOf(card), 1);
+    player.hand.push(card);
+    if (spec.source === "registry") emitGameEvent(state, { type: "registry_left", playerId, ownerId: card.owner ?? playerId, cardUid: card.uid, cardId: card.id, cardName: card.name, category: card.category, reason: "attack-cost" });
+  }
+  attacker.attackCostPaid = true;
+  return attack(state, playerId, attacker.uid, continuation.targetUid);
+}
+
 function attackCore(state, playerId, attackerUid, targetUid) {
   const player = state.players[playerId];
   const attacker = player.front.find((card) => card.uid === attackerUid);
-  const customAttackCore3 = CUSTOM_ATTACK_CORE_3[attacker.id];
-  if (customAttackCore3) {
-    const customResult = customAttackCore3({ player, state, attacker, playerId, attackerUid, targetUid });
-    if (customResult === ATTACK_FAILS) return failAttack(state, playerId, attacker, targetUid);
-    if (customResult !== PASS) return customResult;
-  }
-  delete attacker.skipStd214AttackCost;
+  const cost = declarationCost(state, playerId, attacker, targetUid);
+  if (cost !== PASS) return cost;
+  delete attacker.attackCostPaid;
+  // From here the attack is declared: if it ends before its attack-declared event (the attacker destroyed in an ambush, ...) the event still happens (see attack()).
+  attacker.declaringAttack ??= targetUid;
   if (!attacker.skipStd230Ambush && state.mode !== "lab") {
     const defenderId = otherPlayer(playerId); const defender = state.players[defenderId];
     const ambush = defender.registry.find((card) => card.id === "STD-230" && !card.faceDown
@@ -204,11 +260,9 @@ function attackCore(state, playerId, attackerUid, targetUid) {
     if (opened && state.pending) return true;
   }
   delete attacker.skipRuntimeAttackEffect;
+  delete attacker.declaringAttack;
   if (!resumeStage) {
-    emitGameEvent(state, { type: "attack_declared", playerId, ownerId: attacker.owner ?? playerId,
-      cardUid: attacker.uid, cardId: attacker.id, cardName: attacker.name, category: attacker.category,
-      attackerUid: attacker.uid, targetUid: target.uid,
-      attackerKeywords: hasKeyword(attacker, "HACKING") ? ["HACKING"] : [] });
+    emitAttackDeclared(state, playerId, attacker, target.uid);
     if (state.prompt) {
       state.deferredAttack = { stage: "after-declare", playerId, attackerUid: attacker.uid, targetUid: target.uid };
       return true;
