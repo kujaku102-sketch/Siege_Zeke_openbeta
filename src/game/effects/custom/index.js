@@ -64,6 +64,9 @@ import { sztbJacketPlaceSelection } from "../../../cards/sztb/sztb_096_effects.j
 
 // A handler returns PASS when it did not take over: the caller continues as if the branch had not matched.
 export const PASS = Symbol("custom-effect-pass");
+// A declaration-time attack handler (CUSTOM_ATTACK_CORE_3) returns ATTACK_FAILS when the card's own text makes the declared attack fail (rulebook 5.0, 5.2): core/battle.js then
+// does the common part (the attacker sleeps, the fact of the attack stays, no battle, no damage, no end-of-declaration triggers).
+export const ATTACK_FAILS = Symbol("custom-effect-attack-fails");
 
 // Development and tests only (TRACE): every handler in a custom table leaves a waypoint `custom:<table>:<key>` when it is called,
 // ok when it took the case (a handler that gives PASS, or none, back declined it). In the product build the table is used as is.

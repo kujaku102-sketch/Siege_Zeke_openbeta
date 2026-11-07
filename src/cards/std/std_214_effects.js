@@ -3,7 +3,7 @@ import { createSelectionRequest } from "../../game/selection-model.js";
 import { attack } from "../../game/core/battle.js";
 import { addLog } from "../../game/core/shared.js";
 import { emitGameEvent } from "../../game/core/triggers.js";
-import { PASS } from "../../game/effects/custom/index.js";
+import { PASS, ATTACK_FAILS } from "../../game/effects/custom/index.js";
 
 // handlers (was effects/custom/std_214.js)
 export function std214AttackCostSelection(state, continuation, result, playerId, player) {
@@ -20,7 +20,7 @@ export function std214AttackCostSelection(state, continuation, result, playerId,
 export function std214AttackCore3({ player, state, attacker, playerId, attackerUid, targetUid }) {
   if (!attacker.skipStd214AttackCost) {
     const candidates = player.registry.filter((card) => !card.faceDown);
-    if (!candidates.length) { addLog(state, `${attacker.name}: レジストリから回収できず攻撃失敗。`, "effect"); return true; }
+    if (!candidates.length) { addLog(state, `${attacker.name}: レジストリから回収できず攻撃失敗。`, "effect"); return ATTACK_FAILS; }
     const request = createSelectionRequest({ mode: "single", candidates: candidates.map((card) => card.uid), count: 1,
       candidateLabels: Object.fromEntries(candidates.map((card) => [card.uid, card.name])), label: `${attacker.name}: 攻撃宣言時の回収`, message: attacker.text,
       continuation: { type: "std214-attack-cost", playerId, attackerUid, targetUid } });

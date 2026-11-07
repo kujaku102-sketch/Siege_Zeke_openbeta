@@ -12,7 +12,7 @@ import { hasKeyword } from "./keywords.js";
 import { addLog, fail, findCard, otherPlayer } from "./shared.js";
 import { battleAuraAtkBonus, battleStatModifierValue, cardAtk, cardCurrentStr, cardHasKeyword, cardHasRuntimeKeyword } from "./stats.js";
 import { emitGameEvent } from "./triggers.js";
-import { CUSTOM_ATTACK_CORE, CUSTOM_ATTACK_CORE_2, CUSTOM_ATTACK_CORE_3, CUSTOM_ATTACK_CORE_4, CUSTOM_ATTACK_CORE_5, CUSTOM_ATTACK_CORE_6, CUSTOM_QUEUE_POST_ATTACK_SELECTION, PASS } from "../effects/custom/index.js";
+import { CUSTOM_ATTACK_CORE, CUSTOM_ATTACK_CORE_2, CUSTOM_ATTACK_CORE_3, CUSTOM_ATTACK_CORE_4, CUSTOM_ATTACK_CORE_5, CUSTOM_ATTACK_CORE_6, CUSTOM_QUEUE_POST_ATTACK_SELECTION, PASS, ATTACK_FAILS } from "../effects/custom/index.js";
 import { executeRuntimeActions } from "../effects/generic/actions.js";
 import { applyDamageModifiers, clearDamageModifiers } from "../effects/generic/damage.js";
 import { destroyCard } from "../effects/generic/destroy.js";
@@ -89,12 +89,23 @@ export function attack(state, playerId, attackerUid, targetUid) {
   return runEffectEntry(state, "attack", playerId, () => attackCore(state, playerId, attackerUid, targetUid));
 }
 
+// An attack that the card's own declaration-time text makes fail (rulebook 5.0: declaring the attack puts the attacker to sleep; 5.2: the declaration-time
+// effect is handled after the declaration). The declaration stands: the attacker sleeps and "attacked this turn" stays true (5.0 says that fact alone does not
+// forbid a later attack: the sleeping does). No battle, no damage, no attack-declared event and no end-of-declaration trigger follow.
+function failAttack(state, playerId, attacker, targetUid) {
+  setCardSleeping(state, playerId, attacker);
+  attacker.attackedThisTurn = true;
+  if (targetUid !== `${otherPlayer(playerId)}-fortress`) attacker.attackedObThisTurn = true;
+  return true;
+}
+
 function attackCore(state, playerId, attackerUid, targetUid) {
   const player = state.players[playerId];
   const attacker = player.front.find((card) => card.uid === attackerUid);
   const customAttackCore3 = CUSTOM_ATTACK_CORE_3[attacker.id];
   if (customAttackCore3) {
     const customResult = customAttackCore3({ player, state, attacker, playerId, attackerUid, targetUid });
+    if (customResult === ATTACK_FAILS) return failAttack(state, playerId, attacker, targetUid);
     if (customResult !== PASS) return customResult;
   }
   delete attacker.skipStd214AttackCost;
