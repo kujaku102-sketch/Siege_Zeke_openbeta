@@ -1,7 +1,9 @@
 {
+  "id": "/",
   "name": "Siege÷Zeke",
-  "short_name": "SiegeZeke",
-  "description": "Siege÷Zeke public staging client",
+  "short_name": "Siege÷Zeke",
+  "description": "Siege÷Zeke ブラウザ版カードゲーム",
+  "lang": "ja",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -13,13 +15,53 @@
       "src": "/assets/app-icon-192.png?v=1",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/assets/app-icon-512.png?v=1",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/app-icon-maskable-192.png?v=1",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/assets/app-icon-maskable-512.png?v=1",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/assets/app-screenshot-wide-title.webp",
+      "sizes": "1920x1080",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "タイトル画面"
+    },
+    {
+      "src": "/assets/app-screenshot-wide-match.webp",
+      "sizes": "1920x1080",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "対戦の画面"
+    },
+    {
+      "src": "/assets/app-screenshot-narrow-title.webp",
+      "sizes": "1704x786",
+      "type": "image/webp",
+      "label": "タイトル画面（スマートフォン）"
+    },
+    {
+      "src": "/assets/app-screenshot-narrow-match.webp",
+      "sizes": "1704x786",
+      "type": "image/webp",
+      "label": "対戦の画面（スマートフォン）"
     }
   ]
 }

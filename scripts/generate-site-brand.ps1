@@ -40,6 +40,11 @@ try {
     Export-LogoCrop 'site-icon-32.png' 32 32 $symbol 2
     Export-LogoCrop 'app-icon-192.png' 192 192 $symbol 14
     Export-LogoCrop 'app-icon-512.png' 512 512 $symbol 38
+    # iOS home screen (180x180, its own rounded corners), and Android's maskable icons: the S inside the central
+    # circle of 80% that every mask keeps, a fifth of the side free all round (PWA, 文豪 2026-11-09).
+    Export-LogoCrop 'app-icon-180.png' 180 180 $symbol 13
+    Export-LogoCrop 'app-icon-maskable-192.png' 192 192 $symbol 38
+    Export-LogoCrop 'app-icon-maskable-512.png' 512 512 $symbol 102
     Export-LogoCrop 'site-share-1200x630.png' 1200 630 $wordmark 34
 } finally {
     $source.Dispose()
