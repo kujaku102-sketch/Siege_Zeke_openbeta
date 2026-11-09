@@ -1,6 +1,8 @@
 const VERSION = "__SZ_BUILD_REVISION__";
 const SHELL_CACHE = `sz-pwa-shell-${VERSION}`;
-const ART_CACHE = `sz-pwa-card-art-${VERSION}`;
+// The card art is kept across builds: its files are named by their content's hash, so a picture that did not change
+// keeps its name and is not fetched again; one that changed gets a new name and the old one is dropped (PWA, 2026-11-09).
+const ART_CACHE = "sz-pwa-card-art";
 const META_CACHE = "sz-pwa-meta";
 const ENABLED_REQUEST = new Request(new URL("__pwa_enabled__", self.registration.scope));
 const SHELL_URLS = __SZ_SHELL_URLS__;
@@ -34,9 +36,15 @@ async function seedShell() {
   }
 }
 
+// Pictures of this build's list only: one no longer listed (its art changed or went) is dropped.
+async function pruneCardArt() {
+  const cache = await caches.open(ART_CACHE);
+  for (const request of await cache.keys()) if (!CARD_ART_HREFS.has(request.url)) await cache.delete(request);
+}
+
 async function cacheCardArt(urls) {
   const cache = await caches.open(ART_CACHE);
-  let cached = 0;
+  let cached = 0, failed = 0;
   for (const url of urls) {
     const href = new URL(url, self.registration.scope).href;
     if (!CARD_ART_HREFS.has(href) || await cache.match(href)) continue;
@@ -45,13 +53,17 @@ async function cacheCardArt(urls) {
       if (response.ok) {
         await cache.put(href, response);
         cached += 1;
-      }
+      } else failed += 1;
     } catch {
-      // 表示中画像の取得失敗はshell更新を巻き戻さない。
+      // A picture that fails is fetched again next time; it never undoes the shell.
+      failed += 1;
     }
   }
-  return cached;
+  return { cached, failed };
 }
+
+// A page's address as one entry: its query and hash dropped (?e2e=1 and the like were each kept apart, with no end).
+const pageKey = (url) => { const key = new URL(url); key.search = ""; key.hash = ""; return key.href; };
 
 function reply(event, body) {
   event.ports?.[0]?.postMessage({ revision: VERSION, ...body });
@@ -69,6 +81,7 @@ self.addEventListener("activate", (event) => {
     for (const name of await caches.keys()) {
       if (name.startsWith("sz-pwa-") && ![SHELL_CACHE, ART_CACHE, META_CACHE].includes(name)) await caches.delete(name);
     }
+    await pruneCardArt();
     await self.clients.claim();
   })());
 });
@@ -77,6 +90,8 @@ self.addEventListener("message", (event) => {
   const data = event.data ?? {};
   if (data.type === "ENABLE_PWA_CACHE") event.waitUntil((async () => {
     try {
+      // A page the old worker still served while this one took over may have put an old build's shell back.
+      for (const name of await caches.keys()) if (name.startsWith("sz-pwa-shell-") && name !== SHELL_CACHE) await caches.delete(name);
       if (await enabledRevision() === VERSION && await shellReady()) {
         reply(event, { ok: true, type: data.type, reused: true });
         return;
@@ -90,11 +105,18 @@ self.addEventListener("message", (event) => {
     }
   })());
   if (data.type === "CACHE_CARD_ART") event.waitUntil((async () => {
-    const cached = await cacheCardArt(Array.isArray(data.urls) ? data.urls : []);
-    reply(event, { ok: true, type: data.type, cached });
+    const result = await cacheCardArt(Array.isArray(data.urls) ? data.urls : []);
+    reply(event, { ok: true, type: data.type, ...result });
+  })());
+  // Every card's art of this build (the page asks once the shell is in).
+  if (data.type === "CACHE_ALL_CARD_ART") event.waitUntil((async () => {
+    await pruneCardArt();
+    const result = await cacheCardArt([...CARD_ART_HREFS]);
+    reply(event, { ok: true, type: data.type, total: CARD_ART_HREFS.size, ...result });
   })());
   if (data.type === "GET_PWA_CACHE_STATUS") event.waitUntil((async () => {
-    reply(event, { ok: true, type: data.type, enabled: await enabled() });
+    const art = (await (await caches.open(ART_CACHE)).keys()).length;
+    reply(event, { ok: true, type: data.type, enabled: await enabled(), art, artTotal: CARD_ART_HREFS.size });
   })());
 });
 
@@ -107,13 +129,16 @@ self.addEventListener("fetch", (event) => {
     const pwaEnabled = await enabled();
     if (!pwaEnabled && !cachedShellResponse && !cachedArtResponse) return fetch(request);
     if (request.mode === "navigate") {
+      // The entry pages (/, /pc/, /mobile/) are kept under their address without its query, one each; any other page
+      // is fetched as it is. Offline, the page's own entry, else the title.
+      const key = pageKey(request.url);
       try {
         const response = await fetch(request);
         if (!response.ok) throw new Error(`navigation failed with ${response.status}`);
-        (await caches.open(SHELL_CACHE)).put(request, response.clone());
+        if (SHELL_HREFS.has(key)) (await caches.open(SHELL_CACHE)).put(key, response.clone());
         return response;
       } catch {
-        return (await caches.match(request, { ignoreVary: true })) ?? (await caches.match(new URL("./", self.registration.scope).href, { ignoreVary: true })) ?? Response.error();
+        return (await caches.match(key, { cacheName: SHELL_CACHE, ignoreVary: true })) ?? (await caches.match(new URL("./", self.registration.scope).href, { cacheName: SHELL_CACHE, ignoreVary: true })) ?? Response.error();
       }
     }
     if (CARD_ART_HREFS.has(request.url)) {
