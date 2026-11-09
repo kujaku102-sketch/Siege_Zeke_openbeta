@@ -1,6 +1,6 @@
 import { CARD_LIBRARY, USER_CARDS } from '../data/cards.js';
 import { CARD_ART } from '../data/card-art.generated.js';
-import { BUILDABLE_CARDS, DECK_COLOR_OPTIONS, DECK_STRATEGIES, MAX_SAVED_DECKS, validateDeck } from '../game/deck-builder.js';
+import { BUILDABLE_CARDS, DECK_COLOR_OPTIONS, DECK_STRATEGIES, MAX_SAVED_DECKS, copyLimit, validateDeck } from '../game/deck-builder.js';
 import { isObCard } from '../game/card-types.js';
 import { cardEffectHtml } from './ability-help.js';
 
@@ -27,11 +27,17 @@ function cardsHtml(ui, check) {
   if(card) copiesByName.set(card.name,(copiesByName.get(card.name)??0)+Number(count));
  }
  const art=c=>CARD_ART[c.id]?`<img src="${esc(CARD_ART[c.id])}" alt="" loading="lazy" decoding="async">`:`<span class="deck-art-missing">${esc(c.name[0])}</span>`;
- const tile=(c,count,summary)=>`<article class="deck-tile" ${summary?'data-deck-summary-id':'data-deck-card-id'}="${esc(c.id)}">${art(c)}<b class="deck-tile-cost">${esc(c.cost??'–')}</b><strong>${esc(c.name)}</strong><span class="deck-tile-copies">${summary?`×${count}`:`${copiesByName.get(c.name)??0}/${check.rule.sameName}`}</span><button class="deck-tile-hit" ${summary?'data-deck-minus':'data-deck-plus'}="${esc(c.id)}" aria-label="${esc(c.name)}を1枚${summary?'減らす':'増やす'}。長押しで詳細" ${!summary&&(check.count>=check.rule.size||(copiesByName.get(c.name)??0)>=check.rule.sameName)?'disabled':''}></button></article>`;
+ // A card's own limit (copyLimit, 規則書2.1): DANGER! one, a card with no limit ∞, a user's 同名n枚 first. The game's
+ // rule for the deck says whether the user set it (deck-builder.js ruleFor reads it from the same text).
+ const rule={...check.rule,sameNameByUser:/同名\d+枚/.test(USER_CARDS[draft.userId]?.deckRule??'')};
+ const limitOf=c=>copyLimit(c,rule);
+ const tile=(c,count,summary)=>`<article class="deck-tile" ${summary?'data-deck-summary-id':'data-deck-card-id'}="${esc(c.id)}">${art(c)}<b class="deck-tile-cost">${esc(c.cost??'–')}</b><strong>${esc(c.name)}</strong><span class="deck-tile-copies">${summary?`×${count}`:`${copiesByName.get(c.name)??0}/${limitOf(c)===Infinity?'∞':limitOf(c)}`}</span><button class="deck-tile-hit" ${summary?'data-deck-minus':'data-deck-plus'}="${esc(c.id)}" aria-label="${esc(c.name)}を1枚${summary?'減らす':'増やす'}。長押しで詳細" ${!summary&&(check.count>=check.rule.size||(copiesByName.get(c.name)??0)>=limitOf(c))?'disabled':''}></button></article>`;
  const remaining=Math.max(0,check.rule.size-check.count);
- const blanks=remaining?Array.from({length:Math.min(10,remaining)},(_,index)=>`<article class="deck-tile deck-tile-placeholder" aria-hidden="true"><b>＋</b>${index===0?`<small>残り${remaining}枚</small>`:''}</article>`).join(''):'';
+ // How many are still to add is said in the row's heading, in sight however far the row runs (文豪, 2026-11-07,
+ // スクロール A); the blanks only show the room.
+ const blanks=remaining?Array.from({length:Math.min(10,remaining)},()=>`<article class="deck-tile deck-tile-placeholder" aria-hidden="true"><b>＋</b></article>`).join(''):'';
  const selected=Object.entries(draft.cards).filter(([id,n])=>n>0&&CARD_LIBRARY[id]).map(([id,n])=>tile(CARD_LIBRARY[id],n,true)).join('');
- return `<div class="deck-builder-body deck-body"><aside class="deck-summary" aria-label="構築カード"><div class="deck-selected">${selected}${blanks}</div></aside>${filters(ui)}<div class="deck-catalog" aria-label="候補カード"><div class="deck-card-list">${cards.map(c=>tile(c,Number(draft.cards[c.id]??0),false)).join('')||'<p>一致するカードなし</p>'}</div></div></div>`;
+ return `<div class="deck-builder-body deck-body"><aside class="deck-summary" aria-label="構築カード"><h3>構築カード <small>${remaining?`残り${remaining}枚`:`${check.count}枚`}</small></h3><div class="deck-selected">${selected}${blanks}</div></aside>${filters(ui)}<div class="deck-catalog" aria-label="候補カード"><div class="deck-card-list">${cards.map(c=>tile(c,Number(draft.cards[c.id]??0),false)).join('')||'<p>一致するカードなし</p>'}</div></div></div>`;
 }
 function detail(ui) {
  const c=CARD_LIBRARY[ui.detailId];if(!c)return '';

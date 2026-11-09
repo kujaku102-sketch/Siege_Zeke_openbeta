@@ -17,6 +17,10 @@ const BUTTONS = [
   ['data-runtime-to-menu', c => c.onToMenu()],
   ['data-runtime-guide-next', c => c.turnGuidePage(1)],
   ['data-runtime-guide-prev', c => c.turnGuidePage(-1)],
+  // セリフ退避 (文豪, 2026-11-07): [▾ 隠す] tucks a line only to read; the speaker's tab brings it back, or a move's
+  // line put away by a tap on it (runtime-match-surface.js).
+  ['data-runtime-guide-tuck', c => c.tuckGuide()],
+  ['data-runtime-guide-back', c => c.recallGuide()],
   // The tried play moves the step on and its reason shows in the guide for that step (not a shell notice).
   ['data-tutorial-try', (c, target) => { const next = c.session.advanceTutorial(); if (!next.ok) return c.onError(next.error.code); c.noteTutorial(blockMessage({ code: target.dataset.tutorialTry })); return c.act(c.ui.read()); }],
   // While the opponent's script plays the guide just waits: the tap changes nothing and raises nothing.

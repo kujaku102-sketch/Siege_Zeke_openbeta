@@ -74,7 +74,20 @@ body[data-view] .r2-content .r2-wireframe-view .wire-board-host { position:absol
 .r2-wireframe-view .wf-status .used { opacity:.4; text-decoration:line-through; }
 body[data-view] .r2-content .r2-wireframe-view .r2-tools-host { position:absolute; inset:31% 2% auto auto; width:15%; transform:none; }
 body[data-view] .r2-content .r2-wireframe-view .r2-hand-host { left:50%; right:auto; bottom:0; width:55%; transform:translateX(-50%); }
-.r2-content .r2-wireframe-view .r2-hand-scroll { justify-content:center; }
+/* The hand is centred by its end cards' auto margins, not justify-content:center: those take only the room that is
+   free, so a hand wider than its row starts at the row's left and every card can be scrolled to (文豪, 2026-11-07,
+   スクロール A; centring cut the left cards off past the scroll's reach from 9 cards). */
+.r2-content .r2-wireframe-view .r2-hand-scroll { justify-content:flex-start; }
+.r2-content .r2-wireframe-view .r2-hand-scroll > .hand-card:first-child { margin-left:auto; }
+.r2-content .r2-wireframe-view .r2-hand-scroll > .hand-card:last-child { margin-right:auto; }
+/* A shade at each end with more cards beyond it (data-more, row-scroll.js). */
+.r2-content .r2-wireframe-view .r2-hand { position:relative; }
+.r2-content .r2-wireframe-view .r2-hand::before,.r2-content .r2-wireframe-view .r2-hand::after {
+  content:""; position:absolute; top:0; bottom:0; z-index:6; width:6%; pointer-events:none; opacity:0; transition:opacity .15s ease-out; }
+.r2-content .r2-wireframe-view .r2-hand::before { left:0; background:linear-gradient(to right,#000c,#0000); }
+.r2-content .r2-wireframe-view .r2-hand::after { right:0; background:linear-gradient(to left,#000c,#0000); }
+.r2-content .r2-wireframe-view .r2-hand:has(> .r2-hand-scroll[data-more~="start"])::before,
+.r2-content .r2-wireframe-view .r2-hand:has(> .r2-hand-scroll[data-more~="end"])::after { opacity:1; }
 .r2-content .r2-wireframe-view .r2-console { width:100%; height:auto; min-height:0; max-height:64cqh; padding:1cqh; gap:1cqh; font-size:2cqh; }
 .r2-content .r2-wireframe-view .r2-console button { min-height:5.8cqh; height:auto; padding:.6cqh; font-size:2.3cqh; }
 .r2-content .r2-wireframe-view .r2-console>span { font-size:1.8cqh; }
@@ -266,8 +279,11 @@ body[data-view] .r2-content .r2-wireframe-view .wf-unique .unique-effect-name { 
 body[data-view] .r2-content .r2-wireframe-view .r2-detail {
   /* PC: the card detail's width (this rule sets it; the phone's is in live.css), a ratio of the stage: 1.15 times the
      1920x1080 look of 352px (文豪, 2026-11-07, 案C: the area 1.15 times, the height already the most the stage allows);
-     18px text there, never below its floor. */
-  --detail-width:min(21.08cqw,37.49cqh); --detail-text:clamp(.875rem,1.667cqh,1.5rem);
+     18px text there, never below its floor. While it is open it covers the user's display under it whole, never
+     half (文豪, 2026-11-07, 案2): never narrower than that display (.wf-status, max(9rem,33cqh)), and as tall as
+     the stage allows, so its foot meets the display's at --wf-bottom whatever the text. */
+  --detail-width:max(min(21.08cqw,37.49cqh),9rem,33cqh); --detail-text:clamp(.875rem,1.667cqh,1.5rem);
+  height:calc(100% - var(--wf-top) - var(--wf-bottom));
   --detail-info-font:var(--detail-text); --detail-body-font:var(--detail-text); --detail-title-font:calc(var(--detail-text) * 1.15);
   --component-name-font:var(--detail-text); --component-note-font:var(--detail-text); z-index:26;
   position:absolute; top:var(--wf-top); left:var(--wf-left); width:var(--detail-width); max-width:calc(100% - var(--wf-left) - var(--wf-right));

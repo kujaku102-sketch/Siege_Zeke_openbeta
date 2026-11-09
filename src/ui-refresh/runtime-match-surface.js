@@ -24,6 +24,7 @@ import { createOpeningInput } from './surface-opening.js';
 import { attachSelectionPeek } from './selection-peek.js';
 import { attachCountPeek } from './count-peek.js';
 import { attachDetailScroll } from './detail-scroll.js';
+import { attachRowScroll } from '../ui/row-scroll.js';
 import { centerIncidentStrip } from './user-detail-view.js';
 import { syncPickBadges, syncTutorialHint } from './wireframe/board-view.js';
 import { currentTutorialHint } from '../data/tutorial-hint.js';
@@ -109,6 +110,11 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   // While the guide speaks the match takes no input (文豪, 2026-10-28). A tap on its line does what [次へ] would; on a
   // step that asks for a move, where there is none, it puts the guide away until the next step or a refused move.
   let guideAway = null;
+  // A line only to read tucked by its [▾ 隠す] (文豪, 2026-11-07, セリフ退避): only the speaker's tab shows, the match
+  // still waits, and the tab brings the line back on the page it was on. The step it was tucked on.
+  let guideTucked = null;
+  // A hint-only step brought back by its tab shows its hint as a line, until it is put away again. The step.
+  let guideRecalled = null;
   // The closing line read (its [次へ]), the guide leaves and the end screen comes up (文豪, 2026-11-01).
   let tutorialEnded = false;
   const endTutorial = () => { tutorialEnded = true; const read = ui.read(); if (read.ok) render(read); };
@@ -130,12 +136,34 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
     guidePageShown = page;
     const note = tutorialNote?.index === tutorial.value.flow.index ? { note: tutorialNote.text } : {};
     if (guideAway && guideAway.step !== pageStep(tutorial.value.flow)) guideAway = null;
+    const step = pageStep(tutorial.value.flow);
+    if (guideTucked !== null && guideTucked !== step) guideTucked = null;
+    if (guideRecalled !== null && guideRecalled !== step) guideRecalled = null;
     const reason = guideReason(tutorial.value);
-    const away = guideAway?.reason === reason || hintOnly(tutorial.value) && !reason ? { away: true } : {};
+    const away = guideAway?.reason === reason || hintOnly(tutorial.value) && !reason && guideRecalled !== step ? { away: true } : {};
+    const tucked = guideTucked === step && !away.away ? { tucked: true } : {};
     const ended = tutorialEnded && tutorial.value.flow.complete ? { ended: true } : {};
     // While the opponent's script plays, the next step's line waits until it is done (文豪, 2026-11-03, X1).
     const waiting = tutorial.value.opponentScript && !tutorial.value.flow.complete ? { waiting: true } : {};
-    return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}), ...away, ...ended, ...waiting } };
+    return { ok: true, value: { ...tutorial.value, ...note, ...(page ? { page } : {}), ...away, ...tucked, ...ended, ...waiting } };
+  };
+  // [▾ 隠す] on a line only to read: the line steps aside, the match still waits on it.
+  const tuckGuide = () => {
+    const tutorial = session.tutorial();
+    if (!tutorial.ok || tutorial.value.flow.complete) return;
+    guideTucked = pageStep(tutorial.value.flow);
+    render(ui.read());
+  };
+  // The speaker's tab: the line put away or tucked comes back on the page it left (a move's step, its last page; the
+  // match waits again until it is put away). A hint-only step shows its hint as the line.
+  const recallGuide = () => {
+    const tutorial = session.tutorial();
+    if (!tutorial.ok) return;
+    const step = pageStep(tutorial.value.flow);
+    guideTucked = null;
+    if (guideAway?.step === step) guideAway = null;
+    if (hintOnly(tutorial.value)) guideRecalled = step;
+    render(ui.read());
   };
   const tapGuide = () => {
     const tutorial = session.tutorial();
@@ -395,7 +423,7 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   const handDrag = createHandDrag({ root, ui, act, latest: () => latest, schedule, onReject: onDropRefused, held: () => opening?.holdRemaining() > 0 });
   opening = createOpeningInput({ root, ui, act, latest: () => latest, schedule, motion: () => effectsEnabled && !lowGpu });
   const clicks = { ui, act, session, boardStyle, latest: () => latest, tapDetails: () => tapDetails, opening: () => opening,
-    onTitle, onTutorialSkip, onToMenu, onSaveLog, endTutorial, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide, tapAnywhere };
+    onTitle, onTutorialSkip, onToMenu, onSaveLog, endTutorial, onRematch, onMenu, onError: reportError, noteTutorial, turnGuidePage, tapGuide, tapAnywhere, tuckGuide, recallGuide };
   listener('click', event => {
     if (disposed || event.target.closest('[data-ability-help]')) return;
     // While the dice's answer shows, the match takes no move yet; online, the other side waits the same way.
@@ -418,6 +446,8 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   // An ability badge opens its help outside the match's own clicks (ability-help.js): looked at after every click.
   root.ownerDocument?.addEventListener?.('click', () => schedule(watchPress, 0), { capture: true, signal: lifetime.signal });
   attachDetailScroll({ root, signal: lifetime.signal });
+  // The hand and the profile's strip move sideways under a plain wheel; a mouse drag on the hand stays the card's pull.
+  attachRowScroll(root, { selector: '.r2-hand-scroll,.ud-strip', signal: lifetime.signal });
   const pointer = attachSurfacePointer({ root, listener, ui, act, render, latest: () => latest,
     schedule, cancel: timers.cancel, handDrag, handDock: () => handDock, selectionPeek, scenes, queueLayout,
     suppress: pointerId => { suppressedPointerId = pointerId; } });

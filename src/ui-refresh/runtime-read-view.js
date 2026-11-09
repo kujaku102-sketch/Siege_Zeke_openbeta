@@ -141,8 +141,9 @@ function detailHtml(model,presentation) {
   if (!card) return '';
   const profile = cardArtProfile(card.definition);
   const art = `<${CARD_ART[card.definition.id] ? 'button data-runtime-art="'+esc(card.cardRef)+'"' : 'div'} class="detail-art color-${colorClass(card.definition.color)} art-${profile.orientation} ${CARD_ART[card.definition.id] ? 'has-art' : ''}">${cardArt(card,'detail-art-image')}<span>ARTWORK / EXPAND</span><small>${esc(card.definition.id)}</small></${CARD_ART[card.definition.id] ? 'button' : 'div'}>`;
-  // The frame takes the card's color; everything else wears the shared panel look.
-  return `<aside class="r2-detail cp-panel cp-card" data-card-color="${colorClass(card.definition.color)}" data-card-id="${esc(card.definition.id)}" aria-label="カード詳細">${panelHeadHtml({ eyebrow: 'CARD INSPECTOR', sub: esc(card.definition.id), title: 'カード詳細', close: 'data-close-detail', closeLabel: 'カード詳細を閉じる' })}${art}<section class="card-inspector"><div class="detail-heading"><span>${esc(card.definition.category)} / COST ${card.computed.currentCost}</span><h2>${esc(card.definition.name)}</h2></div><dl class="detail-grid"><div class="detail-location"><dt>場所</dt><dd>${esc(card.location?.zone ?? '一時確認')}</dd></div><div class="detail-state"><dt>状態</dt><dd>${card.status.sleep ? 'スリープ' : 'スタンバイ'}${card.status.residentActive ? ' / レジデント' : ''}</dd></div><div class="detail-atk"><dt>ATK</dt><dd>${card.computed.currentAtk}</dd></div><div class="detail-str"><dt>STR</dt><dd>${card.computed.currentStr} / ${card.computed.maxStr}${card.status.damage ? ` / ダメージ${card.status.damage}` : ''}</dd></div><div class="detail-class"><dt>クラス</dt><dd>${(card.definition.classes ?? []).map(name => `<span class="detail-class-tag">${esc(name)}</span>`).join('')}</dd></div></dl><section class="detail-section effect-text-section"><h3>効果テキスト</h3><p class="card-effect-copy">${cardEffectHtml(card.definition.text || '効果なし')}</p></section><section class="detail-section runtime-detail-section"><h3>付与・残数</h3>${runtimeComponentRowsHtml(card.computed.components,esc)}</section><section class="detail-section layer-detail-section"><h3>レイヤー ${card.mounted.length+1}</h3><ol>${[card,...card.mounted].map((layer,index) => `<li class="layer-${index === 0 ? 'top' : layer.location?.role ?? 'layered'}"><b>L${index+1}</b><span>${esc(layer.definition.name)}</span><small>${esc(layer.definition.category)}</small></li>`).join('')}</ol></section></section></aside>`;
+  // The frame takes the card's color; everything else wears the shared panel look. The head and the card's name
+  // stay put at the top; the art and the text below them scroll (.detail-body; 文豪, 2026-11-07: 「固定に変えていく」).
+  return `<aside class="r2-detail cp-panel cp-card" data-card-color="${colorClass(card.definition.color)}" data-card-id="${esc(card.definition.id)}" aria-label="カード詳細">${panelHeadHtml({ eyebrow: 'CARD INSPECTOR', sub: esc(card.definition.id), title: 'カード詳細', close: 'data-close-detail', closeLabel: 'カード詳細を閉じる' })}<div class="detail-heading"><span>${esc(card.definition.category)} / COST ${card.computed.currentCost}</span><h2>${esc(card.definition.name)}</h2></div><div class="detail-body" data-patch-keep="style">${art}<section class="card-inspector"><dl class="detail-grid"><div class="detail-location"><dt>場所</dt><dd>${esc(card.location?.zone ?? '一時確認')}</dd></div><div class="detail-state"><dt>状態</dt><dd>${card.status.sleep ? 'スリープ' : 'スタンバイ'}${card.status.residentActive ? ' / レジデント' : ''}</dd></div><div class="detail-atk"><dt>ATK</dt><dd>${card.computed.currentAtk}</dd></div><div class="detail-str"><dt>STR</dt><dd>${card.computed.currentStr} / ${card.computed.maxStr}${card.status.damage ? ` / ダメージ${card.status.damage}` : ''}</dd></div><div class="detail-class"><dt>クラス</dt><dd>${(card.definition.classes ?? []).map(name => `<span class="detail-class-tag">${esc(name)}</span>`).join('')}</dd></div></dl><section class="detail-section effect-text-section"><h3>効果テキスト</h3><p class="card-effect-copy">${cardEffectHtml(card.definition.text || '効果なし')}</p></section><section class="detail-section runtime-detail-section"><h3>付与・残数</h3>${runtimeComponentRowsHtml(card.computed.components,esc)}</section><section class="detail-section layer-detail-section"><h3>レイヤー ${card.mounted.length+1}</h3><ol>${[card,...card.mounted].map((layer,index) => `<li class="layer-${index === 0 ? 'top' : layer.location?.role ?? 'layered'}"><b>L${index+1}</b><span>${esc(layer.definition.name)}</span><small>${esc(layer.definition.category)}</small></li>`).join('')}</ol></section></section></div></aside>`;
 }
 
 // mountCard puts the card under another Ob: マウント, not a second 実行 beside executeCard (文豪, 2026-11-03, M1).
@@ -212,12 +213,17 @@ function uniqueHtml(model,presentation) {
 // A move refused by the tutorial shows its reason (flow.error) under the line.
 function guideHtml(tutorial) {
   if (!tutorial?.presentation || tutorial.ended) return '';
-  // Put away by a tap on its line until the next step (runtime-match-surface.js, tapGuide), or waiting while the
-  // opponent's script plays (its next line comes once it is done): nothing stays. [チュートリアルをスキップ] is in the
-  // match options, not on the guide (文豪, 2026-11-04: 誤爆が多い).
-  if (tutorial.away || tutorial.waiting) return '';
+  // Waiting while the opponent's script plays (its next line comes once it is done): nothing stays.
+  // [チュートリアルをスキップ] is in the match options, not on the guide (文豪, 2026-11-04: 誤爆が多い).
+  if (tutorial.waiting) return '';
   const complete = tutorial.flow.complete === true;
   const {presentation,flow} = tutorial, navigator = tutorialNavigator(flow.tutorialId);
+  // Put away (a tap on its line, until the next step: runtime-match-surface.js, tapGuide) or tucked
+  // ([▾ 隠す] on a line only to read): only the speaker's tab stays, and brings the line back (文豪, 2026-11-07,
+  // セリフ退避). It is not a .live-guide: the guide is not on screen.
+  if (tutorial.away || tutorial.tucked) return `<button class="live-guide-tab" data-runtime-guide-back aria-label="${esc(presentation.speaker)}のセリフをもう一度出す">▴ ${esc(presentation.speaker)}</button>`;
+  // A step that asks for a move (no [次へ] on its last page) or to press something.
+  const move = !complete && !presentation.intro && !(presentation.expect?.type === 'advance' && !presentation.expect.press);
   // Pages (runtime-match-surface.js): the step's own button only on the last page.
   const page = tutorial.page ?? { index: 0, count: 1, last: true, text: presentation.text, pending: false };
   // The speaker's name heads the frame with the buttons (live.css: one line on a PC, the buttons under the name where
@@ -233,7 +239,7 @@ function guideHtml(tutorial) {
   // A step whose line says to press 『開始』 names its [次へ] so, from its focus's label (文豪, 2026-11-03, 案の1).
   const advance = presentation.focus?.find(focus => focus.kind === 'action' && focus.action === 'tutorial-advance')?.label ?? '次へ';
   const text = (presentation.parts ?? [page.text]).map(part => typeof part === 'string' ? guideQuoteHtml(iconed(esc(part))) :`<ruby>${esc(part.ruby)}<rt>${esc(part.rt)}</rt></ruby>`).join('');
-  return `<aside class="r2-guide live-guide" aria-label="チュートリアル"${page.pending ? ' data-paging="pending"' : ''} data-guide-page="${page.index + 1}/${page.count}" data-tutorial-step="${flow.introComplete ? `${flow.tutorialId}:${flow.index}` : `intro:${flow.introIndex}`}"><div class="live-guide-cast">${portrait}</div><div class="live-guide-speech"><div class="live-guide-head"><strong class="live-guide-name">${esc(presentation.speaker)}</strong><nav>${page.count > 1 ? `<small class="live-guide-page" aria-label="${page.index + 1}ページ目／全${page.count}ページ">${page.index + 1}/${page.count}</small>` : ''}<span class="live-guide-turn">${page.index > 0 ? '<button class="live-guide-prev" data-runtime-guide-prev>◂ 戻る</button>' : ''}${page.pending ? '' : !page.last ? '<button class="live-guide-next" data-runtime-guide-next>次へ ▸</button>' : complete ? '<button class="live-guide-next" data-runtime-tutorial-finish>次へ ▸</button>' : presentation.intro || presentation.expect?.type === 'advance' && !presentation.expect.press ? `<button class="live-guide-next" data-runtime-tutorial-next>${esc(advance)} ▸</button>` : ''}</span></nav></div><div class="live-guide-text" tabindex="0" role="region" aria-label="チュートリアルのセリフ" aria-live="polite"><p>${text}</p>${(flow.error || tutorial.note) && !complete ? `<p class="live-guide-error" role="alert">${esc(flow.error || tutorial.note)}</p>` : ''}</div></div></aside>`;
+  return `<aside class="r2-guide live-guide" aria-label="チュートリアル"${page.pending ? ' data-paging="pending"' : ''} data-guide-page="${page.index + 1}/${page.count}" data-tutorial-step="${flow.introComplete ? `${flow.tutorialId}:${flow.index}` : `intro:${flow.introIndex}`}"><div class="live-guide-cast">${portrait}</div><div class="live-guide-speech"><div class="live-guide-head"><strong class="live-guide-name">${esc(presentation.speaker)}</strong><nav>${move ? '' : '<button class="live-guide-tuck" data-runtime-guide-tuck aria-label="セリフを隠して盤面を見る">▾ 隠す</button>'}${page.count > 1 ? `<small class="live-guide-page" aria-label="${page.index + 1}ページ目／全${page.count}ページ">${page.index + 1}/${page.count}</small>` : ''}<span class="live-guide-turn">${page.index > 0 ? '<button class="live-guide-prev" data-runtime-guide-prev>◂ 戻る</button>' : ''}${page.pending ? '' : !page.last ? '<button class="live-guide-next" data-runtime-guide-next>次へ ▸</button>' : complete ? '<button class="live-guide-next" data-runtime-tutorial-finish>次へ ▸</button>' : presentation.intro || presentation.expect?.type === 'advance' && !presentation.expect.press ? `<button class="live-guide-next" data-runtime-tutorial-next>${esc(advance)} ▸</button>` : ''}</span></nav></div><div class="live-guide-text" tabindex="0" role="region" aria-label="チュートリアルのセリフ" aria-live="polite"><p>${text}</p>${(flow.error || tutorial.note) && !complete ? `<p class="live-guide-error" role="alert">${esc(flow.error || tutorial.note)}</p>` : ''}</div></div></aside>`;
 }
 function artHtml(model,presentation) {
   const card = visibleCards(model).find(card => !card.faceDown && card.cardRef === presentation.artRef)
@@ -294,8 +300,10 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
         cardHtml: selectionCardHtml, rowHtml: selectionRowHtml, lead: flow }) : '<section class="effect-dialog"><h2>操作を確定</h2></section>'}<nav>${instant ? '' : `<button data-runtime-confirm ${canConfirm ? '' : 'disabled'}>${presentation.plan?.completion ? '実行' : presentation.plan ? '次へ' : '確定'}</button>`}${model.requiredInput?.optional && !presentation.plan ? '<button data-runtime-decline>選ばない</button>' : ''}<button data-runtime-back>戻る</button></nav></aside>`
     : requiredInputHtml(model.requiredInput, visibleCards(model)));
   const hand = includeRuntime ? viewer.hand.cards.map((card, index) => {
-    const offset = index - (viewer.hand.count - 1) / 2;
-    return `<div class="hand-card" style="--hand-rotate:${offset * 5}deg;--hand-sink:calc(var(--u) * ${Math.abs(offset) * .3125})">${runtimeCardHtml(card, 'hand')}</div>`;
+    // The fan tilts and sinks no further than a six-card hand's ends (12.5°): a long hand's end cards stayed
+    // pressable only as slivers (文豪, 2026-11-07, スクロール A).
+    const offset = index - (viewer.hand.count - 1) / 2, fan = Math.max(-2.5, Math.min(2.5, offset));
+    return `<div class="hand-card" style="--hand-rotate:${fan * 5}deg;--hand-sink:calc(var(--u) * ${Math.abs(fan) * .3125})">${runtimeCardHtml(card, 'hand')}</div>`;
   }).join('') : '';
   return {
     layout,
@@ -303,7 +311,7 @@ export function runtimeGameRegions(model, presentation = {}, { includeRuntime = 
     board: includeRuntime ? wireframe ? wireframeBoardHtml(model, uniqueButton) : `<div class="r2-board"><div class="r2-board-fit"><div class="battle-board">${sideHtml(opponent, model.match.viewerSeat)}${sideHtml(viewer, model.match.viewerSeat)}</div></div></div>` : null,
     // The user windows sit in screen space, so the classic board carries them with the HUD.
     console: includeRuntime ? wireframeControlsHtml(model) + (wireframe ? '' : wireframeStatusHtml(viewer, true, uniqueButton) + wireframeStatusHtml(opponent, false)) : null,
-    hand: includeRuntime ? `<section class="r2-hand" aria-label="自分の手札 ${viewer.hand.count}枚"><div class="r2-hand-scroll hand-scroll">${hand}</div></section>` : null,
+    hand: includeRuntime ? `<section class="r2-hand" aria-label="自分の手札 ${viewer.hand.count}枚"><div class="r2-hand-scroll hand-scroll" data-patch-keep="data-more">${hand}</div></section>` : null,
     handToggle: includeRuntime ? '' : null,
     drawer: wants('drawer') ? drawer : null,
     detail: wants('detail') ? detailHtml(model,presentation) : null,

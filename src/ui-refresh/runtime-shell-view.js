@@ -78,10 +78,13 @@ function matchArchiveHtml(ui, toggle) {
 
 // Download / Discord (V092-08): HTML outside the title stage and the CRT canvas. A link without
 // an address is shown as 準備中 and has no href, so it cannot be followed.
+// A label breaks only between its phrases, after a particle (クライアントを / ダウンロード), never inside a word: it
+// broke as ダウンロ/ード (文豪, 2026-11-07: 「一緒に直そう」). Each phrase is a box the line keeps whole.
+const phrasesHtml = label => `<span class="r2-title-label">${String(label).split(/(?<=[をのにへで])/u).map(part => `<span>${esc(part)}</span>`).join('')}</span>`;
 export function titleLinksHtml(links = titleLinks()) {
   const item = ({ key, label, href }) => href
-    ? `<a class="r2-title-link" data-title-link="${key}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`
-    : `<a class="r2-title-link is-pending" data-title-link="${key}" role="link" aria-disabled="true">${esc(label)}<small>準備中</small></a>`;
+    ? `<a class="r2-title-link" data-title-link="${key}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${phrasesHtml(label)}</a>`
+    : `<a class="r2-title-link is-pending" data-title-link="${key}" role="link" aria-disabled="true">${phrasesHtml(label)}<small>準備中</small></a>`;
   return `<nav class="r2-title-links" aria-label="外部リンク">${links.map(item).join("")}</nav>`;
 }
 

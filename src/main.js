@@ -21,6 +21,8 @@ import { syncLiveInputLocks } from './ui-refresh/input-lock.js';
 import { noticeText } from './ui-refresh/notice-text.js';
 import { installMobileViewport } from './ui-refresh/mobile-viewport.js';
 import { captureDeckViewport, restoreDeckViewport } from './ui/deck-viewport.js';
+import { attachRowScroll } from './ui/row-scroll.js';
+import { deckFileJson, deckFileName, readDeckFile } from './ui/deck-file.js';
 import { installAbilityHelp } from './ui/ability-help.js';
 import { registerLocalFonts } from './ui/local-fonts.js';
 import { memoryEstimate, sampleMemory } from './ui-refresh/memory-estimate.js';
@@ -458,7 +460,8 @@ root.addEventListener('click',event => {
     if (!validateDeck(draft).valid) return;const index = host.savedDecks.findIndex(item => item.id === draft.id);if (index < 0 && host.savedDecks.length >= MAX_SAVED_DECKS) return;
     if (index < 0) host.savedDecks.push(draft);else host.savedDecks[index] = draft;host.savedDecks = saveDeckCollection(host.savedDecks);deck.draft = structuredClone(draft);}
   else if (button.hasAttribute('data-deck-delete')) {host.savedDecks = saveDeckCollection(host.savedDecks.filter(item => item.id !== deck.draft.id));newDeckDraft();}
-  else if (button.hasAttribute('data-deck-export')) {const link = document.createElement('a');link.href = URL.createObjectURL(new Blob([JSON.stringify(host.savedDecks,null,2)],{type:'application/json'}));link.download = 'simple-zeke-decks.json';link.click();URL.revokeObjectURL(link.href);return;}
+  // The deck being built, one deck, its file named after it (deck-file.js).
+  else if (button.hasAttribute('data-deck-export')) {const link = document.createElement('a');link.href = URL.createObjectURL(new Blob([deckFileJson(deck.draft)],{type:'application/json'}));link.download = deckFileName(deck.draft.name);link.click();URL.revokeObjectURL(link.href);return;}
   else if (d.storedExport) {const place = d.storedExport === 'logs' ? MATCH_LOGS : REPLAYS;downloadStored(d.storedExport,place,loadStored(localStorage,place));return;}
   else if (button.hasAttribute('data-toggle-send-logs')) {host.sendMatchLogs = !host.sendMatchLogs;localStorage.setItem(SEND_LOGS_STORAGE_KEY,host.sendMatchLogs ? 'on' : 'off');}
   else if (button.hasAttribute('data-title-tap-details')) {host.tapDetails = !host.tapDetails;surface?.configure({tapDetails:host.tapDetails});}
@@ -489,7 +492,8 @@ root.addEventListener('change',async event => {
   const target = event.target, deck = host.deckBuilder;
   for (const [key,field] of Object.entries({'deck-load':'load','deck-user':'userId','deck-color':'color','deck-recommend-color':'recommendColor','deck-strategy':'strategy'})) if (target.hasAttribute(`data-${key}`)) {
     if (field === 'load') deck.draft = structuredClone(host.savedDecks.find(item => item.id === target.value) ?? normalizeSavedDeck({},''));else if (field === 'userId') deck.draft.userId = target.value;else deck[field] = target.value;renderShell();return;}
-  if (target.hasAttribute('data-deck-import')) {const generation = shellGeneration;try {const parsed = JSON.parse(await target.files?.[0]?.text());if (generation !== shellGeneration || !Array.isArray(parsed)) return;host.savedDecks = saveDeckCollection(parsed);newDeckDraft();} catch {return;}}
+  // One deck or a list of them (deck-file.js); one deck read is opened in the builder.
+  if (target.hasAttribute('data-deck-import')) {const generation = shellGeneration;try {const read = readDeckFile(JSON.parse(await target.files?.[0]?.text()),host.savedDecks);if (generation !== shellGeneration || !read) return;host.savedDecks = saveDeckCollection(read.decks);if (read.open) deck.draft = structuredClone(host.savedDecks.find(item => item.id === read.open.id) ?? read.open);else newDeckDraft();} catch {return;}}
   else if (target.hasAttribute('data-logo-profile')) {host.logoNoiseProfile = target.value;localStorage.setItem('sz-logo-noise-profile',target.value);}
   else if (target.hasAttribute('data-logo-video')) {entryLogoVideoFile = target.files?.[0] ?? null;host.logoVideoName = entryLogoVideoFile?.name ?? '';}
   else if (target.hasAttribute('data-tap-details')) {host.tapDetails = target.checked;surface?.configure({tapDetails:host.tapDetails});}
@@ -513,6 +517,9 @@ root.addEventListener('pointerdown',event => {const tile = event.target.closest(
     suppressDeckClickUntil = performance.now()+800;host.deckBuilder.detailId = tile.dataset.deckCardId ?? tile.dataset.deckSummaryId;renderShell();clearPress();},480)};});
 root.addEventListener('pointermove',event => {if (press && Math.hypot(event.clientX-press.x,event.clientY-press.y)>8) clearPress();});
 for (const name of ['pointerup','pointercancel','pointerleave']) root.addEventListener(name,clearPress);
+// The deck builder's sideways rows (its cards, and a phone's catalog) move under a plain wheel and a mouse drag.
+const DECK_ROWS = '.deck-design .deck-selected,.deck-design[data-deck-view="mobile"] .deck-card-list';
+attachRowScroll(root,{selector:DECK_ROWS,drag:DECK_ROWS});
 // Escape is taken on the document: opening the options or closing the deck builder leaves the focus
 // on <body>, and the key must still close the window or go back from there (V092-08).
 document.addEventListener('keydown',event => {if (event.key === 'Escape' && !event.target.closest?.('[data-match-root]')) {

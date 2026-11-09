@@ -80,7 +80,9 @@
  display:grid; grid-template-rows:minmax(0,1fr); min-height:0; min-width:0; height:100%; max-height:none;
  margin:0; padding:0; border:0; overflow:hidden; order:0;
 }
-.deck-design[data-deck-view] .deck-summary { background:linear-gradient(100deg,#102637b3,#16172bb3); }
+.deck-design[data-deck-view] .deck-summary { grid-template-rows:auto minmax(0,1fr); row-gap:.5cqh; background:linear-gradient(100deg,#102637b3,#16172bb3); }
+.deck-design[data-deck-view] .deck-summary h3 { padding:0 1cqh; font-size:var(--deck-label); line-height:1.2; white-space:nowrap; }
+.deck-design[data-deck-view] .deck-summary h3 small { font-size:.8em; }
 .deck-catalog { background:linear-gradient(100deg,#0b1d2b80,#27152b80); }
 .deck-design .deck-summary h3 { margin:0; font-size:max(.625rem, calc(var(--u) * .9375)); }
 .deck-design .deck-summary h3 small { font:max(.625rem, calc(var(--u) * .6875)) sans-serif; color:#aac4ce; }
@@ -88,14 +90,20 @@
 .deck-design[data-deck-view] .deck-card-list {
  display:flex; align-items:stretch; height:100%; max-height:none; min-height:0; min-width:0; box-sizing:border-box;
  gap:.6cqw; overflow-x:auto; overflow-y:hidden; padding:0; scrollbar-width:none; container-type:size;
+ overscroll-behavior-x:contain; scroll-snap-type:x proximity; user-select:none;
 }
+/* Safari before scrollbar-width hides the bar by this alone. */
+.deck-design[data-deck-view] .deck-selected::-webkit-scrollbar,
+.deck-design[data-deck-view="mobile"] .deck-card-list::-webkit-scrollbar { display:none; }
+.deck-design[data-deck-view] :is(.deck-selected,.deck-card-list) > .deck-tile { scroll-snap-align:start; }
+/* A press held on a card opens its detail, not the phone's picture menu; a drag moves the row, not the picture. */
+.deck-design .deck-tile img { -webkit-touch-callout:none; -webkit-user-drag:none; }
 .deck-design[data-deck-view] .deck-tile {
  display:block; position:relative; flex:0 0 auto; width:auto; min-width:0; height:100%; aspect-ratio:5/8;
  padding:0; box-sizing:border-box; border:1px solid #66c4c9; border-radius:calc(var(--u) * .1875); background:#0a101a; overflow:hidden;
 }
 .deck-design[data-deck-view] .deck-tile-placeholder { display:grid; place-items:center; border-style:dashed; border-color:#517582; background:#10212c66; color:#9ed9dc; }
 .deck-tile-placeholder>b { font:400 22cqh/1 SZMakinas,sans-serif; }
-.deck-design[data-deck-view] .deck-tile-placeholder>small { position:absolute; grid-column:auto; inset:auto 0 2cqh; color:#aac4ce; font:7cqh/1.2 sans-serif; text-align:center; white-space:nowrap; }
 .deck-tile img { display:block; width:100%; height:100%; object-fit:cover; }
 .deck-design[data-deck-view] .deck-tile > strong { position:absolute; inset:auto 0 0; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; font:clamp(calc(var(--u) * .5),6.5cqh,calc(var(--u) * .875))/1.15 sans-serif; padding:1cqh; background:linear-gradient(transparent,#030911 25%); color:white; pointer-events:none; }
 .deck-tile-cost { position:absolute; left:0; top:0; border-radius:50%; padding:.5cqh 2cqh; font:clamp(calc(var(--u) * .5),8cqh,calc(var(--u) * 1.125))/1 sans-serif; background:#143e47; color:white; }
@@ -125,7 +133,10 @@
 .deck-design[data-deck-view="pc"] .deck-toolbar { gap:calc(var(--u) * .5); }
 .deck-design[data-deck-view="pc"] .deck-validation { padding:0 calc(var(--u) * .75); font-size:max(.625rem, calc(var(--u) * .9375)); }
 .deck-design[data-deck-view="pc"] .deck-body { grid-template-rows:calc(var(--u) * 10.625) var(--deck-control-h) minmax(0,1fr); gap:calc(var(--u) * .625); }
-.deck-design[data-deck-view="pc"] .deck-selected { gap:calc(var(--u) * .5); }
+/* A PC shows a thin bar under its cards: a mouse sees there is more, and can take the bar. */
+.deck-design[data-deck-view="pc"] .deck-selected { gap:calc(var(--u) * .5); scrollbar-width:thin; scrollbar-color:#4ce5e0 #0a101a; }
+.deck-design[data-deck-view="pc"] .deck-selected::-webkit-scrollbar { display:block; height:calc(var(--u) * .375); }
+.deck-design[data-deck-view="pc"] .deck-selected::-webkit-scrollbar-thumb { background:#4ce5e0; }
 .deck-design[data-deck-view="pc"] .deck-builder-tools { grid-template-columns:minmax(0,1fr) calc(var(--u) * 10) auto; gap:calc(var(--u) * .5); }
 .deck-design[data-deck-view="pc"] .deck-category-filter { gap:calc(var(--u) * .375); }
 .deck-design[data-deck-view="pc"] .deck-category-filter button { padding:0 calc(var(--u) * .875); }
