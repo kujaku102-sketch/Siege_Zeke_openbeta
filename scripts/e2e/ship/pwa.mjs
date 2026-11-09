@@ -27,7 +27,7 @@ const messageWorker = (page, type, payload = {}) => page.evaluate(({ type, paylo
 }), { type, payload });
 
 const { browser, base, errors } = await openBrowser();
-const report = { normalBrowser: false, installedOnline: false, offlineReload: false, cardArtAllowlist: false, oldCacheCleanup: false, atomicFailure: false };
+const report = { queryAddressSameEntry: false, artNotRefetched: false, artOffline: false, normalBrowser: false, installedOnline: false, offlineReload: false, cardArtAllowlist: false, oldCacheCleanup: false, atomicFailure: false };
 try {
   const probe = await browser.newPage();
   const manifestResponse = await probe.request.get(new URL("release-manifest.json", base).toString());
@@ -36,17 +36,33 @@ try {
   await probe.close();
   const revision = manifest.release?.buildRevision;
   const shellName = `sz-pwa-shell-${revision}`;
-  const artName = `sz-pwa-card-art-${revision}`;
+  const artName = "sz-pwa-card-art"; // one cache for every revision: art files carry their content hash, so an unchanged picture is never fetched again
+  const artCount = manifest.pwa?.cardArtAssetCount;
   const shellCount = manifest.pwa?.shellAssetCount;
-  if (!/^[a-f0-9]{16}$/.test(revision ?? "") || !Number.isInteger(shellCount)) throw new Error("release manifest has no valid PWA revision contract");
+  if (!/^[a-f0-9]{16}$/.test(revision ?? "") || !Number.isInteger(shellCount) || !Number.isInteger(artCount)) throw new Error("release manifest has no valid PWA revision contract");
 
   const normalContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const normalPage = await normalContext.newPage();
   await normalPage.goto(base.toString(), { waitUntil: "networkidle" });
   await normalPage.waitForFunction(async () => Boolean(await navigator.serviceWorker.getRegistration()));
-  const normalKeys = await normalPage.evaluate(() => caches.keys());
-  if (normalKeys.some((name) => name.startsWith("sz-pwa-"))) throw new Error(`normal browser created PWA caches: ${normalKeys.join(", ")}`);
+  // An ordinary tab keeps the whole shell too (not only an installed app), and then every card picture of the build.
+  await normalPage.waitForFunction(() => document.documentElement.dataset.pwaCache === "ready", null, { timeout: 60000 });
+  await normalPage.waitForFunction(() => document.documentElement.dataset.pwaArt === "ready", null, { timeout: 120000 });
+  const normalSnapshot = await cacheSnapshot(normalPage);
+  if (normalSnapshot[shellName]?.length !== shellCount) throw new Error(`ordinary tab: the shell is not complete: ${JSON.stringify(Object.keys(normalSnapshot))}`);
+  if ((normalSnapshot[artName] ?? []).length !== artCount) throw new Error(`ordinary tab: card art ${(normalSnapshot[artName] ?? []).length} of ${artCount}`);
   report.normalBrowser = true;
+  // A page address with a query is the same entry: the shell does not grow.
+  await normalPage.goto(new URL("?e2e=1", base).toString(), { waitUntil: "networkidle" });
+  await normalPage.waitForFunction(() => document.documentElement.dataset.pwaCache === "ready", null, { timeout: 60000 });
+  const queryShell = (await cacheSnapshot(normalPage))[shellName];
+  if (queryShell?.length !== shellCount) throw new Error(`a query address changed the shell cache: ${queryShell?.length} of ${shellCount}`);
+  report.queryAddressSameEntry = true;
+  // Asking again for all the art fetches nothing: every picture is already in.
+  await normalPage.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+  const again = await messageWorker(normalPage, "CACHE_ALL_CARD_ART");
+  if (!again.ok || again.cached !== 0 || again.failed !== 0) throw new Error(`card art was fetched again: ${JSON.stringify(again)}`);
+  report.artNotRefetched = true;
   await normalContext.close();
 
   const installedContext = await browser.newContext({ viewport: { width: 844, height: 390 } });
@@ -101,6 +117,9 @@ try {
     catch (error) { return { ok: false, error: String(error?.message ?? error) }; }
   }, shellProbeUrl);
   if (!offlineProbe.ok) offlineErrors.push(`direct offline shell fetch: ${JSON.stringify(offlineProbe)}`);
+  const artOffline = await page.evaluate(async (url) => { try { const r = await fetch(url); return r.ok && (await r.blob()).size > 0; } catch { return false; } }, cardArtUrl);
+  if (!artOffline) throw new Error("card art is not served offline");
+  report.artOffline = true;
   await page.reload({ waitUntil: "domcontentloaded" });
   try { await page.locator(".r2-content").waitFor({ state: "visible", timeout: 5000 }); }
   catch { throw new Error(`offline document did not load: ${JSON.stringify({ url: page.url(), title: await page.title(), errors: offlineErrors, caches: await cacheSnapshot(page).catch(() => ({})) })}`); }

@@ -87,6 +87,20 @@ export function pngMetadataText(buffer) {
   }
   return chunks.join("\n");
 }
+// Like a PNG, a WebP carries text only in its metadata chunks (EXIF, XMP); the compressed picture data is not text, and an accidental run of bytes in it is not an address.
+export function webpMetadataText(buffer) {
+  if (buffer.length < 12 || buffer.toString("ascii", 0, 4) !== "RIFF" || buffer.toString("ascii", 8, 12) !== "WEBP") return null;
+  const chunks = [];
+  for (let offset = 12; offset + 8 <= buffer.length;) {
+    const type = buffer.toString("ascii", offset, offset + 4);
+    const length = buffer.readUInt32LE(offset + 4);
+    const start = offset + 8; const end = start + length;
+    if (end > buffer.length) throw new Error("invalid WebP chunk boundary");
+    if (type === "EXIF" || type === "XMP ") chunks.push(buffer.subarray(start, end).toString("utf8"));
+    offset = end + (length % 2);
+  }
+  return chunks.join("\n");
+}
 async function files(directory, prefix = "") { const result = []; for (const entry of await readdir(directory, { withFileTypes: true })) { const relative = path.posix.join(prefix, entry.name); if (entry.isDirectory()) result.push(...await files(path.join(directory, entry.name), relative)); else if (entry.isFile()) result.push(relative); else throw new Error(`unsupported output: ${relative}`); } return result.sort(); }
 
 async function verifyPublicBuild() {
@@ -148,7 +162,8 @@ for (const file of output) {
   }
   const binary = binaryExtensions.has(path.extname(file).toLowerCase());
   const decoded = buffer.toString(binary ? "latin1" : "utf8");
-  const pngMetadata = path.extname(file).toLowerCase() === ".png" ? pngMetadataText(buffer) : null;
+  const extension = path.extname(file).toLowerCase();
+  const pngMetadata = extension === ".png" ? pngMetadataText(buffer) : extension === ".webp" ? webpMetadataText(buffer) : null;
   const body = binary ? (pngMetadata ?? (decoded.match(/[\x20-\x7e]{8,}/g) ?? []).join("\n")) : decoded;
   assert(!hasPrivateObjectField(body) && !hasLocalPathPayload(body, file) && !hasRawCredential(body), `forbidden public payload in ${file}`);
   if (!binary) assert(!hasTraceResidue(body), `engine trace residue in ${file}`);
