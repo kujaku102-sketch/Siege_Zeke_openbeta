@@ -51,7 +51,7 @@ function loopState(query) {
   const turn = query.observation?.turnNumber ?? null;
   const current = loopLog.get(key);
   if (current && current.turn === turn) return current;
-  const next = { turn, counts: new Map(), last: null, unavoidable: current?.unavoidable ?? 0 };
+  const next = { turn, counts: new Map(), last: null, unavoidable: current?.unavoidable ?? 0, replaced: current?.replaced ?? 0 };
   loopLog.set(key, next);
   return next;
 }
@@ -71,7 +71,7 @@ const answerKey = action => `${action.type}|${(action.optionIds ?? []).join(',')
 
 export function simpleAiLoopStats(matchId, viewerSeat) {
   const state = loopLog.get(`${matchId}|${viewerSeat}`);
-  return { unavoidable: state?.unavoidable ?? 0, counts: Object.fromEntries(state?.counts ?? []) };
+  return { unavoidable: state?.unavoidable ?? 0, replaced: state?.replaced ?? 0, counts: Object.fromEntries(state?.counts ?? []) };
 }
 
 function rotated(options, attempt) {
@@ -262,7 +262,7 @@ export function chooseSimpleAiIntent(query, commandId, queryAction = null) {
         let other = null;
         if (action.type === 'declineChoice') other = requiredInputAction(input, query, { answer: true, again: true });
         else for (let shift = 1; shift < (input.options?.length ?? 0) && !fresh(other); shift += 1) other = requiredInputAction(input, query, { shift, again: true });
-        if (fresh(other)) action = other; else state.unavoidable += 1;
+        if (fresh(other)) { action = other; state.replaced += 1; } else state.unavoidable += 1;
       }
       state.last = { revision, board: boardOf(query), key: answerKey(action) };
     }
