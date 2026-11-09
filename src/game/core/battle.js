@@ -241,7 +241,9 @@ function attackCore(state, playerId, attackerUid, targetUid) {
       return true;
     }
   }
-  if (!attacker.skipDynamicSelectionAttackEffect && attacker.compiled?.selectionModules?.some((module) => module.module === "dynamic_threshold_selection")) {
+  // 宣言のあと・戦闘が始まってからの再開(相手の窓を閉じたあと)は、攻撃時の選択をもう一度出さない(下の攻撃時効果と同じ)。出すと、相手の窓が戻るたびに選択が最初から出て終わらない。
+  if (!attacker.skipDynamicSelectionAttackEffect && resumeStage !== "after-declare" && resumeStage !== "after-battle"
+    && attacker.compiled?.selectionModules?.some((module) => module.module === "dynamic_threshold_selection")) {
     if (beginDynamicSelectionModule(state, playerId, attacker, { resumeAttack: true, targetUid: target.uid })) return true;
   }
   delete attacker.skipDynamicSelectionAttackEffect;

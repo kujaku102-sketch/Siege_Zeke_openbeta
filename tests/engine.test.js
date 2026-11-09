@@ -709,6 +709,39 @@ test("STD-219 login and attack use common access and dynamic-threshold runtime",
   assert.equal(state.players.player.registry.some((card) => card.uid === executable.uid), false);
 });
 
+test("STD-219 attack resumed after the opponent's Script window does not ask its selection again", () => {
+  // 試合が終わらなかった穴(2026-11-08、緑×橙): 戦闘の途中で相手の Script の窓が開き、閉じて攻撃が再開されるたびに、攻撃時の選択が最初から出ていた。
+  const state = createGame({ mode: "lab", rng: () => 0 });
+  addSandboxCardToHand(state, "player", "STD-219");
+  const source = state.players.player.hand.find((card) => card.id === "STD-219");
+  const executable = createCardInstance("STD-020", "player", 9201);
+  state.players.player.deck = [executable];
+  assert.equal(playCard(state, "player", source.uid, { zone: "front" }), true);
+  toggleSelection(state.pending.request, executable.uid);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+  source.summoningSick = false;
+  state.players.player.registry.push(createCardInstance("STD-021", "player", 9210), createCardInstance("STD-022", "player", 9211));
+  const script = createCardInstance("STD-177", "ai", 9202);
+  script.faceDown = true;
+  const defender = createCardInstance("STD-020", "ai", 9204);
+  defender.summoningSick = false;
+  defender.sleep = true;
+  state.players.ai.back = [script];
+  state.players.ai.front = [defender];
+  state.players.ai.registry = [createCardInstance("STD-173", "ai", 9205)];
+  state.players.ai.memory = 10;
+  const target = getAttackTargets(state, "player", source).find((entry) => entry.uid === defender.uid);
+  assert.equal(attack(state, "player", source.uid, target.uid), true);
+  assert.equal(state.pending.request.continuation.type, "selection-module-dynamic");
+  toggleSelection(state.pending.request, executable.uid);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+  assert.equal(state.prompt?.scriptUid, script.uid);
+  assert.equal(state.deferredAttack?.stage, "after-battle");
+  assert.equal(declinePrompt(state), true);
+  assert.equal(state.pending, null, "the attack goes on to its end: the selection is not asked again");
+  assert.equal(state.deferredAttack ?? null, null);
+});
+
 test("STD-232 logout selects, allocates and moves layers through the common runtime", () => {
   const state = createGame({ mode: "lab" });
   const player = state.players.player;
