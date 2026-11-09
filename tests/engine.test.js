@@ -6965,7 +6965,8 @@ test("Savage feedback affects each active player and preserves the next draw", (
 });
 
 test("deck builder validates user-specific size and same-name limits", () => {
-  const uniqueCards = [...new Map(BUILDABLE_CARDS.map((card) => [card.name, card])).values()];
+  // the DANGER! card goes in once (2.1), so these sample decks leave it out
+  const uniqueCards = [...new Map(BUILDABLE_CARDS.filter((card) => !card.deckBuild?.danger).map((card) => [card.name, card])).values()];
   const byOs = { id: "by-os", name: "By OS", userId: "by_os", cards: Object.fromEntries(uniqueCards.slice(0, 30).map((card) => [card.id, 2])) };
   assert.equal(validateDeck(byOs).valid, true);
   byOs.cards["STD-001"] = 3;
