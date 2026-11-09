@@ -67,16 +67,19 @@
 .r2-content .r2-detail.cp-card .detail-art::before { background:linear-gradient(to bottom,transparent 40%,#08111a99 65%,var(--detail-base) 100%); }
 .r2-content .r2-detail.cp-card .detail-heading span { border-radius:0; background:color-mix(in srgb,var(--cp-frame) 22%,#0a1822); color:var(--cp-ink); }
 .r2-content .r2-detail.cp-card .detail-section { background:transparent; }
-/* The art holds still at the top and the text scrolls up over it. It opens with a
-   square of art clear (padding-top:100% is the panel's width), and darkens as the text
-   rises (--detail-dim, set by detail-scroll.js). The bottom room lets short text
-   still scroll up over the art. */
-body[data-view] .r2-content .r2-detail.cp-card { --detail-dim:0; display:block; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; }
+/* The art holds still at the top and the text scrolls up over it. It opens with the top
+   of the art clear, --detail-clear of the panel's width (.625 on a PC, .35 on a phone,
+   so the text shows as it opens: 文豪, 2026-11-07, 案C), the art fading to dark where the
+   text begins, and darkens as the text rises (--detail-dim, set by detail-scroll.js).
+   The bottom room lets short text still scroll up over the art. */
+body[data-view] .r2-content .r2-detail.cp-card { --detail-dim:0; --detail-clear:.625; display:block; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; }
+body[data-view="mobile"] .r2-content .r2-detail.cp-card { --detail-clear:.35; }
 body[data-view] .r2-content .r2-detail.cp-card > .detail-art { position:sticky; top:0; z-index:0; display:block; height:0; overflow:visible; }
 body[data-view] .r2-content .r2-detail.cp-card > .detail-art img { position:absolute; top:0; left:0; width:100%; height:auto; filter:brightness(calc(1 - .72 * var(--detail-dim))); }
 body[data-view] .r2-content .r2-detail.cp-card > .detail-art::before { display:block; inset:0 0 auto; aspect-ratio:5/8; z-index:1;
-  background:linear-gradient(to bottom,transparent 52%,#08111aaa 62%,var(--detail-base) 72%); opacity:calc(1 - var(--detail-dim)); }
-body[data-view] .r2-content .r2-detail.cp-card > .card-inspector { position:relative; z-index:1; overflow:visible; max-height:none; padding-top:100%; padding-bottom:100%;
+  /* The box is 1.6 widths tall: the text begins at --detail-clear / 1.6 of it. */
+  background:linear-gradient(to bottom,transparent calc(var(--detail-clear) / 1.6 * 100% - 10%),#08111aaa calc(var(--detail-clear) / 1.6 * 100%),var(--detail-base) calc(var(--detail-clear) / 1.6 * 100% + 10%)); opacity:calc(1 - var(--detail-dim)); }
+body[data-view] .r2-content .r2-detail.cp-card > .card-inspector { position:relative; z-index:1; overflow:visible; max-height:none; padding-top:calc(var(--detail-clear) * 100%); padding-bottom:100%;
   background:linear-gradient(to bottom,transparent,color-mix(in srgb,var(--detail-base) calc(var(--detail-dim) * 70%),transparent) 3rem); }
 
 /* No artwork yet: a provisional square marked NO IMAGE fills the art space above the text. */
