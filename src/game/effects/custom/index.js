@@ -1,3 +1,4 @@
+import { attackDeclarationCostSelection } from "../../core/battle.js";
 import { TRACE, tracing, waypoint } from "../../engine-trace.js";
 import { std003ResolveDeclaredScript } from "../../../cards/std/std_003_effects.js";
 import { std011GetEffectTargets } from "../../../cards/std/std_011_effects.js";
@@ -42,7 +43,6 @@ import { activateStd203ResponseSelection, std203NormalSpellSelection, std203Reso
 import { std207ResolveSpell, std207RevealSelection } from "../../../cards/std/std_207_effects.js";
 import { std211NormalSpellSelection, std211PlayCardCore4, std211ResolveSpell } from "../../../cards/std/std_211_effects.js";
 import { std212ResolveSpell, std212RespawnCountSelection } from "../../../cards/std/std_212_effects.js";
-import { std214AttackCore3, std214AttackCostSelection } from "../../../cards/std/std_214_effects.js";
 import { std217DrainIndependentEffects } from "../../../cards/std/std_217_effects.js";
 import { std220PlayCardCore3 } from "../../../cards/std/std_220_effects.js";
 import { std223AmbushChoiceSelection, std223AmbushTargetSelection } from "../../../cards/std/std_223_effects.js";
@@ -128,7 +128,7 @@ export const CUSTOM_SELECTION_HANDLERS = tracedTable("CUSTOM_SELECTION_HANDLERS"
   "std179-place": std179PlaceSelection,
   "std182-attack-script": std182AttackScriptSelection,
   "play-std229": playStd229Selection,
-  "std214-attack-cost": std214AttackCostSelection,
+  "attack-declaration-cost": attackDeclarationCostSelection,
   "std226-compress": std226CompressSelection,
   "std230-ambush-choice": std230AmbushChoiceSelection,
   "std230-install-hand": std230InstallHandSelection,
@@ -156,12 +156,6 @@ export const CUSTOM_ATTACK_CORE = tracedTable("CUSTOM_ATTACK_CORE", {
 export const CUSTOM_ATTACK_CORE_2 = tracedTable("CUSTOM_ATTACK_CORE_2", {
   __proto__: null,
   "STD-182": std182AttackCore2
-});
-
-// core/battle.js: card id -> handler (a handler returns PASS when it did not take the branch)
-export const CUSTOM_ATTACK_CORE_3 = tracedTable("CUSTOM_ATTACK_CORE_3", {
-  __proto__: null,
-  "STD-214": std214AttackCore3
 });
 
 // core/battle.js: card id -> handler

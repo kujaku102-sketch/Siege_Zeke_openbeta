@@ -3,7 +3,7 @@ import { cardPlacementCostSpec } from "../../card-runtime-specs.js";
 import { isObCard } from "../../card-types.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
 import { createAllocationSpec, createSelectionRequest, isSelectionRequestFeasible, selectionRequestFromSpec } from "../../selection-model.js";
-import { attack, continueAttackAfterCost } from "../../core/battle.js";
+import { attack, continueAttackAfterCost, resumeDeferredAttack } from "../../core/battle.js";
 import { dealCardDamage } from "../../core/deal-damage.js";
 import { resumeMandatoryDrawContinuation } from "../../core/draw.js";
 import { continueDeferredDeclaredScriptCleanup, resolveEffect, runEffectEntry } from "../../core/effects.js";
@@ -589,6 +589,8 @@ export function resolveCardSelection(state, continuation, result) {
   }
   const resolved = runEffectEntry(state, "selection", continuation?.playerId ?? null, () => {
     const resumed = resumeCardSelection(state, continuation, result);
+    // An attack kept back while this choice (or one before it) was open goes on once no window is left (a Script window does the same when it closes: core/scripts.js).
+    if (resumed && !state.pending && !state.prompt) resumeDeferredAttack(state);
     if (resumed && !state.pending && !state.prompt) resumeStalledTriggerThread(state);
     return resumed;
   });

@@ -45,7 +45,7 @@ export function hydrateCard(instance) {
   const printedCategory = instance.printedCategory ?? instance.category;
   return normalizeLayerState({
     ...instance,
-    category: instance.category === "LOb" ? "Ob" : instance.category,
+    category: instance.category === "LOb" ? "Ob" : instance.category === "Sc" ? "Script" : instance.category,
     printedCategory,
     classes: normalizeClasses(instance),
     compiled,

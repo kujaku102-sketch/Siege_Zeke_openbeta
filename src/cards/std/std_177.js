@@ -5,7 +5,7 @@ import { createTriggerSpec } from "../../game/activation-windows.js";
 export const definition = {
   "id": "STD-177",
   "name": "甲虫の突撃",
-  "category": "Sc",
+  "category": "Script",
   "printedCategory": "Sc",
   "color": "緑",
   "cost": 2,

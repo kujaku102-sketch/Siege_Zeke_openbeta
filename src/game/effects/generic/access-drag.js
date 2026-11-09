@@ -57,7 +57,6 @@ export function resolveAccessDragPlacementCore(state, playerId, zone, underUid =
     const host = underUid ? target?.find((item) => item.uid === underUid && isObCard(item)) : null;
     if (!target || !(isObCard(card) || card.category === "Code") || (underUid && (!host || card.category !== "Code"))) { state.pending = pending; return false; }
     card.sleep = false;
-    card.summoningSick = false;
     card.damage = 0;
     if (host) {
       card.layerRole = "code";

@@ -709,6 +709,39 @@ test("STD-219 login and attack use common access and dynamic-threshold runtime",
   assert.equal(state.players.player.registry.some((card) => card.uid === executable.uid), false);
 });
 
+test("STD-219 attack resumed after the opponent's Script window does not ask its selection again", () => {
+  // 試合が終わらなかった穴(2026-11-08、緑×橙): 戦闘の途中で相手の Script の窓が開き、閉じて攻撃が再開されるたびに、攻撃時の選択が最初から出ていた。
+  const state = createGame({ mode: "lab", rng: () => 0 });
+  addSandboxCardToHand(state, "player", "STD-219");
+  const source = state.players.player.hand.find((card) => card.id === "STD-219");
+  const executable = createCardInstance("STD-020", "player", 9201);
+  state.players.player.deck = [executable];
+  assert.equal(playCard(state, "player", source.uid, { zone: "front" }), true);
+  toggleSelection(state.pending.request, executable.uid);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+  source.summoningSick = false;
+  state.players.player.registry.push(createCardInstance("STD-021", "player", 9210), createCardInstance("STD-022", "player", 9211));
+  const script = createCardInstance("STD-177", "ai", 9202);
+  script.faceDown = true;
+  const defender = createCardInstance("STD-020", "ai", 9204);
+  defender.summoningSick = false;
+  defender.sleep = true;
+  state.players.ai.back = [script];
+  state.players.ai.front = [defender];
+  state.players.ai.registry = [createCardInstance("STD-173", "ai", 9205)];
+  state.players.ai.memory = 10;
+  const target = getAttackTargets(state, "player", source).find((entry) => entry.uid === defender.uid);
+  assert.equal(attack(state, "player", source.uid, target.uid), true);
+  assert.equal(state.pending.request.continuation.type, "selection-module-dynamic");
+  toggleSelection(state.pending.request, executable.uid);
+  assert.equal(resolveCardSelection(state, state.pending.request.continuation, confirmSelection(state.pending.request)), true);
+  assert.equal(state.prompt?.scriptUid, script.uid);
+  assert.equal(state.deferredAttack?.stage, "after-battle");
+  assert.equal(declinePrompt(state), true);
+  assert.equal(state.pending, null, "the attack goes on to its end: the selection is not asked again");
+  assert.equal(state.deferredAttack ?? null, null);
+});
+
 test("STD-232 logout selects, allocates and moves layers through the common runtime", () => {
   const state = createGame({ mode: "lab" });
   const player = state.players.player;
@@ -3097,7 +3130,7 @@ test("all non-Alternative user cards apply their printed base values", () => {
     const state = createGame({ mode: "ai", playerUserId: userId });
     const player = state.players.player;
     assert.deepEqual([player.user.maxStr, player.user.memory, player.user.frontLimit, player.user.backLimit, player.user.initialHand], values);
-    assert.equal(player.hand.length, values[4]);
+    assert.equal(player.hand.length, values[4] + 1);      // the first player's first turn draws 1 (staging.20)
   }
 });
 
@@ -6643,10 +6676,10 @@ test("STD-207 is executable from the shared Response window", () => {
 test("BIGBOSS can mulligan exactly three times before another opening action", () => {
   const state = createGame({ mode: "ai", playerUserId: "bigboss", rng: () => 0 });
   const player = state.players.player;
-  assert.equal(player.hand.length, 5);
+  assert.equal(player.hand.length, 6);      // 5 and the first turn's draw
   for (let count = 1; count <= 3; count += 1) {
     assert.equal(openingMulligan(state, "player"), true);
-    assert.equal(player.hand.length, 5);
+    assert.equal(player.hand.length, 6);
     assert.equal(player.mulligansUsed, count);
   }
   assert.equal(openingMulligan(state, "player"), false);
@@ -6726,7 +6759,7 @@ test("v2.4 rolls the dice in the last decision and starts the first player's tur
     assert.equal(state.active, first);
     assert.equal(state.phase, "main");
     assert.equal(state.turnNumber, 1);
-    assert.equal(state.players[first].hand.length, 4, "the first player skips the first draw");
+    assert.equal(state.players[first].hand.length, 5, "the first player draws 1 on the first turn");
     assert.equal(state.players[first].turnsTaken, 1);
     assert.equal(state.players[second].turnsTaken, 0);
     assert.ok(state.log.some((entry) => entry.text.includes("先攻")));
@@ -6932,7 +6965,8 @@ test("Savage feedback affects each active player and preserves the next draw", (
 });
 
 test("deck builder validates user-specific size and same-name limits", () => {
-  const uniqueCards = [...new Map(BUILDABLE_CARDS.map((card) => [card.name, card])).values()];
+  // the DANGER! card goes in once (2.1), so these sample decks leave it out
+  const uniqueCards = [...new Map(BUILDABLE_CARDS.filter((card) => !card.deckBuild?.danger).map((card) => [card.name, card])).values()];
   const byOs = { id: "by-os", name: "By OS", userId: "by_os", cards: Object.fromEntries(uniqueCards.slice(0, 30).map((card) => [card.id, 2])) };
   assert.equal(validateDeck(byOs).valid, true);
   byOs.cards["STD-001"] = 3;

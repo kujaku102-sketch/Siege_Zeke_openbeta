@@ -8,7 +8,8 @@ export const definition = {
   "classes": [
     "レッドパンクス"
   ],
-  "text": "マウントしたObを+1/+1する。(このカードは山札に4枚以上入れられる。)"
+  "text": "マウントしたObを+1/+1する。(このカードは山札に4枚以上入れられる。)",
+  "deckBuild": { "copies": "unlimited" }
 };
 
 // mountedStatModifierSpec (was continuous-effect-specs.js)

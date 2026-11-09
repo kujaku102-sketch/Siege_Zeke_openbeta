@@ -24,6 +24,13 @@ import { RUNTIME_SPEC_ORDER } from "../cards/spec-order.js";
 
 export const CARD_PLACEMENT_COST_SPECS = Object.freeze(collectSpecs("placementCostSpec"));
 
+// The declaration cost of an attack: { source: "registry" | "trash", count, faceUp } = the attacker's user may take up to `count` cards (face up only when
+// `faceUp`) from `source` to hand when the attack is declared; taking none fails the declaration (core/battle.js declarationCost).
+export const CARD_ATTACK_DECLARATION_COST_SPECS = Object.freeze(collectSpecs("attackDeclarationCostSpec"));
+for (const [id, spec] of Object.entries(CARD_ATTACK_DECLARATION_COST_SPECS)) {
+  if (!["registry", "trash"].includes(spec.source) || !Number.isInteger(spec.count) || spec.count < 1) throw new Error(`${id}: attackDeclarationCostSpec needs a source (registry or trash) and a count of 1 or more`);
+}
+
 // ID is used only at this registry boundary. The engine executes the same operation
 // vocabulary for every registered card and does not own card-specific effect bodies.
 export const CARD_RUNTIME_SPECS = Object.freeze(collectSpecs("runtimeSpec", RUNTIME_SPEC_ORDER));
@@ -138,6 +145,10 @@ export function cardRuntimeSpec(cardId, phase) {
   if (!found) return null;
   if (found.phases) return found.phases[phase] ?? null;
   return found.phase === phase ? found : null;
+}
+
+export function cardAttackDeclarationCostSpec(cardId) {
+  return CARD_ATTACK_DECLARATION_COST_SPECS[cardId] ?? null;
 }
 
 export function cardPlacementCostSpec(cardId) {

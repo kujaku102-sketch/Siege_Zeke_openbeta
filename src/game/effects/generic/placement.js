@@ -9,6 +9,7 @@ import { drawCards } from "../../core/draw.js";
 import { enqueueSelection, selectionProjectionMeta } from "../../core/projection.js";
 import { addLog, cardTraits, fail, otherPlayer } from "../../core/shared.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "../../core/triggers.js";
+import { hasKeyword } from "../../core/keywords.js";
 import { markFieldEntry, movedSummoningSick } from "./field-entry.js";
 import { moveCardToTrash, resetLeftAreaState, revealMountedCode, triggerMoved } from "./trash.js";
 
@@ -151,7 +152,8 @@ export function placeByMode(state, ownerId, card, { zone, mode = "forced-effect"
   if (!["front", "back"].includes(from)) {
     markFieldEntry(state, card);
     // 生成されたカードは効果が作った値をそのまま使う。実在のカードがエリア外から入る場合だけ初期化する。
-    if (from !== "generated") resetLeftAreaState(card);
+    // 実在のカードは配置されたターンに攻撃できない(rulebook 攻撃宣言)。ゴミ箱から来るカードは前にフィールドにいた時の値を持っているので、ここで立てる。
+    if (from !== "generated") { resetLeftAreaState(card); card.summoningSick = !hasKeyword(card, "QA"); }
   }
   return "placed";
 }

@@ -38,6 +38,42 @@ function answerAttempt(query, input) {
   return attempt;
 }
 
+// 結果の変わらない同じ処理を繰り返さない(文豪 2026-11-08「CPU操作の禁止事項でいい」。ルールではない: 人の操作は制限しない)。
+// 窓への答えを出して受理され(リビジョンが進み)、次の判断のとき盤面(observation のうちリビジョンを除いたもの)が同じなら、その(盤面, 答え)を1回と数える。ターンが変わったら数え直す。
+// 同じ盤面で結果の変わらなかった回数が REPEAT_BAN に達した答えは、次は出さない。別の答えがあるなら(選ぶ窓は次の選択肢、断っていた窓は選ぶ)それにし、無ければ普段の答えのまま(答えないと
+// 試合が止まる)、数だけ残す。「断る」はいつもの答えなので DECLINE_BAN まで通す。メインの手は REPEAT_LIMITED_ACTIONS が受け持つ(この禁止の対象外)。
+const REPEAT_BAN = 2;
+const DECLINE_BAN = 5;
+const loopLog = new Map();
+
+function loopState(query) {
+  const key = `${query.status?.matchId}|${query.status?.viewerSeat}`;
+  const turn = query.observation?.turnNumber ?? null;
+  const current = loopLog.get(key);
+  if (current && current.turn === turn) return current;
+  const next = { turn, counts: new Map(), last: null, unavoidable: current?.unavoidable ?? 0 };
+  loopLog.set(key, next);
+  return next;
+}
+
+const boardOf = query => JSON.stringify(query.observation ?? null, (field, value) => (field === 'revision' ? undefined : value));
+
+// the answer last given was accepted and left the board as it was: it counts once
+function settleLoop(query, state) {
+  const last = state.last;
+  state.last = null;
+  if (last && Number.isSafeInteger(query.status?.revision) && query.status.revision > last.revision && boardOf(query) === last.board) {
+    state.counts.set(last.key, (state.counts.get(last.key) ?? 0) + 1);
+  }
+}
+
+const answerKey = action => `${action.type}|${(action.optionIds ?? []).join(',')}`;
+
+export function simpleAiLoopStats(matchId, viewerSeat) {
+  const state = loopLog.get(`${matchId}|${viewerSeat}`);
+  return { unavoidable: state?.unavoidable ?? 0, counts: Object.fromEntries(state?.counts ?? []) };
+}
+
 function rotated(options, attempt) {
   if (!Array.isArray(options) || options.length < 2) return options;
   const shift = attempt % options.length;
@@ -158,14 +194,20 @@ function securityRestAction(input, query) {
     : { type: 'answerChoice', choiceId: input.choiceId, optionIds: [input.options[0].optionId], allocation: [] };
 }
 
-function requiredInputAction(input, query) {
+function requiredInputAction(input, query, { shift = 0, answer = false, again = false } = {}) {
   if (!input.canAnswer) return null;
   if (input.presentationKey === 'security-rest') return securityRestAction(input, query);
   if (input.constraints?.kind === 'random') return {
     type: 'answerChoice', choiceId: input.choiceId, optionIds: [], allocation: []
   };
-  if (input.optional) return { type: 'declineChoice', choiceId: input.choiceId };
-  const options = rotated(input.options, answerAttempt(query, input));
+  // The cost of an attack that was declared: it is paid when it can be (taking nothing fails the declaration), whatever else is optional.
+  if (input.purpose === 'attack-declaration-cost' && input.options?.length) return {
+    type: 'answerChoice', choiceId: input.choiceId, optionIds: [rotated(input.options, answerAttempt(query, input))[0].optionId], allocation: []
+  };
+  if (input.optional && !answer) return { type: 'declineChoice', choiceId: input.choiceId };
+  // again: the second call for the same window (the answer that the ban replaces) does not count as a rejected answer
+  const attempt = again ? (answerLog.get(`${query.status?.matchId}|${query.status?.viewerSeat}`)?.attempt ?? 0) : answerAttempt(query, input);
+  const options = rotated(input.options, attempt + shift);
   if (input.constraints?.kind === 'allocation') {
     const answer = allocationAnswer({ ...input, options });
     return answer ? { type: 'answerChoice', choiceId: input.choiceId, ...answer } : null;
@@ -206,10 +248,27 @@ export function chooseSimpleAiIntent(query, commandId, queryAction = null) {
   const revision = query.status?.revision;
   if (!Number.isSafeInteger(revision) || revision < 0 || !Array.isArray(query.legalActions)) return failure('INVALID_AI_INPUT');
   if (query.requiredInput !== null) {
-    const action = requiredInputAction(query.requiredInput, query);
-    if (!action) return failure(query.requiredInput.canAnswer ? 'AI_REQUIRED_INPUT_UNSUPPORTED' : 'AI_NOT_ACTIVE');
+    const input = query.requiredInput;
+    const state = loopState(query);
+    settleLoop(query, state);
+    let action = requiredInputAction(input, query);
+    if (!action) return failure(input.canAnswer ? 'AI_REQUIRED_INPUT_UNSUPPORTED' : 'AI_NOT_ACTIVE');
+    const guarded = input.canAnswer && input.presentationKey !== 'security-rest' && input.constraints?.kind !== 'random' && input.purpose !== 'attack-declaration-cost';
+    if (guarded) {
+      const count = state.counts.get(answerKey(action)) ?? 0;
+      if (count >= (action.type === 'declineChoice' ? DECLINE_BAN : REPEAT_BAN)) {
+        // a window that was declined is answered; a window that was answered takes the next option that has not been tried as often
+        const fresh = candidate => candidate && answerKey(candidate) !== answerKey(action) && (state.counts.get(answerKey(candidate)) ?? 0) < REPEAT_BAN;
+        let other = null;
+        if (action.type === 'declineChoice') other = requiredInputAction(input, query, { answer: true, again: true });
+        else for (let shift = 1; shift < (input.options?.length ?? 0) && !fresh(other); shift += 1) other = requiredInputAction(input, query, { shift, again: true });
+        if (fresh(other)) action = other; else state.unavoidable += 1;
+      }
+      state.last = { revision, board: boardOf(query), key: answerKey(action) };
+    }
     return { ok: true, value: { commandId, expectedRevision: revision, action } };
   }
+  settleLoop(query, loopState(query));
   let selected = null;
   let plannedAction = null;
   const redeployCounts = redeployTurnCounts(query);
