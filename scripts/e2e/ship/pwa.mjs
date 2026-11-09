@@ -115,6 +115,7 @@ try {
   if (!unregistered) throw new Error("service worker update probe could not unregister the old revision");
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForFunction(async () => Boolean((await navigator.serviceWorker.getRegistration())?.active));
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
   await page.waitForFunction(async () => !(await caches.keys()).some((name) => name.includes("old-revision")));
   report.oldCacheCleanup = true;
 

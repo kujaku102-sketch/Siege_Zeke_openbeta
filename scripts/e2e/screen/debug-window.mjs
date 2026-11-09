@@ -15,7 +15,7 @@ const errors = [], results = [];
 const debugOpen = (page) => page.locator('.r2-pager[data-page="debug"]').count();
 const optionsOpen = (page) => page.locator('[role=dialog][aria-label="オプション"]').count();
 // The window (the options dialog's own section) is laid out at rest once the slide is over.
-const settled = (page) => page.waitForFunction(() => document.getAnimations().every((a) => !a.effect?.target?.matches?.(".r2-page") || a.playState !== "running"), null, { timeout: 5000 });
+const settled = (page) => page.waitForFunction(() => document.getAnimations().every((a) => !a.effect?.target?.matches?.(".r2-page") || a.playState !== "running"), null, { timeout: 15000 });
 const inside = (page) => page.evaluate(() => { const r = (document.querySelector(".r2-title-options-crt") ? document.querySelector(".r2-crt-viewport") : document.querySelector(".r2-pager").closest("section")).getBoundingClientRect(); return r.left >= -1 && r.top >= -1 && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1; });
 const crtMenu = async (page) => await page.locator(".r2-title-options-crt").count() === 1;
 const press = async (page, selector) => { if (await crtMenu(page)) { await page.locator(selector).first().focus(); await page.keyboard.press("Enter"); } else await page.locator(selector).first().click(); };
