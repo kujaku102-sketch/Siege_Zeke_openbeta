@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { FILLER_RECIPE } from './opening-filler.js';
 import assert from 'node:assert/strict';
 import { createRuntimeSession } from '../src/game/runtime/session.js';
 import { buildRuntimeReferenceFrame } from '../src/game/runtime/reference-frame.js';
@@ -49,6 +50,8 @@ function completeAuthority(sessionValue) {
 }
 
 function authority({ mode = 'sandbox', playerUserId = 'doors_zx', playerDeckRecipe = [], aiDeckRecipe = [] } = {}) {
+  // an 'ai' match draws for the first player at once (staging.20): an empty deck would lose there
+  if (mode === 'ai' && playerDeckRecipe.length === 0) playerDeckRecipe = FILLER_RECIPE;
   const session = createRuntimeSession({
     matchId: 'transaction-match', seatIds: ['seat-a', 'seat-b'], seed: 23, ruleVersion: 'rules-1', cardVersion: 'cards-1',
     gameOptions: {
@@ -85,7 +88,7 @@ function mulliganAuthority() {
   const source = authority({ mode: 'ai', playerUserId: 'bigboss', playerDeckRecipe: [['STD-001', 10]] });
   source.engineState.active = 'player';
   source.engineState.turnNumber = 1;
-  assert.equal(source.engineState.players.player.hand.length, 5);
+  assert.equal(source.engineState.players.player.hand.length, 6);      // BIGBOSS opens with 5 and the first turn draws 1
   return completeAuthority({ metadata: source.metadata, revision: source.revision, engineState: source.engineState });
 }
 
@@ -297,7 +300,7 @@ test('S03-TRX-08: openingMulligan advances only copied rule RNG and commits hidd
   assert.equal(result.value.kind, 'accepted');
   const next = result.value.authority;
   assert.equal(next.revision, 1);
-  assert.equal(next.engineState.players.player.hand.length, 5);
+  assert.equal(next.engineState.players.player.hand.length, 6);
   assert.equal(next.engineState.players.player.mulligansUsed, 1);
   assert.ok(next.engineState.runtimeContext.rngState.draws > beforeRng.draws);
   assert.deepEqual(source.engineState.runtimeContext.rngState, beforeRng);
@@ -694,7 +697,7 @@ test('S04-TRX-04: headless damage opens and resolves a Response without the GUI 
 });
 
 test('S04-TRX-05: trigger order advances through deterministic choice IDs until the thread resolves', () => {
-  const source = authority({ mode: 'ai', playerDeckRecipe: [['STD-191', 1], ['STD-192', 1]] });
+  const source = authority({ mode: 'ai', playerDeckRecipe: [['STD-191', 1], ['STD-192', 1], ['STD-001', 3]] });
   const engine = source.engineState;
   const idol = engine.players.player.hand.find(card => card.id === 'STD-191');
   const tana = engine.players.player.hand.find(card => card.id === 'STD-192');
@@ -763,7 +766,7 @@ test('S04-TRX-06: lethal headless attack reaches finished and refuses new play c
 
 test('S04-TRX-07: lethal headless attack stays awaitingInput through Response cleanup, then finishes', () => {
   const source = authority({
-    mode: 'ai', playerDeckRecipe: [['STD-143', 1], ['STD-129', 1]], aiDeckRecipe: [['STD-020', 1]]
+    mode: 'ai', playerDeckRecipe: [['STD-143', 1], ['STD-129', 1], ['STD-001', 3]], aiDeckRecipe: [['STD-020', 1]]
   });
   const engine = source.engineState;
   engine.active = 'ai';

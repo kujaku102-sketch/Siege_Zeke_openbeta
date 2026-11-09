@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { FILLER_RECIPE } from './opening-filler.js';
 import assert from 'node:assert/strict';
 import { createRuntimeSession } from '../src/game/runtime/session.js';
 import { startTurn } from '../src/game/engine.js';
@@ -9,7 +10,7 @@ import { createRuntimeSnapshot, restoreRuntimeSnapshot } from '../src/game/runti
 import { allocateInstanceId } from '../src/game/runtime/identity.js';
 import { nextRng } from '../src/game/runtime/rng.js';
 
-const config = { matchId: 'snapshot-match', seatIds: ['seat-a', 'seat-b'], seed: 7, ruleVersion: 'rules-1', cardVersion: 'cards-1', gameOptions: { playerDeckRecipe: [], aiDeckRecipe: [] } };
+const config = { matchId: 'snapshot-match', seatIds: ['seat-a', 'seat-b'], seed: 7, ruleVersion: 'rules-1', cardVersion: 'cards-1', gameOptions: { playerDeckRecipe: FILLER_RECIPE, aiDeckRecipe: [] } };
 function session(overrides = {}) {
   const result = createRuntimeSession({ ...config, ...overrides });
   assert.equal(result.ok, true);
@@ -48,6 +49,8 @@ function references(engineState) {
 function input(current = session()) {
   return { metadata: current.metadata, revision: current.revision, engineState: current.engineState, referenceState: references(current.engineState) };
 }
+// a reference table of another match: its entries carry that match too (with no card in the match the table had no entries, and the matchId alone was enough)
+function foreignRefs(current, matchId = 'foreign') { current.referenceState.matchId = matchId; for (const entry of current.referenceState.entries) entry.identity.matchId = matchId; return current; }
 function cardInput() { return input(session({ gameOptions: { mode: 'tutorial' } })); }
 function create(currentInput = input()) {
   const result = createRuntimeSnapshot(currentInput);
@@ -192,7 +195,7 @@ test('S02-SNAPSHOT-08: create validates current references and does not issue or
   assert.deepEqual(current.referenceState, before);
   assert.deepEqual(snapshot.referenceState, before);
   const wrong = input();
-  wrong.referenceState.matchId = 'other-match';
+  foreignRefs(wrong, 'other-match');
   rejects(createRuntimeSnapshot(wrong), 'SNAPSHOT_SCOPE_MISMATCH');
 });
 
@@ -293,7 +296,7 @@ test('S02-SNAPSHOT-18: tutorial IDs and all nine start option keys are retained'
 
 test('S02-SNAPSHOT-19: reference scope and identity-index inconsistencies are rejected', () => {
   const wrongRefs = input();
-  wrongRefs.referenceState.matchId = 'foreign';
+  foreignRefs(wrongRefs);
   rejects(createRuntimeSnapshot(wrongRefs), 'SNAPSHOT_SCOPE_MISMATCH');
   const wrongRuntime = input();
   wrongRuntime.engineState.runtimeContext.identityState.matchId = 'foreign';

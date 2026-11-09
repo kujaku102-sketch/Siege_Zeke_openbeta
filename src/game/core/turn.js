@@ -120,9 +120,11 @@ export function startTurn(state, playerId) {
 
   resolveTurnStartDelayedEffects(state, playerId);
 
+  // 規則書4.2: 通常のドローは1枚。後攻の第1ターンはもう1枚引く(合計2枚)。先攻の第1ターンも1枚引く(2026-11-09、文豪「先手1枚ドロー」)。
+  // ラボとサンドボックスは盤面を作って始めるので、先攻の第1ターンはこれまでどおり引かない。
   let drawCount = 1;
-  if (player.turnsTaken === 0 && playerId === state.firstPlayer) drawCount = 0;
-  else if (player.turnsTaken === 0) drawCount = 2;
+  if (player.turnsTaken === 0 && playerId === state.firstPlayer && ["lab", "sandbox"].includes(state.mode)) drawCount = 0;
+  else if (player.turnsTaken === 0 && playerId !== state.firstPlayer) drawCount = 2;
   player.turnsTaken += 1;
   state.active = playerId;
   state.phase = "main";

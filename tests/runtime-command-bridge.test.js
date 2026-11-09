@@ -6,6 +6,7 @@ import { buildRequiredInput } from '../src/game/runtime/required-input.js';
 import { createCommandJournal, recordTerminal } from '../src/game/runtime/command-record.js';
 import { createRuntimeReferenceState } from '../src/game/runtime/references.js';
 import { createRuntimeCard } from '../src/game/runtime/factory.js';
+import { FILLER_HAND, FILLER_RECIPE } from './opening-filler.js';
 import { placeCardInBoardSlot } from '../src/game/board-slots.js';
 import { createRuntimeSession } from '../src/game/runtime/session.js';
 import { buildRuntimeIdentityIndex } from '../src/game/runtime/bridge.js';
@@ -94,7 +95,7 @@ const restFixture = ({ cardChanges = {}, stateChanges = {}, owner = 'player', zo
 const publicRestFixture = () => {
   const session = createRuntimeSession({
     matchId: 'public-rest-match', seatIds: ['seat-a', 'seat-b'], seed: 17, ruleVersion: 'rules-1', cardVersion: 'cards-1',
-    gameOptions: { mode: 'ai', playerDeckRecipe: [], aiDeckRecipe: [] }
+    gameOptions: { mode: 'ai', playerDeckRecipe: FILLER_RECIPE, aiDeckRecipe: [] }
   });
   assert.equal(session.ok, true);
   const engineState = session.value.engineState;
@@ -113,7 +114,7 @@ const publicRestFixture = () => {
     cards: index.value.entries.map(entry => ({ ...entry, faceDown: false }))
   };
   const refs = createRuntimeReferenceState({
-    frame, newRefs: Array.from({ length: index.value.entries.length * 2 }, (_, index) => `r:${(index + 3).toString(16).padStart(32, '0')}`)
+    frame, newRefs: Array.from({ length: index.value.entries.reduce((n, entry) => n + (entry.location.zone === "hand" ? 1 : 2), 0) }, (_, index) => `r:${(index + 3).toString(16).padStart(32, '0')}`)
   });
   assert.equal(refs.ok, true);
   const journal = createCommandJournal({ matchId: session.value.metadata.matchId, seatIds: session.value.metadata.seatIds });
@@ -132,7 +133,7 @@ const installFixture = ({ id = 'STD-001', owner = 'player', controller = 'player
   cardChanges = {}, playerChanges = {}, stateChanges = {}, registryCards = [], mountedCards = [], mode = 'ai' } = {}) => {
   const session = createRuntimeSession({
     matchId: 'match-a', seatIds: ['seat-a', 'seat-b'], seed: 23, ruleVersion: 'rules-1', cardVersion: 'cards-1',
-    gameOptions: { mode, playerDeckRecipe: [], aiDeckRecipe: [] }
+    gameOptions: { mode, playerDeckRecipe: FILLER_RECIPE, aiDeckRecipe: [] }
   });
   assert.equal(session.ok, true);
   const engineState = session.value.engineState;
@@ -221,7 +222,7 @@ const attackFixture = ({ playerId = 'player', attackerId = 'STD-020', targetId =
   attackerChanges = {}, targetChanges = {}, targetZone = 'front' } = {}) => {
   const session = createRuntimeSession({
     matchId: 'match-a', seatIds: ['seat-a', 'seat-b'], seed: 31, ruleVersion: 'rules-1', cardVersion: 'cards-1',
-    gameOptions: { mode: 'ai', playerDeckRecipe: [], aiDeckRecipe: [] }
+    gameOptions: { mode: 'ai', playerDeckRecipe: FILLER_RECIPE, aiDeckRecipe: [] }
   });
   assert.equal(session.ok, true);
   const engineState = session.value.engineState;
@@ -246,7 +247,7 @@ const attackFixture = ({ playerId = 'player', attackerId = 'STD-020', targetId =
     cards: index.value.entries.map(entry => ({ ...entry, faceDown: false }))
   };
   const refs = createRuntimeReferenceState({
-    frame, newRefs: Array.from({ length: frame.cards.length * 2 },
+    frame, newRefs: Array.from({ length: frame.cards.reduce((n, entry) => n + (entry.location.zone === "hand" ? 1 : 2), 0) },
       (_, indexValue) => `r:${(indexValue + 101).toString(16).padStart(32, '0')}`)
   });
   assert.equal(refs.ok, true);
@@ -270,7 +271,7 @@ const layeredFixture = ({ playerId = 'player', sourceId = 'STD-232', sourceChang
   destinationZone = 'back', destinationSlot = 5, occupyDestination = false } = {}) => {
   const session = createRuntimeSession({
     matchId: 'match-a', seatIds: ['seat-a', 'seat-b'], seed: 37, ruleVersion: 'rules-1', cardVersion: 'cards-1',
-    gameOptions: { mode: 'ai', playerDeckRecipe: [], aiDeckRecipe: [] }
+    gameOptions: { mode: 'ai', playerDeckRecipe: FILLER_RECIPE, aiDeckRecipe: [] }
   });
   assert.equal(session.ok, true);
   const engineState = session.value.engineState;
@@ -327,8 +328,9 @@ const layeredFixture = ({ playerId = 'player', sourceId = 'STD-232', sourceChang
     destinationZone, destinationSlot
   };
 };
+// a first player's hand in an 'ai' match: the opening hand and the first turn's draw (staging.20)
 const mulliganFixture = ({ active = 'player', abilityKey = 'watching_you', initialHand = 5,
-  mulligansUsed = 0, turnNumber = 1, handCount = initialHand ?? 5, occupiedZone = null } = {}) => {
+  mulligansUsed = 0, turnNumber = 1, handCount = (initialHand ?? 5) + 1, occupiedZone = null } = {}) => {
   const authority = baseAuthority();
   authority.engineState.active = active;
   authority.engineState.turnNumber = turnNumber;
@@ -840,7 +842,7 @@ test('S03-CBR-31: prepares an install descriptor from the actor hand without exe
       adapter: { engineFunction: 'installCard', playerId: 'player', uid: fixture.card.uid }
     } });
     assert.equal(JSON.stringify(fixture.authority), before);
-    assert.equal(fixture.authority.engineState.players.player.hand.length, 1);
+    assert.equal(fixture.authority.engineState.players.player.hand.length, FILLER_HAND + 1);
     assert.equal(fixture.authority.engineState.players.player.registry.length, 0);
     assert.equal(fixture.authority.engineState.prompt, null);
   }
@@ -902,12 +904,12 @@ test('S03-CBR-34: exact install retry returns before player capability and refer
 
 test('S03-CBR-35: install accepts only the current actor-controlled hand reference', () => {
   const deck = installFixture();
-  deck.authority.engineState.players.player.hand.length = 0;
+  deck.authority.engineState.players.player.hand = deck.authority.engineState.players.player.hand.filter(item => item !== deck.card);
   deck.authority.engineState.players.player.deck.push(deck.card);
   code(prepareRuntimeCommand(deck.authority, contextFor(), installCommand(deck.cardRef)), 'ACTION_NOT_ALLOWED');
 
   const registry = installFixture();
-  registry.authority.engineState.players.player.hand.length = 0;
+  registry.authority.engineState.players.player.hand = registry.authority.engineState.players.player.hand.filter(item => item !== registry.card);
   registry.authority.engineState.players.player.registry.push(registry.card);
   code(prepareRuntimeCommand(registry.authority, contextFor(), installCommand(registry.cardRef)), 'ACTION_NOT_ALLOWED');
 
@@ -947,7 +949,7 @@ test('S03-CBR-37: prepares recoverRegistry for public registry roots without exe
     } });
     assert.equal(JSON.stringify(fixture.authority), before);
     assert.equal(fixture.authority.engineState.players.player.registry.length, 1);
-    assert.equal(fixture.authority.engineState.players.player.hand.length, 0);
+    assert.equal(fixture.authority.engineState.players.player.hand.length, FILLER_HAND);
     assert.equal(fixture.authority.engineState.players.player.registryActionUsed, false);
   }
 });
@@ -1628,13 +1630,13 @@ test('S03-CBR-67: openingMulligan rejects ineligible ability, turn, use count, h
 });
 
 test('S03-CBR-68: openingMulligan accepts nullish initial hand default and rejects malformed planning data', () => {
-  const nullHand = mulliganFixture({ initialHand: null, handCount: 5 });
+  const nullHand = mulliganFixture({ initialHand: null, handCount: 6 });
   assert.equal(prepareRuntimeCommand(nullHand.authority, contextFor(), nullHand.command).ok, true);
-  const undefinedHand = mulliganFixture({ handCount: 5 });
+  const undefinedHand = mulliganFixture({ handCount: 6 });
   undefinedHand.authority.engineState.players.player.user.initialHand = undefined;
   assert.equal(prepareRuntimeCommand(undefinedHand.authority, contextFor(), undefinedHand.command).ok, true);
   for (const initialHand of [-0, -1, 1.5, '5']) {
-    const fixture = mulliganFixture({ initialHand, handCount: 5 });
+    const fixture = mulliganFixture({ initialHand, handCount: 6 });
     code(prepareRuntimeCommand(fixture.authority, contextFor(), fixture.command), 'INVALID_AUTHORITY');
   }
   const hole = mulliganFixture();
