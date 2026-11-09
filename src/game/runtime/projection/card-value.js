@@ -2,7 +2,8 @@ import { CARD_LIBRARY } from '../../../data/cards.js';
 import { MISSING, STATE, dense, finite, own, reject, text } from './guards.js';
 import { resolvePhysical } from './physical-frame.js';
 
-function definition(id) {
+// the printed card, as everyone may see it (a card shown to the other side by an effect is shown by this)
+export function definition(id) {
   if (typeof id !== 'string' || !Object.hasOwn(CARD_LIBRARY, id)) reject(STATE);
   const source = CARD_LIBRARY[id];
   const result = { id };

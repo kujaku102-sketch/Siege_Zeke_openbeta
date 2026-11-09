@@ -148,6 +148,27 @@ test('S02-PROJ-02: both viewers receive only their own hand definitions and opaq
   assert.equal(b.seats[1].hand.cards[0].definition.id, 'STD-007');
 });
 
+test('S02-PROJ-02b: a shown card (card.revealed) of the other hand is in its view as a printed card without a handle, and nothing else of that hand is', () => {
+  const state = game();
+  place(state, 'player', 'hand', take(state, 'player', 'STD-022'));
+  const shown = place(state, 'ai', 'hand', take(state, 'ai', 'STD-007'));
+  place(state, 'ai', 'hand', take(state, 'ai', 'STD-022'));
+  const { referenceState } = frameAndRefs(state);
+  const before = successful(view(state, referenceState, 'seat-a'));
+  assert.deepEqual(Object.keys(before.seats[1].hand), ['count']);
+  shown.revealed = true;
+  const a = successful(view(state, referenceState, 'seat-a'));
+  assert.equal(a.seats[1].hand.count, 2);
+  assert.deepEqual(Object.keys(a.seats[1].hand), ['count', 'revealed']);
+  assert.equal(a.seats[1].hand.revealed.length, 1);
+  assert.deepEqual(Object.keys(a.seats[1].hand.revealed[0]), ['definition']);
+  assert.equal(a.seats[1].hand.revealed[0].definition.id, 'STD-007');
+  // the owner sees the whole hand as always, and the owner's own view of it gains nothing
+  const b = successful(view(state, referenceState, 'seat-b'));
+  assert.deepEqual(Object.keys(b.seats[1].hand), ['count', 'cards']);
+  assert.deepEqual(Object.keys(b.seats[0].hand), ['count']);
+});
+
 test('S02-PROJ-03: face-up board and zone cards use static definition allowlist and safe locations', () => {
   const state = game();
   const board = place(state, 'player', 'front', take(state, 'player', 'STD-022'), 2);
