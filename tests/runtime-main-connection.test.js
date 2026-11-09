@@ -922,7 +922,7 @@ test('tutorial blue runs start to finish through ports: the Rutile access, Hacki
   const enemy=()=>seatView(port.query().value,'b'),ids=zone=>seatView(port.query().value)[zone].cards.map(item=>item.definition.id);
   const target=ref=>option=>option.cardRef===ref;
   skip(1,1); // no greeting before blue (red only, 2026-10-29): its step 1 is the one line before the install
-  assert.deepEqual(ids('hand'),['STD-107','STD-117','STD-109','STD-110']);
+  assert.deepEqual(ids('hand'),['STD-107','STD-117','STD-109','STD-110','STD-116']);
   assert.equal(enemy().fortressStr,5);assert.deepEqual(enemy().hand.count,1);
   assertRefused(port,{type:'endTurn'});
   // 2 the blue symbol
@@ -941,7 +941,7 @@ test('tutorial blue runs start to finish through ports: the Rutile access, Hacki
   refusedFor(session,port,{type:'declineChoice',choiceId:open.choiceId},/オフェンスプロトコル/);
   submit(port,{type:'answerChoice',choiceId:open.choiceId,optionIds:[early.optionId],allocation:[]});
   settleTutorial(session);at(7);
-  assert.ok(ids('hand').includes('STD-111'));assert.ok(!ids('hand').includes('STD-116'));
+  assert.ok(ids('hand').includes('STD-111'));assert.equal(ids('hand').filter(id=>id==='STD-116').length,1,'the Assault Program was not taken: only the opening draw is in hand');
   // 4 Frau
   submit(port,plan(port,'executeCard',hand('STD-109'),option=>option.zone==='front'));settleTutorial(session);at(8);
   skip(1,9);
