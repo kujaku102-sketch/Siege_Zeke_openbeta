@@ -47,7 +47,7 @@ export function lockRegion(host, locked) {
 // It wires the parts together; each surface-*.js module owns one concern.
 export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSeat = null,
   onTitle = () => {}, onRematch = () => {}, onMenu = null, onError = () => {},
-  onTutorialSkip = () => {}, onToMenu = () => {}, onSaveLog = () => {}, onNoticeClear = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY, lowGpu = false, onContextLost = () => {}, online = null, avatars = null }) {
+  onTutorialSkip = () => {}, onToMenu = () => {}, onSaveLog = () => {}, onNoticeClear = () => {}, effectsEnabled = false, tapDetails = false, boardStyle = 'wireframe', renderQuality = DEFAULT_RENDER_QUALITY, lowGpu = false, onContextLost = () => {}, online = null, avatars = null, cpu = null }) {
   const created = createMatchUiController({ session, viewerSeat });
   if (!created.ok) return created;
   const ui = created.value;
@@ -479,13 +479,15 @@ export function mountRuntimeMatch({ root, session, viewerSeat, view = 'pc', aiSe
   listener('animationend', event => { if (event.animationName === 'live-refused') event.target.classList.remove('live-refused'); });
   root.ownerDocument?.fonts?.addEventListener?.('loadingdone', () => { fontEpoch += 1; queueLayout(); }, { signal: lifetime.signal });
   const sides = createSurfaceOpponents({ session, scope, aiSeat, ui, paced: timers.paced, cancelPaced: timers.cancelPaced,
-    current, onError, render });
+    current, onError, render, cpuChoice: cpu });
   if (!sides.ok) { lifetime.abort(); observer?.disconnect(); handDock?.dispose(); ui.dispose(); return sides; }
   opponents = sides.value;
   const surface = Object.freeze({
     refresh() { const read = ui.read(); render(read); opponents.startCpu(latest); opponents.startTutorial(); return read; },
     configure(options) { if (options.renderQuality) scenes.setRenderQuality(options.renderQuality); if (typeof options.lowGpu === 'boolean') { lowGpu = options.lowGpu; scenes.setLowGpu(lowGpu); } if (options.view) view = options.view; if (typeof options.effectsEnabled === 'boolean') effectsEnabled = options.effectsEnabled; if (typeof options.tapDetails === 'boolean') tapDetails = options.tapDetails; if (options.online !== undefined) online = options.online; if (options.avatars !== undefined) avatars = options.avatars; return this.refresh(); },
     startAi() { return opponents.startAi(); },
+    // The CPU's timing for the match log (surface-opponents.js), null with no CPU seat.
+    cpuStats() { return opponents.cpuStats(); },
     switchViewer(seatId) { pointer.stopPress(); fx.clear(); const read = ui.switchViewer(seatId); render(read); return read; },
     dispose() {
       if (!disposed) {

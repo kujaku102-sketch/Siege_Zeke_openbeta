@@ -23,6 +23,8 @@ import { installMobileViewport } from './ui-refresh/mobile-viewport.js';
 import { captureDeckViewport, restoreDeckViewport } from './ui/deck-viewport.js';
 import { attachRowScroll } from './ui/row-scroll.js';
 import { deckFileJson, deckFileName, readDeckFile } from './ui/deck-file.js';
+import { preloadCpu } from './cpu/index.js';
+import { cpuChoices, cpuSwitchText, readCpuChoice, saveCpuChoice } from './ui/cpu-choice.js';
 import { installAbilityHelp } from './ui/ability-help.js';
 import { registerLocalFonts } from './ui/local-fonts.js';
 import { memoryEstimate, sampleMemory } from './ui-refresh/memory-estimate.js';
@@ -68,8 +70,12 @@ const discordLogin = discordLoginShown({hostname:location.hostname,search:locati
 const discordProfile = () => discordLogin?.profile() ?? null;
 const SHOW_AVATAR_KEY = 'sz-online-show-avatar';
 const storedCounts = () => ({replays:loadStored(localStorage,REPLAYS).length,logs:loadStored(localStorage,MATCH_LOGS).length});
+// The retired match's CPU timing goes into its log (match-log.js cpu) while its surface is still the one mounted.
 const lifecycle = createMatchLifecycleController({onRetire:retired => {
-  if (archiveRetiredMatch(retired,{storage:localStorage,sendEnabled:host.sendMatchLogs,send:sendMatchLog}).kept) host.storedCounts = storedCounts();}});
+  if (archiveRetiredMatch(retired,{storage:localStorage,sendEnabled:host.sendMatchLogs,send:sendMatchLog,cpu:surface?.cpuStats?.() ?? null}).kept) host.storedCounts = storedCounts();}});
+// The opponent CPU (ui/cpu-choice.js): its list, the one chosen (kept in this browser). ?e2e=1&cpu-stale=1 offers a
+// learned CPU of other rules too, for looking at the screen only.
+const cpuAllowStale = new URLSearchParams(location.search).get('e2e') === '1' && new URLSearchParams(location.search).get('cpu-stale') === '1';
 const host = {screen:'entry',mode:'sandbox',tutorialId:'basics',
   view:resolveView({pathname:location.pathname,saved:readSavedView(localStorage),mobile:navigator.userAgentData?.mobile,userAgent:navigator.userAgent,maxTouchPoints:navigator.maxTouchPoints}).view,
   playerDeckId:'start-red',aiDeckId:'start-yellow',playerUserId:'doors_zx',aiUserId:'doors_zx',savedDecks:loadSavedDecks(),
@@ -78,6 +84,7 @@ const host = {screen:'entry',mode:'sandbox',tutorialId:'basics',
   masterVolume:Math.max(0,Math.min(10,Number.parseInt(localStorage.getItem('sz-master-volume') ?? '7',10) || 0)),
   logoNoiseProfile:localStorage.getItem('sz-logo-noise-profile') || 'random',logoVideoName:'',actor:'player',opponentControl:'manual',
   catalogOpen:false,catalog:{query:'',expansion:'all',catalogOwner:'player'},tutorialDone:readTutorialDone(globalThis.localStorage),
+  cpuChoices:cpuChoices({allowStale:cpuAllowStale}),aiCpuId:readCpuChoice(storageNamed('localStorage'),cpuChoices({allowStale:cpuAllowStale})),
   // Online play (design §14): open only where a server is set (endpoint.js); the player's profile (online-profile.js) is
   // kept in this browser, and the name screen's draft and its problem live here until it is kept.
   online:{available:onlineEndpoint({hostname:location.hostname,search:location.search}) !== null,profile:readOnlineProfile(storageNamed('localStorage'),discordProfile()),nameDraft:null,nameProblem:null,
@@ -95,6 +102,9 @@ const mobileViewport = installMobileViewport(root);
 let noticeTimer = null;
 const NOTICE_MS = 3000;
 const notice = code => {const text = noticeText(code);console.debug('[notice]',code);if (text === null) return;host.notice = text;renderShell();
+  clearTimeout(noticeTimer);if (host.screen === 'game' && host.mode !== 'tutorial') noticeTimer = setTimeout(() => {if (host.notice === text) {host.notice = '';renderShell();}},NOTICE_MS);};
+// A sentence of the shell's own (the CPU's switch, ui/cpu-choice.js) shown as a notice is.
+const say = text => {host.notice = text;renderShell();
   clearTimeout(noticeTimer);if (host.screen === 'game' && host.mode !== 'tutorial') noticeTimer = setTimeout(() => {if (host.notice === text) {host.notice = '';renderShell();}},NOTICE_MS);};
 // Render mode (V092-09): compat draws no WebGL title, logo noise, 3D board, HUD or result shader,
 // only SVG/CSS. iOS WebKit starts in compat (context and memory limits) and a lost context drops to
@@ -222,6 +232,8 @@ function attachSession(next,extra = {}) {
   const mounted = mountRuntimeMatch({root:root.querySelector('[data-match-root]'),session,viewerSeat:host.actor,view:host.view,...renderOptions(),onContextLost:degradeAfterLoss,
     boardStyle:new URLSearchParams(location.search).get('board') === 'classic' ? 'classic' : 'wireframe',
     aiSeat:host.mode === 'ai' || host.mode === 'sandbox' && host.opponentControl === 'ai' ? session.scope().seatIds[1] : null,
+    // A CPU match's opponent is the CPU chosen by name; it says so when it gives way to a lighter one.
+    cpu:host.mode === 'ai' ? {cpuId:host.aiCpuId,storage:storageNamed('localStorage'),allowStale:cpuAllowStale,onSwitch:record => say(cpuSwitchText(record))} : null,
     effectsEnabled:host.effectsEnabled,tapDetails:host.tapDetails,onError:notice,onMenu:() => {host.options = true;host.debug = false;renderShell();},onTitle:leaveMatch,
     onRematch:() => prepared(() => {const result = lifecycle.rematch();if (result.ok) attachSession(result.value);else notice(result.error.code);}),
     onTutorialSkip:() => prepared(skipTutorial),onSaveLog:saveMatchLog,onToMenu:() => leaveMatch(nextScreen('game',host.mode === 'tutorial' ? 'tutorial-complete' : 'match-menu')),onNoticeClear:() => {if (host.notice) {host.notice = '';renderShell();}},...extra});
@@ -260,7 +272,9 @@ function confirmTutorialSkip() {
 }
 // The end screen's [対戦ログを保存]: this match's log as it stands, in the stored logs' own export form.
 function saveMatchLog() {
-  const replay = session?.matchRecord?.(), feed = replay?.ok ? session.port(session.scope().seatIds[0]).value?.events({afterEventId:null}) : null;
+  // The record with the CPU's timing (match-log.js cpu) when the match has a CPU.
+  const record = session?.matchRecord?.(), cpu = surface?.cpuStats?.() ?? null, replay = record?.ok && cpu ? {ok:true,value:{...record.value,cpu}} : record;
+  const feed = replay?.ok ? session.port(session.scope().seatIds[0]).value?.events({afterEventId:null}) : null;
   if (!feed?.ok) return notice(feed?.error?.code ?? replay?.error?.code ?? 'MATCH_RECORD_UNAVAILABLE');
   downloadStored('match-log',MATCH_LOGS,[buildMatchLog(replay.value,feed.value.events,new Date())]);}
 function downloadStored(name,place,items) {const link = document.createElement('a');link.href = URL.createObjectURL(new Blob([storedExport(place,items)],{type:'application/json'}));link.download = `siege-zeke-${name}-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);}
@@ -418,6 +432,9 @@ root.addEventListener('click',event => {
   if (button.hasAttribute('data-online-login')) return void loginWithDiscord();
   if (button.hasAttribute('data-online-logout')) {discordLogin?.logout();refreshOnlineProfile();Object.assign(host.online,{nameDraft:null,nameProblem:null});host.online.login.error = null;return renderShell();}
   if (d.onlineNamePick) {const profile = host.online.profile;host.online.nameDraft = d.onlineNamePick === 'discord' ? profile?.discordName ?? '' : profile?.typedName ?? '';host.online.nameProblem = null;return renderShell();}
+  // A learned CPU's code is split off the main bundle: it is loaded before the match is mounted (a failed load leaves the
+  // simple CPU playing, and the match says so).
+  if (d.start === 'ai') return prepared(async () => {await preloadCpu(host.aiCpuId,{allowStale:cpuAllowStale});return startMatch('ai',host.tutorialId);});
   if (d.start) return prepared(() => startMatch(d.start,d.start === 'tutorial' ? d.tutorialId : host.tutorialId));
   if (button.hasAttribute('data-online-battle')) return onOnlineBattle();
   if (button.matches('[data-online-create],[data-online-join],[data-flow="open-join"]') && button.getAttribute('aria-disabled') === 'true') return;
@@ -490,6 +507,7 @@ root.addEventListener('input',event => {
 root.addEventListener('change',async event => {
   if (event.target.closest('[data-match-root]')) return;
   const target = event.target, deck = host.deckBuilder;
+  if (target.hasAttribute('data-ai-cpu')) {host.aiCpuId = target.value;saveCpuChoice(storageNamed('localStorage'),target.value);return;}
   for (const [key,field] of Object.entries({'deck-load':'load','deck-user':'userId','deck-color':'color','deck-recommend-color':'recommendColor','deck-strategy':'strategy'})) if (target.hasAttribute(`data-${key}`)) {
     if (field === 'load') deck.draft = structuredClone(host.savedDecks.find(item => item.id === target.value) ?? normalizeSavedDeck({},''));else if (field === 'userId') deck.draft.userId = target.value;else deck[field] = target.value;renderShell();return;}
   // One deck or a list of them (deck-file.js); one deck read is opened in the builder.

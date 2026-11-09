@@ -1,19 +1,29 @@
 import { createRuntimeClientController } from '../adapters/runtime-client-controller.js';
-import { chooseSimpleAiIntent } from '../adapters/simple-ai-policy.js';
+import { createCpu } from '../cpu/index.js';
 import { createTutorialOpponentController } from '../adapters/tutorial-opponent-controller.js';
 
-// The other side of a mounted match: the simple AI seat and the tutorial opponent.
+// The other side of a mounted match: the AI seat and the tutorial opponent.
 // Their steps are paced after the current motion and redraw the match when done.
 // Returns a failed result, untouched, when either controller cannot be created.
-export function createSurfaceOpponents({ session, scope, aiSeat, ui, paced, cancelPaced, current, onError, render }) {
+// cpuChoice: { cpuId, storage, allowStale, onSwitch } for a CPU match (the CPU chosen by name, src/cpu); none plays the
+// simple CPU. onSwitch hears every switch to a lighter CPU, also one made before the first move (the choice not loaded,
+// not offered for these rules, or too slow on this device before).
+export function createSurfaceOpponents({ session, scope, aiSeat, ui, paced, cancelPaced, current, onError, render, cpuChoice = null }) {
   let cpu = null;
+  let cpuPlayer = null;
   let tutorialCpu = null;
   let cpuWake = null;
   let failedCpuWake = null;
   if (aiSeat !== null) {
     const port = session.port(aiSeat);
     if (!port.ok) return port;
-    const controller = createRuntimeClientController({ port: port.value, policy: chooseSimpleAiIntent,
+    const made = createCpu({ cpuId: cpuChoice?.cpuId, matchId: scope.matchId, seatId: aiSeat, storage: cpuChoice?.storage ?? null,
+      allowStale: Boolean(cpuChoice?.allowStale), onSwitch: cpuChoice?.onSwitch ?? null });
+    if (!made.ok) return made;
+    cpuPlayer = made.value;
+    // Said once the match is mounted (the notice redraws the shell).
+    for (const record of cpuPlayer.switches()) setTimeout(() => cpuChoice?.onSwitch?.(record), 0);
+    const controller = createRuntimeClientController({ port: port.value, policy: cpuPlayer.policy,
       scheduler: { schedule: task => paced(() => {
         if (!current()) return;
         let result;
@@ -55,6 +65,8 @@ export function createSurfaceOpponents({ session, scope, aiSeat, ui, paced, canc
     },
     startTutorial() { tutorialCpu?.start(); },
     startAi() { return cpu?.start() ?? { ok: true, value: { kind: 'idle' } }; },
+    // The CPU's timing for the match log (createCpu().stats()), or null with no CPU seat.
+    cpuStats() { return cpuPlayer?.stats() ?? null; },
     dispose() { cpu?.dispose(); tutorialCpu?.dispose(); }
   }) };
 }
