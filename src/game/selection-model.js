@@ -40,8 +40,20 @@ export function selectionRequestFromSpec(spec, options = {}) {
   return createSelectionRequest({ mode: spec.minimum === 1 && spec.maximum === 1 ? "single" : spec.minimum === spec.maximum ? "exact" : "up_to", candidates: spec.candidates, count: spec.maximum, minimum: spec.minimum, maximum: spec.maximum, budget: aggregate?.comparator === "<=" ? aggregate.value : null, exactBudget: aggregate?.comparator === "=" ? aggregate.value : null, candidateValues: aggregate?.candidateValues ?? {}, spec, ...options });
 }
 
+// 選択要求の番号は、要求の中身から決まる(時計は使わない)。同じ状況で作った要求は、いつ作っても同じ番号になる(再生・復元・サーバーでの再現が一致する)。
+// 中身が同じ要求は同じ番号になるが、番号を読むところはなく、窓の識別は実行時側(choiceId)が受け持つ。
+function selectionRequestId(parts) {
+  const text = JSON.stringify(parts);
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `SEL-${hash.toString(16).padStart(8, "0")}`;
+}
+
 export function createSelectionRequest({
-  id = `SEL-${Date.now()}`,
+  id = null,
   mode = "single",
   candidates = [],
   count = 1,
@@ -63,7 +75,7 @@ export function createSelectionRequest({
 } = {}) {
   if (!SELECTION_MODES.includes(mode)) throw new Error(`Unknown selection mode: ${mode}`);
   return {
-    id,
+    id: id ?? selectionRequestId([mode, label, message, scopeField, count, minimum, maximum, [...new Set(candidates)], [...new Set(scopeOptions)], continuation?.type ?? null, continuation?.playerId ?? null, continuation?.sourceUid ?? null]),
     mode,
     candidates: [...new Set(candidates)],
     selected: [],

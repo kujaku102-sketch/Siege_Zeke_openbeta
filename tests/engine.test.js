@@ -8474,3 +8474,20 @@ test("a queued trigger waits while a choice is open or a trigger thread is resol
   assert.equal(state.triggerQueue.length, 0);
   assert.equal(state.players.ai.fortressStr, before - 2);
 });
+
+test("a selection request has a number made from what it asks, not from the clock", () => {
+  const realNow = Date.now;
+  try {
+    const make = () => createSelectionRequest({ mode: "single", candidates: ["a", "b"], label: "対象を選択", continuation: { type: "x", playerId: "player", sourceUid: "u1" } });
+    Date.now = () => 1000;
+    const first = make();
+    Date.now = () => 987654321;
+    const later = make();
+    assert.match(first.id, /^SEL-[0-9a-f]{8}$/);
+    assert.equal(later.id, first.id);
+    assert.notEqual(createSelectionRequest({ mode: "single", candidates: ["a", "c"], label: "対象を選択" }).id, first.id);
+    assert.equal(createSelectionRequest({ id: "SEL-given", candidates: ["a"] }).id, "SEL-given");
+  } finally {
+    Date.now = realNow;
+  }
+});
