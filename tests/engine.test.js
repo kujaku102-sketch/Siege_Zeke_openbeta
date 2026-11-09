@@ -742,6 +742,36 @@ test("STD-219 attack resumed after the opponent's Script window does not ask its
   assert.equal(state.deferredAttack ?? null, null);
 });
 
+test("a Script's activation window is not opened when the Script cannot be activated (memory short), and is when it can", () => {
+  // 2026-11-09: CPUs answered such a window with "activate" and the game refused with ACTION_NOT_ALLOWED (three matches of the bench), so the question is not asked
+  const battle = (memory) => {
+    const state = createGame({ mode: "lab", rng: () => 0 });
+    addSandboxCardToHand(state, "player", "STD-020");
+    const attacker = state.players.player.hand.find((card) => card.id === "STD-020");
+    state.players.player.hand.splice(state.players.player.hand.indexOf(attacker), 1);
+    attacker.summoningSick = false;
+    state.players.player.front = [attacker];
+    const script = createCardInstance("STD-177", "player", 9302);
+    script.faceDown = true;
+    state.players.player.back = [script];
+    state.players.player.registry = [createCardInstance("STD-173", "player", 9305)];
+    state.players.player.memory = memory;
+    const defender = createCardInstance("STD-020", "ai", 9304);
+    defender.summoningSick = false;
+    defender.sleep = true;
+    state.players.ai.front = [defender];
+    state.players.ai.back = [];
+    state.mode = "ai";
+    assert.equal(attack(state, "player", attacker.uid, defender.uid), true);
+    return { state, script };
+  };
+  const short = battle(1);
+  assert.equal(short.state.prompt, null, "memory 1 is short of the 2 the Script costs: no question");
+  assert.ok(short.state.log.some((entry) => entry.text.includes("起動できないため、確認を出さない") && entry.text.includes("メモリ")));
+  const enough = battle(5);
+  assert.equal(enough.state.prompt?.scriptUid, enough.script.uid, "with the memory it is asked as before");
+});
+
 test("STD-232 logout selects, allocates and moves layers through the common runtime", () => {
   const state = createGame({ mode: "lab" });
   const player = state.players.player;
