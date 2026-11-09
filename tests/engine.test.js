@@ -773,6 +773,42 @@ test("a Script's activation window is not opened when the Script cannot be activ
   assert.equal(enough.state.prompt?.scriptUid, enough.script.uid, "with the memory it is asked as before");
 });
 
+test("an attack-time execution whose Login opens the access, drag and placement windows: the held attack goes on when the last window is answered", () => {
+  // found by the test repo (2026-11-09): resolveAccessDragPlacement did not resume the attack kept back while the windows were open, so deferredAttack stayed and the match stopped
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  const me = state.players.player, foe = state.players.ai;
+  me.memory = 20; foe.memory = 20;
+  const attacker = createCardInstance("STD-219", "player", 9400);
+  attacker.summoningSick = false;
+  me.front = [attacker]; me.hand = []; me.back = []; me.trash = [];
+  me.registry = ["STD-040", "STD-020", "STD-020", "STD-020", "STD-020"].map((id, index) => createCardInstance(id, "player", 9490 + index));
+  me.deck = Array.from({ length: 6 }, (_, index) => createCardInstance("STD-020", "player", 9600 + index));
+  const defender = createCardInstance("STD-020", "ai", 9401);
+  defender.sleep = true; defender.summoningSick = false;
+  foe.front = [defender]; foe.back = []; foe.hand = [];
+  state.active = "player";
+  assert.equal(attack(state, "player", attacker.uid, defender.uid), true);
+  const windows = [];
+  for (let step = 0; step < 12; step += 1) {
+    if (state.pending?.type === "selection") {
+      const request = state.pending.request;
+      windows.push(request.continuation?.type ?? request.mode);
+      if (request.mode === "scope") setSelectionScope(request, request.scopeOptions[0]);
+      else for (const candidate of request.candidates) { toggleSelection(request, candidate); if (canConfirmSelection(request)) break; }
+      assert.equal(resolveCardSelection(state, request.continuation, confirmSelection(request, () => 0.5)), true);
+    } else if (state.pending?.type === "access-drag-place") {
+      windows.push("access-drag-place");
+      assert.equal(resolveAccessDragPlacement(state, state.pending.playerId, "front"), true);
+    } else if (state.prompt) {
+      windows.push("prompt");
+      declinePrompt(state);
+    } else break;
+  }
+  assert.deepEqual(windows.slice(-1), ["access-drag-place"], "the last window was the placement");
+  assert.equal(state.deferredAttack ?? null, null, "no held attack is left");
+  assert.ok(state.events.some((event) => event.type === "attack_declared"), "the attack went on and was declared");
+});
+
 test("STD-232 logout selects, allocates and moves layers through the common runtime", () => {
   const state = createGame({ mode: "lab" });
   const player = state.players.player;
@@ -8538,4 +8574,13 @@ test("Humanoid's Recovery Boot works once in the game: the second time the STR r
   assert.equal(humanoid.winner, "ai");
   // the feedback of the recovery was given once
   assert.equal(userAbilityFeedback(humanoid, "recovery_boot").length, 1);
+});
+
+test("a card made by createCardInstance is prepared like a deck card: compiled effect text, so an attack-time module is read", () => {
+  const atsuto = createCardInstance("STD-219", "player", 9801);
+  assert.ok(atsuto.compiled?.selectionModules?.some((module) => module.module === "dynamic_threshold_selection"));
+  assert.equal(atsuto.category, "Ob");
+  const script = createCardInstance("STD-177", "player", 9802);
+  assert.equal(script.category, "Script");
+  assert.equal(script.faceDown, false);
 });
