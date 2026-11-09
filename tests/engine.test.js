@@ -5321,7 +5321,7 @@ test("STD-088 cannot be executed and STD-093 places one Punks on Login", () => {
   assert.equal([...player.front, ...player.back].some((card) => card.id === "STD-092"), true);
 });
 
-test("STD-091 must attack an Ob if one remains attackable", () => {
+test("STD-091 attacks an Ob if it can when it attacks, and the attack itself is not forced", () => {
   const state = createGame({ mode: "sandbox", rng: () => 0.5 });
   const player = state.players.player;
   player.front = [];
@@ -5333,8 +5333,10 @@ test("STD-091 must attack an Ob if one remains attackable", () => {
   enemy.sleep = true;
   state.players.ai.front = [enemy];
   assert.equal(playCard(state, "player", atsuto.uid, { force: true, ignoreColor: true }), true);
-  assert.equal(endTurn(state), false);
-  assert.match(state.message, /Obを攻撃/);
+  // when it attacks, only Ob can be the target while one is attackable (the user is not)
+  assert.deepEqual(getAttackTargets(state, "player", atsuto).map((target) => target.type), ["card"]);
+  // the attack is not forced: the turn can end without it (this turn it is placed, a QA can attack at once)
+  assert.equal(endTurn(state), true);
 });
 
 test("STD-100 reduces execution cost once per distinct Red Punks name", () => {
