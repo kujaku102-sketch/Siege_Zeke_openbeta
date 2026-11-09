@@ -96,10 +96,16 @@ export function projectRuntimeView(engineState, referenceState, contextInput, su
         const roots = frame.cards.filter(card => card.location.kind === 'board' && card.location.seatId === seat && card.location.zone === zone);
         roots.sort((a, b) => a.location.position - b.location.position);
         return roots.map(entry => {
-          if (entry.faceDown) return {
-            cardRef: refForIdentity(entry.identity.instanceId), controllerSeat: entry.controllerSeat,
-            area: zone, slot: entry.location.position, faceDown: true, placementOrder: null, publicCounters: {}
-          };
+          if (entry.faceDown) {
+            const hidden = {
+              cardRef: refForIdentity(entry.identity.instanceId), controllerSeat: entry.controllerSeat,
+              area: zone, slot: entry.location.position, faceDown: true, placementOrder: null, publicCounters: {}
+            };
+            // a face-down card of the viewer's own is known to the viewer (rulebook: its controller may always look at it): the printed card is there; the other side's stays hidden
+            if (entry.controllerSeat !== context.viewerSeat) return hidden;
+            const physical = resolvePhysical(engineState, entries, entries.get(entry.identity.instanceId), seats);
+            return { ...hidden, definition: definition(own(physical, 'id')) };
+          }
           const physical = resolvePhysical(engineState, entries, entries.get(entry.identity.instanceId), seats);
           return cardValue(engineState, references, context, frame, entry, physical, refForIdentity, dynamicsById);
         });

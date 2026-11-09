@@ -191,13 +191,13 @@ test('S02-PROJ-03: face-up board and zone cards use static definition allowlist 
   assert.equal(result.seats[1].ban.cards[0].definition.id, 'STD-100');
 });
 
-test('S02-PROJ-04: face-down board hides owner/content while preserving controller location only', () => {
+test('S02-PROJ-04: a face-down board card shows the other side only its handle, slot and controller; its controller also gets the printed card', () => {
   const state = game();
   const hidden = take(state, 'player', 'STD-022');
   place(state, 'ai', 'back', hidden, 3, true);
   const { referenceState } = frameAndRefs(state);
-  const result = successful(view(state, referenceState, 'seat-b'));
-  const projection = cardIn(result, 'seat-b', 'back');
+  // the other side (seat-a) sees a back: no owner, no content
+  const projection = cardIn(successful(view(state, referenceState, 'seat-a')), 'seat-b', 'back');
   assert.deepEqual(Object.keys(projection), ['cardRef', 'controllerSeat', 'area', 'slot', 'faceDown', 'placementOrder', 'publicCounters']);
   assert.match(projection.cardRef, /^r:[0-9a-f]{32}$/);
   assert.deepEqual({ ...projection, cardRef: '<opaque>' }, {
@@ -206,6 +206,12 @@ test('S02-PROJ-04: face-down board hides owner/content while preserving controll
   });
   assert.equal(Object.hasOwn(projection, 'ownerSeat'), false);
   assert.equal(Object.hasOwn(projection, 'definition'), false);
+  // its controller (seat-b) knows what it is (the rulebook lets it always look): the printed card is in the view
+  const mine = cardIn(successful(view(state, referenceState, 'seat-b')), 'seat-b', 'back');
+  assert.deepEqual(Object.keys(mine), ['cardRef', 'controllerSeat', 'area', 'slot', 'faceDown', 'placementOrder', 'publicCounters', 'definition']);
+  assert.equal(mine.faceDown, true);
+  assert.equal(mine.definition.id, 'STD-022');
+  assert.equal(Object.hasOwn(mine, 'ownerSeat'), false);
 });
 
 test('S02-PROJ-05: registry/trash/ban face-down cards count but do not expose card records', () => {
