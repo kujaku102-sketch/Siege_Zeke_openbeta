@@ -165,11 +165,6 @@ export function endTurn(state) {
   if (player.forceAttack && player.front.some((card) => !card.attackedThisTurn && canAttack(state, activeId, card))) {
     return fail(state, "攻撃可能なObすべてで攻撃してからターンを終了して。", false);
   }
-  if (player.front.some((card) => card.mustAttackObTurn === state.turnNumber && !card.attackedObThisTurn
-    && canAttack(state, activeId, card)
-    && getAttackTargets(state, activeId, card).some((target) => target.type === "card"))) {
-    return fail(state, "可能ならObを攻撃するカードが攻撃を終えていない。", false);
-  }
   const readySecurities = player.front.filter((card) => isObCard(card) && !card.faceDown && !card.sleep && cardHasKeyword(card, "SECURITY"));
   if (readySecurities.length && state.securityRestWindow !== activeId) {
     state.securityRestWindow = activeId;

@@ -7,6 +7,7 @@ import { isObCard } from "../src/game/card-types.js";
 import { placeCardByEffect } from "../src/game/effects/generic/placement.js";
 import { executeRuntimeActions } from "../src/game/effects/generic/actions.js";
 import { drainTriggerQueue } from "../src/game/core/triggers.js";
+import { lockVictoryIfDecided } from "../src/game/core/effects.js";
 const STD_SUPPORTED_CARDS = CARD_LIBRARY;
 const VENGEANCE_CARDS = Object.fromEntries(Object.entries(CARD_LIBRARY).filter(([id]) => /^STD-(18[7-9]|19\d|20\d|21[0-2])$/.test(id)));
 const NEUTRON_CARDS = Object.fromEntries(Object.entries(CARD_LIBRARY).filter(([id]) => /^STD-(10[7-9]|11\d|12[0-4])$/.test(id)));
@@ -740,6 +741,72 @@ test("STD-219 attack resumed after the opponent's Script window does not ask its
   assert.equal(declinePrompt(state), true);
   assert.equal(state.pending, null, "the attack goes on to its end: the selection is not asked again");
   assert.equal(state.deferredAttack ?? null, null);
+});
+
+test("a Script's activation window is not opened when the Script cannot be activated (memory short), and is when it can", () => {
+  // 2026-11-09: CPUs answered such a window with "activate" and the game refused with ACTION_NOT_ALLOWED (three matches of the bench), so the question is not asked
+  const battle = (memory) => {
+    const state = createGame({ mode: "lab", rng: () => 0 });
+    addSandboxCardToHand(state, "player", "STD-020");
+    const attacker = state.players.player.hand.find((card) => card.id === "STD-020");
+    state.players.player.hand.splice(state.players.player.hand.indexOf(attacker), 1);
+    attacker.summoningSick = false;
+    state.players.player.front = [attacker];
+    const script = createCardInstance("STD-177", "player", 9302);
+    script.faceDown = true;
+    state.players.player.back = [script];
+    state.players.player.registry = [createCardInstance("STD-173", "player", 9305)];
+    state.players.player.memory = memory;
+    const defender = createCardInstance("STD-020", "ai", 9304);
+    defender.summoningSick = false;
+    defender.sleep = true;
+    state.players.ai.front = [defender];
+    state.players.ai.back = [];
+    state.mode = "ai";
+    assert.equal(attack(state, "player", attacker.uid, defender.uid), true);
+    return { state, script };
+  };
+  const short = battle(1);
+  assert.equal(short.state.prompt, null, "memory 1 is short of the 2 the Script costs: no question");
+  assert.ok(short.state.log.some((entry) => entry.text.includes("起動できないため、確認を出さない") && entry.text.includes("メモリ")));
+  const enough = battle(5);
+  assert.equal(enough.state.prompt?.scriptUid, enough.script.uid, "with the memory it is asked as before");
+});
+
+test("an attack-time execution whose Login opens the access, drag and placement windows: the held attack goes on when the last window is answered", () => {
+  // found by the test repo (2026-11-09): resolveAccessDragPlacement did not resume the attack kept back while the windows were open, so deferredAttack stayed and the match stopped
+  const state = createGame({ mode: "lab", rng: () => 0.5 });
+  const me = state.players.player, foe = state.players.ai;
+  me.memory = 20; foe.memory = 20;
+  const attacker = createCardInstance("STD-219", "player", 9400);
+  attacker.summoningSick = false;
+  me.front = [attacker]; me.hand = []; me.back = []; me.trash = [];
+  me.registry = ["STD-040", "STD-020", "STD-020", "STD-020", "STD-020"].map((id, index) => createCardInstance(id, "player", 9490 + index));
+  me.deck = Array.from({ length: 6 }, (_, index) => createCardInstance("STD-020", "player", 9600 + index));
+  const defender = createCardInstance("STD-020", "ai", 9401);
+  defender.sleep = true; defender.summoningSick = false;
+  foe.front = [defender]; foe.back = []; foe.hand = [];
+  state.active = "player";
+  assert.equal(attack(state, "player", attacker.uid, defender.uid), true);
+  const windows = [];
+  for (let step = 0; step < 12; step += 1) {
+    if (state.pending?.type === "selection") {
+      const request = state.pending.request;
+      windows.push(request.continuation?.type ?? request.mode);
+      if (request.mode === "scope") setSelectionScope(request, request.scopeOptions[0]);
+      else for (const candidate of request.candidates) { toggleSelection(request, candidate); if (canConfirmSelection(request)) break; }
+      assert.equal(resolveCardSelection(state, request.continuation, confirmSelection(request, () => 0.5)), true);
+    } else if (state.pending?.type === "access-drag-place") {
+      windows.push("access-drag-place");
+      assert.equal(resolveAccessDragPlacement(state, state.pending.playerId, "front"), true);
+    } else if (state.prompt) {
+      windows.push("prompt");
+      declinePrompt(state);
+    } else break;
+  }
+  assert.deepEqual(windows.slice(-1), ["access-drag-place"], "the last window was the placement");
+  assert.equal(state.deferredAttack ?? null, null, "no held attack is left");
+  assert.ok(state.events.some((event) => event.type === "attack_declared"), "the attack went on and was declared");
 });
 
 test("STD-232 logout selects, allocates and moves layers through the common runtime", () => {
@@ -5290,7 +5357,7 @@ test("STD-088 cannot be executed and STD-093 places one Punks on Login", () => {
   assert.equal([...player.front, ...player.back].some((card) => card.id === "STD-092"), true);
 });
 
-test("STD-091 must attack an Ob if one remains attackable", () => {
+test("STD-091 attacks an Ob if it can when it attacks, and the attack itself is not forced", () => {
   const state = createGame({ mode: "sandbox", rng: () => 0.5 });
   const player = state.players.player;
   player.front = [];
@@ -5302,8 +5369,10 @@ test("STD-091 must attack an Ob if one remains attackable", () => {
   enemy.sleep = true;
   state.players.ai.front = [enemy];
   assert.equal(playCard(state, "player", atsuto.uid, { force: true, ignoreColor: true }), true);
-  assert.equal(endTurn(state), false);
-  assert.match(state.message, /Obを攻撃/);
+  // when it attacks, only Ob can be the target while one is attackable (the user is not)
+  assert.deepEqual(getAttackTargets(state, "player", atsuto).map((target) => target.type), ["card"]);
+  // the attack is not forced: the turn can end without it (this turn it is placed, a QA can attack at once)
+  assert.equal(endTurn(state), true);
 });
 
 test("STD-100 reduces execution cost once per distinct Red Punks name", () => {
@@ -8473,4 +8542,45 @@ test("a queued trigger waits while a choice is open or a trigger thread is resol
   drainTriggerQueue(state);
   assert.equal(state.triggerQueue.length, 0);
   assert.equal(state.players.ai.fortressStr, before - 2);
+});
+
+test("a selection request has a number made from what it asks, not from the clock", () => {
+  const realNow = Date.now;
+  try {
+    const make = () => createSelectionRequest({ mode: "single", candidates: ["a", "b"], label: "対象を選択", continuation: { type: "x", playerId: "player", sourceUid: "u1" } });
+    Date.now = () => 1000;
+    const first = make();
+    Date.now = () => 987654321;
+    const later = make();
+    assert.match(first.id, /^SEL-[0-9a-f]{8}$/);
+    assert.equal(later.id, first.id);
+    assert.notEqual(createSelectionRequest({ mode: "single", candidates: ["a", "c"], label: "対象を選択" }).id, first.id);
+    assert.equal(createSelectionRequest({ id: "SEL-given", candidates: ["a"] }).id, "SEL-given");
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test("Humanoid's Recovery Boot works once in the game: the second time the STR reaches 0 the user loses", () => {
+  const humanoid = createGame({ mode: "sandbox", playerUserId: "humanoid" });
+  const player = humanoid.players.player;
+  dealFortressDamage(humanoid, "player", player.fortressStr, "ai", "test");
+  assert.equal(player.fortressStr, 1);
+  assert.equal(player.recoveryBootUsed, true);
+  assert.equal(humanoid.winner, null);
+  dealFortressDamage(humanoid, "player", player.fortressStr, "ai", "test");
+  assert.equal(player.fortressStr, 0);
+  lockVictoryIfDecided(humanoid);      // the result is read at the end of the effect
+  assert.equal(humanoid.winner, "ai");
+  // the feedback of the recovery was given once
+  assert.equal(userAbilityFeedback(humanoid, "recovery_boot").length, 1);
+});
+
+test("a card made by createCardInstance is prepared like a deck card: compiled effect text, so an attack-time module is read", () => {
+  const atsuto = createCardInstance("STD-219", "player", 9801);
+  assert.ok(atsuto.compiled?.selectionModules?.some((module) => module.module === "dynamic_threshold_selection"));
+  assert.equal(atsuto.category, "Ob");
+  const script = createCardInstance("STD-177", "player", 9802);
+  assert.equal(script.category, "Script");
+  assert.equal(script.faceDown, false);
 });

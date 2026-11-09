@@ -87,7 +87,7 @@ export const USER_CARDS = Object.freeze({
     ],
     "abilityKey": "recovery_boot",
     "abilityName": "リカバリーブート",
-    "ability": "自分ユーザーのSTRが0以下になった時起動する。STRを1に回復しゲームを続行する。"
+    "ability": "自分ユーザーのSTRが0以下になった時起動する。STRを1に回復しゲームを続行する。ゲーム中1度だけ使用可能。"
   },
   "by_os": {
     "initialHand": 8,
@@ -186,4 +186,9 @@ const canonicalCategory = (category) => category === "Sc" ? "Script" : category;
 const fromDefinition = (source) => ({ ...source, category: canonicalCategory(source.category) });
 export function expandDeck(recipe, owner) { let serial = 0; return recipe.flatMap(([cardId, count]) => Array.from({ length: count }, () => ({ ...fromDefinition(CARD_LIBRARY[cardId]), uid: `${owner}-${cardId}-${++serial}`, owner, sleep: false, damage: 0, attackedThisTurn: false, summoningSick: true, mounted: [], tempAtk: 0, tempStr: 0, skipStandby: false }))); }
 export function createToken(owner, serial) { return { ...fromDefinition(CARD_LIBRARY["STD-092"]), uid: `${owner}-STD-092-${serial}`, owner, token: true, virtual: true, sleep: false, damage: 0, attackedThisTurn: false, summoningSick: true, mounted: [], tempAtk: 0, tempStr: 0, skipStandby: false }; }
-export function createCardInstance(cardId, owner, serial = 1) { return { ...fromDefinition(CARD_LIBRARY[cardId]), uid: `${owner}-${cardId}-lab-${serial}`, owner, sleep: false, damage: 0, attackedThisTurn: false, summoningSick: true, mounted: [], tempAtk: 0, tempStr: 0, skipStandby: false, faceDown: false, residentActive: false, layerRole: null }; }
+// A card made by createCardInstance (the lab, the sandbox, tools and tests) is prepared the way a deck card is (compiled effect text, normalised category): the game's prepare step registers
+// itself here when it loads (core/prepare.js), since the data layer cannot import it. Where the game is not loaded (the deck builder's screens) the card is the plain definition.
+let prepareCard = null;
+export function registerCardPreparer(preparer) { prepareCard = preparer; }
+const prepared = (card) => (prepareCard ? prepareCard(card) : card);
+export function createCardInstance(cardId, owner, serial = 1) { return prepared({ ...fromDefinition(CARD_LIBRARY[cardId]), uid: `${owner}-${cardId}-lab-${serial}`, owner, sleep: false, damage: 0, attackedThisTurn: false, summoningSick: true, mounted: [], tempAtk: 0, tempStr: 0, skipStandby: false, faceDown: false, residentActive: false, layerRole: null }); }

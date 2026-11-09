@@ -5,6 +5,7 @@ import { TRACE_TAGS, trace, TRACE, tracing, waypoint } from "../engine-trace.js"
 import { specsForEvent } from "../trigger-specs.js";
 import { drainIndependentEffects, finalizeEffectResolution, finishGameIfSettled, judgeVictory, parentEffectAwaitsOwnChoice, resolveMandatoryStateChecks, runEffectEntry, traceChoiceDiff } from "./effects.js";
 import { enabledSymbols } from "./play.js";
+import { resumeDeferredAttack } from "./battle.js";
 import { queueDeclaredScriptActivationWindow } from "./scripts.js";
 import { addLog, cardsInPlay, findCard, otherPlayer } from "./shared.js";
 import { executeCardRuntimeSpec } from "../effects/generic/actions.js";
@@ -119,7 +120,10 @@ export function resolveTriggerChoice(state, itemId) {
   const thread = state.triggerThread;
   if (!thread || thread.status !== "resolving" || thread.currentControllerId !== "player") return false;
   if (!thread.items.some((entry) => entry.id === itemId && entry.status === "pending" && entry.controllerId === "player")) return false;
-  return runEffectEntry(state, "trigger-order", "player", () => resolveTriggerChoiceCore(state, itemId));
+  const resolved = runEffectEntry(state, "trigger-order", "player", () => resolveTriggerChoiceCore(state, itemId));
+  // 攻撃の途中で開いた窓に答えて、窓がもう残っていなければ、預けた攻撃(deferredAttack)を続ける(b8214a6の直しと同じ形。抜けていると攻撃が残ったまま詰む)。
+  if (resolved && !state.pending && !state.prompt) resumeDeferredAttack(state);
+  return resolved;
 }
 
 function resolveTriggerChoiceCore(state, itemId) {

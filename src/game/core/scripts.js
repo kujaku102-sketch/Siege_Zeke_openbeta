@@ -36,11 +36,49 @@ export const NORMAL_IF_SCRIPT_IDS = new Set(["STD-001", "STD-002", "STD-003", "S
 
 export const EVENT_CONTEXT_REQUIRED_IF_IDS = new Set(["STD-018", "STD-019", "STD-038", "STD-204"]);
 
+// なぜ今このScriptを起動できないか(起動できるなら null)。起動の確認を出すかどうかも、起動の本体も、これで決める: 払えない・対象がない起動を確認に出すと、答えが拒否されるだけになる
+// (2026-11-09: 先読みCPUとゲームのCPUの答えが ACTION_NOT_ALLOWED で拒否された3件は、どれもメモリ不足の確認に「起動」を答えたものだった)。
+// declared: 宣言して解決する [if:] の効果(DECLARED_IF_SCRIPT_IDS)も対象があるかを見る。
+function scriptActivationBlocker(state, playerId, script, { eventTargetUid = null, windowActions = null, declared = true } = {}) {
+  const player = state.players[playerId];
+  const activationCost = Number(script.activationCost ?? script.cost ?? 0);
+  if (player.memory < activationCost) return "memory";
+  if (state.mode !== "lab" && script.color && !enabledSymbols(player).includes(script.color)) return "symbol";
+  const activationRuntime = cardRuntimeSpec(script.id, "script_activation");
+  const feasibilityRuntime = { records: { activation_target_uid: eventTargetUid } };
+  if (activationRuntime && !activationRuntime.actions.every((action) => runtimeActionFeasible(state, playerId, script, action, feasibilityRuntime))) return "target";
+  const declaredActions = windowActions?.length ? windowActions : optionalSpecsForCard(script.id)[0]?.actions ?? [];
+  if (declared && DECLARED_IF_SCRIPT_IDS.has(script.id) && !declaredActions.every((action) => triggerActionFeasible(state, playerId, action))) return "target";
+  return null;
+}
+
+const BLOCKER_MESSAGES = Object.freeze({
+  memory: (script) => `${script.name}の起動に必要なメモリが足りない。`,
+  symbol: (script) => `${script.color}シンボルがない。先にレジストリへインストールして。`,
+  target: () => "効果を実行できる対象がない。"
+});
+
+// 確認の窓を出す前の確かめ: 起動できないScriptの確認は出さない(出しても「起動」は拒否されるだけで、断るしかない)。窓は処理済み(declined)として、ログに理由を残す。
+function windowBlocked(state, window, prompt) {
+  const script = window.source?.card;
+  const playerId = prompt.playerId ?? window.controllerId;
+  if (!script || !state.players[playerId]) return false;
+  const eventContext = prompt.eventContext ?? window.context ?? null;
+  const blocker = scriptActivationBlocker(state, playerId, script, {
+    eventTargetUid: prompt.eventTargetUid ?? eventContext?.cardUid ?? null, windowActions: window.spec?.actions, declared: true
+  });
+  if (!blocker) return false;
+  window.status = "declined";
+  addLog(state, `「${script.name}」は起動できないため、確認を出さない(${BLOCKER_MESSAGES[blocker](script)})`, "effect");
+  return true;
+}
+
 function queueScriptActivationEntry(state, entry) {
   if (state.prompt) {
     state.scriptActivationQueue.push(entry);
     return true;
   }
+  if (windowBlocked(state, entry.window, entry.prompt)) return false;
   state.prompt = entry.prompt;
   addLog(state, entry.prompt.message, "effect");
   return true;
@@ -89,6 +127,7 @@ function openNextScriptActivationWindow(state) {
     entry.window.status = "declined";
     return openNextScriptActivationWindow(state);
   }
+  if (windowBlocked(state, entry.window, entry.prompt)) return openNextScriptActivationWindow(state);
   state.prompt = entry.prompt;
   addLog(state, `${entry.prompt.message}`, "effect");
   return true;
@@ -132,21 +171,12 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
   if ((!requiresWindow || normalIfActivation) && state.active !== playerId) return fail(state, "Scriptの通常起動は自分ターン中だけ。", false);
   if (normalIfActivation && (state.pending || state.prompt || state.winner)) return fail(state, "処理待ちがないメインアクション時だけ通常起動できる。", false);
   const activationCost = Number(script.activationCost ?? script.cost ?? 0);
-  if (player.memory < activationCost) return fail(state, `${script.name}の起動に必要なメモリが足りない。`, false);
-  if (state.mode !== "lab" && script.color && !enabledSymbols(player).includes(script.color)) {
-    return fail(state, `${script.color}シンボルがない。先にレジストリへインストールして。`, false);
-  }
   const activationRuntime = cardRuntimeSpec(script.id, "script_activation");
   const eventContext = activationWindow?.context ?? state.prompt?.eventContext ?? null;
   const eventTargetUid = state.prompt?.eventTargetUid ?? eventContext?.cardUid ?? null;
   const declaredActions = activationWindow?.spec?.actions?.length ? activationWindow.spec.actions : optionalSpecsForCard(script.id)[0]?.actions ?? [];
-  const feasibilityRuntime = { records: { activation_target_uid: eventTargetUid } };
-  if (activationRuntime && !activationRuntime.actions.every((action) => runtimeActionFeasible(state, playerId, script, action, feasibilityRuntime))) {
-    return fail(state, "効果を実行できる対象がない。", false);
-  }
-  if ((prompted || normalIfActivation) && DECLARED_IF_SCRIPT_IDS.has(script.id) && !declaredActions.every((action) => triggerActionFeasible(state, playerId, action))) {
-    return fail(state, "効果を実行できる対象がない。", false);
-  }
+  const blocker = scriptActivationBlocker(state, playerId, script, { eventTargetUid, windowActions: activationWindow?.spec?.actions, declared: prompted || normalIfActivation });
+  if (blocker) return fail(state, BLOCKER_MESSAGES[blocker](script), false);
   const additionalCost = activationRuntime?.additionalCost;
   if (additionalCost) {
     const eventValue = eventContext?.[additionalCost.matchEventField]

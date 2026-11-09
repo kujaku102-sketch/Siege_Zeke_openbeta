@@ -21,6 +21,7 @@ function buildPlayer(id, user, deck) {
     memory: user.memory,
     turboActive: false,
     turboUsed: false,
+    recoveryBootUsed: false,
     userAbilityUsed: false,
     mulligansUsed: 0,
     firstRegistryInstallResolved: false,

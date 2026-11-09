@@ -5,12 +5,12 @@ export const TUTORIAL_OPPONENT_STR = 5;
 // 赤チュートリアルの初手(文豪の台本)。台本の「兵士」は剣士(STD-021、メモリ2・3/3・無色)に統一している。
 export const TUTORIAL_SOLDIER_ID = "STD-021";
 export const TUTORIAL_RED_HAND = Object.freeze(["STD-087", TUTORIAL_SOLDIER_ID, "STD-091", "STD-078"]);
-// 青チュートリアル(文豪の台本、2026-10-28)。手札は ルチル・漣・フラウ・セキュリティウォール。山札はオフェンスプロトコル1枚とアサルトプログラム6枚。
+// 青チュートリアル(文豪の台本、2026-10-28)。手札は ルチル・漣・フラウ・セキュリティウォール。山札はオフェンスプロトコル1枚とアサルトプログラム7枚(先攻の第1ターンの開始ドローで1枚が手札に入る)。
 // ルチルのアクセスでオフェンスプロトコルが手札に移ると山札はアサルトだけになり、山札が混ぜられても、どのターンの引きもアサルトプログラムになる。
-// 引く枚数: 2ターン目の開始・STR 5→1 のインシデントの1ドロー・3ターン目の開始・勝利後のアサルトの追加ドロー(必須ドロー、失敗は敗北)の4枚。
-// アサルトは 6 枚で、最後に2枚残る。
+// 引く枚数: 先攻の第1ターンの開始・2ターン目の開始・STR 5→1 のインシデントの1ドロー・3ターン目の開始・勝利後のアサルトの追加ドロー(必須ドロー、失敗は敗北)の5枚。
+// アサルトは 7 枚で、最後に2枚残る。
 export const TUTORIAL_BLUE_HAND = Object.freeze(["STD-107", "STD-117", "STD-109", "STD-110"]);
-export const TUTORIAL_BLUE_DECK = Object.freeze([["STD-111", 1], ["STD-116", 6]].map((row) => Object.freeze(row)));
+export const TUTORIAL_BLUE_DECK = Object.freeze([["STD-111", 1], ["STD-116", 7]].map((row) => Object.freeze(row)));
 // 相手の無色サンドバッグデッキ(設計メモ 08 §2.2)。台本が使う装甲兵 メルク(STD-043)は手札に直接置く。計40枚・同名3枚まで。
 export const TUTORIAL_SANDBAG_DECK = Object.freeze([
   ["STD-020", 3], ["STD-021", 3], ["STD-022", 3], ["STD-023", 3], ["STD-024", 3], ["STD-025", 3], ["STD-026", 3],
@@ -30,12 +30,12 @@ export const TUTORIAL_YELLOW_HAND = Object.freeze(["STD-125", "STD-126", "STD-13
 export const TUTORIAL_YELLOW_REGISTRY = Object.freeze(["STD-129"]);
 export const TUTORIAL_YELLOW_DRAWS = Object.freeze(["STD-133", "STD-134", "STD-136", "STD-134", "STD-133", "STD-138", "STD-136", "STD-137"]);
 export const TUTORIAL_YELLOW_OPPONENT_HAND = Object.freeze(["STD-025", "STD-020", "STD-028"]);
-// 黒チュートリアル(文豪の台本 06-黒-台本修正案.md と判断A〜E)。先攻は自分(第1ターンはドローしない)。黒のカード1枚を最初からレジストリに置いて点灯させる。
-// 山札の上から: コンキスタドールの2枚ドローでレメゲトンと任意の札、第2ターンのドローで邪神との取引(レメゲトンのアクセスで山札は混ざるので、引き終えてからアクセス)。
+// 黒チュートリアル(文豪の台本 06-黒-台本修正案.md と判断A〜E)。先攻は自分(第1ターンも通常の1枚を引く)。黒のカード1枚を最初からレジストリに置いて点灯させる。
+// 山札の上から: 第1ターンの開始ドローで手札に入る台本外の1枚(STD-033)、コンキスタドールの2枚ドローでレメゲトンと任意の札、第2ターンのドローで邪神との取引(レメゲトンのアクセスで山札は混ざるので、引き終えてからアクセス)。
 // 相手はメルクAを場に、メルクBを手札に持つ。
 export const TUTORIAL_BLACK_HAND = Object.freeze(["STD-150", "STD-155", "STD-156", "STD-152"]);
 export const TUTORIAL_BLACK_REGISTRY = Object.freeze(["STD-151"]);
-export const TUTORIAL_BLACK_DRAWS = Object.freeze(["STD-158", "STD-162", "STD-163"]);
+export const TUTORIAL_BLACK_DRAWS = Object.freeze(["STD-033", "STD-158", "STD-162", "STD-163"]);
 export const TUTORIAL_BLACK_OPPONENT_FRONT = Object.freeze(["STD-043"]);
 export const TUTORIAL_BLACK_OPPONENT_HAND = Object.freeze(["STD-043"]);
 export const TUTORIAL_OPPONENT_SCRIPTS = Object.freeze({

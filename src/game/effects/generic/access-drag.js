@@ -3,6 +3,7 @@ import { settleStd048MandatoryPlacement } from "../../../cards/std/std_048_effec
 import { runEffectEntry } from "../../core/effects.js";
 import { vacantBoardSlots } from "../../board-slots.js";
 import { addLog, findCard } from "../../core/shared.js";
+import { resumeDeferredAttack } from "../../core/battle.js";
 import { resumeTriggerThreadAfterSelection } from "../../core/triggers.js";
 import { emitEffectPlacement, placeByMode, placeCardByEffect, setCardSleeping } from "./placement.js";
 
@@ -107,5 +108,8 @@ export function resolveAccessDragPlacementCore(state, playerId, zone, underUid =
 }
 
 export function resolveAccessDragPlacement(state, playerId, zone, underUid = null, slot = null) {
-  return runEffectEntry(state, "placement", playerId, () => resolveAccessDragPlacementCore(state, playerId, zone, underUid, slot));
+  const resolved = runEffectEntry(state, "placement", playerId, () => resolveAccessDragPlacementCore(state, playerId, zone, underUid, slot));
+  // 攻撃の途中で開いた窓に答えて、窓がもう残っていなければ、預けた攻撃(deferredAttack)を続ける(b8214a6の直しと同じ形。抜けていると攻撃が残ったまま詰む)。
+  if (resolved && !state.pending && !state.prompt) resumeDeferredAttack(state);
+  return resolved;
 }

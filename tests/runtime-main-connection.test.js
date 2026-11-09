@@ -157,16 +157,18 @@ test('normal spell preserves generic user target and stale action refuses withou
   assert.deepEqual(port.query().value,settled);assert.deepEqual(session.scope(),settledScope);
   lifecycle.dispose();
 });
-test('native Script remains silhouette; detached owner inspection is temporary and absent from shared/other-seat reads',()=>{
+test('native Script is a silhouette to everyone but its controller (who reads its printed card); detached owner inspection is temporary and absent from shared/other-seat reads',()=>{
   const {lifecycle,session,port}=setup(),source=add(session,port,'STD-001');
   submit(port,plan(port,'executeCard',source,option=>option.zone==='back'));
   const hidden=port.query().value.observation.seats[0].back.cards.find(card=>card.cardRef===source);
-  assert.equal(hidden.faceDown,true);assert.equal(hidden.definition,undefined);
+  // its controller's own view names it (2026-11-09: the controller may always look at a card of its own; the CPU reads it from here); the other seat's view does not
+  assert.equal(hidden.faceDown,true);assert.equal(hidden.definition.id,'STD-001');
   const inspected=port.query({inspectRef:source});
   assert.equal(inspected.ok,true,JSON.stringify(inspected));assert.equal(inspected.value.inspection.definition.id,'STD-001');
   assert.equal(port.query().value.inspection,undefined);
   const foreign=session.port('b').value.query().value.observation.seats[0].back.cards[0].cardRef;
   assert.equal(session.port('b').value.query({inspectRef:foreign}).ok,false);
+  assert.equal(session.port('b').value.query().value.observation.seats[0].back.cards[0].definition,undefined);
   const ui=createMatchUiController({session,viewerSeat:'a'}).value;
   assert.equal(ui.selectCard(source,true).value.inspection.definition.id,'STD-001');
   assert.equal(ui.closeDetail().value.inspection,null);
@@ -920,7 +922,7 @@ test('tutorial blue runs start to finish through ports: the Rutile access, Hacki
   const enemy=()=>seatView(port.query().value,'b'),ids=zone=>seatView(port.query().value)[zone].cards.map(item=>item.definition.id);
   const target=ref=>option=>option.cardRef===ref;
   skip(1,1); // no greeting before blue (red only, 2026-10-29): its step 1 is the one line before the install
-  assert.deepEqual(ids('hand'),['STD-107','STD-117','STD-109','STD-110']);
+  assert.deepEqual(ids('hand'),['STD-107','STD-117','STD-109','STD-110','STD-116']);
   assert.equal(enemy().fortressStr,5);assert.deepEqual(enemy().hand.count,1);
   assertRefused(port,{type:'endTurn'});
   // 2 the blue symbol
@@ -939,7 +941,7 @@ test('tutorial blue runs start to finish through ports: the Rutile access, Hacki
   refusedFor(session,port,{type:'declineChoice',choiceId:open.choiceId},/オフェンスプロトコル/);
   submit(port,{type:'answerChoice',choiceId:open.choiceId,optionIds:[early.optionId],allocation:[]});
   settleTutorial(session);at(7);
-  assert.ok(ids('hand').includes('STD-111'));assert.ok(!ids('hand').includes('STD-116'));
+  assert.ok(ids('hand').includes('STD-111'));assert.equal(ids('hand').filter(id=>id==='STD-116').length,1,'the Assault Program was not taken: only the opening draw is in hand');
   // 4 Frau
   submit(port,plan(port,'executeCard',hand('STD-109'),option=>option.zone==='front'));settleTutorial(session);at(8);
   skip(1,9);

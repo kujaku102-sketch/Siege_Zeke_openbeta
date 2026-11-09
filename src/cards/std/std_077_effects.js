@@ -1,4 +1,5 @@
 import { CARD_LIBRARY } from "../../data/cards.js";
+import { resumeDeferredAttack } from "../../game/core/battle.js";
 import { drawCards } from "../../game/core/draw.js";
 import { addLog, fail, findCard, hasClass, provisional } from "../../game/core/shared.js";
 import { moveCardToTrash } from "../../game/effects/generic/trash.js";
@@ -16,6 +17,8 @@ export function resolveSamLogin(state, playerId, discardUid) {
   drawCards(state, playerId, 2);
   state.pending = null;
   addLog(state, `ジャンカー・サム: ${discarded.name}を捨て、2枚ドロー。`, "effect");
+  // 攻撃の途中で開いた窓に答えて、窓がもう残っていなければ、預けた攻撃(deferredAttack)を続ける(b8214a6の直しと同じ形。抜けていると攻撃が残ったまま詰む)。
+  if (!state.pending && !state.prompt) resumeDeferredAttack(state);
   provisional(state, "レッドパンクス分類データが未整備のため、サムの手札コストは赤カード全般を選択可能。", CARD_LIBRARY["STD-077"]);
   return true;
 }

@@ -173,7 +173,8 @@ test('S02-SESSION-05: exact recipe rows, safe totals and tutorial preflight', ()
   rejects(config({ mode: 'tutorial', aiDeckRecipe: [['STD-125', 1], ['STD-131', 1], ['STD-149', 1]] }));
   // The opponent's cards are the ones the engine puts in its hand for that tutorial (read from the state, not written here): a recipe that holds them all is taken, one that lacks any is refused.
   for (const tutorialId of TUTORIAL_IDS) {
-    const needed = game({ mode: 'tutorial', tutorialId }).players.ai.hand.map(card => card.id);
+    const start = game({ mode: 'tutorial', tutorialId }), hand = start.players.ai.hand.map(card => card.id);
+    const needed = start.firstPlayer === 'ai' ? hand.slice(0, -1) : hand; // the first player draws on its first turn: the card drawn last is not one the script needs
     rejects(config({ mode: 'tutorial', tutorialId, aiDeckRecipe: [] }));
     const filler = ['STD-020', 'STD-021', 'STD-022'].find(id => !needed.includes(id)); // a card the opponent does not need, so the padding never stands in for the lacking one
     for (const lacking of needed) rejects(config({ mode: 'tutorial', tutorialId, aiDeckRecipe: needed.filter(id => id !== lacking).map(id => [id, 1]).concat([[filler, 3]]) }));
@@ -636,7 +637,7 @@ test('blue tutorial: allowed id, both decks forced, hand and opponent set up by 
   const blue = game({ mode: 'tutorial', tutorialId: 'blue' });
   assert.equal(blue.playerDeckId, 'tutorial-blue');
   assert.equal(blue.aiDeckId, 'tutorial-sandbag');
-  assert.deepEqual(blue.players.player.hand.map(card => card.id), ['STD-107', 'STD-117', 'STD-109', 'STD-110']);
+  assert.deepEqual(blue.players.player.hand.map(card => card.id), ['STD-107', 'STD-117', 'STD-109', 'STD-110', 'STD-116']); // the last is the first player's opening draw
   assert.deepEqual(blue.players.ai.hand.map(card => card.id), ['STD-043']);
   assert.equal(blue.players.ai.fortressStr, 5);
   for (const id of ['basics', 'vengeance', 'blue']) assert.ok(TUTORIAL_IDS.includes(id), id);
