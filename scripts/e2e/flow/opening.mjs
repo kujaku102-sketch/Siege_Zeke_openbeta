@@ -54,7 +54,7 @@ try {
   if (moved.length > 1) throw new Error(`the CPU played while the dice's answer showed: ${moved}`);
   await page.locator("[data-opening-first]").waitFor({ state: "detached", timeout: 10000 });
   const hand = await page.locator(".r2-hand [data-card-ref]").evaluateAll(list => list.map(node => node.dataset.cardRef));
-  if (marked.some(ref => hand.includes(ref)) || hand.length !== dealt.length) throw new Error("the two returned are gone and as many drawn");
+  if (marked.some(ref => hand.includes(ref)) || hand.length !== dealt.length + (first === "先攻" ? 1 : 0)) throw new Error("the two returned are gone and as many drawn (the first player draws one more on its first turn)");
   await until(page, () => { const turn = document.querySelector("[data-runtime-end-turn]"); return turn?.dataset.turnSide === "mine" && !turn.disabled; }, null, "the player's turn", 30000);
   await page.close();
 
