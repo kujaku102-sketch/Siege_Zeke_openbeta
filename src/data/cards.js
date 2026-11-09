@@ -87,7 +87,7 @@ export const USER_CARDS = Object.freeze({
     ],
     "abilityKey": "recovery_boot",
     "abilityName": "リカバリーブート",
-    "ability": "自分ユーザーのSTRが0以下になった時起動する。STRを1に回復しゲームを続行する。"
+    "ability": "自分ユーザーのSTRが0以下になった時起動する。STRを1に回復しゲームを続行する。ゲーム中1度だけ使用可能。"
   },
   "by_os": {
     "initialHand": 8,
