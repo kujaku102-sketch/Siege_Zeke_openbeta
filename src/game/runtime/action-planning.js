@@ -10,13 +10,17 @@ import { buildRequiredInput } from './required-input.js';
 const failure = code => ({ ok: false, error: { code } });
 const pick = (minimum = 1, maximum = 1) => ({ kind: 'pick', minimum, maximum, aggregate: null, groups: [] });
 
-export function queryRuntimeAction(authority, viewerSeat, input, currentCatalog = null, allowTutorial = false) {
+// memo (optional, kept by the caller for one seat): { authority, required, context }. While the authority is the same object (one revision) the required input and the planning
+// context are made once; a caller that replaces the authority on every accepted command (the local port) gets a fresh one then. Without a memo every call makes its own, as before.
+export function queryRuntimeAction(authority, viewerSeat, input, currentCatalog = null, allowTutorial = false, memo = null) {
   try {
     const request = readPlanningInput(input);
     if (request.expectedRevision !== authority.revision) return failure('STALE_REVISION');
-    const required = buildRequiredInput(authority, viewerSeat);
+    const shared = memo && memo.authority === authority ? memo : null;
+    const required = shared ? shared.required : buildRequiredInput(authority, viewerSeat);
     if (!required.ok || required.value !== null) return failure('ACTION_NOT_ALLOWED');
-    const context = createPlanningContext(authority, viewerSeat, null, allowTutorial);
+    const context = shared ? shared.context : createPlanningContext(authority, viewerSeat, null, allowTutorial);
+    if (memo && !shared) Object.assign(memo, { authority, required, context });
     if (!context.allowed) return failure('ACTION_NOT_ALLOWED');
     const entry = (currentCatalog ?? planningCatalog(context)).find(item => item.actionId === request.actionId);
     if (!entry) return failure('ACTION_NOT_ALLOWED');

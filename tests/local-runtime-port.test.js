@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createMatchAuthority } from '../src/game/runtime/authority.js';
+import { RULE_VERSION, CARD_VERSION } from '../src/game/runtime/versions.js';
 import { createRuntimeSession } from '../src/game/runtime/session.js';
 import { buildRuntimeReferenceFrame } from '../src/game/runtime/reference-frame.js';
 import { createRuntimeReferenceState } from '../src/game/runtime/references.js';
@@ -672,4 +674,30 @@ test('S05-LPORT-19: a placement choice offers an Ob to stack under only when the
     const input = ports(built).first.query().value.requiredInput;
     assert.equal(input.options.filter(option => option.label === 'レイヤー配置').length, expected, category);
   }
+});
+
+test('queryAction reuses the planning context of one revision and makes a new one after a command is accepted', () => {
+  const created = createMatchAuthority({ matchId: 'memo-match', seatIds: ['seat-a', 'seat-b'], seed: 9, ruleVersion: RULE_VERSION, cardVersion: CARD_VERSION,
+    gameOptions: { mode: 'ai', playerDeckId: 'start-red', aiDeckId: 'start-blue', openingProtocol: 'v2.4' } });
+  const coordinator = createLocalRuntimeCoordinator({ authority: created.value, sessionGeneration: 1 }).value;
+  const port = coordinator.bind({ seatId: 'seat-a' }).value;
+  // play the opening to the first main phase of whoever starts, with the usual CPU
+  const ports = ['seat-a', 'seat-b'].map(seatId => coordinator.bind({ seatId }).value);
+  for (let step = 0; step < 40; step += 1) {
+    const mover = ports.find(candidate => { const q = candidate.query().value; return q.requiredInput === null && q.observation.activeSeat === q.observation.viewerSeat && q.observation.turnNumber >= 1; });
+    if (mover && mover.query().value.legalActions.some(entry => entry.kind === 'intent')) break;
+    for (const candidate of ports) runSimpleAiPortStep(candidate, `memo-${step}`);
+  }
+  const mover = ports.find(candidate => { const q = candidate.query().value; return q.requiredInput === null && q.observation.activeSeat === q.observation.viewerSeat; });
+  assert.ok(mover, 'a seat is in its main phase');
+  const query = mover.query().value;
+  const entries = query.legalActions.filter(entry => entry.kind === 'intent');
+  assert.ok(entries.length > 0);
+  const answers = entries.map(entry => mover.queryAction({ expectedRevision: query.status.revision, actionId: entry.actionId, selections: [] }));
+  const again = entries.map(entry => mover.queryAction({ expectedRevision: query.status.revision, actionId: entry.actionId, selections: [] }));
+  assert.deepEqual(again, answers, 'the same plans the second time');
+  // a command moves the revision on; the next plans are of the new revision (a stale one is refused)
+  const submitted = runSimpleAiPortStep(mover, 'memo-next');
+  assert.equal(submitted.value?.kind, 'accepted');
+  assert.equal(mover.queryAction({ expectedRevision: query.status.revision, actionId: entries[0].actionId, selections: [] }).ok, false);
 });
