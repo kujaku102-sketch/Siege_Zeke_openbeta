@@ -84,7 +84,9 @@ export function dealFortressDamage(state, victimId, amount, sourcePlayerId, sour
   }
   const before = victim.fortressStr;
   victim.fortressStr = Math.max(0, victim.fortressStr - amount);
-  if (victim.user.abilityKey === "recovery_boot" && victim.fortressStr <= 0) {
+  // リカバリーブートはゲーム中1回だけ(2026-11-09、文豪の裁定)。使ったあとにSTRが0以下になれば、そのまま敗北の判定へ進む。
+  if (victim.user.abilityKey === "recovery_boot" && victim.fortressStr <= 0 && !victim.recoveryBootUsed) {
+    victim.recoveryBootUsed = true;
     victim.fortressStr = 1;
     addLog(state, `${victim.user.abilityName}: STRを1へ回復。`, "effect");
     emitUserAbilityFeedback(state, "recovery_boot", victimId, victimId, { branch: "recovered", before: 0, after: 1, steps: [{ kind: "value_change", target: { kind: "player_stat", playerId: victimId, metric: "str" }, before: 0, after: 1 }] });

@@ -120,9 +120,11 @@ export function startTurn(state, playerId) {
 
   resolveTurnStartDelayedEffects(state, playerId);
 
+  // 規則書4.2: 通常のドローは1枚。後攻の第1ターンはもう1枚引く(合計2枚)。先攻の第1ターンも1枚引く(2026-11-09、文豪「先手1枚ドロー」)。
+  // ラボとサンドボックスは盤面を作って始めるので、先攻の第1ターンはこれまでどおり引かない。
   let drawCount = 1;
-  if (player.turnsTaken === 0 && playerId === state.firstPlayer) drawCount = 0;
-  else if (player.turnsTaken === 0) drawCount = 2;
+  if (player.turnsTaken === 0 && playerId === state.firstPlayer && ["lab", "sandbox"].includes(state.mode)) drawCount = 0;
+  else if (player.turnsTaken === 0 && playerId !== state.firstPlayer) drawCount = 2;
   player.turnsTaken += 1;
   state.active = playerId;
   state.phase = "main";
@@ -162,11 +164,6 @@ export function endTurn(state) {
   if (!state.skipSavageTurnEnd) {
   if (player.forceAttack && player.front.some((card) => !card.attackedThisTurn && canAttack(state, activeId, card))) {
     return fail(state, "攻撃可能なObすべてで攻撃してからターンを終了して。", false);
-  }
-  if (player.front.some((card) => card.mustAttackObTurn === state.turnNumber && !card.attackedObThisTurn
-    && canAttack(state, activeId, card)
-    && getAttackTargets(state, activeId, card).some((target) => target.type === "card"))) {
-    return fail(state, "可能ならObを攻撃するカードが攻撃を終えていない。", false);
   }
   const readySecurities = player.front.filter((card) => isObCard(card) && !card.faceDown && !card.sleep && cardHasKeyword(card, "SECURITY"));
   if (readySecurities.length && state.securityRestWindow !== activeId) {

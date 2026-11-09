@@ -1,5 +1,6 @@
 import { isObCard } from "../card-types.js";
 import { createSelectionRequest } from "../selection-model.js";
+import { resumeDeferredAttack } from "./battle.js";
 import { declareEffect, runEffectEntry } from "./effects.js";
 import { keywordValue } from "./keywords.js";
 import { resolveSpell } from "./play-spell.js";
@@ -113,15 +114,21 @@ export function startNextQueuedResponse(state) {
 }
 
 export function declineResponse(state, playerId) {
-  return runEffectEntry(state, "response-decline", playerId, () => {
+  const declined = runEffectEntry(state, "response-decline", playerId, () => {
     if (state.pending?.type !== "response-window" || state.pending.playerId !== playerId) return false;
     state.pending = null;
     return true;
   });
+  // 攻撃の途中で開いた窓に答えて、窓がもう残っていなければ、預けた攻撃(deferredAttack)を続ける(b8214a6の直しと同じ形。抜けていると攻撃が残ったまま詰む)。
+  if (declined && !state.pending && !state.prompt) resumeDeferredAttack(state);
+  return declined;
 }
 
 export function activateResponse(state, playerId, cardUid, targetUid = null) {
-  return runEffectEntry(state, "response-declaration", playerId, () => activateResponseCore(state, playerId, cardUid, targetUid));
+  const declared = runEffectEntry(state, "response-declaration", playerId, () => activateResponseCore(state, playerId, cardUid, targetUid));
+  // 攻撃の途中で開いた窓に答えて、窓がもう残っていなければ、預けた攻撃(deferredAttack)を続ける(b8214a6の直しと同じ形。抜けていると攻撃が残ったまま詰む)。
+  if (declared && !state.pending && !state.prompt) resumeDeferredAttack(state);
+  return declared;
 }
 
 function activateResponseCore(state, playerId, cardUid, targetUid = null) {

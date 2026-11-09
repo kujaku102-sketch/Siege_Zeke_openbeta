@@ -25,7 +25,6 @@ export function resolveStd049TurnEnd(state, activeId) {
       const [decoded] = player.trash.splice(trashIndex, 1);
       delete decoded.std049ProxyArmed;
       decoded.sleep = false;
-      decoded.summoningSick = false;
       decoded.damage = 0;
       const placed = placeByMode(state, controllerId, decoded, { zone: zoneName, from: "trash", source: source.name }) === "placed";
       if (!placed) continue;

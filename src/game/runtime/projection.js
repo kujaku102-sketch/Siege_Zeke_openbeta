@@ -3,7 +3,7 @@ import { createRuntimeReadContext, runtimeReadIdentityIndex } from './read-conte
 import { queryRuntimeRead } from './query.js';
 import { createRuntimeReferenceLookup } from './references.js';
 import { cardForCost, safeCostView } from './projection/cost-view.js';
-import { cardValue, publicDynamics } from './projection/card-value.js';
+import { cardValue, definition, publicDynamics } from './projection/card-value.js';
 import { INPUT, MISSING, NOT_READY, PUBLIC_KEYWORDS, ProjectionError, SCOPE, STATE, ZONES, dense, finite, integer, nonempty, own, ordinary, reject, seatIds, token } from './projection/guards.js';
 import { frameFor, playerId, resolvePhysical } from './projection/physical-frame.js';
 import { contextData, mapReferenceScope, readIdentity, referenceHeader } from './projection/reference-scope.js';
@@ -86,15 +86,26 @@ export function projectRuntimeView(engineState, referenceState, contextInput, su
           if (value.computed.currentCost !== finite(executionCost(cardForCost(card), costView, viewer))) reject(STATE);
           return value;
         })
-      } : { count: zones.hand.length };
+      } : {
+        count: zones.hand.length,
+        // the cards of the other side's hand that an effect has shown (card.revealed): the printed card, without a handle (a hand card of the other side cannot be pointed at)
+        ...(zones.hand.some(card => own(card, 'revealed', true) === true)
+          ? { revealed: zones.hand.filter(card => own(card, 'revealed', true) === true).map(card => ({ definition: definition(own(card, 'id')) })) } : {})
+      };
       const boardCards = zone => {
         const roots = frame.cards.filter(card => card.location.kind === 'board' && card.location.seatId === seat && card.location.zone === zone);
         roots.sort((a, b) => a.location.position - b.location.position);
         return roots.map(entry => {
-          if (entry.faceDown) return {
-            cardRef: refForIdentity(entry.identity.instanceId), controllerSeat: entry.controllerSeat,
-            area: zone, slot: entry.location.position, faceDown: true, placementOrder: null, publicCounters: {}
-          };
+          if (entry.faceDown) {
+            const hidden = {
+              cardRef: refForIdentity(entry.identity.instanceId), controllerSeat: entry.controllerSeat,
+              area: zone, slot: entry.location.position, faceDown: true, placementOrder: null, publicCounters: {}
+            };
+            // a face-down card of the viewer's own is known to the viewer (rulebook: its controller may always look at it): the printed card is there; the other side's stays hidden
+            if (entry.controllerSeat !== context.viewerSeat) return hidden;
+            const physical = resolvePhysical(engineState, entries, entries.get(entry.identity.instanceId), seats);
+            return { ...hidden, definition: definition(own(physical, 'id')) };
+          }
           const physical = resolvePhysical(engineState, entries, entries.get(entry.identity.instanceId), seats);
           return cardValue(engineState, references, context, frame, entry, physical, refForIdentity, dynamicsById);
         });
@@ -118,7 +129,7 @@ export function projectRuntimeView(engineState, referenceState, contextInput, su
         ban: { count: zones.ban.length, cards: faceUpZoneCards('ban') },
         incidents: dense(own(player,'incidentsTriggered')).map(value => finite(value)),
         turboActive: own(player,'turboActive',true) === true,
-        abilityStatus: {turboUsed:own(player,'turboUsed') === true,mulligansUsed:integer(own(player,'mulligansUsed')),
+        abilityStatus: {turboUsed:own(player,'turboUsed') === true,recoveryBootUsed:own(player,'recoveryBootUsed',true) === true,mulligansUsed:integer(own(player,'mulligansUsed')),
           backup:own(player,'backup',true) === MISSING ? 0 : integer(own(player,'backup')),
           protect:own(player,'protect',true) === MISSING ? 0 : integer(own(player,'protect'))},
         turnsTaken:own(player,'turnsTaken',true) === MISSING ? 0 : integer(own(player,'turnsTaken'))

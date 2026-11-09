@@ -180,6 +180,15 @@ export const USER_CARDS = Object.freeze({
 });
 export const USERS = Object.freeze({ player: USER_CARDS.doors_zx, ai: USER_CARDS.doors_zx });
 export const normalizeCardClasses = (definition) => { const aliases = ["classes", "cardClass", "className", "class", "クラス", "affiliation", "affiliations", "所属", "tribe", "tribes", "種族", "species"]; return [...new Set(aliases.flatMap((key) => { const value = definition?.[key]; if (value === undefined || value === null || value === "") return []; return (Array.isArray(value) ? value : [value]).flatMap((item) => String(item).split(/[\/／,，]/)).map((item) => String(item).trim()).filter(Boolean); }))]; };
-export function expandDeck(recipe, owner) { let serial = 0; return recipe.flatMap(([cardId, count]) => Array.from({ length: count }, () => ({ ...CARD_LIBRARY[cardId], uid: `${owner}-${cardId}-${++serial}`, owner, sleep: false, damage: 0, attackedThisTurn: false, summoningSick: true, mounted: [], tempAtk: 0, tempStr: 0, skipStandby: false }))); }
-export function createToken(owner, serial) { return { ...CARD_LIBRARY["STD-092"], uid: `${owner}-STD-092-${serial}`, owner, token: true, virtual: true, sleep: false, damage: 0, attackedThisTurn: false, summoningSick: true, mounted: [], tempAtk: 0, tempStr: 0, skipStandby: false }; }
-export function createCardInstance(cardId, owner, serial = 1) { const source = CARD_LIBRARY[cardId]; return { ...source, category: source.category === "Sc" ? "Script" : source.category, uid: `${owner}-${cardId}-lab-${serial}`, owner, sleep: false, damage: 0, attackedThisTurn: false, summoningSick: true, mounted: [], tempAtk: 0, tempStr: 0, skipStandby: false, faceDown: false, residentActive: false, layerRole: null }; }
+// One place makes a card object out of a library definition, so the deck, the lab and the tokens cannot disagree: a definition may carry the
+// printed category "Sc" (the sheet's short form of Script); the object always carries "Script".
+const canonicalCategory = (category) => category === "Sc" ? "Script" : category;
+const fromDefinition = (source) => ({ ...source, category: canonicalCategory(source.category) });
+export function expandDeck(recipe, owner) { let serial = 0; return recipe.flatMap(([cardId, count]) => Array.from({ length: count }, () => ({ ...fromDefinition(CARD_LIBRARY[cardId]), uid: `${owner}-${cardId}-${++serial}`, owner, sleep: false, damage: 0, attackedThisTurn: false, summoningSick: true, mounted: [], tempAtk: 0, tempStr: 0, skipStandby: false }))); }
+export function createToken(owner, serial) { return { ...fromDefinition(CARD_LIBRARY["STD-092"]), uid: `${owner}-STD-092-${serial}`, owner, token: true, virtual: true, sleep: false, damage: 0, attackedThisTurn: false, summoningSick: true, mounted: [], tempAtk: 0, tempStr: 0, skipStandby: false }; }
+// A card made by createCardInstance (the lab, the sandbox, tools and tests) is prepared the way a deck card is (compiled effect text, normalised category): the game's prepare step registers
+// itself here when it loads (core/prepare.js), since the data layer cannot import it. Where the game is not loaded (the deck builder's screens) the card is the plain definition.
+let prepareCard = null;
+export function registerCardPreparer(preparer) { prepareCard = preparer; }
+const prepared = (card) => (prepareCard ? prepareCard(card) : card);
+export function createCardInstance(cardId, owner, serial = 1) { return prepared({ ...fromDefinition(CARD_LIBRARY[cardId]), uid: `${owner}-${cardId}-lab-${serial}`, owner, sleep: false, damage: 0, attackedThisTurn: false, summoningSick: true, mounted: [], tempAtk: 0, tempStr: 0, skipStandby: false, faceDown: false, residentActive: false, layerRole: null }); }

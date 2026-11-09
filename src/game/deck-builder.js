@@ -21,9 +21,19 @@ const ruleFor = (userId) => {
   const text = USER_CARDS[userId]?.deckRule ?? "40枚、同名3枚";
   return {
     size: Number(text.match(/(\d+)枚/)?.[1] ?? 40),
-    sameName: Number(text.match(/同名(\d+)枚/)?.[1] ?? 3)
+    sameName: Number(text.match(/同名(\d+)枚/)?.[1] ?? 3),
+    sameNameByUser: /同名\d+枚/.test(USER_CARDS[userId]?.deckRule ?? "")
   };
 };
+
+// 規則書2.1: 同名は原則3枚まで(ユーザーカードに同名の指定があればそれが先)。カード自身に投入の指定があるもの(「このカードは山札に4枚以上入れられる」= deckBuild.copies "unlimited")は、
+// ユーザーが同名の数を決めていない限り、同名の上限がない。DANGER!のカード(deckBuild.danger)は、デッキに1種類につき1枚まで。
+export const isDangerCard = (card) => card?.deckBuild?.danger === true;
+export function copyLimit(card, rule) {
+  if (isDangerCard(card)) return 1;
+  if (card?.deckBuild?.copies === "unlimited" && !rule.sameNameByUser) return Infinity;
+  return rule.sameName;
+}
 
 export function normalizeSavedDeck(input, fallbackId = `deck-${Date.now()}`) {
   const cards = Object.fromEntries(Object.entries(input?.cards ?? {})
@@ -48,10 +58,13 @@ export function validateDeck(deck) {
     const name = CARD_LIBRARY[id].name;
     nameCounts.set(name, Number(nameCounts.get(name) ?? 0) + copies);
   }
+  const byName = new Map(Object.keys(normalized.cards).map((id) => [CARD_LIBRARY[id].name, CARD_LIBRARY[id]]));
   for (const [name, copies] of nameCounts) {
-    if (copies > rule.sameName) errors.push(`${name}: ${copies}/${rule.sameName}枚`);
+    const card = byName.get(name);
+    const limit = copyLimit(card, rule);
+    if (copies > limit) errors.push(isDangerCard(card) ? `${name}: DANGER!のカードは1種類につき1枚まで(${copies}/${limit}枚)` : `${name}: ${copies}/${limit}枚`);
   }
-  return { valid: errors.length === 0, errors, count, rule };
+  return { valid: errors.length === 0, errors, count, rule: { size: rule.size, sameName: rule.sameName } };
 }
 
 export function deckToRecipe(deck) {
@@ -110,7 +123,7 @@ export function recommendDeck({ userId = "doors_zx", color = "赤", strategy = "
     const ranked = BUILDABLE_CARDS.map(card => {
       if (fixedCardIds.has(card.id)) return null;
       const used = Number(nameCounts.get(card.name) ?? 0);
-      if (used >= rule.sameName) return null;
+      if (used >= copyLimit(card, rule)) return null;
       const evaluation = BUILDABLE_EVALUATIONS.get(card.id);
       return {card,evaluation,score:candidateScore({card,evaluation,totals,targets,strategy,focusClass,color,copies:used})};
     }).filter(Boolean).sort((a,b) => b.score - a.score || a.card.id.localeCompare(b.card.id,undefined,{numeric:true}));

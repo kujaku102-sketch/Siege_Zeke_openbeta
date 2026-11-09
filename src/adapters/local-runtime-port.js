@@ -118,6 +118,7 @@ export function createLocalRuntimeCoordinator(input) {
   const ports = new Set();
   // Authority is replaced atomically by submit. Catalogs never survive that replacement.
   const catalogs = new Map();
+  const planning = new Map();       // per seat: the required input and the planning context of the current revision (action-planning.js, memo)
   const eventFeeds = new Map(seatIds.map(id => [id, []]));
   const eventFaults = new Set();
   const sandboxActions = new Set(['sandboxAddCard', 'sandboxSelectActiveSeat']);
@@ -161,6 +162,7 @@ export function createLocalRuntimeCoordinator(input) {
     }
     authority = result.value.authority;
     catalogs.clear();
+    planning.clear();
     if (modePolicy && result.value.kind === 'accepted') {
       const query = portQuery(authority, binding, modePolicy);
       if (query.ok) modePolicy.accepted(query.value, command.value.action);
@@ -195,8 +197,10 @@ export function createLocalRuntimeCoordinator(input) {
       queryAction(input) {
         if (!usable()) return failure('PORT_DISPOSED');
         const catalog = catalogs.get(binding.seatId);
+        // the required input and the planning context of this revision are made once for the seat and used again by the next queryAction of the same revision
+        const memo = planning.get(binding.seatId) ?? planning.set(binding.seatId, { authority: null }).get(binding.seatId);
         return queryRuntimeAction(authority, binding.seatId, input,
-          catalog?.authority === authority ? catalog.actions : null, modePolicy !== null);
+          catalog?.authority === authority ? catalog.actions : null, modePolicy !== null, memo);
       },
       submit(intent) {
         if (!usable()) return failure('PORT_DISPOSED');
@@ -221,7 +225,7 @@ export function createLocalRuntimeCoordinator(input) {
         } };
       },
       dispose() {
-        if (!token.disposed) { token.disposed = true; ports.delete(token); catalogs.delete(binding.seatId); }
+        if (!token.disposed) { token.disposed = true; ports.delete(token); catalogs.delete(binding.seatId); planning.delete(binding.seatId); }
         return { ok: true, value: null };
       }
     });
@@ -244,6 +248,7 @@ export function createLocalRuntimeCoordinator(input) {
       if (!active) return failure('PORT_COORDINATOR_DISPOSED');
       modeEpoch += 1;
       catalogs.clear();
+      planning.clear();
       return { ok: true, value: null };
     },
     // The trusted factory receives this handle; bound seat ports do not.
@@ -260,6 +265,7 @@ export function createLocalRuntimeCoordinator(input) {
       for (const token of ports) token.disposed = true;
       ports.clear();
       catalogs.clear();
+      planning.clear();
       eventFeeds.clear();
       eventFaults.clear();
       return { ok: true, value: null };

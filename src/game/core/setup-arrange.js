@@ -43,8 +43,8 @@ export function arrangeYellowTutorial(players, runtimeContext = null) {
   players.ai.hand = tutorialCards(runtimeContext, TUTORIAL_YELLOW_OPPONENT_HAND, 'ai', 651);
 }
 
-// 黒(ログアウトと破壊・デコード)。先攻は自分。手札4枚、黒のカード1枚を最初からレジストリに置いて点灯、山札の上はレメゲトン・任意・邪神との取引
-// (TUTORIAL_BLACK_DRAWS)、相手の場にメルクA、手札にメルクB。
+// 黒(ログアウトと破壊・デコード)。先攻は自分。手札4枚、黒のカード1枚を最初からレジストリに置いて点灯、山札の上は、第1ターンの開始ドローで手札に入る台本外の1枚(先攻も1枚引く)、
+// レメゲトン・任意・邪神との取引(TUTORIAL_BLACK_DRAWS)、相手の場にメルクA、手札にメルクB。
 export function arrangeBlackTutorial(players, runtimeContext = null) {
   players.ai.fortressStr = TUTORIAL_OPPONENT_STR;
   players.player.hand = tutorialCards(runtimeContext, TUTORIAL_BLACK_HAND, 'player', 701);

@@ -8,7 +8,8 @@ export const definition = {
   "color": null,
   "cost": null,
   "classes": [],
-  "text": "[DANGER]ターン開始時、カードを1枚引く。ターン終了時、使用可能メモリが0なら2ダメージ受ける。"
+  "text": "[DANGER]ターン開始時、カードを1枚引く。ターン終了時、使用可能メモリが0なら2ダメージ受ける。",
+  "deckBuild": { "danger": true }
 };
 
 // runtime spec (was card-runtime-specs.js)

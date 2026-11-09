@@ -20,6 +20,8 @@ export function selectionInput(engineState, referenceState, metadata, revision, 
     dto: {
       choiceId: choiceId(revision, 'selection'), kind: request.spec?.kind === 'allocation' ? 'allocation' : 'selection',
       presentationKey: selectionPresentationKey(request), actorSeat,
+      // What kind of window it is when the engine opens it for a rule of its own (a CPU answers such a window by its purpose, not by the card).
+      ...(request.continuation?.type === "attack-declaration-cost" ? { purpose: "attack-declaration-cost" } : {}),
       // The engine's prompt line names what the pick is for; the actor already knows its own source.
       ...(typeof request.label === 'string' && request.label ? { title: request.label } : {}),
       // The card whose effect is asking, so the chooser can see which clause is resolving.

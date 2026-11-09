@@ -101,7 +101,7 @@ const cardsFor = (count, copies = 3) => {
   for (const card of BUILDABLE_CARDS) {
     if (names.has(card.name)) continue;
     names.add(card.name);
-    cards[card.id] = Math.min(count, copies);
+    cards[card.id] = Math.min(count, copies, card.deckBuild?.danger ? 1 : copies);      // a DANGER! card goes in once
     count -= cards[card.id];
     if (count === 0) return cards;
   }
@@ -218,5 +218,38 @@ test("the seven 40-card start decks are the only preset choices and each starts 
   for (const hidden of ["red", "yellow", "vengeance", "neutron"]) {
     assert.equal(DECK_OPTIONS[hidden].hidden, true);
     assert.doesNotMatch(html, new RegExp(`value="${hidden}"`));
+  }
+});
+
+// 規則書2.1: DANGER!のカードは1種類につき1枚、カード自身の投入枚数の指定(「このカードは山札に4枚以上入れられる」)、ユーザーカードの同名の指定が先
+const roundOut = { 'STD-090': 3, 'STD-093': 3, 'STD-077': 3, 'STD-079': 3, 'STD-080': 3, 'STD-084': 3, 'STD-076': 3, 'STD-091': 3, 'STD-101': 3, 'STD-021': 3, 'STD-014': 3 };
+test("a DANGER! card goes in once, whatever else the deck holds", () => {
+  const twice = validateDeck({ userId: "doors_zx", cards: { ...roundOut, "STD-006": 2, "STD-078": 3, "STD-025": 2 } });
+  assert.equal(twice.valid, false);
+  assert.deepEqual(twice.errors, ["ペタクラスドライブ: DANGER!のカードは1種類につき1枚まで(2/1枚)"]);
+  const once = validateDeck({ userId: "doors_zx", cards: { ...roundOut, "STD-006": 1, "STD-078": 3, "STD-025": 3 } });
+  assert.deepEqual(once.errors, []);
+});
+
+test("a card that says it may go in 4 or more times has no same-name limit, unless the user card names one", () => {
+  const junk = validateDeck({ userId: "doors_zx", cards: { ...roundOut, "STD-078": 7 } });
+  assert.deepEqual(junk.errors, []);
+  assert.equal(junk.count, 40);
+  // By OS (60 cards, 2 of a name): the user card's own rule comes first
+  const byOs = validateDeck({ userId: "by_os", cards: { "STD-078": 3 } });
+  assert.ok(byOs.errors.includes("ジャンクパーツ: 3/2枚"));
+  // an ordinary card is still held to 3
+  assert.ok(validateDeck({ userId: "doors_zx", cards: { ...roundOut, "STD-090": 4 } }).errors.some((error) => error.startsWith("サプライヤー・カネコ")));
+});
+
+test("the recommended decks pass the same check: every user, colour and strategy", () => {
+  for (const userId of ["doors_zx", "by_os", "doors_nt", "extreme", "bigboss", "savage_salvage"]) {
+    for (const color of ["赤", "黄", "紫", "青", "黒", "緑", "橙"]) {
+      for (const strategy of Object.keys(DECK_STRATEGIES)) {
+        const deck = recommendDeck({ userId, color, strategy });
+        const checked = validateDeck({ userId, cards: deck.cards });
+        assert.deepEqual(checked.errors, [], `${userId} ${color} ${strategy}`);
+      }
+    }
   }
 });

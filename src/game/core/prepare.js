@@ -1,5 +1,5 @@
 import { compileEffectText } from "../../../packages/effect-compiler/index.js";
-import { CARD_LIBRARY } from "../../data/cards.js";
+import { CARD_LIBRARY, registerCardPreparer } from "../../data/cards.js";
 import { cardRuntimeRoute } from "../card-runtime-specs.js";
 import { normalizeLayerState } from "../layer-state.js";
 import { keywordValue } from "./keywords.js";
@@ -45,7 +45,7 @@ export function hydrateCard(instance) {
   const printedCategory = instance.printedCategory ?? instance.category;
   return normalizeLayerState({
     ...instance,
-    category: instance.category === "LOb" ? "Ob" : instance.category,
+    category: instance.category === "LOb" ? "Ob" : instance.category === "Sc" ? "Script" : instance.category,
     printedCategory,
     classes: normalizeClasses(instance),
     compiled,
@@ -53,3 +53,6 @@ export function hydrateCard(instance) {
     protect: Number(instance.protect ?? keywordValue({ ...instance, compiled }, "PROTECT") ?? 0)
   });
 }
+
+// the lab and tools make cards with createCardInstance (data/cards.js); they get the same preparation as a deck card
+registerCardPreparer(hydrateCard);
