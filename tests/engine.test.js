@@ -3097,7 +3097,7 @@ test("all non-Alternative user cards apply their printed base values", () => {
     const state = createGame({ mode: "ai", playerUserId: userId });
     const player = state.players.player;
     assert.deepEqual([player.user.maxStr, player.user.memory, player.user.frontLimit, player.user.backLimit, player.user.initialHand], values);
-    assert.equal(player.hand.length, values[4]);
+    assert.equal(player.hand.length, values[4] + 1);      // the first player's first turn draws 1 (staging.20)
   }
 });
 
@@ -6643,10 +6643,10 @@ test("STD-207 is executable from the shared Response window", () => {
 test("BIGBOSS can mulligan exactly three times before another opening action", () => {
   const state = createGame({ mode: "ai", playerUserId: "bigboss", rng: () => 0 });
   const player = state.players.player;
-  assert.equal(player.hand.length, 5);
+  assert.equal(player.hand.length, 6);      // 5 and the first turn's draw
   for (let count = 1; count <= 3; count += 1) {
     assert.equal(openingMulligan(state, "player"), true);
-    assert.equal(player.hand.length, 5);
+    assert.equal(player.hand.length, 6);
     assert.equal(player.mulligansUsed, count);
   }
   assert.equal(openingMulligan(state, "player"), false);
@@ -6726,7 +6726,7 @@ test("v2.4 rolls the dice in the last decision and starts the first player's tur
     assert.equal(state.active, first);
     assert.equal(state.phase, "main");
     assert.equal(state.turnNumber, 1);
-    assert.equal(state.players[first].hand.length, 4, "the first player skips the first draw");
+    assert.equal(state.players[first].hand.length, 5, "the first player draws 1 on the first turn");
     assert.equal(state.players[first].turnsTaken, 1);
     assert.equal(state.players[second].turnsTaken, 0);
     assert.ok(state.log.some((entry) => entry.text.includes("先攻")));

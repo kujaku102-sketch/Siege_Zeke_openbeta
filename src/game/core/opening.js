@@ -22,7 +22,8 @@ export function canOpeningMulligan(state, playerId) {
     && Number(player.mulligansUsed ?? 0) < 3
     && player.front.length === 0 && player.back.length === 0 && player.registry.length === 0
     && player.trash.length === 0 && player.ban.length === 0
-    && player.hand.length === Number(player.user.initialHand ?? 5));
+    // 初手に加えて、最初のターンの通常ドロー1枚(先攻も引く。2026-11-09)。ラボとサンドボックスは引かない。
+    && player.hand.length === Number(player.user.initialHand ?? 5) + (["lab", "sandbox"].includes(state.mode) ? 0 : 1));
 }
 
 export function canKeepOpeningHand(state, playerId) {
@@ -68,9 +69,10 @@ export function openingMulligan(state, playerId, { uids } = {}) {
     if (player.mulligansUsed >= limit) finishOpeningDecision(state);
     return true;
   }
+  const redraw = player.hand.length;      // 手札と同じ枚数を引き直す(初手と最初のターンのドロー)
   player.deck.push(...player.hand.splice(0));
   player.deck = shuffle(player.deck, state.rng);
-  for (let index = 0; index < Number(player.user.initialHand ?? 5); index += 1) drawCardRaw(player);
+  for (let index = 0; index < redraw; index += 1) drawCardRaw(player);
   player.mulligansUsed += 1;
   state.selectedUid = null;
   addLog(state, `${player.user.name}: マリガン ${player.mulligansUsed}/3。`, "effect");
