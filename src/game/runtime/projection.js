@@ -123,7 +123,7 @@ export function projectRuntimeView(engineState, referenceState, contextInput, su
         ban: { count: zones.ban.length, cards: faceUpZoneCards('ban') },
         incidents: dense(own(player,'incidentsTriggered')).map(value => finite(value)),
         turboActive: own(player,'turboActive',true) === true,
-        abilityStatus: {turboUsed:own(player,'turboUsed') === true,mulligansUsed:integer(own(player,'mulligansUsed')),
+        abilityStatus: {turboUsed:own(player,'turboUsed') === true,recoveryBootUsed:own(player,'recoveryBootUsed',true) === true,mulligansUsed:integer(own(player,'mulligansUsed')),
           backup:own(player,'backup',true) === MISSING ? 0 : integer(own(player,'backup')),
           protect:own(player,'protect',true) === MISSING ? 0 : integer(own(player,'protect'))},
         turnsTaken:own(player,'turnsTaken',true) === MISSING ? 0 : integer(own(player,'turnsTaken'))

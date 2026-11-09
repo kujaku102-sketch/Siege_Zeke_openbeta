@@ -7,6 +7,7 @@ import { isObCard } from "../src/game/card-types.js";
 import { placeCardByEffect } from "../src/game/effects/generic/placement.js";
 import { executeRuntimeActions } from "../src/game/effects/generic/actions.js";
 import { drainTriggerQueue } from "../src/game/core/triggers.js";
+import { lockVictoryIfDecided } from "../src/game/core/effects.js";
 const STD_SUPPORTED_CARDS = CARD_LIBRARY;
 const VENGEANCE_CARDS = Object.fromEntries(Object.entries(CARD_LIBRARY).filter(([id]) => /^STD-(18[7-9]|19\d|20\d|21[0-2])$/.test(id)));
 const NEUTRON_CARDS = Object.fromEntries(Object.entries(CARD_LIBRARY).filter(([id]) => /^STD-(10[7-9]|11\d|12[0-4])$/.test(id)));
@@ -8520,4 +8521,19 @@ test("a selection request has a number made from what it asks, not from the cloc
   } finally {
     Date.now = realNow;
   }
+});
+
+test("Humanoid's Recovery Boot works once in the game: the second time the STR reaches 0 the user loses", () => {
+  const humanoid = createGame({ mode: "sandbox", playerUserId: "humanoid" });
+  const player = humanoid.players.player;
+  dealFortressDamage(humanoid, "player", player.fortressStr, "ai", "test");
+  assert.equal(player.fortressStr, 1);
+  assert.equal(player.recoveryBootUsed, true);
+  assert.equal(humanoid.winner, null);
+  dealFortressDamage(humanoid, "player", player.fortressStr, "ai", "test");
+  assert.equal(player.fortressStr, 0);
+  lockVictoryIfDecided(humanoid);      // the result is read at the end of the effect
+  assert.equal(humanoid.winner, "ai");
+  // the feedback of the recovery was given once
+  assert.equal(userAbilityFeedback(humanoid, "recovery_boot").length, 1);
 });
