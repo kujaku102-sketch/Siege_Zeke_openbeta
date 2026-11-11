@@ -1,4 +1,4 @@
-// FROZEN COPY for lightZIG gen2 (cpus/release/gen2/lightZIG.mjs): the file at commit 8aa4ce8 (the same as the copy beatZIG gen2 has). Do not edit and do not follow changes elsewhere: lightZIG gen2 must play the same for ever.
+// FROZEN COPY for lightZIG gen3 (cpus/release/gen3/lightZIG.mjs): cpus/learned/policy.mjs at commit 91f6d4f. Do not edit and do not follow changes elsewhere: lightZIG gen3 must play the same for ever.
 // The CPU that a forged weight vector makes (forgehammer's smith writes a small cpus/forged-<name>.mjs that calls `learnedCpu` with the weights).
 //
 // It needs only what the game's own CPU needs: the seat's query and the planner of its own port (queryAction). It does not look ahead and has no sim.

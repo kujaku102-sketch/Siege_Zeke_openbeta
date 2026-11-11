@@ -1,4 +1,4 @@
-// FROZEN COPY for lightZIG gen2 (cpus/release/gen2/lightZIG.mjs): the file at commit 8aa4ce8 (the same as the copy beatZIG gen2 has). Do not edit and do not follow changes elsewhere: lightZIG gen2 must play the same for ever.
+// FROZEN COPY for lightZIG gen3 (cpus/release/gen3/lightZIG.mjs): cpus/learned/candidates.mjs at commit 91f6d4f. Do not edit and do not follow changes elsewhere: lightZIG gen3 must play the same for ever.
 // The candidates of a decision, made from the seat's query alone (its legal actions) and the planner of its own port (queryAction): no engine state,
 // no sim. The same function builds them for the recorder and for the learned CPU.
 //

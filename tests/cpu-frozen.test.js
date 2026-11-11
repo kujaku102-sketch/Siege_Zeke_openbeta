@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { RULE_VERSION } from '../src/game/runtime/versions.js';
-import { catalogEntry, cpuAvailable, listCpus } from '../src/cpu/catalog.js';
+import { LOOKAHEAD_READY, catalogEntry, cpuAvailable, listCpus } from '../src/cpu/catalog.js';
 
 // The learned CPUs are frozen copies of SZbattlefield's releases (scripts/import-cpu.mjs): not a byte may differ, and the rules they were learned under are named.
 const zig = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/cpu/zig');
@@ -36,9 +36,9 @@ for (const line of lines) {
 
   test(`${line}: offered only when it was learned under the game's rule version`, () => {
     const entry = catalogEntry(line);
-    assert.equal(cpuAvailable(entry), entry.learnedFor.ruleVersion === RULE_VERSION);
+    assert.equal(cpuAvailable(entry), entry.learnedFor.ruleVersion === RULE_VERSION && (!entry.needsLookahead || LOOKAHEAD_READY));
     assert.equal(listCpus().find(item => item.id === line).available, cpuAvailable(entry));
-    assert.equal(cpuAvailable(entry, { allowStale: true }), true);
+    assert.equal(cpuAvailable(entry, { allowStale: true }), !entry.needsLookahead || LOOKAHEAD_READY);
   });
 }
 

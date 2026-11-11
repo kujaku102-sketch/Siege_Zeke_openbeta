@@ -1,4 +1,4 @@
-// FROZEN COPY for lightZIG gen2 (cpus/release/gen2/lightZIG.mjs): the file at commit 8aa4ce8 (the same as the copy beatZIG gen2 has). Do not edit and do not follow changes elsewhere: lightZIG gen2 must play the same for ever.
+// FROZEN COPY for lightZIG gen3 (cpus/release/gen3/lightZIG.mjs): cpus/learned/mlp.mjs at commit 91f6d4f. Do not edit and do not follow changes elsewhere: lightZIG gen3 must play the same for ever.
 // The forward pass of the small network that forgehammer learns (packages/forge/src/mlp.mjs; the same arithmetic, kept in step by hand and checked by a test that compares them):
 //
 //   z(candidate, state) = base . phi + v . relu(W1 . phi + U1 . s + b1) + lin . phi      (base: a linear scorer held fixed, when the network is a correction of it)

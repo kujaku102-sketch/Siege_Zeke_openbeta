@@ -115,6 +115,10 @@ export function createLocalRuntimeCoordinator(input) {
   if (!nonempty(matchId) || !Array.isArray(seatIds) || seatIds.length !== 2) return failure('INVALID_LOCAL_RUNTIME');
   let active = true;
   let modeEpoch = 0;
+  // How many cards the two decks held when this coordinator was made: the identity ledger numbers the decks first, so a card with a higher number was made by an effect.
+  // (A CPU that reads ahead needs it to tell the cards the seat has seen from the deck from cards made in play; no decklist is read for it.)
+  const ledgerNext = authority.engineState?.runtimeContext?.identityState?.nextSerial;
+  const startedDeckLimit = Number.isSafeInteger(ledgerNext) && ledgerNext >= 1 ? ledgerNext - 1 : 0;
   const ports = new Set();
   // Authority is replaced atomically by submit. Catalogs never survive that replacement.
   const catalogs = new Map();
@@ -243,6 +247,13 @@ export function createLocalRuntimeCoordinator(input) {
       if (!record) return failure('MATCH_RECORD_UNAVAILABLE');
       const copy = structuredClone(record);
       return { ok: true, value: { ...copy, summary: summarizeMatchRecord(copy, authority, lockedOutcome(authority)) } };
+    },
+    // For the trusted session only (bound seat ports do not have it): the states a CPU that reads ahead may try moves on, made by `host` (src/cpu/lookahead) from the match as it is now.
+    // The host gets the real match; what it hands back is a decision (re-drawn states and moves), never the authority.
+    openLookahead(seatId, host) {
+      if (!active) return failure('PORT_COORDINATOR_DISPOSED');
+      if (!seatIds.includes(seatId) || !host || typeof host.open !== 'function') return failure('INVALID_PORT_BINDING');
+      return { ok: true, value: host.open({ authority, seat: seatId, deckLimit: startedDeckLimit }) };
     },
     invalidateMode() {
       if (!active) return failure('PORT_COORDINATOR_DISPOSED');

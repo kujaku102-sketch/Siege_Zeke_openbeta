@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createNewMatchSessionController } from '../src/adapters/match-session-controller.js';
 import { chooseSimpleAiIntent } from '../src/adapters/simple-ai-policy.js';
 import { SLOW_HINT_KEY, clearSlowHint, createCpu, listCpus, preloadCpu } from '../src/cpu/index.js';
+import { LOOKAHEAD_READY, catalogEntry, cpuAvailable } from '../src/cpu/catalog.js';
 
 const runtimeConfig = (matchId, seed, playerDeckId = 'red', aiDeckId = 'yellow') => ({ matchId, seatIds: ['player', 'ai'], seed, ruleVersion: '2.0', cardVersion: 'public',
   gameOptions: { mode: 'ai', playerDeckId, aiDeckId, playerUserId: 'doors_zx', aiUserId: 'doors_zx' } });
@@ -28,7 +29,7 @@ const steadyClock = (ms) => { let t = 0; let phase = 0; return () => { phase += 
 
 test('the catalog hands out names with a short description; the simple CPU plays by default', () => {
   const cpus = listCpus();
-  assert.deepEqual(cpus.map(entry => entry.id), ['simple', 'lightZIG']);
+  assert.deepEqual(cpus.map(entry => entry.id), ['simple', 'beatZIG', 'lightZIG']);
   for (const entry of cpus) { assert.ok(entry.name); assert.ok(entry.description.length > 0 && entry.description.length < 80); }
   const made = createCpu({});
   assert.equal(made.ok, true);
@@ -36,11 +37,15 @@ test('the catalog hands out names with a short description; the simple CPU plays
   assert.equal(createCpu({ cpuId: 'nope' }).ok, false);
 });
 
-test('a learned CPU whose rules are not the game\'s gives way to the simple CPU, and says so', () => {
-  const made = createCpu({ cpuId: 'lightZIG' });
+test('beatZIG is offered with its reader; chosen with its code not loaded it gives way to the lighter CPUs, and says so', () => {
+  assert.equal(LOOKAHEAD_READY, true);
+  assert.equal(listCpus().find(entry => entry.id === 'beatZIG').available, true);
+  assert.equal(cpuAvailable(catalogEntry('beatZIG')), true);
+  const made = createCpu({ cpuId: 'beatZIG', cpuModules: {} });
   assert.equal(made.ok, true);
-  assert.equal(made.value.id(), 'simple');
-  assert.deepEqual(made.value.switches().map(({ from, to, reason }) => ({ from, to, reason })), [{ from: 'lightZIG', to: 'simple', reason: 'not-available' }]);
+  assert.equal(made.value.id(), 'simple', 'neither learned CPU is loaded here');
+  assert.deepEqual(made.value.switches().map(({ from, to, reason }) => ({ from, to, reason })), [
+    { from: 'beatZIG', to: 'lightZIG', reason: 'not-loaded' }, { from: 'lightZIG', to: 'simple', reason: 'not-loaded' }]);
 });
 
 test('a learned CPU whose code is not loaded gives way to the simple CPU', () => {
@@ -50,8 +55,8 @@ test('a learned CPU whose code is not loaded gives way to the simple CPU', () =>
 });
 
 test('lightZIG plays a whole match against the simple CPU through the local runtime, with no refused command', async () => {
-  assert.equal((await preloadCpu('lightZIG')).ok, false, 'not offered for these rules');
-  assert.equal((await preloadCpu('lightZIG', { allowStale: true })).ok, true);
+  assert.equal((await preloadCpu('lightZIG')).ok, true, 'learned under the rules of this game');
+  assert.equal((await preloadCpu('beatZIG')).ok, true, 'its code and the lookahead host load together');
   for (const [seed, deck] of [[4242, 'red'], [77, 'yellow']]) {
     const made = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: runtimeConfig(`cpu-light-${seed}`, seed, deck, deck === 'red' ? 'yellow' : 'red') });
     assert.equal(made.ok, true, JSON.stringify(made));

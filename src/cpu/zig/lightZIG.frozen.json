@@ -1,29 +1,29 @@
 {
   "line": "lightZIG",
-  "releaseId": "lightZIG-gen2",
-  "name": "lightZIG gen2",
-  "generation": 2,
+  "releaseId": "lightZIG-gen3",
+  "name": "lightZIG gen3",
+  "generation": 3,
   "learnedFor": {
     "note": "The rules the data was played under. When the game's rules change (the first-turn draw, a card, a rule version), the data and this CPU are of the old rules: learn it again.",
-    "game": "b8214a6dd3dd5b9379138e64ba1d3814209a5455",
-    "ruleVersion": "2.0-public-staging.19",
-    "cardVersion": "beta0.9.2-cards.11",
+    "game": "f9d9e2bca14f75d84aa38b6c482b41d904e12d94",
+    "ruleVersion": "2.0-public-staging.20",
+    "cardVersion": "beta0.9.2-cards.16",
     "firstTurnDraw": {
-      "first": 0,
+      "first": 1,
       "second": 2
     }
   },
-  "weightsDigest": "c61120e4a11b565e",
+  "weightsDigest": "e758e4945fc16609",
   "module": {
     "file": "lightZIG.mjs",
-    "sha256": "e31a5e8e9ee8e8f54977503301995b46f6b558712573d1712a025dc9454cf5a0"
+    "sha256": "4fb4a434303f84db4c9e165b09bbac1f193e5a72f2bd6dfad2c5ba0ebf8e5e03"
   },
   "files": {
-    "candidates.mjs": "d426cd131a69b37b68e9a61a3bc369491d685040dd512ff4e24a2e276d145ab1",
-    "features.mjs": "2dd8ebefc9708d3c307d8be6f56c43f4d367e02f59ce5cb39a8da914c8b6d571",
-    "loopguard.mjs": "c3d3e040acbca65eccf04389afa2d552c639f909a1d584e4a678c67812863036",
-    "mlp.mjs": "27ba404573b57eeefcb8ecfed4122065e863bfb280d62fd6084a4f4636c74775",
-    "policy.mjs": "5dabe7fbd279d71051c10d6a2477cfbfccbb5c1f66522008ea1bf4efd08ea4de"
+    "candidates.mjs": "3f713fdab2f1599f21c61ff01e523b89b751a471de4613d4c54980759b9d82ab",
+    "features.mjs": "3aa6258959c4df3cdf427ba5afc613549d17eee4f92f1f86b35a6824f2de0b1f",
+    "loopguard.mjs": "5752eb5c4b58c45e144a7deddbdc51a21f7b6684b3dc9ed03ba084cd40ff74dc",
+    "mlp.mjs": "d4bbffe07c600df4c0701088453552a1596f9a8395b3e6d1c3347fa3eccc04ec",
+    "policy.mjs": "043ca1a8bb65e89ff39de1143e7c54c34c6422ecfb6cd1b027c474c1d5ce2f2d"
   },
   "note": "sha256 of each file with line endings read as LF. Copied unchanged by scripts/import-cpu.mjs; do not edit these files, import a new release."
 }
