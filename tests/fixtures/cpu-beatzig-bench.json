@@ -1,0 +1,135 @@
+{
+ "note": "Matches of SZbattlefield cpus/release/gen3/beatZIG.mjs against simple (rule version 2.0-public-staging.20, sim prior seen, matches named with --plain-match-id): the hash is sha256 of [record.commands, outcome, turns] (src/play.mjs). tests/cpu-lookahead-match.test.js plays the same matches with the beatZIG the game ships and must get the same hashes.",
+ "matches": [
+  {
+   "deckA": "start-red",
+   "deckB": "start-purple",
+   "seed": 1,
+   "cpuSeat": "seat-a",
+   "hash": "ad4e58b9a22f0ddf",
+   "turns": 9,
+   "commands": 68,
+   "outcome": {
+    "kind": "win",
+    "winnerSeat": "seat-a"
+   }
+  },
+  {
+   "deckA": "start-yellow",
+   "deckB": "start-black",
+   "seed": 2,
+   "cpuSeat": "seat-a",
+   "hash": "2a5da2dd9c29c357",
+   "turns": 8,
+   "commands": 52,
+   "outcome": {
+    "kind": "win",
+    "winnerSeat": "seat-a"
+   }
+  },
+  {
+   "deckA": "start-purple",
+   "deckB": "start-green",
+   "seed": 2,
+   "cpuSeat": "seat-a",
+   "hash": "5c528a479ef65534",
+   "turns": 10,
+   "commands": 116,
+   "outcome": {
+    "kind": "win",
+    "winnerSeat": "seat-a"
+   }
+  },
+  {
+   "deckA": "start-black",
+   "deckB": "start-purple",
+   "seed": 2,
+   "cpuSeat": "seat-a",
+   "hash": "ca61fbe1eb10afeb",
+   "turns": 12,
+   "commands": 85,
+   "outcome": {
+    "kind": "win",
+    "winnerSeat": "seat-a"
+   }
+  },
+  {
+   "deckA": "start-green",
+   "deckB": "start-green",
+   "seed": 1,
+   "cpuSeat": "seat-a",
+   "hash": "0bb48fb566944752",
+   "turns": 8,
+   "commands": 84,
+   "outcome": {
+    "kind": "win",
+    "winnerSeat": "seat-b"
+   }
+  },
+  {
+   "deckA": "start-red",
+   "deckB": "start-yellow",
+   "seed": 2,
+   "cpuSeat": "seat-b",
+   "hash": "ef35a9122d2fdb7e",
+   "turns": 7,
+   "commands": 42,
+   "outcome": {
+    "kind": "win",
+    "winnerSeat": "seat-b"
+   }
+  },
+  {
+   "deckA": "start-yellow",
+   "deckB": "start-blue",
+   "seed": 1,
+   "cpuSeat": "seat-b",
+   "hash": "659c5fcad73f4098",
+   "turns": 8,
+   "commands": 55,
+   "outcome": {
+    "kind": "win",
+    "winnerSeat": "seat-b"
+   }
+  },
+  {
+   "deckA": "start-purple",
+   "deckB": "start-blue",
+   "seed": 2,
+   "cpuSeat": "seat-b",
+   "hash": "ec5599ea9eaf77be",
+   "turns": 15,
+   "commands": 98,
+   "outcome": {
+    "kind": "win",
+    "winnerSeat": "seat-b"
+   }
+  },
+  {
+   "deckA": "start-black",
+   "deckB": "start-yellow",
+   "seed": 2,
+   "cpuSeat": "seat-b",
+   "hash": "0b95731645889d44",
+   "turns": 7,
+   "commands": 47,
+   "outcome": {
+    "kind": "win",
+    "winnerSeat": "seat-b"
+   }
+  },
+  {
+   "deckA": "start-green",
+   "deckB": "start-purple",
+   "seed": 1,
+   "cpuSeat": "seat-b",
+   "hash": "106dfaf2e1b7f4a2",
+   "turns": 9,
+   "commands": 89,
+   "outcome": {
+    "kind": "win",
+    "winnerSeat": "seat-a"
+   }
+  }
+ ]
+}

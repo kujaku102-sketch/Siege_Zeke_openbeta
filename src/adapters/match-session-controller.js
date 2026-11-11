@@ -268,6 +268,17 @@ export function createMatchSessionController(input) {
       const port = clients.get(seatId);
       return port ? { ok: true, value: port } : failure('MATCH_SESSION_UNKNOWN_SEAT');
     },
+    // For a CPU that reads ahead: a function that, given the lookahead host (src/cpu/lookahead), opens the decision of this seat on the match as it is when called, or returns null.
+    // The match itself stays here; the host is trusted code and the CPU gets only what the host hands back.
+    lookahead(seatId) {
+      if (!usable()) return failure('MATCH_SESSION_DISPOSED');
+      if (!clients.has(seatId)) return failure('MATCH_SESSION_UNKNOWN_SEAT');
+      return { ok: true, value: host => {
+        if (!usable()) return null;
+        const opened = coordinator.value.openLookahead(seatId, host);
+        return opened.ok ? opened.value : null;
+      } };
+    },
     sandboxControl(seatId = metadata.seatIds[0]) {
       if (!usable()) return failure('MATCH_SESSION_DISPOSED');
       const control = controls.get(seatId);

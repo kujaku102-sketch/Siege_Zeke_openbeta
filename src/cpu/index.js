@@ -5,9 +5,11 @@
 //   createCpu({ cpuId, matchId, seatId, storage, now, onSwitch })
 //                                       -> { ok: true, value: { policy, id(), stats(), switches(), onSwitch(listener) } }
 //
-// `policy` has the shape of the game's own CPU (simple-ai-policy.js): (query, commandId, queryAction) => { ok, value: { commandId, expectedRevision, action } } or a failure.
+// `policy` has the shape of the game's own CPU (simple-ai-policy.js): (query, commandId, queryAction, lookahead) => { ok, value: { commandId, expectedRevision, action } } or a failure.
 // A learned CPU sees only the seat's query and the planner of its own port (queryAction), like the simple CPU; what it cannot decide (a spell, a window to answer, a board it has
 // already tried) is handed to the simple CPU, which is how the frozen CPUs are made (view.baseline()).
+// `lookahead` is session.lookahead(seat) (match-session-controller.js): for a CPU that reads ahead (beatZIG) the policy opens, only when it needs it, the states the reader may try moves
+// on (view.sim, made by src/cpu/lookahead from what the seat has seen). A CPU that reads ahead and is not given it plays as the lighter one (reason 'no-lookahead'), never without its reader.
 //
 // Each decision is timed. When this device is too slow for the CPU (monitor.js), the CPU gives way to the next lighter one (catalog.js LIGHTER) for the rest of the match, the
 // listeners are told, and the device remembers it (`simple-zeke.cpu-slow`) so that the next match starts with the lighter one. A learned CPU that throws is replaced the same way.
@@ -19,6 +21,7 @@ export { DEFAULT_CPU_ID, listCpus };
 export const SLOW_HINT_KEY = 'simple-zeke.cpu-slow';
 
 const loaded = new Map();            // cpu id -> the module's default export (a learned CPU: { id, create() })
+let loadedHost = null;               // the lookahead host (src/cpu/lookahead), loaded with the first CPU that reads ahead
 
 export async function preloadCpu(cpuId, { allowStale = false } = {}) {
   const entry = catalogEntry(cpuId);
@@ -26,6 +29,7 @@ export async function preloadCpu(cpuId, { allowStale = false } = {}) {
   if (!entry.learned || loaded.has(cpuId)) return { ok: true };
   try {
     const module = await entry.load();
+    if (entry.needsLookahead) loadedHost ??= (await entry.loadLookahead()).lookaheadHost;
     loaded.set(cpuId, module.default);
     return { ok: true };
   } catch {
@@ -55,26 +59,32 @@ function atOrBelow(id, limit) {
 }
 
 // the function that plays one CPU: (query, commandId, queryAction) => result
-function runnerFor(cpuId, seatId, modules) {
+function runnerFor(cpuId, seatId, modules, host) {
   const entry = catalogEntry(cpuId);
   if (!entry.learned) return chooseSimpleAiIntent;
   const module = modules[cpuId];
   if (!module) return null;
   const cpu = module.create();        // its own memory of the turn: one for each seat of each match
-  return (query, commandId, queryAction) => cpu.choose({
-    query, queryAction, commandId, seatId,
-    baseline: () => chooseSimpleAiIntent(query, commandId, queryAction)
-  });
+  return (query, commandId, queryAction, openLookahead) => {
+    const view = { query, queryAction, commandId, seatId, baseline: () => chooseSimpleAiIntent(query, commandId, queryAction) };
+    // The reader's states are opened when the CPU first asks for them, and not for a window to answer (the frozen CPU reads ahead on a move of its own turn only).
+    if (entry.needsLookahead && query.requiredInput === null && typeof openLookahead === 'function') {
+      let decision; let asked = false;
+      Object.defineProperty(view, 'sim', { enumerable: true, get() { if (!asked) { asked = true; decision = openLookahead(host); } return decision ?? undefined; } });
+    }
+    return cpu.choose(view);
+  };
 }
 
-export function createCpu({ cpuId = DEFAULT_CPU_ID, matchId = null, seatId = null, storage = null, clock = now, onSwitch = null, allowStale = false, lines = {}, cpuModules = null } = {}) {
+export function createCpu({ cpuId = DEFAULT_CPU_ID, matchId = null, seatId = null, storage = null, clock = now, onSwitch = null, allowStale = false, lines = {}, cpuModules = null, lookaheadHost = null } = {}) {
   if (!catalogEntry(cpuId)) return { ok: false, error: { code: 'CPU_UNKNOWN' } };
   const listeners = onSwitch ? [onSwitch] : [];
   const switches = [];
   let currentId = cpuId;
   // cpuModules replaces what preloadCpu loaded (tests only)
   const modules = cpuModules ?? Object.fromEntries(loaded);
-  const usable = id => cpuAvailable(catalogEntry(id), { allowStale }) && (!catalogEntry(id).learned || Boolean(modules[id]));
+  const host = lookaheadHost ?? loadedHost;
+  const usable = id => cpuAvailable(catalogEntry(id), { allowStale }) && (!catalogEntry(id).learned || Boolean(modules[id]) && (!catalogEntry(id).needsLookahead || Boolean(host)));
   const switchTo = (to, reason, detail = {}) => {
     const record = { from: currentId, to, reason, ...detail };
     switches.push(record);
@@ -93,7 +103,7 @@ export function createCpu({ cpuId = DEFAULT_CPU_ID, matchId = null, seatId = nul
     const to = hint;
     if (usable(to)) { switches.push({ from: currentId, to, reason: 'device-slow-before' }); currentId = to; }
   }
-  let run = runnerFor(currentId, seatId, modules);
+  let run = runnerFor(currentId, seatId, modules, host);
   let monitor = createTimingMonitor(lines);
   const history = [];                        // { id, stats } of the CPUs that have played, the current one last when stats() is read
 
@@ -104,16 +114,18 @@ export function createCpu({ cpuId = DEFAULT_CPU_ID, matchId = null, seatId = nul
     const next = usable(to) ? to : (LIGHTER[to] ?? 'simple');
     if (reason === 'slow') writeHint(storage, next);
     switchTo(next, reason, detail);
-    run = runnerFor(currentId, seatId, modules);
+    run = runnerFor(currentId, seatId, modules, host);
     monitor = createTimingMonitor(lines);
     return true;
   };
 
-  const policy = (query, commandId, queryAction = null) => {
+  const policy = (query, commandId, queryAction = null, openLookahead = null) => {
+    // a CPU that reads ahead, given nothing to read ahead with, is not itself: the lighter one plays, and the player is told
+    if (catalogEntry(currentId).needsLookahead && typeof openLookahead !== 'function') lighter('no-lookahead');
     const started = clock();
     let result;
     try {
-      result = run(query, commandId, queryAction);
+      result = run(query, commandId, queryAction, openLookahead);
     } catch {
       // the learned CPU is replaced; this decision is the simple CPU's
       if (currentId !== 'simple') lighter('error');

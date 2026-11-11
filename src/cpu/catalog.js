@@ -9,7 +9,7 @@ export const DEFAULT_CPU_ID = 'simple';
 
 // beatZIG reads ahead on states re-drawn from what the seat has seen (view.sim). The game does not open that reader for a CPU yet; without it beatZIG would play as lightZIG,
 // which is not the CPU that was measured. So it is in the catalog and its code is here, but it is not offered until this is true.
-export const LOOKAHEAD_READY = false;
+export const LOOKAHEAD_READY = true;
 
 // the order of "lighter": a CPU that is too slow on this device gives way to the next one
 export const LIGHTER = Object.freeze({ beatZIG: 'lightZIG', lightZIG: 'simple', simple: null });
@@ -23,7 +23,8 @@ const ENTRIES = Object.freeze([
     id: 'beatZIG', name: 'beatZIG', learned: true, generation: 3, needsLookahead: true,
     description: '強いCPU。lightZIGと同じモデルに、有力な手を先読みして比べる読みを足す。',
     learnedFor: Object.freeze({ ruleVersion: '2.0-public-staging.20', cardVersion: 'beta0.9.2-cards.16' }),
-    load: () => import('./zig/beatZIG.mjs')
+    load: () => import('./zig/beatZIG.mjs'),
+    loadLookahead: () => import('./lookahead/index.js')
   }),
   Object.freeze({
     id: 'lightZIG', name: 'lightZIG', learned: true, generation: 3,

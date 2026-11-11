@@ -37,16 +37,15 @@ test('the catalog hands out names with a short description; the simple CPU plays
   assert.equal(createCpu({ cpuId: 'nope' }).ok, false);
 });
 
-test('beatZIG is not offered until the game opens its reader: choosing it gives the lighter CPU, and says so', () => {
-  assert.equal(LOOKAHEAD_READY, false);
-  assert.equal(listCpus().find(entry => entry.id === 'beatZIG').available, false);
-  assert.equal(cpuAvailable(catalogEntry('beatZIG'), { allowStale: true }), false, 'a stale-rules override does not open it either');
-  assert.equal(listCpus().find(entry => entry.id === 'lightZIG').available, true);
+test('beatZIG is offered with its reader; chosen with its code not loaded it gives way to the lighter CPUs, and says so', () => {
+  assert.equal(LOOKAHEAD_READY, true);
+  assert.equal(listCpus().find(entry => entry.id === 'beatZIG').available, true);
+  assert.equal(cpuAvailable(catalogEntry('beatZIG')), true);
   const made = createCpu({ cpuId: 'beatZIG', cpuModules: {} });
   assert.equal(made.ok, true);
   assert.equal(made.value.id(), 'simple', 'neither learned CPU is loaded here');
   assert.deepEqual(made.value.switches().map(({ from, to, reason }) => ({ from, to, reason })), [
-    { from: 'beatZIG', to: 'lightZIG', reason: 'not-available' }, { from: 'lightZIG', to: 'simple', reason: 'not-loaded' }]);
+    { from: 'beatZIG', to: 'lightZIG', reason: 'not-loaded' }, { from: 'lightZIG', to: 'simple', reason: 'not-loaded' }]);
 });
 
 test('a learned CPU whose code is not loaded gives way to the simple CPU', () => {
@@ -57,7 +56,7 @@ test('a learned CPU whose code is not loaded gives way to the simple CPU', () =>
 
 test('lightZIG plays a whole match against the simple CPU through the local runtime, with no refused command', async () => {
   assert.equal((await preloadCpu('lightZIG')).ok, true, 'learned under the rules of this game');
-  assert.equal((await preloadCpu('beatZIG')).ok, false, 'not offered until its reader is open');
+  assert.equal((await preloadCpu('beatZIG')).ok, true, 'its code and the lookahead host load together');
   for (const [seed, deck] of [[4242, 'red'], [77, 'yellow']]) {
     const made = createNewMatchSessionController({ sessionGeneration: 1, runtimeConfig: runtimeConfig(`cpu-light-${seed}`, seed, deck, deck === 'red' ? 'yellow' : 'red') });
     assert.equal(made.ok, true, JSON.stringify(made));
