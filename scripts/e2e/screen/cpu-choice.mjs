@@ -3,7 +3,8 @@
 //  - the choice is kept (localStorage "simple-zeke.cpu") and is still the choice after the page is opened again;
 //  - when the CPU of a match gives way to a lighter one, the match screen says so: 「<理由>、相手のCPUを <元> から <先> に切り替えました。」
 //    for each reason that can be brought about from the page: device-slow-before (the device's kept hint), not-loaded (the weights file does not load),
-//    error (the learned CPU throws), slow (the page's CPU is slowed down). The reasons must read differently from one another. The wording of a reason is
+//    error (the learned CPU throws).
+//    A CPU judged slow during a match (the 20-decision window) is checked by tests/cpu-monitor.test.js and tests/cpu-play.test.js, with the time given: the page cannot bring it about without a test hook that anyone could use. The reasons must read differently from one another. The wording of a reason is
 //    not pinned here (it is the screen's own text); its frame and the two CPU names are.
 // A CPU without weights (準備中) is checked only when the picker offers one (none does while all three have weights).
 // "not-available" (a CPU whose weights were learned under other rules) cannot be reached from a build whose weights match its rules; it is reported as not reached.
@@ -67,18 +68,15 @@ try {
     ["device-slow-before", { arg: { key: CHOICE_KEY, id: learned.id, hintKey: HINT_KEY, hint: "simple" } }, 30000],
     ["not-loaded", { arg: { key: CHOICE_KEY, id: learned.id }, route: (route) => route.abort() }, 30000],
     ["error", { arg: { key: CHOICE_KEY, id: learned.id }, play: true,
-      route: (route) => route.fulfill({ status: 200, contentType: "text/javascript", body: "export default { id: 'e2e-throws', create() { return { choose() { throw new Error('e2e: the learned CPU fails'); } }; } };" }) }, 90000],
-    ["slow", { arg: { key: CHOICE_KEY, id: learned.id }, throttle: 60, play: true }, 300000]
+      route: (route) => route.fulfill({ status: 200, contentType: "text/javascript", body: "export default { id: 'e2e-throws', create() { return { choose() { throw new Error('e2e: the learned CPU fails'); } }; } };" }) }, 90000]
   ];
-  for (const [reason, { arg, route, throttle, play }, timeout] of scenarios) {
+  for (const [reason, { arg, route, play }, timeout] of scenarios) {
     const context = await browser.newContext({ viewport: DEFAULT_VIEWPORT });
     await context.addInitScript(keepChoice, arg);
     if (route) await context.route(/ZIG[^/]*\.m?js(\?.*)?$/i, route);
     const p = await context.newPage();
     p.on("pageerror", (error) => errors.push(error.message));
     await p.goto(new URL("?e2e=1", base).toString(), { waitUntil: "networkidle" });
-    const slowDown = async () => (await context.newCDPSession(p)).send("Emulation.setCPUThrottlingRate", { rate: throttle });
-    if (throttle && !play) await slowDown();
     await openSetup(p);
     await p.evaluate(() => {
       window.__notices = new Set();
@@ -88,9 +86,8 @@ try {
     });
     await p.locator('[data-start="ai"]').click();
     if (play) {
-      // the CPU is judged slow from its own decisions: the player passes each turn until it has made enough
+      // a learned CPU that throws is met on its first decision: the player passes each turn until the CPU has played
       await keepOpening(p, 120000);
-      if (throttle) await slowDown();
       const noticed = () => p.evaluate(() => [...window.__notices].some((text) => /切り替えました/.test(text)));
       for (const end = Date.now() + timeout; !await noticed() && Date.now() < end;) {
         await p.evaluate(() => { const control = document.querySelector("[data-runtime-end-turn]"); if (control?.dataset.turnSide === "mine" && !control.disabled) control.click(); });
