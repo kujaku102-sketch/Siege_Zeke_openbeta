@@ -168,7 +168,7 @@ test('battle setup: deck and user for both sides, start, deck building, and a �
   assert.ok(html.includes('<option value="phoenix" selected>') && html.includes('<option value="bigboss" selected>'));
   const playerDecks = html.slice(html.indexOf('<select data-player-deck>'), html.indexOf('</select>', html.indexOf('<select data-player-deck>')));
   assert.equal(playerDecks.split('<option').length - 1, START_DECKS.length, 'the seven start decks');
-  assert.ok(html.includes('対戦相手：CPU') && !/強さ|難易度/.test(html), 'one CPU, no strength choice');
+  assert.ok(html.includes('対戦相手：CPU') && !/強さ|難易度/.test(html), 'the opponent is a CPU chosen by name, with no strength or difficulty choice');
   for (const deck of START_DECKS) assert.ok(!html.includes(deck.tactic), 'no tactic memo: ' + deck.id);
   assert.ok(html.includes('data-start="ai"') && html.includes('data-deck-open') && html.includes('data-flow-back'));
   assert.ok(html.includes('<button class="r2-flow-online" data-online-battle aria-disabled="true">オンライン対戦<small>準備中</small></button>'));
