@@ -49,6 +49,35 @@
 .r2-flow-side label { display:grid; grid-template-columns:4.5em minmax(0,1fr); align-items:center; gap:.5em; font-size:.9em; color:#3d4955; }
 .r2-flow-side select { width:100%; padding:0 .5em; border:.0625rem solid #111820; border-radius:.125rem; background:#fff; color:#111820; }
 .r2-flow-side select:focus-visible { outline:.125rem solid #111820; outline-offset:.125rem; }
+/* The opponent CPU by name (ui/cpu-choice.js): one radio each, its name and its description, the three side by side down to 852x393
+   fit; one not offered for these rules is shut and marked 準備中. */
+.r2-flow-cpu { display:grid; gap:.4em; min-width:0; margin:clamp(.5rem,2dvh,1rem) 0 0; padding:clamp(.25rem,1.5dvh,1rem) clamp(.5rem,2vw,1.25rem); border:.0625rem solid #111820; }
+.r2-flow-cpu legend { padding:0 .4em; font:400 1.1em/1.2 SZKaiso,"Yu Gothic UI",sans-serif; font-synthesis:none; }
+.r2-flow-cpu-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,8.5rem),1fr)); gap:clamp(.25rem,1.5vw,.75rem); }
+/* The radio and the name on the first line, the description under both across the item's width. */
+.r2-flow-cpu-item { position:relative; display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; align-content:start; column-gap:.4em; row-gap:.1em; min-height:2.75rem; box-sizing:border-box; padding:.35em .5em; border:.0625rem solid #9aa3ab; cursor:pointer; }
+.r2-flow-cpu-item .r2-flow-cpu-text { display:contents; }
+.r2-flow-cpu-item .r2-flow-cpu-text > span { grid-column:1 / -1; }
+.r2-flow-cpu-item:has(input:checked) { border-color:#111820; box-shadow:inset 0 0 0 .0625rem #111820; background:#11182010; }
+.r2-flow-cpu-item[aria-disabled="true"] { color:#7a838b; border-style:dashed; cursor:default; }
+.r2-flow-cpu-item input { width:1.1em; height:1.1em; margin:0; accent-color:#111820; }
+.r2-flow-cpu-item input:focus-visible { outline:.125rem solid #111820; outline-offset:.125rem; }
+.r2-flow-cpu-text { display:grid; gap:.15em; min-width:0; }
+.r2-flow-cpu-text b { font-weight:400; font-size:1.05em; }
+/* 準備中 sits on the item's top border at its right, a tag that takes no line of its own. */
+.r2-flow-cpu-text b small { position:absolute; top:0; right:.5em; transform:translateY(-50%); padding:0 .3em; background:#fff; font-size:.72em; line-height:1.2; color:#6b747d; white-space:nowrap; }
+.r2-flow-cpu-text > span { font-size:.85em; line-height:1.35; color:#3d4955; overflow-wrap:anywhere; }
+.r2-flow-cpu-item[aria-disabled="true"] .r2-flow-cpu-text > span { color:#7a838b; }
+/* A short landscape screen (852x393) keeps [対戦開始] in sight: the picker's space follows the height to a smaller floor
+   and its descriptions are set a little smaller (still whole). */
+@media (max-height:30rem) {
+  .r2-flow-cpu { margin-top:clamp(.25rem,1dvh,1rem); padding-block:clamp(.125rem,.75dvh,1rem); gap:.2em; }
+  .r2-flow-cpu-item { padding:.2em .45em; min-height:2.75rem; }
+  .r2-flow-cpu-text { gap:0; }
+  .r2-flow-cpu-text > span { font-size:.78em; line-height:1.25; }
+  .r2-flow-cpu legend { line-height:1; }
+  .r2-flow-battle .r2-flow-actions { margin-top:clamp(.25rem,1dvh,1.5rem); }
+}
 .r2-flow-actions { display:flex; flex-wrap:wrap; align-items:center; gap:clamp(.5rem,2vw,1rem); margin-top:clamp(.5rem,3dvh,1.5rem); }
 .r2-flow-actions .r2-flow-primary { order:-1; min-width:min(100%,12em); }
 .r2-flow .r2-flow-online[aria-disabled="true"] { border-color:#9aa3ab; color:#7a838b; background:#f2f3f4; cursor:default; }

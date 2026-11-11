@@ -10,8 +10,8 @@ function actionable(query) {
 
 export function createRuntimeClientController(input) {
   if (input === null || typeof input !== 'object' || Object.getPrototypeOf(input) !== Object.prototype
-    || Reflect.ownKeys(input).length !== 3
-    || Reflect.ownKeys(input).some(key => typeof key !== 'string' || !['port', 'policy', 'scheduler'].includes(key))) {
+    || Reflect.ownKeys(input).length < 3 || Reflect.ownKeys(input).length > 4
+    || Reflect.ownKeys(input).some(key => typeof key !== 'string' || !['port', 'policy', 'scheduler', 'lookahead'].includes(key))) {
     return failure('INVALID_RUNTIME_CLIENT_CONTROLLER');
   }
   const values = {};
@@ -22,6 +22,11 @@ export function createRuntimeClientController(input) {
     }
     values[key] = descriptor.value;
   }
+  // Optional: session.lookahead(seat), for a policy that reads ahead (it is handed to the policy as its 4th argument).
+  const lookaheadDescriptor = Object.getOwnPropertyDescriptor(input, 'lookahead');
+  if (lookaheadDescriptor && (!lookaheadDescriptor.enumerable || !Object.hasOwn(lookaheadDescriptor, 'value')
+    || typeof lookaheadDescriptor.value !== 'function')) return failure('INVALID_RUNTIME_CLIENT_CONTROLLER');
+  const lookahead = lookaheadDescriptor ? lookaheadDescriptor.value : null;
   const { port, policy, scheduler } = values;
   if (!port || typeof port.query !== 'function' || typeof port.submit !== 'function'
     || typeof policy !== 'function' || !scheduler || typeof scheduler.schedule !== 'function'
@@ -61,7 +66,7 @@ export function createRuntimeClientController(input) {
         if (disposed) return failure('RUNTIME_CLIENT_CONTROLLER_DISPOSED');
         return typeof port.queryAction === 'function' ? port.queryAction(input)
           : failure('ACTION_PLANNING_UNAVAILABLE');
-      });
+      }, lookahead);
       if (!intent?.ok) return intent ?? failure('RUNTIME_CLIENT_POLICY_FAILED');
       if (disposed) return failure('RUNTIME_CLIENT_CONTROLLER_DISPOSED');
       const submitted = port.submit(intent.value);

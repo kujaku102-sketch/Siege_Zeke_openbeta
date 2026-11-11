@@ -5,6 +5,7 @@ import { deckPresentation } from '../ui/deck-presentation.js';
 import { panelHeadHtml, controlsHelpHtml } from './cyber-panel.js';
 import { titleLinks } from '../config/external-links.js';
 import { battleSetupHtml, tutorialSelectHtml } from './flow-screens-view.js';
+import { cpuPickerHtml } from '../ui/cpu-choice.js';
 import { onlineEntryHtml, onlineHudHtml, onlineJoinHtml, onlineNameHtml, onlineRoomHtml } from './online-screens-view.js';
 import { TUTORIAL_ITEMS } from './tutorial-items.js';
 import { debugEntryHtml, pagedOptionsHtml } from './debug-view.js';
@@ -135,7 +136,7 @@ export function runtimeShellHtml(host) {
   const ui = {...host,screen:host.screen,options:host.options,entryCrtMenu:host.effectsEnabled && host.screen === 'entry'};
   const entry = host.screen === 'entry' ? entryHtml(host.view,host.effectsEnabled).replace('data-deck ', 'data-deck-open ') + titleLinksHtml() : '';
   const flow = host.screen === 'tutorial-select' ? tutorialSelectHtml(host)
-    : host.screen === 'battle-setup' ? battleSetupHtml(host,{deckOptions:selected => deckOptionsHtml(state,selected),userOptions:userOptionsHtml})
+    : host.screen === 'battle-setup' ? battleSetupHtml(host,{deckOptions:selected => deckOptionsHtml(state,selected),userOptions:userOptionsHtml,cpuPicker:host.cpuChoices ? cpuPickerHtml(host.cpuChoices,host.aiCpuId) : ''})
     : host.screen === 'online-entry' ? onlineEntryHtml(host,{deckOptions:selected => deckOptionsHtml(state,selected),userOptions:userOptionsHtml})
     : host.screen === 'online-name' ? onlineNameHtml(host)
     : host.screen === 'online-join' ? onlineJoinHtml(host)

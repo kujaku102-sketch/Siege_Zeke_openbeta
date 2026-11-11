@@ -38,6 +38,9 @@ export function buildMatchLog(replay, events, now = new Date()) {
       you: player(you),
       opponent: player(opponent)
     },
-    log: runtimeLogRows(events, you)
+    log: runtimeLogRows(events, you),
+    // The opponent CPU of a CPU match (replay.cpu: createCpu().stats()): the one chosen, the time each one that played
+    // took per decision (ms), and any switch to a lighter one. Phones' real numbers come from here.
+    ...(replay.cpu ? { cpu: { chosen: replay.cpu.chosen, played: (replay.cpu.played ?? []).map(({ id, n, median, p95, max }) => ({ id, n, median, p95, max })), switches: structuredClone(replay.cpu.switches ?? []) } } : {})
   };
 }
