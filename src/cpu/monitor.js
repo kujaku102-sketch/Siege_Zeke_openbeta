@@ -1,6 +1,6 @@
 // How long a CPU takes to decide, and when that is too long.
 // A decision is timed by createCpu (index.js) around the policy call. The monitor keeps the last WINDOW times and says "too slow" when the window is full enough and its median or 95th
-// percentile is over the line. The lines are a first guess from the PC (lightZIG gen2: median 8.6 ms, 95% 43 ms; beatZIG gen2: 20 ms, 52 ms); they are to be set again from the numbers
+// percentile is over the line. The lines are a first guess from the PC (lightZIG gen3: median 3.2 ms, 95% 5.1 ms; beatZIG gen3: 28.4 ms, 34.5 ms; a desktop, SZbattlefield cpus/release/gen3/*.json); they are to be set again from the numbers
 // of real devices, which stats() hands out for the match log.
 export const TIMING_LINES = Object.freeze({
   window: 20,        // the last decisions looked at
