@@ -92,14 +92,14 @@ try {
   preview = spawn(process.execPath, [viteCli, "preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"], { cwd: root, stdio: "ignore", windowsHide: true });
   await waitForPreview();
   const browserArgs = [baseUrl, "--playwright-module", playwrightModule];
-  // The ship checks (the build as shipped) and the flow checks (the short paths through it). The screen checks (scripts/e2e/screen/) run on a change to a screen, not here, except the debug window (it sits in the shipped options menu) , the tall window (the message sits in the shipped page) and the two placement bars.
+  // The ship checks (the build as shipped) and the flow checks (the short paths through it). The screen checks (scripts/e2e/screen/) run on a change to a screen, not here, except the debug window (it sits in the shipped options menu) , the tall window (the message sits in the shipped page) the two placement bars and the CPU picker.
   const e2e = [["05-ship-boundary", "ship/boundary.mjs"], ["06-ship-layout", "ship/layout.mjs"], ["07-ship-pwa", "ship/pwa.mjs"],
     ["08-flow-entry", "flow/entry.mjs"], ["09-flow-battle-start", "flow/battle-start.mjs"], ["10-flow-tutorial-start", "flow/tutorial-start.mjs"],
     ["11-flow-tutorial-full", "flow/tutorial-full.mjs"], ["12-flow-tutorial-full-keyboard", "flow/tutorial-full.mjs", "--keyboard"],
     ["13-flow-end-buttons", "flow/end-buttons.mjs"], ["14-flow-deck-keyboard", "flow/deck-keyboard.mjs"], ["15-flow-tutorial-done", "flow/tutorial-done.mjs"], ["16-screen-tall-window", "screen/tall-window.mjs"], ["17-screen-place-mode", "screen/place-mode.mjs"], ["18-screen-place-slot", "screen/place-slot.mjs"],
-    ["19-screen-debug-window", "screen/debug-window.mjs"], ["20-flow-opening", "flow/opening.mjs"]];
+    ["19-screen-debug-window", "screen/debug-window.mjs"], ["20-flow-opening", "flow/opening.mjs"], ["21-screen-cpu-choice", "screen/cpu-choice.mjs"]];
   for (const [name, file, ...extra] of e2e) runStep(name, process.execPath, [`scripts/e2e/${file}`, ...extra, ...browserArgs]);
-  runStep("21-diff-check", "git", ["diff", "--check"]);
+  runStep("22-diff-check", "git", ["diff", "--check"]);
 
   const manifest = JSON.parse(readFileSync(path.join(root, "dist", "release-manifest.json"), "utf8"));
   const changes = spawnSync("git", ["status", "--porcelain=v1"], { cwd: root, encoding: "utf8", windowsHide: true });
