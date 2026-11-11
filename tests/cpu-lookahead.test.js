@@ -9,6 +9,7 @@ import { createMatchAuthority } from '../src/game/runtime/authority.js';
 import { chooseSimpleAiIntent } from '../src/adapters/simple-ai-policy.js';
 import { createCpu } from '../src/cpu/index.js';
 import { lookaheadHost } from '../src/cpu/lookahead/index.js';
+import { engineStateBehind } from '../src/cpu/lookahead/host.js';
 import { shareClone } from '../src/cpu/lookahead/sim.js';
 import beatZIG from '../src/cpu/zig/beatZIG.mjs';
 
@@ -50,6 +51,8 @@ const otherSeat = seat => (seat === 'player' ? 'ai' : 'player');
 
 // a changed copy of the match: what `seat` cannot see is different, what it can see is the same.
 // The cards stay where they are (the same uids in the same places, so a window or a choice that names a card still names a card in the same place); what the hidden cards ARE trades places.
+// does the text name this uid ("rt:i:8" is not in "rt:i:82")
+const hasUid = (text, uid) => { for (let at = text.indexOf(uid); at >= 0; at = text.indexOf(uid, at + 1)) { const next = text[at + uid.length]; if (next === undefined || next < '0' || next > '9') return true; } return false; };
 const CONTENT = ['id', 'name', 'category', 'color', 'cost', 'atk', 'str', 'text', 'classes', 'compiled', 'printedCategory', 'rulingOverride'];
 function withOtherHiddenWorld(authority, seat) {
   const copy = { ...authority, engineState: shareClone(authority.engineState) };     // (the engine state holds functions: the lookahead's own copy)
@@ -58,26 +61,29 @@ function withOtherHiddenWorld(authority, seat) {
   const mine = state.players[seat];
   const aliasOf = card => state.runtimeContext.uidAliases.find(row => row.uid === card.uid);
   const snapshot = card => Object.fromEntries(CONTENT.filter(key => key in card).map(key => [key, card[key]]));
-  // the world is the same world with another card there: what the engine wrote about the card (a copy of it, an id built from its id and uid) says the other card too
-  const rewrite = (uid, oldId, content, value, seen = new Set()) => {
+  // the world is the same world with another card there: what the engine wrote about the card says the other card too (a copy of it, an id built from its id and uid, an event's
+  // cardId and cardName beside its cardUid, the label of a choice, the text of a prompt)
+  const rewrite = (uid, was, now, value, seen = new Set()) => {
     if (value === null || typeof value !== 'object' || seen.has(value)) return;
     seen.add(value);
+    const mentions = !Array.isArray(value) && Object.values(value).some(item => typeof item === 'string' && hasUid(item, uid));
+    if (typeof value[uid] === 'string' && value[uid] === was.name) value[uid] = now.name;     // the label of this card in a map of labels by uid (and of no other card of the same name)
     for (const key of Object.keys(value)) {
       if (key === 'compiled') continue;
       const item = value[key];
-      if (typeof item === 'string' && item.includes(uid) && item.includes(oldId)) value[key] = item.split(oldId).join(content.id);
-      else if (item !== null && typeof item === 'object' && item.uid === uid && typeof item.id === 'string') becomes(item, content);
-      else rewrite(uid, oldId, content, item, seen);
+      if (item !== null && typeof item === 'object' && item.uid === uid && typeof item.id === 'string') becomes(item, now);
+      else if (typeof item === 'string' && mentions && !(typeof value.uid === 'string' && typeof value.category === 'string')) value[key] = item === was.name ? now.name : item === was.id ? now.id : hasUid(item, uid) ? item.split(was.id).join(now.id) : item;
+      else rewrite(uid, was, now, item, seen);
     }
   };
   const becomes = (target, content) => { for (const key of CONTENT) { if (key in content) target[key] = content[key]; else delete target[key]; } };
   const trade = (x, y) => {
     const [contentX, contentY] = [snapshot(x), snapshot(y)];
-    const [uidX, uidY, idX, idY] = [x.uid, y.uid, x.id, y.id];
+    const [uidX, uidY] = [x.uid, y.uid];
     becomes(x, contentY); becomes(y, contentX);
-    aliasOf(x).definitionId = idY; aliasOf(y).definitionId = idX;
-    rewrite(uidX, idX, contentY, { ...state, runtimeContext: null });
-    rewrite(uidY, idY, contentX, { ...state, runtimeContext: null });
+    aliasOf(x).definitionId = contentY.id; aliasOf(y).definitionId = contentX.id;
+    rewrite(uidX, contentX, contentY, { ...state, runtimeContext: null });
+    rewrite(uidY, contentY, contentX, { ...state, runtimeContext: null });
   };
   // the opponent's hand and its deck trade what they are, card for card
   const n = Math.min(opponent.hand.length, opponent.deck.length);
@@ -97,15 +103,17 @@ const decisionOn = (authority, seat) => {
   return { coordinator: coordinator.value, port, open: host => { const opened = coordinator.value.openLookahead(seat, host); return opened.ok ? opened.value : null; } };
 };
 
-// everything the CPU can read from a decision: its fields, five states, the states one move on, and the other side's moves on those
+// everything a decision holds: its fields, some states, the states one move on, and the other side's moves on those. The CPU is handed views of the states; the tests look at the
+// engine states behind them (everything the engine tries moves on), which is more than the CPU can read.
+const behind = view => (view === null ? null : engineStateBehind(view));
 function everything(decision, states = 3, moves = 4) {
   const out = { me: decision.me, moves: decision.moves, unsupported: decision.unsupported, samples: decision.samples, now: [], after: [], branch: [], intent: [] };
   for (let k = 0; k < states; k += 1) {
-    out.now.push(decision.now(k));
+    out.now.push(behind(decision.now(k)));
     for (const move of decision.moves.slice(0, moves)) {
       const after = decision.after(move.id, k);
-      out.after.push(after);
-      if (after) { const reply = decision.branch(after, 'opp'); out.branch.push(reply.moves); const second = reply.moves[0] ? reply.after(reply.moves[0].id) : null; out.branch.push(second); }
+      out.after.push(behind(after));
+      if (after) { const reply = decision.branch(after, 'opp'); out.branch.push(reply.moves); const second = reply.moves[0] ? reply.after(reply.moves[0].id) : null; out.branch.push(behind(second)); }
     }
   }
   for (const move of decision.moves.slice(0, moves)) out.intent.push(decision.intent(move.id, { commandId: 'c', expectedRevision: 0 }));
@@ -317,4 +325,27 @@ test('1. over many states, a changed hidden world gives the same decision', () =
     states += 1;
   }
   assert.ok(states > 20);
+});
+
+test('the seat\'s own face-down cards are not hidden from it: they stay what they are, and so do the windows of them', () => {
+  let found = 0; let windows = 0;
+  for (const { seed, step, session, seat } of sweepStates(14, 5)) {
+    const real = realMatch(session, seat);
+    const mine = ['front', 'back', 'registry', 'trash', 'ban'].flatMap(zone => real.authority.engineState.players[seat][zone].map(card => ({ card, zone }))).filter(({ card }) => card.faceDown === true);
+    if (mine.length === 0) continue;
+    const state = engineStateBehind(lookaheadHost.open(real).now(0));
+    for (const { card, zone } of mine) {
+      const same = state.players[seat][zone].find(other => other.uid === card.uid);
+      assert.ok(same, `seed ${seed} step ${step} ${seat}: the seat's own face-down ${card.uid} is still there`);
+      assert.equal(same.id, card.id);
+      assert.equal(same.faceDown, true);
+      found += 1;
+    }
+    const mineUids = new Set(mine.map(({ card }) => card.uid));
+    const before = (real.authority.engineState.activationWindows ?? []).filter(window => mineUids.has(window?.source?.card?.uid)).length;
+    const after = (state.activationWindows ?? []).filter(window => mineUids.has(window?.source?.card?.uid)).length;
+    assert.equal(after, before, 'the windows of its own face-down cards are kept');
+    windows += before;
+  }
+  assert.ok(found >= 3, `${found} own face-down cards seen`);
 });

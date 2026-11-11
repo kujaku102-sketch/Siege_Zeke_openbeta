@@ -83,11 +83,9 @@ export function hiddenSlots(state, viewerPlayer, player) {
 const COPY_CAP_UNLIMITED = 6;
 export function seenPool(holder, seenCounts, count, rand) {
   const deckRule = holder.user?.deckRule ?? '';
-  // These two patterns are the bench's, letter for letter: its `d+` has no backslash, so it never matches a number and the same-name rule is the default (3, not by user) in the
-  // measured CPU. Kept as measured so that the shipped CPU plays what was measured; correcting it is a decision to measure again.
-  const sameName = Number(deckRule.match(/同名(d+)枚/)?.[1] ?? 3);
-  const rule = { sameName, sameNameByUser: /同名d+枚/.test(deckRule) };
-  const library = BUILDABLE_CARDS ?? Object.values(CARD_LIBRARY).filter((card) => /^STD-d{3}$/.test(card.id) && !card.token && !['VOb', 'Plugin'].includes(card.category));
+  const sameName = Number(deckRule.match(/同名(\d+)枚/)?.[1] ?? 3);
+  const rule = { sameName, sameNameByUser: /同名\d+枚/.test(deckRule) };
+  const library = BUILDABLE_CARDS ?? Object.values(CARD_LIBRARY).filter((card) => /^STD-\d{3}$/.test(card.id) && !card.token && !['VOb', 'Plugin'].includes(card.category));
   const limitOf = (card) => { const limit = copyLimit ? copyLimit(card, rule) : sameName; return Number.isFinite(limit) ? limit : COPY_CAP_UNLIMITED; };
   const colours = new Set(Object.keys(seenCounts).map((id) => CARD_LIBRARY[id]?.color).filter(Boolean));
   const entries = [];
@@ -138,7 +136,7 @@ export function determinize(engine, viewerPlayer, seatIds, ownList, deckLimit, r
 
   // The real cards that are replaced by drawn ones: what the state says about them goes to the drawn card (references.js).
   const replaced = [];
-  const forget = (card, fresh) => { replaced.push({ uid: card.uid, id: card.id, fresh }); for (const child of card.mounted ?? []) forget(child, fresh); };
+  const forget = (card, fresh) => { replaced.push({ uid: card.uid, id: card.id, name: card.name, fresh }); for (const child of card.mounted ?? []) forget(child, fresh); };
   for (const { player, seat, pool, slots } of plan) {
     for (let i = pool.length - 1; i > 0; i -= 1) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     const holder = copy.players[player];

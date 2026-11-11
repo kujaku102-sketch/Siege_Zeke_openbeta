@@ -12,6 +12,9 @@
 //   decision.intent(id)  the runtime intent for move `id`, to be returned from choose()
 //   decision.elapsedMs() time since the decision was opened
 //
+// A state is handed out as a view of it (see \`showing\` below): the cards of both sides' zones, the STR and memory, whose turn it is, who has won. The rest of the engine state (windows,
+// choices waiting, events, texts) stays on this side: it is what the engine tries a move on, and a CPU that reads ahead has no use for it.
+//
 // Nothing here gives a CPU the real engine state, the authority, the opponent's hidden cards or the means to reach them.
 import { applyPreparedRuntimeAction } from '../../game/runtime/transaction-actions.js';
 import { createPlanningContext } from '../../game/runtime/planning-context.js';
@@ -33,6 +36,22 @@ function ownDeckList(startOptions, me) {
   return Object.fromEntries(recipe ?? (DECK_OPTIONS[id] ?? (me === 'player' ? DECK_OPTIONS.red : DECK_OPTIONS.yellow)).recipe);
 }
 
+// A state, as a CPU is handed it: the cards of both sides' zones (with their STR and memory), whose turn it is, who has won. It is a view; the engine state it shows stays here.
+const shown = new WeakMap();
+const showing = (state) => {
+  const view = Object.freeze({ players: state.players, winner: state.winner, active: state.active, turnNumber: state.turnNumber, phase: state.phase, firstPlayer: state.firstPlayer, mode: state.mode });
+  shown.set(view, state);
+  return view;
+};
+// the engine state behind a view this decision handed out (a state that is not one is an error: a CPU cannot make a state of its own to try moves on)
+const stateOf = (view) => {
+  const state = shown.get(view);
+  if (!state) throw new Error('lookahead: not a state of this decision');
+  return state;
+};
+// for the tests of this folder: the state behind a view
+export const engineStateBehind = stateOf;
+
 // authority: the real match (never handed out); seat: the deciding seat; samples: how many re-drawn states to offer;
 // deckLimit: how many cards the two decks held when the match began (the identity ledger numbers them first), given by the coordinator that holds the match.
 export function open({ authority, seat, deckLimit, samples = 4 }) {
@@ -46,6 +65,8 @@ export function open({ authority, seat, deckLimit, samples = 4 }) {
   const rand = mulberry32(hashOf(`${metadata.matchId}|${authority.revision}|${seat}`));
   const states = [];
   const sample = (k) => states[k] ??= determinize(engine, me, seatIds, ownList, deckLimit, rand).state;
+  const sampleViews = [];
+  const sampleView = (k) => sampleViews[k] ??= showing(sample(k));
   // The engine's own checks (can this card be played here?) may write to the state they are given (a log line, a message), so moves are
   // found on a copy of the first re-drawn state (the set is the same as on the real state), never on the real match.
   const planned = shareClone(sample(0));
@@ -85,13 +106,15 @@ export function open({ authority, seat, deckLimit, samples = 4 }) {
     moves: moves.map(({ id, type, uids, action }) => ({ id, type, uids, zone: action.destination?.zone ?? null, targetKind: action.target?.kind ?? null })),
     unsupported,
     samples,
-    now: (k) => sample(k),
+    now: (k) => sampleView(k),
     after(id, k) {
       const move = moves[id];
-      return move ? apply(shareClone(sample(k)), move) : null;
+      const done = move ? apply(shareClone(sample(k)), move) : null;
+      return done === null ? null : showing(done);
     },
     // the moves of one side on a state of this decision (a re-drawn one, or one reached from it by moves). Nothing is offered when it is not that side's turn or a choice is open.
-    branch(state, who) {
+    branch(shown, who) {
+      const state = stateOf(shown);
       const seatFor = who === 'me' ? seat : seatIds[seatIds[0] === seat ? 1 : 0];
       // a card drawn from a re-drawn deck has no compiled effect yet (the deck cards are not hydrated): the cards in hand get it before their moves are looked for
       for (const holder of ['player', 'ai']) { const cards = state.players[holder].hand; cards.forEach((card, index) => { if (!card.compiled) cards[index] = hydrateCard(card); }); }
@@ -110,7 +133,8 @@ export function open({ authority, seat, deckLimit, samples = 4 }) {
         moves: list.map(({ id, type, uids, action }) => ({ id, type, uids, zone: action.destination?.zone ?? null, targetKind: action.target?.kind ?? null })),
         after(id) {
           const move = list[id];
-          return move ? apply(shareClone(state), move) : null;
+          const done = move ? apply(shareClone(state), move) : null;
+          return done === null ? null : showing(done);
         }
       };
     },
