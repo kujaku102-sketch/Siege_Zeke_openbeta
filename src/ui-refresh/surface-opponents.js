@@ -7,7 +7,8 @@ import { createTutorialOpponentController } from '../adapters/tutorial-opponent-
 // Returns a failed result, untouched, when either controller cannot be created.
 // cpuChoice: { cpuId, storage, allowStale, onSwitch } for a CPU match (the CPU chosen by name, src/cpu); none plays the
 // simple CPU. onSwitch hears every switch to a lighter CPU, also one made before the first move (the choice not loaded,
-// not offered for these rules, or too slow on this device before).
+// not offered for these rules, or too slow on this device before). The AI seat's controller is given
+// session.lookahead(seat), which a CPU that reads ahead needs; the tutorial opponent stays the simple CPU.
 export function createSurfaceOpponents({ session, scope, aiSeat, ui, paced, cancelPaced, current, onError, render, cpuChoice = null }) {
   let cpu = null;
   let cpuPlayer = null;
@@ -23,8 +24,11 @@ export function createSurfaceOpponents({ session, scope, aiSeat, ui, paced, canc
     cpuPlayer = made.value;
     // Said once the match is mounted (the notice redraws the shell).
     for (const record of cpuPlayer.switches()) setTimeout(() => cpuChoice?.onSwitch?.(record), 0);
+    // The reader's states for a CPU that reads ahead (beatZIG); without them it plays as lightZIG ('no-lookahead').
+    const lookahead = session.lookahead?.(aiSeat);
     const controller = createRuntimeClientController({ port: port.value, policy: cpuPlayer.policy,
-      scheduler: { schedule: task => paced(() => {
+      ...(lookahead?.ok ? { lookahead: lookahead.value } : {}),
+      scheduler:{ schedule: task => paced(() => {
         if (!current()) return;
         let result;
         try { result = task(); }
