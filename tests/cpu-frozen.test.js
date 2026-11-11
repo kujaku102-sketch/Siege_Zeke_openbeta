@@ -36,9 +36,9 @@ for (const line of lines) {
 
   test(`${line}: offered only when it was learned under the game's rule version`, () => {
     const entry = catalogEntry(line);
-    assert.equal(cpuAvailable(entry), entry.learnedFor.ruleVersion === RULE_VERSION);
+    assert.equal(cpuAvailable(entry), entry.learnedFor.ruleVersion === RULE_VERSION && !entry.needsLookahead);
     assert.equal(listCpus().find(item => item.id === line).available, cpuAvailable(entry));
-    assert.equal(cpuAvailable(entry, { allowStale: true }), true);
+    assert.equal(cpuAvailable(entry, { allowStale: true }), !entry.needsLookahead);
   });
 }
 

@@ -1,0 +1,32 @@
+{
+  "line": "beatZIG",
+  "releaseId": "beatZIG-gen3",
+  "name": "beatZIG gen3",
+  "generation": 3,
+  "learnedFor": {
+    "note": "The rules the data was played under. When the game's rules change (the first-turn draw, a card, a rule version), the data and this CPU are of the old rules: learn it again.",
+    "game": "f9d9e2bca14f75d84aa38b6c482b41d904e12d94",
+    "ruleVersion": "2.0-public-staging.20",
+    "cardVersion": "beta0.9.2-cards.16",
+    "firstTurnDraw": {
+      "first": 1,
+      "second": 2
+    }
+  },
+  "weightsDigest": "e758e4945fc16609",
+  "module": {
+    "file": "beatZIG.mjs",
+    "sha256": "2240b1ded0a677c5f3e1a68efe3b3f6b7089417c375cf6b2a8ec9fd7fd9eac23"
+  },
+  "files": {
+    "candidates.mjs": "87bb832ea37da025bff9dc72a3c14361b5088da0c75ae0ae367048e263fd5a7f",
+    "eval.mjs": "dc564112b65b8d2e28aa76bc5b013d0ab8c717fd7baa08a4f651a54595b09dde",
+    "features.mjs": "42a4a29f6d67b891ebe2b788644182b9f4ecde0c6725844d371824147c792b83",
+    "loopguard.mjs": "2f75df60e25d817dadd9c47f8b2119d12686f7d62f678a1489e9c2fa1962985b",
+    "mlp.mjs": "840a462a3c9d143ac98c7933d55d1b0ca4d14ee97c1b477baecc13fd5abc159b",
+    "playout.mjs": "72e824d27d371c56756499ec48c4568694216e5f6e0cbe3e2295458b63efe221",
+    "policy.mjs": "a1a208697a3df1f7739a5070f3a95a2f05e4c3177cce7d784bef7666c4562dda",
+    "topk-core.mjs": "da7b1808d7c06f43db67ddc9f147ac62d55e3d6900473182662a3fdc06fdcd89"
+  },
+  "note": "sha256 of each file with line endings read as LF. Copied unchanged by scripts/import-cpu.mjs; do not edit these files, import a new release."
+}

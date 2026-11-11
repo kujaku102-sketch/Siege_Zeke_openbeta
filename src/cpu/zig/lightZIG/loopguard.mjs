@@ -1,4 +1,4 @@
-// FROZEN COPY for lightZIG gen2 (cpus/release/gen2/lightZIG.mjs): the file at commit 8aa4ce8 (the same as the copy beatZIG gen2 has). Do not edit and do not follow changes elsewhere: lightZIG gen2 must play the same for ever.
+// FROZEN COPY for lightZIG gen3 (cpus/release/gen3/lightZIG.mjs): cpus/learned/loopguard.mjs at commit 91f6d4f. Do not edit and do not follow changes elsewhere: lightZIG gen3 must play the same for ever.
 // What a CPU does not do: repeat a process that changes nothing, in the same turn on the same board. (The rule of the game allows it; a machine that repeats it for ever is
 // the trouble. A person's moves are not restricted.) This file is the prohibition for the answers to windows; the moves of the main phase have their own (a move that was
 // accepted and changed nothing is not chosen again in the same turn: cpus/lookahead.mjs, cpus/learned/policy.mjs).
