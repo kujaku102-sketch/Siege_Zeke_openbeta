@@ -58,10 +58,12 @@ export function dealCardDamage(state, ownerId, uid, amount, source = "効果", {
   return true;
 }
 
-// インシデント: ユーザーのSTRが閾値をまたいで下がった時(ダメージでも[負荷]でも同じ)、そのユーザーのメモリ上限+1・アクティブメモリ1回復、与えた側が1ドロー。各閾値は1回だけ。
-export function resolveIncidents(state, victimId, strBefore, sourcePlayerId) {
+// インシデント: ユーザーのSTRが閾値をまたいで下がった時(ダメージでも[負荷]でも同じ)、そのユーザーのメモリ上限+1・アクティブメモリ1回復、そのユーザーの相手が1ドロー。各閾値は1回だけ。
+// 引くのは「STRが下がったユーザーの相手」(誰が与えたかでは決まらない。自傷でも相手が引く。文豪の裁定 2026-11-12)。
+export function resolveIncidents(state, victimId, strBefore) {
   const victim = state.players[victimId];
-  const sourcePlayer = state.players[sourcePlayerId];
+  const drawerId = otherPlayer(victimId);
+  const drawer = state.players[drawerId];
   const triggered = victim.user.incidents.filter((threshold) =>
     strBefore > threshold && victim.fortressStr <= threshold && !victim.incidentsTriggered.includes(threshold)
   );
@@ -69,8 +71,8 @@ export function resolveIncidents(state, victimId, strBefore, sourcePlayerId) {
     victim.incidentsTriggered.push(threshold);
     victim.permanentMemory += 1;
     victim.memory += 1;
-    drawCards(state, sourcePlayerId, 1);
-    addLog(state, `INCIDENT ${threshold}: ${victim.user.name}のメモリ上限+1・アクティブメモリ1回復、${sourcePlayer.user.name}が1ドロー。`, "incident");
+    drawCards(state, drawerId, 1);
+    addLog(state, `INCIDENT ${threshold}: ${victim.user.name}のメモリ上限+1・アクティブメモリ1回復、${drawer.user.name}が1ドロー。`, "incident");
   }
 }
 
@@ -84,7 +86,7 @@ export function applyUserLoad(state, victimId, amount, sourcePlayerId, source = 
   victim.load = Number(victim.load ?? 0) + n;
   victim.fortressStr = Math.max(0, victim.fortressStr - n);
   addLog(state, `${source}: ${victim.user.name}へ[負荷]${n}。STRの最大値 ${victim.user.maxStr - (victim.load - n)}→${userMaxStr(victim)}、STR ${before}→${victim.fortressStr}。`, "effect");
-  resolveIncidents(state, victimId, before, sourcePlayerId);
+  resolveIncidents(state, victimId, before);
   return n;
 }
 
@@ -132,7 +134,7 @@ export function dealFortressDamage(state, victimId, amount, sourcePlayerId, sour
     amount, kind, sourcePlayerId, source,
     sourceUid: sourceCardByName(state, sourcePlayerId, source)?.uid ?? null,
     strBefore: before, strAfter: victim.fortressStr });
-  resolveIncidents(state, victimId, before, sourcePlayerId);
+  resolveIncidents(state, victimId, before);
   if (victim.fortressStr <= 0) recordVictoryFact(state, { type: "str-zero", playerId: victimId, sourcePlayerId });
   if ((state.interactive || state.runtimeContext) && amount > 0 && sourcePlayerId !== victimId) {
     const queued = { playerId: victimId, event: { sourcePlayerId, source, amount, kind } };
