@@ -63,6 +63,8 @@ function parseKeywords(text) {
   const keywords = [];
   for (const [name, pattern, valueType] of KEYWORD_PATTERNS) {
     for (const match of allMatches(text, pattern)) {
+      // 効果が与えるキーワード(「[X]を得る」「[X]と[Y]を得、」)は、そのカード自身のキーワードではないので入れない
+      if (/^(?:と\[[^\]]+\])*を得/.test(text.slice(match.index + match[0].length))) continue;
       const raw = match[1] ?? null;
       const prefix = text.slice(0, match.index).replace(/\[[^\]]+\]/g, "").trim();
       // Activation headers can start a separate ability after another ability's text.
