@@ -7,7 +7,7 @@ export const definition = {
   "category": "Script",
   "color": "橙",
   "cost": 3,
-  "text": "[相手がObを実行する時]そのObの両隣りに『征服の証』をそれぞれ生成し配置する。",
+  "text": "[if:相手がObを実行する時]そのObの両隣りに『征服の証』をそれぞれ生成し配置する。",
   "classes": []
 };
 

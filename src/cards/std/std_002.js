@@ -9,7 +9,7 @@ export const definition = {
   "color": null,
   "cost": 3,
   "classes": [],
-  "text": "[条件:攻撃によるダメージを受けた時]相手エリアのOb以外のカードすべてを破壊する。"
+  "text": "[if:攻撃によるダメージを受けた時]相手エリアのOb以外のカードすべてを破壊する。"
 };
 
 // trigger specs (was trigger-specs.js)

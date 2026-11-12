@@ -9,7 +9,7 @@ export const definition = {
   "color": "黄",
   "cost": 3,
   "classes": [],
-  "text": "[レジデント]「if;ダメージを受けた時起動できる」自分がダメージを受けた時、メモリを1回復する。"
+  "text": "[レジデント][if:自分ユーザーがダメージを受けた時]メモリを1回復する。"
 };
 
 // trigger specs (was trigger-specs.js)
