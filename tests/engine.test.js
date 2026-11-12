@@ -6228,19 +6228,19 @@ test("Q5 batch 10 cards 176/179/181/182/184 compile completely", () => {
   }
 });
 
-test("STD-176 activates at a turn start (the enemy's here) and grants Slash through next turn end", () => {
+test("STD-176 activates at a turn start (the enemy's here) and grants Disconnect through next turn end", () => {
   const state = createGame({ mode: "sandbox" }); const player = state.players.player;
   const script = createCardInstance("STD-176", "player", 176001); const ob = createCardInstance("STD-020", "player", 176002);
   script.faceDown = true; player.back = [script]; player.front = [ob]; player.registry = [createCardInstance("STD-175", "player", 176003)]; player.memory = 1;
   startTurn(state, "ai");
   assert.equal(state.prompt?.scriptUid, script.uid);
   assert.equal(activateScript(state, "player", script.uid), true);
-  assert.equal(cardHasKeyword(state, "player", ob, "SLASH"), true);
+  assert.equal(cardHasKeyword(state, "player", ob, "DISCONNECT"), true);
   const finishTurn = () => { if (!endTurn(state)) assert.equal(endTurn(state), true); };
   finishTurn();
-  assert.equal(cardHasKeyword(state, "player", ob, "SLASH"), true);
+  assert.equal(cardHasKeyword(state, "player", ob, "DISCONNECT"), true);
   finishTurn();
-  assert.equal(cardHasKeyword(state, "player", ob, "SLASH"), false);
+  assert.equal(cardHasKeyword(state, "player", ob, "DISCONNECT"), false);
 });
 
 test("STD-179 may place each hand copy after its controller activates a Script", () => {
