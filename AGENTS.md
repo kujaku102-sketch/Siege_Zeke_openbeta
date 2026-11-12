@@ -1,7 +1,7 @@
 # Public Simple Zeke workspace
 
 - This is a standalone public development repository. The canonical source is `https://github.com/kujaku102-sketch/Siege_Zeke_openbeta` on `main`; develop from this checkout, not an old repository or parent workspace.
-- The beta0.9.2 deployed revision is `e46c7cbfbf2933b6` (built from `5913602`, deployed 2026-11-12); the one before it was `7d6e3adeb674325d` (from `f9d9e2b`), and the previous beta0.9.1 revision was `76bbe3f892a41264`.
+- The beta0.9.2 deployed revision is `f4ec8f928ec09d07` (built from `4273efa`, deployed 2026-11-13); the one before it was `e46c7cbfbf2933b6` (from `5913602`), and the previous beta0.9.1 revision was `76bbe3f892a41264`.
 
 - This folder is a standalone staging product. Do not read or write parent workspaces during build, test, verification, or E2E.
 - `src/cards/` is the public card library: one file per card (`src/cards/<prefix>/<prefix>_NNN.js`) holding its definition and its spec entries, with the card's own handlers beside it as `<prefix>_NNN_effects.js`, indexed per ID prefix by `src/cards/<prefix>_ex.js` (`std_ex.js` also holds the STD start decks). Card files call the shared library (`src/game/core/`, `src/game/effects/generic/`) for shared processing and hold only logic unique to the card. `src/data/cards.js` assembles `CARD_LIBRARY` from those indexes and keeps its shape. Never replace these files with files generated from canonical or internal source data.
