@@ -50,7 +50,7 @@ export function moveCardToTrash(state, ownerId, card, source = "移動", { suppr
   // ゴミ箱は公開領域: 裏向きで設置されていたScriptも表向きにする(裏のままだと選択肢の名前と参照が消える)
   card.faceDown = false;
   // 公開が終わる: 緊急合体要請の「公開し続けている限り」の割引はここで終わる
-  card.revealed = false;
+  if (card.revealed) card.revealed = false;
   delete card.revealedExecutionCost;
   owner.trash.push(card);
   distributeLayeredFollowers(state, card, "trash", source);
