@@ -18,7 +18,7 @@ export { getMaxMemory, executionCost, visibleHandExecutionPayment } from "./effe
 export { drawCards } from "./core/draw.js";
 export { startTurn, endTurn } from "./core/turn.js";
 export { restSecurity, canActivateTurbo, activateTurbo } from "./core/turn-actions.js";
-export { activateScript, declinePrompt } from "./core/scripts.js";
+export { activateScript, declinePrompt, normalActivationBlocker } from "./core/scripts.js";
 export { resolveCardSelection } from "./effects/generic/selection.js";
 export { resolveSamLogin } from "../cards/std/std_077_effects.js";
 export { cardAtk, cardMaxStr, cardCurrentStr, cardHasKeyword } from "./core/stats.js";

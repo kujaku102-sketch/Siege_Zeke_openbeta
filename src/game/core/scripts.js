@@ -53,6 +53,12 @@ function scriptActivationBlocker(state, playerId, script, { eventTargetUid = nul
   return null;
 }
 
+// The check of the normal route (a face-down Script of the back, no window): the list of legal actions (runtime/legal-actions.js, on a planning view of the state) and activateScriptCore
+// both ask it, so an activation that is offered is never one that is refused for memory, symbol or "nothing to carry the effect out".
+export function normalActivationBlocker(state, playerId, script) {
+  return scriptActivationBlocker(state, playerId, script, { declared: Boolean(keywordValue(script, "IF")) });
+}
+
 const BLOCKER_MESSAGES = Object.freeze({
   memory: (script) => `${script.name}の起動に必要なメモリが足りない。`,
   symbol: (script) => `${script.color}シンボルがない。先にレジストリへインストールして。`,
@@ -176,7 +182,9 @@ function activateScriptCore(state, playerId, uid, { costUid = null, selectionUid
   const eventContext = activationWindow?.context ?? state.prompt?.eventContext ?? null;
   const eventTargetUid = state.prompt?.eventTargetUid ?? eventContext?.cardUid ?? null;
   const declaredActions = activationWindow?.spec?.actions?.length ? activationWindow.spec.actions : optionalSpecsForCard(script.id)[0]?.actions ?? [];
-  const blocker = scriptActivationBlocker(state, playerId, script, { eventTargetUid, windowActions: activationWindow?.spec?.actions, declared: prompted || normalIfActivation });
+  const blocker = prompted
+    ? scriptActivationBlocker(state, playerId, script, { eventTargetUid, windowActions: activationWindow?.spec?.actions, declared: true })
+    : normalActivationBlocker(state, playerId, script);
   if (blocker) return fail(state, BLOCKER_MESSAGES[blocker](script), false);
   const additionalCost = activationRuntime?.additionalCost;
   if (additionalCost) {

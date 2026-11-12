@@ -1,4 +1,4 @@
-import { canKeepOpeningHand, canOpeningMulligan, canActivateTurbo, supportsNormalScriptActivation, enabledSymbols } from '../engine.js';
+import { canKeepOpeningHand, canOpeningMulligan, canActivateTurbo, supportsNormalScriptActivation, normalActivationBlocker } from '../engine.js';
 import { runtimePlanningReads } from './command-bridge.js';
 import { createPlanningContext } from './planning-context.js';
 import { attackIntents } from './attack-planning.js';
@@ -25,13 +25,14 @@ export function planningCatalog(context) {
     for (const card of player.hand) { const cardRef = context.refFor(card); if (cardRef) add({ type: 'install', cardRef }); }
     for (const card of player.registry) { const cardRef = context.refFor(card); if (cardRef) add({ type: 'recoverRegistry', cardRef }); }
   }
+  const normal = context.view('normal');
   for (const card of player.back) {
     const view = runtimePlanningReads.scriptEligibilityView(card);
     if (view.category !== 'Script' || !view.faceDown || view.declaredEffectId !== null
       || !supportsNormalScriptActivation(view) || view.cannotActivateTurn === state.turnNumber) continue;
-    const activation = runtimePlanningReads.activationPlayerView(state, playerId, context.engine.mode !== 'lab' && Boolean(view.color));
-    if (activation.memory < (view.activationCost ?? view.cost ?? 0)
-      || context.engine.mode !== 'lab' && view.color && !enabledSymbols(activation).includes(view.color)) continue;
+    // memory, symbol and "nothing to carry the effect out" are the engine's own check (the one activateScript refuses by)
+    const planned = runtimePlanningReads.normalCardInView(normal, card.uid);
+    if (!planned || normalActivationBlocker(normal, playerId, planned)) continue;
     const cardRef = context.refFor(card);
     if (cardRef) add({ type: 'activateScript', cardRef });
   }
