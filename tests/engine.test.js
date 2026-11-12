@@ -5403,6 +5403,8 @@ test("STD-105 interrupts a fortress attack and force-executes one sleeping Secur
   player.registry = [createCardInstance("STD-091", "player", 105004)];
   const lyd = createCardInstance("STD-195", "player", 105002);
   player.hand = [lyd];
+  // the forced execution needs the materials of [レイヤード:「ドールズ」Ob2体以上] when it is processed (otherwise the card goes to the trash)
+  player.front = [createCardInstance("STD-189", "player", 105005), createCardInstance("STD-189", "player", 105006)];
   const attacker = createCardInstance("STD-020", "ai", 105003);
   attacker.summoningSick = false;
   ai.front = [attacker];
@@ -5422,7 +5424,7 @@ test("STD-105 force-executes only its controller's hand Lyd-Ob without that Ob's
   assert.deepEqual(operation.execute.destination, { owner: "controller", zone: "area" });
   const script = createCardInstance("STD-105", "player", 105011); script.faceDown = true;
   const forced = createCardInstance("STD-195", "player", 105012); const excluded = createCardInstance("STD-195", "ai", 105013); const attacker = createCardInstance("STD-020", "ai", 105014); attacker.summoningSick = false;
-  player.front = []; player.back = [script]; player.hand = [forced]; player.memory = 3; player.registry = [createCardInstance("STD-091", "player", 105015)];
+  player.front = [createCardInstance("STD-189", "player", 105016), createCardInstance("STD-189", "player", 105017)]; player.back = [script]; player.hand = [forced]; player.memory = 3; player.registry = [createCardInstance("STD-091", "player", 105015)];
   ai.front = [attacker]; ai.back = []; ai.hand = [excluded]; ai.memory = 0; state.active = "ai";
   assert.equal(attack(state, "ai", attacker.uid, "player-fortress"), true);
   assert.equal(activateScript(state, "player", script.uid), true);

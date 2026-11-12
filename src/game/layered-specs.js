@@ -22,7 +22,7 @@ function matchesFilter(card, filter) {
   return true;
 }
 
-function entryMatchesGroup(entry, group, playerId) {
+export function entryMatchesGroup(entry, group, playerId) {
   if (group.owner === "self" && entry.playerId !== playerId) return false;
   if (group.owner === "enemy" && entry.playerId === playerId) return false;
   if (!group.zones.includes(entry.zoneName)) return false;
@@ -85,6 +85,27 @@ export function layeredSelectionPlan(state, playerId, sourceCard) {
     entries,
     groups
   };
+}
+
+// Whether materials that meet the card's [レイヤード] condition can be prepared right now: some choice of the candidates fills the minimum of every group.
+export function layeredMaterialsPreparable(state, playerId, card) {
+  const spec = layeredSpecFor(card);
+  if (!spec) return false;
+  const entries = layeredCandidates(state, playerId, card);
+  const counts = spec.groups.map(() => 0);
+  const dfs = (index) => {
+    if (spec.groups.every((group, i) => counts[i] >= group.minimum)) return true;
+    if (index === entries.length) return false;
+    for (let i = 0; i < spec.groups.length; i += 1) {
+      if (counts[i] >= spec.groups[i].minimum || !entryMatchesGroup(entries[index], spec.groups[i], playerId)) continue;
+      counts[i] += 1;
+      const ok = dfs(index + 1);
+      counts[i] -= 1;
+      if (ok) return true;
+    }
+    return dfs(index + 1);
+  };
+  return dfs(0);
 }
 
 export function validatesLayeredSelection(card, playerId, entries) {

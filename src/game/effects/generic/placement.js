@@ -120,7 +120,7 @@ export function effectPlacementRoom(state, playerId, zones = ["front", "back"]) 
   return zones.some((zone) => placementResult(player, zone).ok);
 }
 
-export function failForcedPlacement(state, ownerId, card, { from = "hand", zone, source = "効果による強制配置", suppressScriptWindow = false } = {}) {
+export function failForcedPlacement(state, ownerId, card, { from = "hand", zone, source = "効果による強制配置", suppressScriptWindow = false, reason = "配置上限によりエリアへ入らず" } = {}) {
   const owner = state.players[ownerId];
   if (from === "trash") {
     if (!owner.trash.some((item) => item.uid === card.uid)) owner.trash.push(card);
@@ -131,7 +131,7 @@ export function failForcedPlacement(state, ownerId, card, { from = "hand", zone,
       ruleDestruction: { from, zone, source }
     });
   }
-  addLog(state, `${source}: ${card.name}は配置上限によりエリアへ入らずルール破壊。`, "effect");
+  addLog(state, `${source}: ${card.name}は${reason}ルール破壊。`, "effect");
   return "failed-forced";
 }
 

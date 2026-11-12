@@ -3,7 +3,7 @@ import { cardAtBoardSlot, inheritBoardSlot, projectZoneSlots } from "../board-sl
 import { cardPlacementCostSpec } from "../card-runtime-specs.js";
 import { isObCard, isObCategory } from "../card-types.js";
 import { placementPermissionSpecsFor } from "../continuous-effect-specs.js";
-import { layeredSpecFor } from "../layered-specs.js";
+import { layeredMaterialsPreparable, layeredSpecFor } from "../layered-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { hasOptionalActivationSpec } from "../trigger-specs.js";
 import { dealFortressDamage } from "./deal-damage.js";
@@ -357,5 +357,12 @@ export function forceExecute(state, playerId, uid, { zone = null, placementSourc
   const handIndex = player.hand.findIndex((card) => card.uid === uid);
   if (handIndex >= 0) player.hand[handIndex] = hydrateCard(player.hand[handIndex]);
   const targetZone = zone ?? (player.front.length < player.user.frontLimit ? "front" : player.back.length < player.user.backLimit ? "back" : "front");
+  // 強制実行は効果処理で実行配置される経路: [レイヤード]のカードは、処理の時に素材が用意できなければ配置されずゴミ箱へ行く(文豪の裁定 2026-11-12)
+  const forced = handIndex >= 0 ? player.hand[handIndex] : null;
+  if (forced && hasKeyword(forced, "LAYERED") && !layeredMaterialsPreparable(state, playerId, forced)) {
+    player.hand.splice(handIndex, 1);
+    failForcedPlacement(state, forced.owner ?? playerId, forced, { from: "hand", zone: targetZone, source: placementSource ?? "強制実行", reason: "[レイヤード]の素材が用意できず配置されず" });
+    return true;
+  }
   return playCard(state, playerId, uid, { zone: targetZone, free: true, force: true, ignoreColor, placementCause: "effect", placementSource, placementMode, onPlaced });
 }
