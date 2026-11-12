@@ -1,6 +1,7 @@
 import { CARD_LIBRARY } from "../../../data/cards.js";
 import { isObCard, matchesCardCategory } from "../../card-types.js";
 import { createChoiceSpec, createSelectionRequest, selectionRequestFromSpec } from "../../selection-model.js";
+import { addCounterToTargets } from "../../core/counters.js";
 import { dealCardDamage, dealFortressDamage } from "../../core/deal-damage.js";
 import { drawCards } from "../../core/draw.js";
 import { enqueueSelection, selectionProjectionMeta } from "../../core/projection.js";
@@ -57,13 +58,7 @@ export function executeTriggerAction(state, trigger, action) {
       destroyCard(state, enemyId, target.uid, { source: source.card.name, suppressReplacement: true });
     }
   } else if (action.type === "add_counter" && action.target === "enemy_ob_all") {
-    for (const target of [...state.players[enemyId].front, ...state.players[enemyId].back].filter(isObCard)) {
-      if (action.counter === "load") target.load = Number(target.load ?? 0) + Number(action.amount ?? 0);
-      else {
-        target.counters ??= {};
-        target.counters[action.counter] = Number(target.counters[action.counter] ?? 0) + Number(action.amount ?? 0);
-      }
-    }
+    addCounterToTargets(state, [...state.players[enemyId].front, ...state.players[enemyId].back].filter(isObCard).map((card) => ({ card })), action.counter, action.amount, source.playerId, source.card.name);
     addLog(state, `${source.card.name}: 相手Obすべてに${action.counter}を${action.amount}付与。`, "effect");
   } else if (action.type === "move_event_card" && action.source === "trash" && action.destination === "hand") {
     const index = controller.trash.findIndex((card) => card.uid === event.cardUid);
@@ -90,15 +85,13 @@ export function executeTriggerAction(state, trigger, action) {
     });
     state.pending = { type: "selection", validTargets: request.candidates, request };
   } else if (action.type === "add_counter" && action.target === "enemy_user") {
-    const target = state.players[enemyId];
-    target.counters ??= {};
-    target.counters[action.counter] = Number(target.counters[action.counter] ?? 0) + action.amount;
+    addCounterToTargets(state, [{ userId: enemyId }], action.counter, action.amount, source.playerId, source.card.name);
     addLog(state, `${source.card.name}: 相手ユーザーへ${action.counter}カウンター${action.amount}個。`, "effect");
   } else if (action.type === "add_counter" && action.target === "enemy_battler") {
     const uid = trigger.event.attackerUid === source.card.uid ? trigger.event.defenderUid : trigger.event.attackerUid;
     const target = findCard(state, uid)?.card;
     if (target) {
-      target.load = Number(target.load ?? 0) + action.amount;
+      addCounterToTargets(state, [{ card: target }], "load", action.amount, source.playerId, source.card.name);
       addLog(state, `${source.card.name}: ${target.name}へ[負荷]${action.amount}。`, "effect");
     }
   } else if (action.type === "choose_effect") {

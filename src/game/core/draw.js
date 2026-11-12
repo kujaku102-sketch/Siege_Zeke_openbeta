@@ -1,4 +1,5 @@
 import { finalizeEffectResolution, recordVictoryFact, resolveMandatoryStateChecks } from "./effects.js";
+import { userMaxStr } from "./stats.js";
 import { addLog } from "./shared.js";
 import { emitGameEvent } from "./triggers.js";
 import { runPostDrawTurnStart } from "./turn.js";
@@ -62,7 +63,7 @@ export function resumeMandatoryDrawContinuation(state) {
   if (continuation.placementOutcome === "placed" && !continuation.successEffectDone) {
     continuation.successEffectDone = true;
     const player = state.players[continuation.playerId];
-    player.fortressStr = Math.min(player.user.maxStr, player.fortressStr + 3);
+    player.fortressStr = Math.min(userMaxStr(player), player.fortressStr + 3);
     drawCards(state, continuation.playerId, 1);
     addLog(state, `${continuation.sourceName}: ドラッグ成功。自分ユーザーを3回復し、1枚ドロー。`, "effect");
     if (hasMandatoryDrawChildWork(state)) return true;

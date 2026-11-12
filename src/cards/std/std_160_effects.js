@@ -1,20 +1,16 @@
 import { isObCard } from "../../game/card-types.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { addLog, otherPlayer, payMemory } from "../../game/core/shared.js";
-import { resolveMadnessChecks } from "../../game/core/turn.js";
+import { addCounterToTargets } from "../../game/core/counters.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { destroyCard } from "../../game/effects/generic/destroy.js";
 import { emitCardPlacement, placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_160.js)
 export function std160ResolveLogin({ opponent, state, playerId, card }) {
-  for (const target of [...opponent.front, ...opponent.back].filter(isObCard)) {
-    target.counters ??= {};
-    target.counters.madness = Number(target.counters.madness ?? 0) + 3;
-  }
-  opponent.counters ??= {};
-  opponent.counters.madness = Number(opponent.counters.madness ?? 0) + 3;
-  resolveMadnessChecks(state, otherPlayer(playerId));
+  // 全員に置いてから、対象ごとに1回ずつ、そこに乗った数で判定する
+  const targets = [...[...opponent.front, ...opponent.back].filter(isObCard).map((target) => ({ card: target })), { userId: otherPlayer(playerId) }];
+  addCounterToTargets(state, targets, "madness", 3, playerId, card.name);
   addLog(state, `${card.name}: 相手Obすべてとユーザーへ狂気カウンター3個。`, "effect");
 }
 

@@ -1,4 +1,5 @@
 import { isObCard } from "../../game/card-types.js";
+import { addCounterToTargets } from "../../game/core/counters.js";
 import { addLog, fail, findCard, otherPlayer, payMemory } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { moveCardToTrash } from "../../game/effects/generic/trash.js";
@@ -19,7 +20,7 @@ export function std169ActivateCardEffectCore({ state, targetUid, playerId, playe
     payMemory(state, playerId, effect.cost, "proxy");
     const sourceIndex = player.hand.findIndex((item) => item.uid === card.uid);
     moveCardToTrash(state, playerId, player.hand.splice(sourceIndex, 1)[0], card.name);
-    target.card.load = Number(target.card.load ?? 0) + 3;
+    addCounterToTargets(state, [{ card: target.card }], "load", 3, playerId, card.name);
     addLog(state, `${card.name}: [プロキシ:${effect.cost}]で${target.card.name}へ[負荷]3。`, "effect");
     return true;
   }

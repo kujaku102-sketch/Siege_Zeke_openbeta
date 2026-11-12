@@ -9,7 +9,8 @@ import { drawCards } from "../../core/draw.js";
 import { hydrateCard } from "../../core/prepare.js";
 import { queueMemoryLimitIncreasePrompt } from "../../core/scripts.js";
 import { addLog, findCard, otherPlayer, shuffle, payMemory } from "../../core/shared.js";
-import { resolveMadnessChecks } from "../../core/turn.js";
+import { addCounterToTargets } from "../../core/counters.js";
+import { userMaxStr } from "../../core/stats.js";
 import { runtimeSpecCondition, runtimeSpecMatchesCard, runtimeSpecTargets, runtimeSpecValue } from "./action-values.js";
 import { getMaxMemory, ownLayerEntries } from "./cost.js";
 import { destroyCard, queueRuntimeDestructionContinuation } from "./destroy.js";
@@ -104,12 +105,12 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
       queueMemoryLimitIncreasePrompt(state, playerId, source.name);
     } else if (action.type === "recover_damage" && action.target === "self_user") {
       const before = player.fortressStr;
-      player.fortressStr = Math.min(player.user.maxStr, player.fortressStr + amount);
+      player.fortressStr = Math.min(userMaxStr(player), player.fortressStr + amount);
       addLog(state, `${source.name}: 自分ユーザーを${player.fortressStr - before}回復。`, "effect");
     } else if (action.type === "recover_damage" && action.target === "enemy_user") {
       const opponent = state.players[enemyId];
       const before = opponent.fortressStr;
-      opponent.fortressStr = Math.min(opponent.user.maxStr, opponent.fortressStr + amount);
+      opponent.fortressStr = Math.min(userMaxStr(opponent), opponent.fortressStr + amount);
       addLog(state, `${source.name}: 相手ユーザーを${opponent.fortressStr - before}回復。`, "effect");
     } else if (action.type === "discard" && action.target === "own_hand_all") {
       const discarded = player.hand.splice(0);
@@ -195,19 +196,10 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
         setCardSleeping(state, enemyId, target);
       }
     } else if (action.type === "add_counter" && action.target === "enemy_user") {
-      const target = state.players[enemyId];
-      target.counters ??= {};
-      target.counters[action.counter] = Number(target.counters[action.counter] ?? 0) + amount;
-      if (action.counter === "madness") resolveMadnessChecks(state, enemyId);
+      addCounterToTargets(state, [{ userId: enemyId }], action.counter, amount, playerId, source.name);
     } else if (action.type === "add_counter" && action.target === "selected_enemy_ob") {
       const target = runtimeSpecTargets(state, playerId, source, targetUid, action.target)[0];
-      if (target) {
-        if (action.counter === "load") target.load = Number(target.load ?? 0) + amount;
-        else {
-          target.counters ??= {};
-          target.counters[action.counter] = Number(target.counters[action.counter] ?? 0) + amount;
-        }
-      }
+      if (target) addCounterToTargets(state, [{ card: target }], action.counter, amount, playerId, source.name);
     } else if (action.type === "move_all" && action.source === "own_hand" && action.destination === "registry") {
       const moved = player.hand.splice(0);
       for (const card of moved) {

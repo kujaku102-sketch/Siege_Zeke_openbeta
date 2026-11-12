@@ -4,6 +4,7 @@ import { isObCard } from "../../card-types.js";
 import { normalizeMountedStack } from "../../layered-specs.js";
 import { createAllocationSpec, createSelectionRequest, isSelectionRequestFeasible, selectionRequestFromSpec } from "../../selection-model.js";
 import { attack, continueAttackAfterCost, resumeDeferredAttack } from "../../core/battle.js";
+import { addCounterToTargets } from "../../core/counters.js";
 import { dealCardDamage } from "../../core/deal-damage.js";
 import { resumeMandatoryDrawContinuation } from "../../core/draw.js";
 import { continueDeferredDeclaredScriptCleanup, resolveEffect, runEffectEntry } from "../../core/effects.js";
@@ -482,14 +483,12 @@ function resolveCardSelectionCore(state, continuation, result) {
     if (action?.type !== "add_counter" || action.target !== "selected_entity") return false;
     if (uid?.endsWith("-fortress")) {
       const targetId = uid.slice(0, -"-fortress".length);
-      const target = state.players[targetId];
-      if (!target) return false;
-      target.load = Number(target.load ?? 0) + Number(action.amount ?? 0);
-      if (action.counter === "load") target.fortressStr = Math.max(0, target.fortressStr - Number(action.amount ?? 0));
+      if (!state.players[targetId]) return false;
+      addCounterToTargets(state, [{ userId: targetId }], action.counter, action.amount, continuation.playerId, continuation.sourceName);
     } else {
       const target = findCard(state, uid);
       if (!target || !["front", "back"].includes(target.zoneName) || !isObCard(target.card)) return false;
-      if (action.counter === "load") target.card.load = Number(target.card.load ?? 0) + Number(action.amount ?? 0);
+      addCounterToTargets(state, [{ card: target.card }], action.counter, action.amount, continuation.playerId, continuation.sourceName);
     }
     state.pending = null;
     if (continuation.triggerItemId) resumeTriggerThreadAfterSelection(state, continuation.triggerItemId);

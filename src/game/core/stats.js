@@ -67,6 +67,11 @@ export function cardAtk(state, playerId, card) {
   return Math.max(0, value);
 }
 
+// The STR a user can be at most: the printed maximum less the [負荷] counters on the user (a load lowers the maximum). Recovery stops here.
+export function userMaxStr(player) {
+  return Math.max(0, Number(player.user.maxStr ?? 0) - Number(player.load ?? 0));
+}
+
 export function cardMaxStr(_state, _playerId, card) {
   let value = Number(card.str ?? 0) + Number(card.tempStr ?? 0) + Number(card.permanentStr ?? 0) + Number(card.battleStrBonus ?? 0) - Number(card.load ?? 0);
   value += (card.timedModifiers ?? []).filter((item) => _state.turnNumber <= item.expiresAfterTurn).reduce((sum, item) => sum + Number(item.str ?? 0), 0);

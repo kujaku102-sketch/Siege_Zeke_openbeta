@@ -1,4 +1,5 @@
 import { isObCard } from "../../game/card-types.js";
+import { addCounterToTargets } from "../../game/core/counters.js";
 import { createSelectionRequest } from "../../game/selection-model.js";
 import { addLog, findCard, otherPlayer } from "../../game/core/shared.js";
 import { resumeTriggerThreadAfterSelection } from "../../game/core/triggers.js";
@@ -29,7 +30,7 @@ export function std164ChoiceSelection(state, continuation, result, playerId, pla
 export function std164PoisonSelection(state, continuation, result, playerId, player) {
   const target = findCard(state, result.selected[0])?.card;
   if (target) {
-    target.load = Number(target.load ?? 0) + 2;
+    addCounterToTargets(state, [{ card: target }], "load", 2, playerId, continuation.sourceName);
     addLog(state, `${continuation.sourceName}: ${target.name}へ[負荷]2。`, "effect");
   }
   state.pending = null;

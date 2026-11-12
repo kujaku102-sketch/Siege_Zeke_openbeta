@@ -10,7 +10,7 @@ import { canAttack, getAttackTargets } from "./battle.js";
 import { continueMandatoryTurnDraw, drawCardRaw, drawCards } from "./draw.js";
 import { recordVictoryFact, runEffectEntry } from "./effects.js";
 import { addLog, fail, findCard, otherPlayer } from "./shared.js";
-import { cardHasKeyword } from "./stats.js";
+import { cardHasKeyword, userMaxStr } from "./stats.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { completeTurnAfterDelayedEffects, resolveTurnEndDelayedEffects, resolveTurnStartDelayedEffects } from "./turn-delayed.js";
 import { placementChoiceHasNoOption, resolveAccessDragPlacement } from "../effects/generic/access-drag.js";
@@ -24,33 +24,42 @@ function rollMadness(state, count) {
   return total;
 }
 
+// 狂気カウンターの判定は、乗っている1つの対象ごとに、そこに乗った数だけ d6 を振って行う(置かれた時と、持ち主のターン開始時)。
+export function checkMadnessOfCard(state, card) {
+  const count = Number(card.counters?.madness ?? 0);
+  if (!count) return;
+  const location = findCard(state, card.uid);
+  if (!location || !["front", "back"].includes(location.zoneName)) return;
+  const playerId = location.playerId;
+  const player = state.players[playerId];
+  const roll = rollMadness(state, count);
+  if (roll > Number(card.str ?? 0) + 15) {
+    const index = player[location.zoneName].indexOf(card);
+    player[location.zoneName].splice(index, 1);
+    revealMountedCode(player[location.zoneName], index, card, playerId, location.zoneName);
+    player.ban.push(card);
+    distributeLayeredFollowers(state, card, "ban", card.name);
+    addLog(state, `${card.name}: 狂気判定${roll}が${Number(card.str ?? 0) + 15}を超えBAN。`, "effect");
+  }
+}
+
+export function checkMadnessOfUser(state, playerId) {
+  const player = state.players[playerId];
+  const userCount = Number(player.counters?.madness ?? 0);
+  if (!userCount) return;
+  const roll = rollMadness(state, userCount);
+  if (roll > Number(player.user.maxStr ?? 0) + 15) {
+    player.userBanned = true;
+    recordVictoryFact(state, { type: "user-banned", playerId });
+    addLog(state, `${player.user.name}: 狂気判定${roll}によりBAN。`, "effect");
+  }
+}
+
+// そのユーザーのターン開始時: そのユーザーの全カードとユーザー自身を、それぞれの数で判定する。
 export function resolveMadnessChecks(state, playerId) {
   const player = state.players[playerId];
-  for (const card of [...player.front, ...player.back]) {
-    const count = Number(card.counters?.madness ?? 0);
-    if (!count) continue;
-    const roll = rollMadness(state, count);
-    if (roll > Number(card.str ?? 0) + 15) {
-      const location = findCard(state, card.uid);
-      if (location && ["front", "back"].includes(location.zoneName)) {
-        const index = player[location.zoneName].indexOf(card);
-        player[location.zoneName].splice(index, 1);
-        revealMountedCode(player[location.zoneName], index, card, playerId, location.zoneName);
-        player.ban.push(card);
-        distributeLayeredFollowers(state, card, "ban", card.name);
-        addLog(state, `${card.name}: 狂気判定${roll}が${Number(card.str ?? 0) + 15}を超えBAN。`, "effect");
-      }
-    }
-  }
-  const userCount = Number(player.counters?.madness ?? 0);
-  if (userCount) {
-    const roll = rollMadness(state, userCount);
-    if (roll > Number(player.user.maxStr ?? 0) + 15) {
-      player.userBanned = true;
-      recordVictoryFact(state, { type: "user-banned", playerId });
-      addLog(state, `${player.user.name}: 狂気判定${roll}によりBAN。`, "effect");
-    }
-  }
+  for (const card of [...player.front, ...player.back]) checkMadnessOfCard(state, card);
+  checkMadnessOfUser(state, playerId);
 }
 
 // 「ターン開始時」「ターン終了時」の本文を動かす時の通過点: 誰のターンか、カードの持ち主から見て自分のターンか、自分/相手の指定がない(eachTurn)効果か。
@@ -177,7 +186,7 @@ export function endTurn(state) {
     && [...player.front, ...player.back].filter(isObCard).length === 3) {
     const beforeStr = player.fortressStr;
     const beforeMemory = player.memory;
-    player.fortressStr = Math.min(player.user.maxStr, player.fortressStr + 1);
+    player.fortressStr = Math.min(userMaxStr(player), player.fortressStr + 1);
     player.memory = Math.min(getMaxMemory(player), player.memory + 1);
     addLog(state, `DO OR is'NT: ${player.user.name}のSTRとメモリを1回復。`, "effect");
     if (beforeStr !== player.fortressStr || beforeMemory !== player.memory) emitUserAbilityFeedback(state, "do_or_isnt", activeId, activeId, {

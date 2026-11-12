@@ -4,7 +4,7 @@ import { recordVictoryFact } from "./effects.js";
 import { keywordValue } from "./keywords.js";
 import { openResponseWindow, startNextQueuedResponse } from "./response.js";
 import { addLog, otherPlayer, sourceCardByName } from "./shared.js";
-import { cardCurrentStr } from "./stats.js";
+import { cardCurrentStr, userMaxStr } from "./stats.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { applyDamageModifiers } from "../effects/generic/damage.js";
 import { destroyCard } from "../effects/generic/destroy.js";
@@ -58,6 +58,36 @@ export function dealCardDamage(state, ownerId, uid, amount, source = "効果", {
   return true;
 }
 
+// インシデント: ユーザーのSTRが閾値をまたいで下がった時(ダメージでも[負荷]でも同じ)、そのユーザーのメモリ上限+1・アクティブメモリ1回復、与えた側が1ドロー。各閾値は1回だけ。
+export function resolveIncidents(state, victimId, strBefore, sourcePlayerId) {
+  const victim = state.players[victimId];
+  const sourcePlayer = state.players[sourcePlayerId];
+  const triggered = victim.user.incidents.filter((threshold) =>
+    strBefore > threshold && victim.fortressStr <= threshold && !victim.incidentsTriggered.includes(threshold)
+  );
+  for (const threshold of triggered) {
+    victim.incidentsTriggered.push(threshold);
+    victim.permanentMemory += 1;
+    victim.memory += 1;
+    drawCards(state, sourcePlayerId, 1);
+    addLog(state, `INCIDENT ${threshold}: ${victim.user.name}のメモリ上限+1・アクティブメモリ1回復、${sourcePlayer.user.name}が1ドロー。`, "incident");
+  }
+}
+
+// ユーザーへの[負荷]: STRの最大値を減らす処理(ダメージではない)。いまのSTRも同じだけ下がり、インシデントは起きる。
+// ダメージ補正・user_damagedイベント・今ターンの受けたダメージ・レスポンス窓・リカバリーブートは通さない(ダメージではないため)。STR0以下の敗北判定は効果の終わりの判定が見る。
+export function applyUserLoad(state, victimId, amount, sourcePlayerId, source = "効果") {
+  const victim = state.players[victimId];
+  const n = Number(amount ?? 0);
+  if (!(n > 0)) return 0;
+  const before = victim.fortressStr;
+  victim.load = Number(victim.load ?? 0) + n;
+  victim.fortressStr = Math.max(0, victim.fortressStr - n);
+  addLog(state, `${source}: ${victim.user.name}へ[負荷]${n}。STRの最大値 ${victim.user.maxStr - (victim.load - n)}→${userMaxStr(victim)}、STR ${before}→${victim.fortressStr}。`, "effect");
+  resolveIncidents(state, victimId, before, sourcePlayerId);
+  return n;
+}
+
 export function dealFortressDamage(state, victimId, amount, sourcePlayerId, source = "攻撃", { kind = "effect" } = {}) {
   const victim = state.players[victimId];
   const sourcePlayer = state.players[sourcePlayerId];
@@ -102,16 +132,7 @@ export function dealFortressDamage(state, victimId, amount, sourcePlayerId, sour
     amount, kind, sourcePlayerId, source,
     sourceUid: sourceCardByName(state, sourcePlayerId, source)?.uid ?? null,
     strBefore: before, strAfter: victim.fortressStr });
-  const triggered = victim.user.incidents.filter((threshold) =>
-    before > threshold && victim.fortressStr <= threshold && !victim.incidentsTriggered.includes(threshold)
-  );
-  for (const threshold of triggered) {
-    victim.incidentsTriggered.push(threshold);
-    victim.permanentMemory += 1;
-    victim.memory += 1;
-    drawCards(state, sourcePlayerId, 1);
-    addLog(state, `INCIDENT ${threshold}: ${victim.user.name}のメモリ上限+1・アクティブメモリ1回復、${sourcePlayer.user.name}が1ドロー。`, "incident");
-  }
+  resolveIncidents(state, victimId, before, sourcePlayerId);
   if (victim.fortressStr <= 0) recordVictoryFact(state, { type: "str-zero", playerId: victimId, sourcePlayerId });
   if ((state.interactive || state.runtimeContext) && amount > 0 && sourcePlayerId !== victimId) {
     const queued = { playerId: victimId, event: { sourcePlayerId, source, amount, kind } };
