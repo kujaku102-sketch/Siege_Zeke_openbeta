@@ -11,9 +11,10 @@ import { openExecutionReplacementWindow } from "./execution-replacement.js";
 import { resolveEffect, resolveMandatoryStateChecks, runEffectEntry } from "./effects.js";
 import { hasKeyword, keywordValue } from "./keywords.js";
 import { getEffectTargets } from "./play-effects.js";
-import { notifyCardExecuted } from "./play-notify.js";
+import { executedEvent, notifyCardExecuted } from "./play-notify.js";
+import { eventWillRaiseTrigger } from "./triggers.js";
 import { hydrateCard } from "./prepare.js";
-import { continueDeferredSpellCleanup, resolveLogin, resolveSpell, spellNeedsTarget } from "./play-spell.js";
+import { continueDeferredSpellCleanup, queueLoginTrigger, resolveLogin, resolveSpell, spellNeedsTarget } from "./play-spell.js";
 import { EVENT_CONTEXT_REQUIRED_IF_IDS, NORMAL_IF_SCRIPT_IDS } from "./scripts.js";
 import { addLog, fail, otherPlayer, payMemory } from "./shared.js";
 import { emitGameEvent } from "./triggers.js";
@@ -330,7 +331,10 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
     if (placeByMode(state, playerId, card, { zone, mode: placementMode, from: "hand", source: placementSource ?? "実行", requestedSlot }) !== "placed") return true;
   }
   onPlaced?.(card, zone);
-  resolveEffect(state, () => resolveLogin(state, playerId, card));
+  // 実行にトリガーして宣言される効果(相手のカードの実行に反応する[弾倉]Spなど)があるなら、ログインもそれと同時に誘発した効果としてスレッドに乗せ、順序をユーザーが決める。
+  // なければ今までどおり、ログインをその場で処理する。
+  if (hasKeyword(card, "LOGIN") && eventWillRaiseTrigger(state, executedEvent(playerId, card))) queueLoginTrigger(state, playerId, card);
+  else resolveEffect(state, () => resolveLogin(state, playerId, card));
   notifyCardExecuted(state, playerId, card, { firstObExecutionDiscount, paidExecutionMemory });
   emitCardPlacement(state, playerId, card, zone, placementCause, placementSource);
   return true;

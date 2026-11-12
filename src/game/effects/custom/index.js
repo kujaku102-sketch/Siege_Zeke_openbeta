@@ -55,7 +55,7 @@ import { std230AmbushChoiceSelection, std230InstallHandSelection } from "../../.
 import { std231ActivateScriptCore } from "../../../cards/std/std_231_effects.js";
 import { std237ActivateCardEffectCore } from "../../../cards/std/std_237_effects.js";
 import { std238ResolveCardSelectionCore } from "../../../cards/std/std_238_effects.js";
-import { sztb094CounterDrainIndependentEffects, sztb094CounterSelectSelection, sztb094CounterTargetSelection, sztb094ResolveLogin2 } from "../../../cards/sztb/sztb_094_effects.js";
+import { sztb094CounterSelectSelection, sztb094CounterTargetSelection, sztb094ResolveLogin2 } from "../../../cards/sztb/sztb_094_effects.js";
 import { sztb095SpReplacementSelection } from "../../../cards/sztb/sztb_095_effects.js";
 import { sztb096GetEffectTargets, sztb096SpellCleanupExtra } from "../../../cards/sztb/sztb_096_effects.js";
 import { sztb097AccessSelection, sztb097AtkSumSelection, sztb097ChoiceSelection, sztb097DestroySelection, sztb097ResolveSpell } from "../../../cards/sztb/sztb_097_effects.js";
@@ -328,7 +328,6 @@ export const CUSTOM_RESOLVE_CARD_SELECTION_CORE = tracedTable("CUSTOM_RESOLVE_CA
 export const CUSTOM_DRAIN_INDEPENDENT_EFFECTS = tracedTable("CUSTOM_DRAIN_INDEPENDENT_EFFECTS", {
   __proto__: null,
   "STD-217": std217DrainIndependentEffects,
-  "SZTB-094-COUNTER": sztb094CounterDrainIndependentEffects,
   "STD-165": std165DrainIndependentEffects
 });
 

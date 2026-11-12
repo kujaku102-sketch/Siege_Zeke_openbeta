@@ -9,7 +9,7 @@ import { notifyCardExecuted } from "./play-notify.js";
 import { canExecuteRegistryCard } from "./play-registry.js";
 import { canExecuteAtSlot, canPlayCard, enabledSymbols } from "./play.js";
 import { addLog, findCard, isArmsBandOb, otherPlayer, provisional } from "./shared.js";
-import { drainTriggerQueue } from "./triggers.js";
+import { drainTriggerQueue, registerTriggerPhase } from "./triggers.js";
 import { CUSTOM_NORMAL_SPELL_SELECTION, CUSTOM_RESOLVE_LOGIN, CUSTOM_RESOLVE_LOGIN_2, CUSTOM_RESOLVE_SPELL, PASS } from "../effects/custom/index.js";
 import { executeCardRuntimeSpec } from "../effects/generic/actions.js";
 import { ownLayerEntries } from "../effects/generic/cost.js";
@@ -165,6 +165,18 @@ export function resolveSpell(state, playerId, card, targetUid, { targetUids = []
     if (customResult !== PASS) return customResult;
   }
 }
+
+// The [ログイン] of an executed card as an item of the trigger queue (a thread with the triggers that its execution raised); queueLoginTrigger puts it there, the phase handler runs it.
+export function queueLoginTrigger(state, playerId, card) {
+  state.triggerQueue.push({
+    id: `AUTO-${++state.triggerSerial}`,
+    source: { playerId, zoneName: findCard(state, card.uid)?.zoneName ?? "front", card },
+    event: { type: "login", playerId, ownerId: card.owner ?? playerId, cardUid: card.uid, cardId: card.id, cardName: card.name, category: card.category },
+    spec: { id: `${card.id}:login`, actions: [] },
+    runtimePhase: "login"
+  });
+}
+registerTriggerPhase("login", (state, trigger) => { resolveLogin(state, trigger.source.playerId, trigger.source.card); });
 
 export function resolveLogout(state, playerId, card) {
   if (executeCardRuntimeSpec(state, "logout", playerId, card)) return;

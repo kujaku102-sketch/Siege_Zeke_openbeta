@@ -37,6 +37,17 @@ export function traceTriggerBodyAnswered(state) {
   if (TRACE && tracing()) waypoint(state, "trigger-body:end", true, { triggerId, how: "answered" });
 }
 
+// A queued item that is not a spec's own actions but a part of the game proper (the [ログイン] of an executed card put on the thread with the triggers its execution raised):
+// { runtimePhase } names the handler, registered by the module that owns the rule.
+const PHASE_HANDLERS = new Map();
+export function registerTriggerPhase(phase, handler) { PHASE_HANDLERS.set(phase, handler); }
+
+// Whether an event that is about to be emitted would raise a trigger that asks for the [ログイン] of the executed card to join its thread (spec.threadsLogin): the same collection the emit does, without queueing.
+export function eventWillRaiseTrigger(state, event) {
+  const context = createEventContext(state, { id: "EV-preview", turnNumber: state.turnNumber, ...event });
+  return collectActivationWindows(state, context, specsForEvent(event.type), cardsInPlay(state)).some((window) => !window.optional && window.spec.threadsLogin === true);
+}
+
 function executeQueuedTrigger(state, trigger) {
   trigger.status = "resolving";
   if (TRACE) {
@@ -48,7 +59,8 @@ function executeQueuedTrigger(state, trigger) {
   if (trigger.spec.limit === "once_per_turn") state.players[trigger.source.playerId].triggerUsage[trigger.spec.id] = true;
   addLog(state, `誘発: ${trigger.source.card.name}（${trigger.event.type}）`, "effect");
   const pendingBefore = state.pending, promptBefore = state.prompt;
-  if (trigger.runtimePhase) executeCardRuntimeSpec(state, trigger.runtimePhase, trigger.source.playerId, trigger.source.card, {
+  if (trigger.runtimePhase && PHASE_HANDLERS.has(trigger.runtimePhase)) PHASE_HANDLERS.get(trigger.runtimePhase)(state, trigger);
+  else if (trigger.runtimePhase) executeCardRuntimeSpec(state, trigger.runtimePhase, trigger.source.playerId, trigger.source.card, {
     continuationMeta: { triggerItemId: trigger.id }
   });
   else for (const action of trigger.spec.actions) executeTriggerAction(state, trigger, action);

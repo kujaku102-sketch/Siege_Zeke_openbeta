@@ -3,9 +3,14 @@ import { openScriptActivationWindow } from "./scripts.js";
 import { addLog, cardTraits, findCard, otherPlayer } from "./shared.js";
 import { emitGameEvent, emitUserAbilityFeedback } from "./triggers.js";
 import { CUSTOM_NOTIFY_CARD_EXECUTED, PASS } from "../effects/custom/index.js";
-import { magazineExecutionCandidates } from "../effects/generic/cost.js";
 import { destroyCard } from "../effects/generic/destroy.js";
 import { moveCardToTrash } from "../effects/generic/trash.js";
+
+// The event an execution emits (also built before the execution is notified, to see whether a trigger will be raised by it).
+export function executedEvent(executingPlayerId, executedCard) {
+  return { type: "card_executed", playerId: executingPlayerId, ownerId: executedCard.owner ?? executingPlayerId,
+    cardUid: executedCard.uid, cardId: executedCard.id, cardName: executedCard.name, category: executedCard.category, traits: cardTraits(executedCard) };
+}
 
 export function notifyCardExecuted(state, executingPlayerId, executedCard, { firstObExecutionDiscount = false, paidExecutionMemory = null } = {}) {
   const residentOwnerId = otherPlayer(executingPlayerId);
@@ -49,21 +54,7 @@ export function notifyCardExecuted(state, executingPlayerId, executedCard, { fir
     if (location && ["front", "back"].includes(location.zoneName)) destroyCard(state, executingPlayerId, executedCard.uid, { source: `P-in（${plugin.name}）`, suppressReplacement: true });
     addLog(state, `P-in（${plugin.name}）：メモリ${plugin.pluginValue}を検知し、Pluginと実行カードを破壊。`, "effect");
   }
-  for (const source of [...owner.front, ...owner.back].filter((card) => card.id === "SZTB-094" && !card.faceDown && !card.sleep)) {
-    if (magazineExecutionCandidates(state, residentOwnerId).length) {
-      (state.independentEffects ??= []).push({ kind: "SZTB-094-COUNTER", playerId: residentOwnerId, sourceUid: source.uid, sourceName: source.name });
-    }
-  }
-  emitGameEvent(state, {
-    type: "card_executed",
-    playerId: executingPlayerId,
-    ownerId: executedCard.owner ?? executingPlayerId,
-    cardUid: executedCard.uid,
-    cardId: executedCard.id,
-    cardName: executedCard.name,
-    category: executedCard.category
-    , traits: cardTraits(executedCard)
-  });
+  emitGameEvent(state, executedEvent(executingPlayerId, executedCard));
   if (isObCard(executedCard)) {
     const player = state.players[executingPlayerId];
     player.firstObExecutionTurn = state.turnNumber;

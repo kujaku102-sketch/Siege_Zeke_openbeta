@@ -36,13 +36,21 @@ export function createEventContext(state, event) {
   });
 }
 
-export function createTriggerSpec({ id, cardId, event, conditions = [], actions = [], limit = null, activation = "automatic" }) {
+// threadsLogin: for an execution event, the [ログイン] of the executed card goes on the thread with this trigger (their order is decided by the users)
+export function createTriggerSpec({ id, cardId, event, conditions = [], actions = [], limit = null, activation = "automatic", threadsLogin = false }) {
   if (!id || !cardId || !event) throw new Error("TriggerSpec requires id, cardId and event");
-  return Object.freeze({ id, cardId, event, conditions: Object.freeze([...conditions]), actions: Object.freeze([...actions]), limit, activation });
+  return Object.freeze({ id, cardId, event, conditions: Object.freeze([...conditions]), actions: Object.freeze([...actions]), limit, activation, ...(threadsLogin ? { threadsLogin: true } : {}) });
 }
+
+// A condition that needs a rule of the game proper (not of this data module) is named here and registered by the module that has the rule:
+// { type: "hook", name } is true when the registered test(state, window) is. (The spec stays plain data; the state is cloned and saved.)
+const CONDITION_HOOKS = new Map();
+export function registerTriggerCondition(name, test) { CONDITION_HOOKS.set(name, test); }
 
 function triggerConditionMatches(state, window, condition) {
   const { source, context } = window;
+  if (condition.type === "hook") return Boolean(CONDITION_HOOKS.get(condition.name)?.(state, window));
+  if (condition.type === "source_awake") return source.card.sleep !== true;
   if (condition.type === "source_zone") return source.zoneName === condition.zone;
   if (condition.type === "source_face_up") return source.card.faceDown !== true;
   if (condition.type === "source_face_down") return source.card.faceDown === true;

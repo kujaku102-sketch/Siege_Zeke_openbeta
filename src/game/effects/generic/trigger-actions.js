@@ -12,6 +12,10 @@ import { emitEffectPlacement, placeByMode } from "./placement.js";
 import { openRuntimeAccessSelection } from "./selection-access.js";
 import { openRuntimeTargetSelection, runtimeSelectionCandidates } from "./selection-target.js";
 
+// An action a card names that the shared vocabulary does not have: { type }, run by the handler the card's module registered.
+const ACTION_HANDLERS = new Map();
+export function registerTriggerAction(type, handler) { ACTION_HANDLERS.set(type, handler); }
+
 export function executeTriggerAction(state, trigger, action) {
   const { source, event } = trigger;
   const controller = state.players[source.playerId];
@@ -205,6 +209,8 @@ export function executeTriggerAction(state, trigger, action) {
         ...(action.amount !== undefined ? { amount: action.amount } : {}),
         sourceName: source.card.name, triggerItemId: trigger.id, action } });
     enqueueSelection(state, { type: "selection", validTargets: request.candidates, request }, selectionProjectionMeta("engine:trigger-select", source.playerId));
+  } else if (ACTION_HANDLERS.has(action.type)) {
+    ACTION_HANDLERS.get(action.type)(state, trigger, action);
   }
 }
 
