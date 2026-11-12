@@ -98,7 +98,7 @@ export function executeTriggerAction(state, trigger, action) {
       addLog(state, `${source.card.name}: ${target.name}へ[負荷]${action.amount}。`, "effect");
     }
   } else if (action.type === "choose_effect") {
-    const request = selectionRequestFromSpec(createChoiceSpec({ options: ["①相手の手札を1枚捨てる", "②相手Obに毒カウンター2"] }), {
+    const request = selectionRequestFromSpec(createChoiceSpec({ options: ["①相手の手札を1枚捨てる", "②相手Obに[負荷]2"] }), {
       label: `${source.card.name}: ①または②`, message: source.card.text,
       continuation: { type: "std164-choice", playerId: source.playerId, sourceName: source.card.name, triggerItemId: trigger.id }
     });

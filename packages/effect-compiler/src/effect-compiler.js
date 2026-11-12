@@ -222,7 +222,7 @@ function parseOperations(clause, context = {}) {
   }
   if (/手札を(?:すべて|全て)捨てる/.test(clause)) operations.push({ type: "discard", target: "all_hand", recordAs: "discarded_count", allowZero: true });
   if (/相手は自身の手札を1枚捨てる/.test(clause)) operations.push({ type: "discard", target: "opponent_hand", count: 1, asMuchAsPossible: true });
-  if (/相手のOb1体を選び毒カウンターを2つ置く/.test(clause)) operations.push({ type: "add_counter", target: "selected_enemy_ob", counter: "poison", value: 2 });
+  if (/相手のOb1体を選び[負荷]を2つ与える/.test(clause)) operations.push({ type: "add_counter", target: "selected_enemy_ob", counter: "load", value: 2 });
   if (/①または②を1つ選び起動する/.test(clause)) operations.push({ type: "choose_numbered_effect", options: [1, 2], count: 1 });
   for (const match of allMatches(clause, /手札の[「『]([^」』]+)[」』](\d+)枚を捨てる/g)) {
     operations.push({ type: "discard", target: "selected", source: "hand", owner: "self", className: match[1], count: Number(match[2]), minimum: Number(match[2]), recordAs: "discarded_cards" });

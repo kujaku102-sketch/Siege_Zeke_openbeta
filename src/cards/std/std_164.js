@@ -9,7 +9,7 @@ export const definition = {
   "color": "黒",
   "cost": 4,
   "classes": [],
-  "text": "[レジデント]自分のターン中、自分のカードが破壊される度、①または②を1つ選び起動する。①相手は自身の手札を1枚捨てる。②相手のOb1体を選び毒カウンターを2つ置く。"
+  "text": "[レジデント]自分のターン中、自分のカードが破壊される度、①または②を1つ選び起動する。①相手は自身の手札を1枚捨てる。②相手のOb1体を選び[負荷]を2つ与える。"
 };
 
 // trigger specs (was trigger-specs.js)
@@ -21,7 +21,7 @@ export const triggerSpecs = [
       { type: "source_controller_is_active_player" },
       { type: "event_card_owner_is_source_controller" }
     ],
-    actions: [op("choose_effect", { options: ["discard_enemy_hand", "poison_enemy_ob"] })]
+    actions: [op("choose_effect", { options: ["discard_enemy_hand", "load_enemy_ob"] })]
   })
 ];
 
