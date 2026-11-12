@@ -6429,7 +6429,7 @@ test("STD-229/230/231 connect extra turn Ambush and adjacent generation", () => 
   assert.equal(attack(ambushState, "ai", attacker.uid, "player-fortress"), true);
   assert.equal(resolveCardSelection(ambushState, ambushState.pending.request.continuation, { scope: "[アンブッシュ:3]を起動", selected: [] }), true);
   assert.equal(resolveCardSelection(ambushState, ambushState.pending.request.continuation, { selected: [ai.hand[0].uid] }), true);
-  assert.equal(p.registry.length, 4);
+  assert.equal(p.registry.length, 2); assert.equal(ai.registry.length, 2);
   const scriptState = createGame({ mode: "sandbox" }); const sp = scriptState.players.player; const sai = scriptState.players.ai;
   const script = createCardInstance("STD-231", "player", 231001); script.faceDown = true; sp.back = [script]; sp.registry = [createCardInstance("STD-214", "player", 231003)]; sp.memory = 3; const ob = createCardInstance("STD-020", "ai", 231002); sai.hand = [ob]; sai.front = []; scriptState.active = "ai";
   assert.equal(playCard(scriptState, "ai", ob.uid, { force: true, ignoreColor: true }), true);

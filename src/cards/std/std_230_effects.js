@@ -64,9 +64,11 @@ export function std230AmbushChoiceSelection(state, continuation, result, playerI
 
 export function std230InstallHandSelection(state, continuation, result, playerId, player) {
   const opponent = state.players[continuation.opponentId];
+  // 抜いた2枚は、そのカードの所有ユーザーのレジストリに入る(相手の手札のカードなら相手のレジストリ)
+  const install = (card) => { const ownerId = card.owner ?? continuation.opponentId; state.players[ownerId].registry.push(card); emitRegistryInstalled(state, ownerId, card, "悪の発明"); };
   const chosenIndex = opponent.hand.findIndex((item) => item.uid === result.selected[0]);
-  if (chosenIndex >= 0) { const [chosen] = opponent.hand.splice(chosenIndex, 1); player.registry.push(chosen); emitRegistryInstalled(state, playerId, chosen, "悪の発明"); }
-  if (opponent.hand.length) { const randomIndex = Math.floor(state.rng() * opponent.hand.length); const [random] = opponent.hand.splice(randomIndex, 1); player.registry.push(random); emitRegistryInstalled(state, playerId, random, "悪の発明"); }
+  if (chosenIndex >= 0) install(opponent.hand.splice(chosenIndex, 1)[0]);
+  if (opponent.hand.length) { const randomIndex = Math.floor(state.rng() * opponent.hand.length); install(opponent.hand.splice(randomIndex, 1)[0]); }
   state.pending = null;
   state.std230AmbushCleanup = continuation.cleanup;
   return resumeStd230AmbushCleanup(state);
