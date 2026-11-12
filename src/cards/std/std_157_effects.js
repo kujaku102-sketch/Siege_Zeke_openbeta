@@ -37,9 +37,11 @@ export function std157ActivateCardEffectCore({ state, targetUid, playerId, card,
     payMemory(state, playerId, effect.cost, "update");
     const x = Number(target.card.cost ?? 0);
     (state.destroyLkiFollowUps ??= {})[target.card.uid] = { type: "std157", playerId, sourceName: card.name, x };
-    const resolved = destroyCard(state, playerId, target.card.uid, { source: card.name });
+    // The effect was used (memory paid, destruction tried) even when the destruction was replaced ([プロテクト], [バックアップ], indestructible: destroyCard returns false):
+    // the follow-up goes on either way, so the answer is accepted. Returning destroyCard's result refused the answer after the state had already moved.
+    destroyCard(state, playerId, target.card.uid, { source: card.name });
     if (!state.pending) resumeDestroyLkiFollowUp(state, target.card.uid);
-    return resolved;
+    return true;
   }
   return PASS;
 }
@@ -52,7 +54,8 @@ export function std157DestroySelection(state, continuation, result, playerId, pl
   const x = continuation.type === "std157-destroy" ? Number(target.cost ?? 0) : Number(target.str ?? 0);
   (state.destroyLkiFollowUps ??= {})[target.uid] = { type: continuation.type === "std157-destroy" ? "std157" : "std162", playerId, sourceName: continuation.sourceName, x };
   state.pending = null;
-  const resolved = destroyCard(state, playerId, target.uid, { source: continuation.sourceName });
+  // As in the update: a replaced destruction does not undo the effect (the follow-up goes on), so the answer is accepted whatever destroyCard returns.
+  destroyCard(state, playerId, target.uid, { source: continuation.sourceName });
   if (!state.pending) resumeDestroyLkiFollowUp(state, target.uid);
-  return resolved;
+  return true;
 }
