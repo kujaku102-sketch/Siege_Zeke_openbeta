@@ -297,6 +297,15 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
       if (action.sourceZoneRecord) runtime.records[action.sourceZoneRecord] = result.fromZone;
       if (action.movedRecord) runtime.records[action.movedRecord] = result.moved;
       if (!result.moved) addLog(state, `${source.name}: 移動できるエリアがない。`, "effect");
+    } else if (action.type === "move" && action.target === "source" && action.source === "trash" && action.destination === "registry") {
+      // the source card installs itself from the trash (a [ログアウト] effect runs after the card has left the area): into its owner's registry
+      const ownerPlayer = state.players[source.owner ?? playerId];
+      const index = ownerPlayer.trash.findIndex((card) => card.uid === source.uid);
+      if (index < 0) return false;
+      const [card] = ownerPlayer.trash.splice(index, 1);
+      ownerPlayer.registry.push(card);
+      addLog(state, `${source.name}: レジストリへインストール。`, "effect");
+      emitRegistryInstalled(state, source.owner ?? playerId, card, source.name);
     } else if (action.type === "move" && action.target === "source") {
       const destination = runtimeSpecValue(state, playerId, source, action.destination, runtime);
       if (!moveCardByEffect(state, playerId, source.uid, destination, source.name)) return false;

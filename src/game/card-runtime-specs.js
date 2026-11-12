@@ -38,6 +38,9 @@ export const CARD_RUNTIME_SPECS = Object.freeze(collectSpecs("runtimeSpec", RUNT
 // Scripts that can replace an opponent's execution (core/execution-replacement.js).
 export const CARD_EXECUTION_REPLACEMENT_SPECS = Object.freeze(collectSpecs("executionReplacementSpec"));
 
+// Cards that go to another zone instead of the trash when they leave the area: { destination: "registry" } (installed into their owner's registry; effects/generic/trash.js moveCardToTrash).
+export const CARD_AREA_EXIT_REPLACEMENT_SPECS = Object.freeze(collectSpecs("areaExitReplacementSpec"));
+
 export const CARD_BATTLE_STAT_MODIFIER_SPECS = Object.freeze(collectSpecs("battleStatModifierSpec"));
 
 export function battleStatModifierSpecsFor(cardId) {

@@ -8,10 +8,21 @@ import { addLog, otherPlayer } from "../../core/shared.js";
 import { TRACE_TAGS, trace, TRACE, tracing } from "../../engine-trace.js";
 import { emitGameEvent } from "../../core/triggers.js";
 import { executeCardRuntimeSpec } from "./actions.js";
-import { finalizeRuleDestruction } from "./placement.js";
+import { emitRegistryInstalled, finalizeRuleDestruction } from "./placement.js";
+import { CARD_AREA_EXIT_REPLACEMENT_SPECS } from "../../card-runtime-specs.js";
 
 export function moveCardToTrash(state, ownerId, card, source = "移動", { suppressScriptWindow = false, fromArea = false, ruleDestruction = null } = {}) {
   const owner = state.players[ownerId];
+  // 「ゴミ箱に送るかわりにレジストリにインストールする」: the card never goes to the trash, so neither the trash Script window nor the trash ban applies
+  if (fromArea && CARD_AREA_EXIT_REPLACEMENT_SPECS[card.id]?.destination === "registry") {
+    if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.REPLACE, op: "move", event: "replaced", kind: "install-to-registry", cardUid: card.uid, ownerId });
+    owner.registry.push(card);
+    distributeLayeredFollowers(state, card, "registry", source);
+    addLog(state, `${source}: ${card.name}のゴミ箱移動をレジストリへのインストールへ置換。`, "effect");
+    emitRegistryInstalled(state, ownerId, card, source);
+    if (ruleDestruction) finalizeRuleDestruction(state, ownerId, card, { ...ruleDestruction, to: "registry" });
+    return "registry";
+  }
   if (!suppressScriptWindow && !state.winner && owner.trashBanUntilTurn !== state.turnNumber) {
     const scriptOwnerId = otherPlayer(ownerId);
     const scriptOwner = state.players[scriptOwnerId];

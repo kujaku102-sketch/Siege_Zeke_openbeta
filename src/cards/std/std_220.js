@@ -11,6 +11,9 @@ export const definition = {
   "text": "[コンタクト][ログアウト]ゴミ箱に送るかわりにレジストリにインストールする。①レジストリからこれを実行できる。この効果で配置した場合これはユーザーを攻撃できない。"
 };
 
+// [ログアウト]ゴミ箱に送るかわりにレジストリにインストールする (effects/generic/trash.js)
+export const areaExitReplacementSpec = { destination: "registry" };
+
 // attackPermissionSpec (was continuous-effect-specs.js)
 export const attackPermissionSpec = [{ type: "forbid_target", target: "enemy_user", condition: "source_registry_executed_this_turn" }];
 
