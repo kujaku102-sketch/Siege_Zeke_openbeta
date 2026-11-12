@@ -18,7 +18,7 @@ export const definition = {
 
 // runtime spec (was card-runtime-specs.js)
 export const runtimeSpec = spec("script_activation", [op("grant_keyword", {
-    target: "own_ob_all", keyword: "SLASH", duration: "through_next_turn_end"
+    target: "own_ob_all", keyword: "DISCONNECT", duration: "through_next_turn_end"
   })]);
 
 // trigger specs (was trigger-specs.js)
@@ -31,4 +31,4 @@ export const triggerSpecs = [
 ];
 
 // compiler preset: extra operation the effect compiler appends for this card (was effect-compiler.js runtimeSpecials)
-export const compilerPreset = { type: "turn_start_grant_all", target: "own_ob_all", keyword: "Slash", duration: "through_next_turn" };
+export const compilerPreset = { type: "turn_start_grant_all", target: "own_ob_all", keyword: "Disconnect", duration: "through_next_turn" };
