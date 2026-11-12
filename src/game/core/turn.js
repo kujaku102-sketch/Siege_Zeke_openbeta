@@ -112,6 +112,7 @@ export function startTurn(state, playerId) {
   for (const card of [...player.hand, ...player.deck, ...player.registry, ...player.trash]) {
     card.turnCostModifier = 0;
     card.revealed = false;
+    delete card.revealedExecutionCost;
   }
   player.installedThisTurn = false;
   player.registryActionUsed = false;
