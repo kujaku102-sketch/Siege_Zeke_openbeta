@@ -101,8 +101,11 @@ export function activeCards(state, playerId, cardId) {
   return [...player.front, ...player.back].filter((card) => card.id === cardId);
 }
 
+// 「効果テキストを持たない」: 本文が空・(効果なし)のカードに加えて、キーワード([セキュリティ]・[プロテクト:1]など)だけのカードも入る
+// (キーワードは表記上コンポーネントで、効果テキストではない。文豪の裁定 2026-11-12)
 export function hasNoEffectText(card) {
-  return /^(?:|\(効果なし\)|（効果なし）)$/.test(String(card?.text ?? "").trim());
+  const text = String(card?.text ?? "").replace(/[\[［][^\]］]*[\]］]/g, "").trim();
+  return /^(?:|\(効果なし\)|（効果なし）)$/.test(text);
 }
 
 export function isArmsBandCard(card) {
