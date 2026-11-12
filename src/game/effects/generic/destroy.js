@@ -10,6 +10,7 @@ import { resolveMandatoryStateChecks } from "../../core/effects.js";
 import { continueDeferredSpellCleanup, resolveLogoutAfterAreaExit } from "../../core/play-spell.js";
 import { openScriptActivationWindow, queueScriptPrompt } from "../../core/scripts.js";
 import { addLog, cardTraits, hasClass, otherPlayer } from "../../core/shared.js";
+import { cardMaxStr } from "../../core/stats.js";
 import { TRACE_TAGS, trace, TRACE, tracing } from "../../engine-trace.js";
 import { emitGameEvent } from "../../core/triggers.js";
 import { executeRuntimeActions, resumeDestroyLkiFollowUp } from "./actions.js";
@@ -77,6 +78,8 @@ export function destroyCard(state, ownerId, uid, { source = "破壊", suppressRe
   if (destructionPermissionSpecsFor(protectedCard.id).some((spec) => spec.type === "forbid_destruction" && spec.target === "source"
     && (protectedCard.id !== "STD-159" || protectedCard.faceDown !== true))) {
     if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.REPLACE, op: "destroy", event: "replaced", kind: "indestructible", cardUid: protectedCard.uid });
+    // 破壊不可のObはSTRが0以下になっても0で止まって場に残る(0を超えた分のダメージは数えず、後でSTRが増えれば0から戻る)
+    if (isObCard(protectedCard)) protectedCard.damage = Math.min(Number(protectedCard.damage ?? 0), Math.max(0, cardMaxStr(state, ownerId, protectedCard)));
     addLog(state, `${protectedCard.name}は破壊できない。`, "effect");
     settleDestructionContinuations(state, uid, false);
     continuePlacementCostBatch(state);
