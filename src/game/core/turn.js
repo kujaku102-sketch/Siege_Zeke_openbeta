@@ -327,3 +327,13 @@ export function endTurn(state) {
   }
   return completed;
 }
+
+// A turn end held back by a window (a choice, an order of triggers, a Script prompt) carries on once the answer leaves nothing open.
+// Set by the effects that open such a window on the way to the end of the turn (state.resumeTurnEndAfterSelection = the active seat).
+export function resumeTurnEndWhenSettled(state) {
+  const activeId = state.resumeTurnEndAfterSelection;
+  if (!activeId || state.pending || state.prompt) return false;
+  delete state.resumeTurnEndAfterSelection;
+  if (!state.winner) endTurn(state);
+  return true;
+}

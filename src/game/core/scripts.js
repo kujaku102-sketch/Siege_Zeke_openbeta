@@ -15,6 +15,7 @@ import { enabledSymbols, supportsNormalScriptActivation } from "./play.js";
 import { enqueueSelection, selectionProjectionMeta } from "./projection.js";
 import { continueDeferredDeclaredResponseCleanup } from "./response.js";
 import { addLog, fail, findCard, otherPlayer, payMemory } from "./shared.js";
+import { resumeTurnEndWhenSettled } from "./turn.js";
 import { emitGameEvent } from "./triggers.js";
 import { CUSTOM_ACTIVATE_SCRIPT_CORE, CUSTOM_ACTIVATE_SCRIPT_CORE_2, PASS } from "../effects/custom/index.js";
 import { runtimeActionFeasible, triggerActionFeasible } from "../effects/generic/action-values.js";
@@ -308,7 +309,10 @@ export function activateScript(state, playerId, uid, options = {}) {
       || state.pending || state.prompt || state.winner || location.card.faceDown !== true || location.card.declaredEffectId;
     if (invalidNormalEntry) return fail(state, "Scriptの通常起動は処理待ちのない自分メイン中、裏向きの未宣言カードだけ。", false);
   }
-  return runEffectEntry(state, "script", playerId, () => activateScriptCore(state, playerId, uid, options));
+  const activated = runEffectEntry(state, "script", playerId, () => activateScriptCore(state, playerId, uid, options));
+  // A prompt that held a turn end back (a Script window a delayed destruction opened) is answered here.
+  if (activated && prompted) resumeTurnEndWhenSettled(state);
+  return activated;
 }
 
 function declinePromptCore(state) {
@@ -330,10 +334,12 @@ function declinePromptCore(state) {
 }
 
 export function declinePrompt(state) {
-  return runEffectEntry(state, "prompt-decline", state.prompt?.playerId ?? null, () => {
+  const result = runEffectEntry(state, "prompt-decline", state.prompt?.playerId ?? null, () => {
     const declined = declinePromptCore(state);
     // 起動確認を断った後も、保留中の宣言済みScriptの後片付けを進める(選択の解決後と同じ)
     if (declined && !state.pending && !state.prompt) continueDeferredDeclaredScriptCleanup(state);
     return declined;
   });
+  if (result) resumeTurnEndWhenSettled(state);
+  return result;
 }

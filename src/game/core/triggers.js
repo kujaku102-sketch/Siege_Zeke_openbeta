@@ -8,6 +8,7 @@ import { enabledSymbols } from "./play.js";
 import { resumeDeferredAttack } from "./battle.js";
 import { queueDeclaredScriptActivationWindow } from "./scripts.js";
 import { addLog, cardsInPlay, findCard, otherPlayer } from "./shared.js";
+import { resumeTurnEndWhenSettled } from "./turn.js";
 import { executeCardRuntimeSpec } from "../effects/generic/actions.js";
 import { executeTriggerAction } from "../effects/generic/trigger-actions.js";
 
@@ -123,6 +124,8 @@ export function resolveTriggerChoice(state, itemId) {
   const resolved = runEffectEntry(state, "trigger-order", "player", () => resolveTriggerChoiceCore(state, itemId));
   // 攻撃の途中で開いた窓に答えて、窓がもう残っていなければ、預けた攻撃(deferredAttack)を続ける(b8214a6の直しと同じ形。抜けていると攻撃が残ったまま詰む)。
   if (resolved && !state.pending && !state.prompt) resumeDeferredAttack(state);
+  // 誘発の処理順の質問が、ターン終了の途中(遅延破壊の誘発)で開いたものなら、答えが済んだらターン終了を続ける。
+  if (resolved) resumeTurnEndWhenSettled(state);
   return resolved;
 }
 
@@ -159,7 +162,15 @@ export function resumeStalledTriggerThread(state) {
   if (state.pending || state.prompt || state.processingTriggers || state.declaredEffects?.length || state.resolvingDeclaredEffect
     || state.deferredAttack || state.deferredDestruction || state.deferredTrashMoves?.length || state.deferredDeclaredScriptCleanup) return;
   const item = thread.items.find((entry) => entry.status === "awaiting-selection");
-  if (item) resumeTriggerThreadAfterSelection(state, item.id);
+  if (item) { resumeTriggerThreadAfterSelection(state, item.id); return; }
+  // 保険: 処理順の質問(pending)が他の窓に置き換わって消えたまま、誰の項目も動いていないスレッドは、質問を立て直す。
+  // これがないと、答える窓のないまま busy で止まる(legalActions が空のまま)。立て直すのは、動いている項目がなく、
+  // 順番が「player」で、その項目が残っている時だけ。
+  if (state.effectDepth === 0 && thread.currentControllerId === "player"
+    && !thread.items.some((entry) => entry.status === "resolving")
+    && thread.items.some((entry) => entry.status === "pending" && entry.controllerId === "player")) {
+    state.pending = { type: "trigger-order", validTargets: [], threadId: thread.id };
+  }
 }
 
 export function resumeTriggerThreadAfterSelection(state, itemId) {

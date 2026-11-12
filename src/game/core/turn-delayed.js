@@ -43,19 +43,30 @@ export function resolveTurnStartDelayedEffects(state, playerId) {
   }
 }
 
+// A window the effect opened (an order of the triggers it raised, a choice of one of them, a Script prompt) holds the turn end: the effects still due go back, and
+// the turn end carries on when the answer leaves nothing open (turn.js resumeTurnEndWhenSettled). Going on at once would start the next turn on top of the window.
+function holdTurnEnd(state, activeId, rest) {
+  if (!state.pending && !state.prompt) return false;
+  state.delayedEffects = [...rest, ...state.delayedEffects];
+  state.resumeTurnEndAfterSelection = activeId;
+  return true;
+}
+
 export function resolveTurnEndDelayedEffects(state, activeId) {
   const due = state.delayedEffects.filter((effect) => effect.event === "turn_ended"
     && (effect.dueTurn !== undefined ? effect.dueTurn <= state.turnNumber : effect.turnPlayerId === activeId));
   state.delayedEffects = state.delayedEffects.filter((effect) => !due.includes(effect));
-  for (const effect of due) {
+  for (const [index, effect] of due.entries()) {
     if (TRACE && tracing()) waypoint(state, "rule:delayed-effect", true, { phase: "turn_ended", type: effect.type, cardUid: effect.cardUid ?? null, ownerId: effect.ownerId ?? null });
     if (TRACE && tracing()) trace(state, { tag: TRACE_TAGS.CLEANUP, event: "turn-end-delayed", type: effect.type, ownerId: effect.ownerId ?? null, cardUid: effect.cardUid ?? null, sourceName: effect.sourceName ?? null });
     if (effect.type === "destroy_card") {
       destroyCard(state, effect.ownerId, effect.cardUid, { source: `${effect.sourceName}の遅延破壊` });
+      if (holdTurnEnd(state, activeId, due.slice(index + 1))) return true;
       continue;
     }
     if (effect.type === "move_source_from_trash") {
       resolveDelayedTrashMove(state, effect);
+      if (holdTurnEnd(state, activeId, due.slice(index + 1))) return true;
       continue;
     }
     if (effect.type !== "generate_dolls_for_destroyed_ob") continue;

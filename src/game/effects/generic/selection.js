@@ -15,7 +15,7 @@ import { continueDeferredDeclaredResponseCleanup } from "../../core/response.js"
 import { activateScript } from "../../core/scripts.js";
 import { addLog, findCard, hasClass, shuffle } from "../../core/shared.js";
 import { emitGameEvent, emitUserAbilityFeedback, resumeStalledTriggerThread, resumeTriggerThreadAfterSelection } from "../../core/triggers.js";
-import { endTurn } from "../../core/turn.js";
+import { endTurn, resumeTurnEndWhenSettled } from "../../core/turn.js";
 import { CUSTOM_RESOLVE_CARD_SELECTION_CORE, CUSTOM_SELECTION_HANDLERS, PASS } from "../custom/index.js";
 import { executeRuntimeActions } from "./actions.js";
 import { beginSourceLayerSelection, consumeSelectedSourceLayers, continuePlacementCostBatch, ownLayerEntries, placementCostCandidates } from "./cost.js";
@@ -594,10 +594,6 @@ export function resolveCardSelection(state, continuation, result) {
     if (resumed && !state.pending && !state.prompt) resumeStalledTriggerThread(state);
     return resumed;
   });
-  const activeId = state.resumeTurnEndAfterSelection;
-  if (resolved && activeId && !state.pending && !state.prompt) {
-    delete state.resumeTurnEndAfterSelection;
-    if (!state.winner) endTurn(state);
-  }
+  if (resolved) resumeTurnEndWhenSettled(state);
   return resolved;
 }
