@@ -4,6 +4,7 @@ import { emitGameEvent } from "../../game/core/triggers.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { destroyCard } from "../../game/effects/generic/destroy.js";
 import { createVengeanceCard } from "../../game/effects/generic/generate.js";
+import { distributeLayeredFollowers, revealMountedCode } from "../../game/effects/generic/trash.js";
 import { emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
 
 // handlers (was effects/custom/std_227.js)
@@ -25,7 +26,9 @@ export function resolveImperialRandomInstall(state, playerId, sourceName) {
     const index = opponent[zone].findIndex((card) => card.uid === chosen.uid);
     if (index < 0) continue;
     const [card] = opponent[zone].splice(index, 1);
+    if (["front", "back"].includes(zone)) revealMountedCode(opponent[zone], index, card, opponentId, zone);
     opponent.registry.push(card);
+    if (["front", "back"].includes(zone)) distributeLayeredFollowers(state, card, "registry", sourceName);
     moved += 1;
     emitGameEvent(state, { type: "card_moved", playerId: opponentId, ownerId: card.owner ?? opponentId,
       cardUid: card.uid, cardId: card.id, cardName: card.name, category: card.category, from: zone, to: "registry", source: sourceName });

@@ -27,7 +27,7 @@ import { openRuntimeAccessSelection, runtimeSourceFromContinuation } from "./sel
 import { openRuntimeRepeatSelectMove } from "./selection-choice.js";
 import { moveRemainderToDeck, takeViewedFromDeck } from "./selection-modules.js";
 import { runtimeSelectionCandidates } from "./selection-target.js";
-import { moveCardToTrash } from "./trash.js";
+import { distributeLayeredFollowers, moveCardToTrash, revealMountedCode } from "./trash.js";
 import { addTimedModifier } from "./trigger-actions.js";
 
 function resolveCardSelectionCore(state, continuation, result) {
@@ -66,7 +66,10 @@ function resolveCardSelectionCore(state, continuation, result) {
     const sourceZone = player[continuation.sourceZone];
     const index = sourceZone?.findIndex((card) => card.uid === selected.uid) ?? -1;
     if (index < 0 || continuation.destination !== "hand") return false;
-    player.hand.push(...sourceZone.splice(index, 1));
+    const [moved] = sourceZone.splice(index, 1);
+    if (["front", "back"].includes(continuation.sourceZone)) revealMountedCode(sourceZone, index, moved, playerId, continuation.sourceZone);
+    player.hand.push(moved);
+    if (["front", "back"].includes(continuation.sourceZone)) distributeLayeredFollowers(state, moved, "hand", continuation.sourceName);
     state.pending = null;
     return openRuntimeRepeatSelectMove(state, playerId, source, {
       selector: continuation.selector, source: continuation.sourceZone,

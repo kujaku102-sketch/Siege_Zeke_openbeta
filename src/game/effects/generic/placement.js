@@ -196,6 +196,7 @@ export function placeCardByEffect(state, { sourceOwnerId, controllerId, cardUid,
   const sourceCard = sourceCards[sourceIndex];
   if (underUid && (!host || sourceCard.category !== "Code")) return { status: "invalid" };
   const [removed] = sourceCards.splice(sourceIndex, 1);
+  if (["front", "back"].includes(sourceZone)) revealMountedCode(sourceCards, sourceIndex, removed, sourceOwnerId, sourceZone);
   const card = removed;
   if (host) {
     card.layerRole = "code";

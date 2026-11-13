@@ -319,11 +319,22 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
       const beneficiaryId = location.card.owner ?? location.playerId;
       const index = controller[action.source].findIndex((card) => card.uid === uid);
       if (index < 0) return false;
+      // 3.4: a Code mounted by ordinary execution stays in its square when the card above it leaves or moves; 3.5: layered materials follow it to the hand
       if (action.destination === "hand") {
-        controller.hand.push(...controller[action.source].splice(index, 1));
+        const [moved] = controller[action.source].splice(index, 1);
+        if (["front", "back"].includes(action.source)) {
+          const revealed = revealMountedCode(controller[action.source], index, moved, location.playerId, action.source);
+          if (revealed) addLog(state, `${moved.name}の下にあった${revealed.name}は場に残る。`, "effect");
+        }
+        controller.hand.push(moved);
+        if (["front", "back"].includes(action.source)) distributeLayeredFollowers(state, moved, "hand", source.name);
       } else if (action.destination === "back") {
         if (!placementResult(controller, "back").ok) return false;
         const [moved] = controller[action.source].splice(index, 1);
+        if (["front", "back"].includes(action.source)) {
+          const revealed = revealMountedCode(controller[action.source], index, moved, location.playerId, action.source);
+          if (revealed) addLog(state, `${moved.name}の下にあった${revealed.name}は移動前のエリアに残る。`, "effect");
+        }
         if (placeByMode(state, location.playerId, moved, { zone: "back", mode: "normal", from: action.source, source: source.name }) !== "placed") return false;
         triggerMoved(state, location.playerId, moved, action.source, "back");
       } else return false;

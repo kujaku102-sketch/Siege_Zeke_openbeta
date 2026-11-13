@@ -2,6 +2,7 @@ import { dealFortressDamage } from "../../game/core/deal-damage.js";
 import { addLog, otherPlayer, payMemory } from "../../game/core/shared.js";
 import { PASS } from "../../game/effects/custom/index.js";
 import { emitEffectPlacement, placeByMode } from "../../game/effects/generic/placement.js";
+import { revealMountedCode } from "../../game/effects/generic/trash.js";
 
 // handlers (was effects/custom/std_228.js)
 export function std228ActivateCardEffectCore({ playerId, state, player, effect, card }) {
@@ -14,6 +15,8 @@ export function std228ActivateCardEffectCore({ playerId, state, player, effect, 
     const sourceIndex = player[sourceZone].findIndex((item) => item.uid === card.uid);
     if (sourceIndex < 0) return false;
     const [moved] = player[sourceZone].splice(sourceIndex, 1);
+    const revealed = revealMountedCode(player[sourceZone], sourceIndex, moved, playerId, sourceZone);
+    if (revealed) addLog(state, `${moved.name}の下にあった${revealed.name}は移動前のエリアに残る。`, "effect");
     const zone = zones[Math.floor(state.rng() * zones.length)];
     if (placeByMode(state, opponentId, moved, { zone, from: sourceZone, source: card.name }) !== "placed") return true;
     emitEffectPlacement(state, opponentId, moved, zone, card.name);
