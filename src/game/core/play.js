@@ -2,7 +2,7 @@ import { TRACE, tracing, waypoint } from "../engine-trace.js";
 import { cardAtBoardSlot, inheritBoardSlot, projectZoneSlots } from "../board-slots.js";
 import { cardPlacementCostSpec } from "../card-runtime-specs.js";
 import { isObCard, isObCategory } from "../card-types.js";
-import { placementPermissionSpecsFor } from "../continuous-effect-specs.js";
+import { forbidsMountOnSource, placementPermissionSpecsFor } from "../continuous-effect-specs.js";
 import { layeredMaterialsPreparable, layeredSpecFor } from "../layered-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { hasOptionalActivationSpec } from "../trigger-specs.js";
@@ -82,7 +82,7 @@ export function canPlayCard(state, playerId, card, { ignoreColor = false, free =
   const player = state.players[playerId];
   if (baseUid || underUid) {
     const host = player[zone]?.find(item => item.uid === (baseUid ?? underUid));
-    if (!host || baseUid && underUid || baseUid && (host.category !== "Code" || !isObCard(card)) || underUid && (!isObCard(host) || card.category !== "Code") || host.faceDown || placementPermissionSpecsFor(host.id).some(spec => spec.type === "forbid_mount_on_source")) return { ok: false, reason: "このカードにはマウントできません。" };
+    if (!host || baseUid && underUid || baseUid && (host.category !== "Code" || !isObCard(card)) || underUid && (!isObCard(host) || card.category !== "Code") || host.faceDown || forbidsMountOnSource(host) || underUid && forbidsMountOnSource(card)) return { ok: false, reason: "このカードにはマウントできません。" };
   }
   const placementCostSpec = cardPlacementCostSpec(card.id);
   if (placementPermissionSpecsFor(card.id).some((spec) => spec.type === "forbid_execution")) return { ok: false, code: "EXECUTION_FORBIDDEN", reason: "このカードは実行できない。" };
@@ -204,14 +204,15 @@ export function playCardCore(state, playerId, uid, { targetUid = null, targetUid
     baseIndex = player[zone]?.findIndex((item) => item.uid === baseUid) ?? -1;
     baseCard = baseIndex >= 0 ? player[zone][baseIndex] : null;
     if (!baseCard || baseCard.category !== "Code") return fail(state, "上に実行するCodeを選んで。", force);
-    if (placementPermissionSpecsFor(baseCard.id).some((spec) => spec.type === "forbid_mount_on_source")) return fail(state, "このCodeにはカードをマウントできない。", force);
+    if (forbidsMountOnSource(baseCard)) return fail(state, "このCodeにはカードをマウントできない。", force);
     if (!isObCard(card)) return fail(state, "Codeの上へ実行できるのはOb。", force);
   }
   if (underUid) {
     upperCard = player[zone]?.find((item) => item.uid === underUid) ?? null;
     if (!upperCard || !isObCard(upperCard)) return fail(state, "Codeを配置するObを選んで。", force);
     if (card.category !== "Code") return fail(state, "Obの下へ配置できるのはCode。", force);
-    if (placementPermissionSpecsFor(upperCard.id).some((spec) => spec.type === "forbid_mount_on_source")) return fail(state, "このカードにはカードをマウントできない。", force);
+    if (forbidsMountOnSource(upperCard)) return fail(state, "このカードにはカードをマウントできない。", force);
+    if (forbidsMountOnSource(card)) return fail(state, "このCodeはObの下に置けない（カードをマウントできない）。", force);
   }
   const magazineAmount = magazineDecision && magazineMatch ? Number(magazineMatch[1]) : 0;
   const uniqueMagazineLayerUids = [...new Set(magazineLayerUids)];

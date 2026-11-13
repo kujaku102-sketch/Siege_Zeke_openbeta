@@ -46,3 +46,5 @@ export const auraBattleStatSpecsFor = (cardId) => specsFor(CARD_AURA_BATTLE_STAT
 export const attackPermissionSpecsFor = (cardId) => specsFor(CARD_ATTACK_PERMISSION_SPECS, cardId);
 export const destructionPermissionSpecsFor = (cardId) => specsFor(CARD_DESTRUCTION_PERMISSION_SPECS, cardId);
 export const placementPermissionSpecsFor = (cardId) => specsFor(CARD_PLACEMENT_PERMISSION_SPECS, cardId);
+// "これにカードをマウントできない": no card is mounted on it, so such a Code is not a base for an Ob (aboveCode) and not placed under an Ob either (belowOb, the Ob over it would be mounted on it).
+export const forbidsMountOnSource = (card) => Boolean(card) && placementPermissionSpecsFor(card.id).some((spec) => spec.type === "forbid_mount_on_source");

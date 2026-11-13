@@ -1,6 +1,6 @@
 import { inheritBoardSlot, normalizeBoardSlots } from "../board-slots.js";
 import { isObCard } from "../card-types.js";
-import { placementPermissionSpecsFor } from "../continuous-effect-specs.js";
+import { forbidsMountOnSource } from "../continuous-effect-specs.js";
 import { flattenedLayerCount, normalizeMountedStack } from "../layered-specs.js";
 import { createSelectionRequest } from "../selection-model.js";
 import { resolveEffect } from "./effects.js";
@@ -28,7 +28,7 @@ export function relogPreparationKind(card, layerCount = flattenedLayerCount(card
 export function relogBaseCode(player, zone, baseUid) {
   const host = player?.[zone]?.find((item) => item.uid === baseUid) ?? null;
   if (!host || host.category !== "Code" || host.faceDown
-    || placementPermissionSpecsFor(host.id).some((spec) => spec.type === "forbid_mount_on_source")) return null;
+    || forbidsMountOnSource(host)) return null;
   return host;
 }
 

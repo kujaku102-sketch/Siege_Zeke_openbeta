@@ -1,7 +1,7 @@
 import { TRACE_TAGS, trace, TRACE, tracing, waypoint } from "../../engine-trace.js";
 import { placeCardInBoardSlot } from "../../board-slots.js";
 import { isObCard } from "../../card-types.js";
-import { mountEventSpecsFor } from "../../continuous-effect-specs.js";
+import { forbidsMountOnSource, mountEventSpecsFor } from "../../continuous-effect-specs.js";
 import { evaluatePlacement } from "../../placement-policy.js";
 import { createSelectionRequest } from "../../selection-model.js";
 import { dealFortressDamage } from "../../core/deal-damage.js";
@@ -194,7 +194,7 @@ export function placeCardByEffect(state, { sourceOwnerId, controllerId, cardUid,
   if (sourceIndex < 0) return { status: "missing" };
   const host = underUid ? targetCards.find((card) => card.uid === underUid && isObCard(card)) : null;
   const sourceCard = sourceCards[sourceIndex];
-  if (underUid && (!host || sourceCard.category !== "Code")) return { status: "invalid" };
+  if (underUid && (!host || sourceCard.category !== "Code" || forbidsMountOnSource(sourceCard) || forbidsMountOnSource(host))) return { status: "invalid" };
   const [removed] = sourceCards.splice(sourceIndex, 1);
   if (["front", "back"].includes(sourceZone)) revealMountedCode(sourceCards, sourceIndex, removed, sourceOwnerId, sourceZone);
   const card = removed;

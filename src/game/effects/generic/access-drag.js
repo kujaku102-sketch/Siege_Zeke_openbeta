@@ -2,6 +2,7 @@ import { isObCard } from "../../card-types.js";
 import { settleStd048MandatoryPlacement } from "../../../cards/std/std_048_effects.js";
 import { runEffectEntry } from "../../core/effects.js";
 import { vacantBoardSlots } from "../../board-slots.js";
+import { forbidsMountOnSource } from "../../continuous-effect-specs.js";
 import { addLog, findCard } from "../../core/shared.js";
 import { resumeDeferredAttack } from "../../core/battle.js";
 import { resumeTriggerThreadAfterSelection } from "../../core/triggers.js";
@@ -16,7 +17,7 @@ export function placementChoices(state, pending) {
   const placing = pending.type === "decode-place" ? pending.cards.find((item) => item.uid === uid) : player.hand.find((item) => item.uid === uid);
   const slots = ["front", "back"].flatMap((zone) => vacantBoardSlots(player[zone], { controllerId: pending.playerId, zoneName: zone, limit: player.user?.[`${zone}Limit`] })
     .map((slot) => ({ zone, slot })));
-  const hosts = placing?.category !== "Code" ? [] : ["front", "back"].flatMap((zone) => player[zone]
+  const hosts = placing?.category !== "Code" || forbidsMountOnSource(placing) ? [] : ["front", "back"].flatMap((zone) => player[zone]
     .filter((card) => !card.faceDown && isObCard(card)).map((card) => ({ zone, underUid: card.uid })));
   return { placing, slots, hosts };
 }
@@ -56,7 +57,7 @@ export function resolveAccessDragPlacementCore(state, playerId, zone, underUid =
   if (pending.type === "decode-place") {
     const target = state.players[playerId][zone];
     const host = underUid ? target?.find((item) => item.uid === underUid && isObCard(item)) : null;
-    if (!target || !(isObCard(card) || card.category === "Code") || (underUid && (!host || card.category !== "Code"))) { state.pending = pending; return false; }
+    if (!target || !(isObCard(card) || card.category === "Code") || (underUid && (!host || card.category !== "Code" || forbidsMountOnSource(card) || forbidsMountOnSource(host)))) { state.pending = pending; return false; }
     card.sleep = false;
     card.damage = 0;
     if (host) {
