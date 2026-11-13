@@ -125,8 +125,9 @@ export function revealMountedCode(zone, index, topCard, controllerId, zoneName) 
   return revealUnderlyingCard(zone, index, { ...topCard, mounted: mountedCode }, controllerId, zoneName);
 }
 
-// Two Obs of one user exchange positions. The Ob moves, so a Code mounted by ordinary execution stays in the square (3.4):
+// Two own Obs exchange positions. The Ob moves, so a Code mounted by ordinary execution stays in the square (3.4):
 // each Ob gives its mounted Code to the other and takes the one of the square it comes to. Layered materials go with their Ob (3.5).
+// The order of the stack is kept: the incoming Code takes the place in the stack where the Ob's own Code was; an Ob that had none gets it at the end (as the execution under an Ob does).
 export function exchangeMountedCode(first, second) {
   normalizeMountedStack(first);
   normalizeMountedStack(second);
@@ -134,8 +135,15 @@ export function exchangeMountedCode(first, second) {
   const firstCodes = (first.mounted ?? []).filter(isMount);
   const secondCodes = (second.mounted ?? []).filter(isMount);
   if (!firstCodes.length && !secondCodes.length) return;
-  first.mounted = [...secondCodes, ...(first.mounted ?? []).filter((layer) => !isMount(layer))];
-  second.mounted = [...firstCodes, ...(second.mounted ?? []).filter((layer) => !isMount(layer))];
+  const replaceCodes = (card, incoming) => {
+    const stack = card.mounted ?? [];
+    const at = stack.findIndex(isMount);
+    const kept = stack.filter((layer) => !isMount(layer));
+    kept.splice(at < 0 ? kept.length : at, 0, ...incoming);
+    card.mounted = kept;
+  };
+  replaceCodes(first, secondCodes);
+  replaceCodes(second, firstCodes);
 }
 
 export function distributeLayeredFollowers(state, topCard, destination, source) {
