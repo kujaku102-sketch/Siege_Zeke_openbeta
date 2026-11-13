@@ -20,7 +20,7 @@ import { openRuntimeAccessSelection } from "./selection-access.js";
 import { openRuntimeChoiceSelection, openRuntimeRepeatSelectMove, openRuntimeZoneChoice } from "./selection-choice.js";
 import { openRuntimeDecodeSelection } from "./selection-decode.js";
 import { openRuntimePlayerSelection, openRuntimeTargetSelection } from "./selection-target.js";
-import { clearComponents, distributeLayeredFollowers, moveCardToTrash, revealMountedCode, triggerMoved } from "./trash.js";
+import { clearComponents, distributeLayeredFollowers, exchangeMountedCode, moveCardToTrash, revealMountedCode, triggerMoved } from "./trash.js";
 import { addTimedModifier } from "./trigger-actions.js";
 
 export function executeRuntimeActions(state, playerId, source, actions, { targetUid = null, targetUids = [], runtime = { records: Object.create(null) }, continuationMeta = {} } = {}) {
@@ -362,6 +362,7 @@ export function executeRuntimeActions(state, playerId, source, actions, { target
       const firstIndex = player[first.zoneName].findIndex((card) => card.uid === first.card.uid);
       const secondIndex = player[second.zoneName].findIndex((card) => card.uid === second.card.uid);
       swapBoardSlots(first.card, second.card);
+      exchangeMountedCode(first.card, second.card);
       player[first.zoneName][firstIndex] = second.card;
       player[second.zoneName][secondIndex] = first.card;
       triggerMoved(state, playerId, first.card, first.zoneName, second.zoneName);

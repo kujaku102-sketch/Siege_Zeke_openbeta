@@ -125,6 +125,19 @@ export function revealMountedCode(zone, index, topCard, controllerId, zoneName) 
   return revealUnderlyingCard(zone, index, { ...topCard, mounted: mountedCode }, controllerId, zoneName);
 }
 
+// Two Obs of one user exchange positions. The Ob moves, so a Code mounted by ordinary execution stays in the square (3.4):
+// each Ob gives its mounted Code to the other and takes the one of the square it comes to. Layered materials go with their Ob (3.5).
+export function exchangeMountedCode(first, second) {
+  normalizeMountedStack(first);
+  normalizeMountedStack(second);
+  const isMount = (layer) => layer.layerRole !== "layered";
+  const firstCodes = (first.mounted ?? []).filter(isMount);
+  const secondCodes = (second.mounted ?? []).filter(isMount);
+  if (!firstCodes.length && !secondCodes.length) return;
+  first.mounted = [...secondCodes, ...(first.mounted ?? []).filter((layer) => !isMount(layer))];
+  second.mounted = [...firstCodes, ...(second.mounted ?? []).filter((layer) => !isMount(layer))];
+}
+
 export function distributeLayeredFollowers(state, topCard, destination, source) {
   if (!Array.isArray(topCard.mounted) || !topCard.mounted.length) return;
   normalizeMountedStack(topCard);
